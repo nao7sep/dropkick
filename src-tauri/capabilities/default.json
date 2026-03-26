@@ -9,11 +9,23 @@
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick" }, { "path": "$HOME/.dropkick/**" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick" }, { "path": "$HOME/.dropkick/**" }]
+    },
     "fs:default",
-    "fs:allow-read-text-file",
-    "fs:allow-write-text-file",
-    "fs:allow-exists",
-    "fs:allow-mkdir",
     "store:default"
   ]
 }

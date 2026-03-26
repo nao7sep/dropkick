@@ -13,6 +13,7 @@ import { MainWindow } from "./components/layout/MainWindow";
 type AppPhase =
   | { kind: "loading" }
   | { kind: "startup"; config: AppConfigDto }
+  | { kind: "error"; message: string }
   | { kind: "main" };
 
 function App() {
@@ -23,8 +24,14 @@ function App() {
   // Initialize on mount.
   useEffect(() => {
     (async () => {
-      const { config } = await initializeAppConfig();
-      setPhase({ kind: "startup", config });
+      try {
+        const { config } = await initializeAppConfig();
+        setPhase({ kind: "startup", config });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        console.error("Failed to initialize:", e);
+        setPhase({ kind: "error", message });
+      }
     })();
   }, []);
 
@@ -58,6 +65,18 @@ function App() {
       return (
         <div className="flex h-screen items-center justify-center bg-gray-50">
           <div className="text-gray-400">Loading...</div>
+        </div>
+      );
+
+    case "error":
+      return (
+        <div className="flex h-screen items-center justify-center bg-gray-50">
+          <div className="max-w-md rounded-lg bg-white p-6 shadow-lg">
+            <h2 className="mb-2 text-lg font-bold text-red-600">
+              Startup Error
+            </h2>
+            <p className="text-sm text-gray-600">{phase.message}</p>
+          </div>
         </div>
       );
 

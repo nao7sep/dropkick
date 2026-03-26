@@ -18,7 +18,9 @@ const DEFAULT_WORKSPACE_FILE = "default-workspace.json";
 // Returns the full path to ~/.dropkick/
 async function getDropkickDir(): Promise<string> {
   const home = await homeDir();
-  return `${home}${DROPKICK_DIR}`;
+  // homeDir() may or may not include a trailing slash depending on platform.
+  const separator = home.endsWith("/") || home.endsWith("\\") ? "" : "/";
+  return `${home}${separator}${DROPKICK_DIR}`;
 }
 
 // Returns the full path to ~/.dropkick/app.json
