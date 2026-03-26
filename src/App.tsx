@@ -1,51 +1,78 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+// App root — orchestrates the startup picker and main window.
+// On launch: initialize app config → show startup picker → load preferences & workspace → show main window.
+
+import { useState, useEffect } from "react";
 import "./App.css";
+import type { AppConfigDto } from "./models";
+import { initializeAppConfig, saveAppConfig } from "./repositories";
+import { usePreferencesStore } from "./state/preferences-store";
+import { useWorkspaceStore } from "./state/workspace-store";
+import { StartupPicker } from "./components/layout/StartupPicker";
+import { MainWindow } from "./components/layout/MainWindow";
+
+type AppPhase =
+  | { kind: "loading" }
+  | { kind: "startup"; config: AppConfigDto }
+  | { kind: "main" };
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
+  const loadPreferences = usePreferencesStore((s) => s.load);
+  const loadWorkspace = useWorkspaceStore((s) => s.load);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  // Initialize on mount.
+  useEffect(() => {
+    (async () => {
+      const { config } = await initializeAppConfig();
+      setPhase({ kind: "startup", config });
+    })();
+  }, []);
 
-  return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+  const handleConfigChange = (config: AppConfigDto) => {
+    setPhase({ kind: "startup", config });
+  };
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+  const handleLaunch = async (
+    preferencesPath: string,
+    workspacePath: string,
+  ) => {
+    if (phase.kind !== "startup") return;
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+    // Remember the selection.
+    const updated = {
+      ...phase.config,
+      lastPreferencesPath: preferencesPath,
+      lastWorkspacePath: workspacePath,
+    };
+    await saveAppConfig(updated);
+
+    // Load preferences and workspace into stores.
+    await loadPreferences(preferencesPath);
+    await loadWorkspace(workspacePath);
+
+    setPhase({ kind: "main" });
+  };
+
+  switch (phase.kind) {
+    case "loading":
+      return (
+        <div className="flex h-screen items-center justify-center bg-gray-50">
+          <div className="text-gray-400">Loading...</div>
+        </div>
+      );
+
+    case "startup":
+      return (
+        <StartupPicker
+          appConfig={phase.config}
+          onConfigChange={handleConfigChange}
+          onLaunch={handleLaunch}
         />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
+      );
+
+    case "main":
+      return <MainWindow />;
+  }
 }
 
 export default App;
