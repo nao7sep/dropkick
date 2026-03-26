@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import type { AppConfigDto } from "../../models";
 import {
+  readJsonFile,
   saveJsonFileDialog,
   registerPreferencesPath,
   registerWorkspacePath,
@@ -206,7 +207,6 @@ async function tryOpenOrCreate(
 
   try {
     // Try to read it — if it exists and is valid JSON, it's an existing file.
-    const { readJsonFile } = await import("../../repositories");
     const existing = await readJsonFile(normalizedPath);
     if (existing !== null) return normalizedPath;
   } catch {

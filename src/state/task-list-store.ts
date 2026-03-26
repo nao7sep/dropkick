@@ -3,7 +3,6 @@
 
 import { create } from "zustand";
 import type { TaskListDto, NoteFormat, NoteActionability, TaskStatus, TaskPriority } from "../models";
-import type { Task } from "../models";
 import type { WriteResult } from "../repositories";
 import {
   loadTaskList,
@@ -12,7 +11,7 @@ import {
   forceWriteTaskList,
   atomicMoveWrite,
 } from "../repositories";
-import { toTask, createTask, createNote } from "../utils";
+import { createTask, createNote } from "../utils";
 import {
   canTransitionStatus,
   kickTasks,
@@ -96,9 +95,6 @@ interface TaskListState {
   forceWrite: (filePath: string) => Promise<void>;
   reloadFile: (filePath: string) => Promise<void>;
 
-  // Getters: domain models with computed properties.
-  getTasksForFile: (filePath: string, timezone: string | null) => Task[];
-  getAllTasks: (timezone: string | null) => Task[];
 }
 
 // Helper: update a file's data in the map and write to disk.
@@ -414,22 +410,4 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     }));
   },
 
-  // --- Getters ---
-
-  getTasksForFile: (filePath: string, timezone: string | null): Task[] => {
-    const fileState = get().files[filePath];
-    if (!fileState) return [];
-    return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone));
-  },
-
-  getAllTasks: (timezone: string | null): Task[] => {
-    const { files } = get();
-    const allTasks: Task[] = [];
-    for (const [filePath, fileState] of Object.entries(files)) {
-      for (const dto of fileState.data.tasks) {
-        allTasks.push(toTask(dto, filePath, timezone));
-      }
-    }
-    return allTasks;
-  },
 }));
