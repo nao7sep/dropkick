@@ -1,11 +1,13 @@
 // Main window — tab bar + two-panel layout (task list | task detail).
 
-import { useEffect, Component } from "react";
+import { useEffect, useState, Component } from "react";
 import type { ReactNode } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
+import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { TabBar } from "./TabBar";
+import { SettingsModal } from "./SettingsModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
 
@@ -48,6 +50,15 @@ export function MainWindow() {
   const loadFile = useTaskListStore((s) => s.loadFile);
   const clearSelection = useTaskListStore((s) => s.clearSelection);
 
+  const [showSettings, setShowSettings] = useState(false);
+
+  const hasActiveTab = activeTab !== null;
+  const isUnifiedView = activeTab?.isUnifiedView ?? false;
+  const filePath = activeTab?.filePath ?? "";
+
+  // Register global keyboard shortcuts.
+  useKeyboardShortcuts(filePath, isUnifiedView);
+
   // Load the active tab's file when the active tab changes.
   useEffect(() => {
     (async () => {
@@ -78,10 +89,6 @@ export function MainWindow() {
     })();
   }, [activeTab?.isUnifiedView, workspace.openTabs.length]);
 
-  const hasActiveTab = activeTab !== null;
-  const isUnifiedView = activeTab?.isUnifiedView ?? false;
-  const filePath = activeTab?.filePath ?? "";
-
   return (
     <div
       className="flex h-screen flex-col bg-gray-50"
@@ -91,7 +98,7 @@ export function MainWindow() {
       }}
     >
       {/* Tab bar */}
-      <TabBar />
+      <TabBar onOpenSettings={() => setShowSettings(true)} />
 
       {/* Content area */}
       {hasActiveTab ? (
@@ -119,6 +126,11 @@ export function MainWindow() {
             </p>
           </div>
         </div>
+      )}
+
+      {/* Settings modal */}
+      {showSettings && (
+        <SettingsModal onClose={() => setShowSettings(false)} />
       )}
     </div>
   );
