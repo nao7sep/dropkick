@@ -43,9 +43,11 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   }
 
   const handleTitleBlur = async () => {
-    if (titleDraft !== task.title) {
-      await updateTitle(filePath, task.id, titleDraft);
+    const trimmed = titleDraft.trim();
+    if (trimmed !== task.title) {
+      await updateTitle(filePath, task.id, trimmed);
     }
+    setTitleDraft(trimmed);
   };
 
   const handleDescBlur = async () => {
