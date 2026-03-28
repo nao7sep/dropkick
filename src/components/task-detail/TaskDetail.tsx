@@ -28,7 +28,9 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   const addNewNote = useTaskListStore((s) => s.addNewNote);
   const kickDistances = preferences.kickDistances;
   const kick = useTaskListStore((s) => s.kick);
-  const kickToEnd = useTaskListStore((s) => s.kickToEnd);
+  const sendToFirst = useTaskListStore((s) => s.sendToFirst);
+  const sendToLast = useTaskListStore((s) => s.sendToLast);
+  const dropkick = useTaskListStore((s) => s.dropkick);
 
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description);
@@ -131,8 +133,14 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
         </div>
       </div>
 
-      {/* Kick buttons */}
+      {/* Reorder buttons */}
       <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => sendToFirst(filePath)}
+          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+        >
+          Tackle
+        </button>
         {kickDistances.map((d) => (
           <button
             key={d}
@@ -143,8 +151,14 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
           </button>
         ))}
         <button
-          onClick={() => kickToEnd(filePath)}
+          onClick={() => sendToLast(filePath)}
           className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+        >
+          Kick
+        </button>
+        <button
+          onClick={() => dropkick(filePath)}
+          className="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50"
         >
           Dropkick
         </button>

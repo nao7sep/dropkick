@@ -1,5 +1,5 @@
 // Global keyboard shortcuts — registered once in MainWindow.
-// Handles task creation, navigation, kick, tab switching, etc.
+// Handles task creation, navigation, reorder, tab switching, etc.
 // Shortcuts are suppressed when the user is typing in an input/textarea/select.
 
 import { useEffect, useCallback, useMemo } from "react";
@@ -7,6 +7,7 @@ import { useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 import { usePreferencesStore } from "../state/preferences-store";
 import { showConfirm } from "../repositories";
+import { groupTasksForList, groupTasksForUnifiedView } from "../services";
 import type { Task } from "../models";
 import { toTask } from "../utils";
 
@@ -28,8 +29,10 @@ export function useKeyboardShortcuts(
   const addNewTask = useTaskListStore((s) => s.addNewTask);
   const addNewNote = useTaskListStore((s) => s.addNewNote);
   const setStatus = useTaskListStore((s) => s.setStatus);
-  const kick = useTaskListStore((s) => s.kick);
-  const kickToEnd = useTaskListStore((s) => s.kickToEnd);
+  const moveUp = useTaskListStore((s) => s.moveUp);
+  const moveDown = useTaskListStore((s) => s.moveDown);
+  const sendToFirst = useTaskListStore((s) => s.sendToFirst);
+  const sendToLast = useTaskListStore((s) => s.sendToLast);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
@@ -37,29 +40,43 @@ export function useKeyboardShortcuts(
   const addUnifiedViewTab = useWorkspaceStore((s) => s.addUnifiedViewTab);
 
   const timezone = preferences.timezone;
-  const kickDistances = preferences.kickDistances;
 
-  // Compute flat task list for arrow navigation.
-  const allTasks: Task[] = useMemo(() => {
+  // Compute tasks in visual (grouped) order for arrow navigation.
+  const visualTasks: Task[] = useMemo(() => {
+    const allTasks: Task[] = [];
     if (isUnifiedView) {
-      const tasks: Task[] = [];
       for (const [fp, fileState] of Object.entries(files)) {
         for (const dto of fileState.data.tasks) {
-          tasks.push(toTask(dto, fp, timezone));
+          allTasks.push(toTask(dto, fp, timezone));
         }
       }
-      return tasks;
+    } else {
+      const fileState = files[filePath];
+      if (!fileState) return [];
+      for (const dto of fileState.data.tasks) {
+        allTasks.push(toTask(dto, filePath, timezone));
+      }
     }
-    const fileState = files[filePath];
-    if (!fileState) return [];
-    return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone));
+
+    // Group and flatten to get visual order.
+    const grouped = isUnifiedView
+      ? groupTasksForUnifiedView(allTasks)
+      : groupTasksForList(allTasks);
+
+    return grouped.groups.flatMap((g) => g.tasks);
   }, [files, filePath, isUnifiedView, timezone]);
 
-  // Only active (Pending) tasks for navigation — they're the ones visible in groups.
-  const activeTasks = useMemo(
-    () => allTasks.filter((t) => t.status === "Pending"),
-    [allTasks],
-  );
+  // All tasks (for finding sourceFile in unified view).
+  const allTasks: Task[] = useMemo(() => {
+    if (!isUnifiedView) return [];
+    const tasks: Task[] = [];
+    for (const [fp, fileState] of Object.entries(files)) {
+      for (const dto of fileState.data.tasks) {
+        tasks.push(toTask(dto, fp, timezone));
+      }
+    }
+    return tasks;
+  }, [files, isUnifiedView, timezone]);
 
   const handler = useCallback(
     async (e: KeyboardEvent) => {
@@ -68,7 +85,7 @@ export function useKeyboardShortcuts(
       // --- Ctrl/Cmd+N: New task ---
       if (mod && !e.shiftKey && e.key === "n") {
         if (isTyping(e)) return;
-        if (isUnifiedView) return; // Can't create tasks in unified view.
+        if (isUnifiedView) return;
         e.preventDefault();
         await addNewTask(filePath, "");
         return;
@@ -106,78 +123,81 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+↓: Short kick ---
+      // --- Ctrl/Cmd+Up: Move selection up one position ---
+      if (mod && !e.shiftKey && e.key === "ArrowUp") {
+        if (isTyping(e)) return;
+        if (isUnifiedView || selectedIds.size === 0) return;
+        e.preventDefault();
+        await moveUp(filePath);
+        return;
+      }
+
+      // --- Ctrl/Cmd+Down: Move selection down one position ---
       if (mod && !e.shiftKey && e.key === "ArrowDown") {
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        const distance = kickDistances[0] ?? 5;
-        await kick(filePath, distance);
+        await moveDown(filePath);
         return;
       }
 
-      // --- Ctrl/Cmd+Shift+↓: Long kick ---
-      if (mod && e.shiftKey && e.key === "ArrowDown") {
+      // --- Ctrl/Cmd+Home: Send to first in group (Tackle) ---
+      if (mod && e.key === "Home") {
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        const distance = kickDistances[1] ?? 25;
-        await kick(filePath, distance);
+        await sendToFirst(filePath);
         return;
       }
 
-      // --- Ctrl/Cmd+End: Kick to end ---
+      // --- Ctrl/Cmd+End: Send to last in group (Kick) ---
       if (mod && e.key === "End") {
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        await kickToEnd(filePath);
+        await sendToLast(filePath);
         return;
       }
 
-      // --- ↑/↓: Move selection ---
+      // --- ↑/↓: Move selection (visual order) ---
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         if (isTyping(e) || mod) return;
-        if (activeTasks.length === 0) return;
+        if (visualTasks.length === 0) return;
         e.preventDefault();
 
         const direction = e.key === "ArrowDown" ? 1 : -1;
 
         if (selectedIds.size === 0) {
-          // Nothing selected — select first or last.
           const task =
             direction === 1
-              ? activeTasks[0]
-              : activeTasks[activeTasks.length - 1];
+              ? visualTasks[0]
+              : visualTasks[visualTasks.length - 1];
           setSelection(new Set([task.id]));
           return;
         }
 
-        // Find the "anchor" — the last item in the selection set.
+        // Find the anchor — last item in the selection set.
         const lastId = [...selectedIds].pop()!;
-        const currentIdx = activeTasks.findIndex((t) => t.id === lastId);
+        const currentIdx = visualTasks.findIndex((t) => t.id === lastId);
         if (currentIdx === -1) {
-          setSelection(new Set([activeTasks[0].id]));
+          setSelection(new Set([visualTasks[0].id]));
           return;
         }
 
         const nextIdx = currentIdx + direction;
-        if (nextIdx < 0 || nextIdx >= activeTasks.length) return;
+        if (nextIdx < 0 || nextIdx >= visualTasks.length) return;
 
         if (e.shiftKey) {
-          // Extend selection.
           const next = new Set(selectedIds);
-          next.add(activeTasks[nextIdx].id);
+          next.add(visualTasks[nextIdx].id);
           setSelection(next);
         } else {
-          // Move selection.
-          setSelection(new Set([activeTasks[nextIdx].id]));
+          setSelection(new Set([visualTasks[nextIdx].id]));
         }
         return;
       }
 
       // --- Ctrl/Cmd+Tab / Ctrl/Cmd+Shift+Tab: Switch tabs ---
-      // Note: some browsers intercept Ctrl+Tab. We try anyway.
       if (mod && e.key === "Tab") {
         e.preventDefault();
         const tabs = workspace.openTabs;
@@ -222,16 +242,17 @@ export function useKeyboardShortcuts(
       filePath,
       isUnifiedView,
       selectedIds,
-      activeTasks,
+      visualTasks,
       allTasks,
-      kickDistances,
       workspace.openTabs,
       workspace.activeTabIndex,
       addNewTask,
       addNewNote,
       setStatus,
-      kick,
-      kickToEnd,
+      moveUp,
+      moveDown,
+      sendToFirst,
+      sendToLast,
       setSelection,
       setActiveTab,
       closeTab,

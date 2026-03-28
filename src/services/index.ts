@@ -4,7 +4,14 @@ export { groupTasksForList, groupTasksForUnifiedView } from "./grouping";
 export type { ValidationResult } from "./validation";
 export { canTransitionStatus } from "./validation";
 
-export { kickTasks, kickTasksToEnd } from "./kick";
+export {
+  kickTasks,
+  sendTasksToFirst,
+  sendTasksToLast,
+  moveTasksUp,
+  moveTasksDown,
+  dropkickTasks,
+} from "./kick";
 
 export {
   addTask,

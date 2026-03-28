@@ -20,7 +20,9 @@ export function BulkActions({
 }: BulkActionsProps) {
   const kickDistances = usePreferencesStore((s) => s.preferences.kickDistances);
   const kick = useTaskListStore((s) => s.kick);
-  const kickToEnd = useTaskListStore((s) => s.kickToEnd);
+  const sendToFirst = useTaskListStore((s) => s.sendToFirst);
+  const sendToLast = useTaskListStore((s) => s.sendToLast);
+  const dropkick = useTaskListStore((s) => s.dropkick);
   const setStatus = useTaskListStore((s) => s.setStatus);
   const setPriority = useTaskListStore((s) => s.setPriority);
   const moveTasks = useTaskListStore((s) => s.moveTasks);
@@ -118,13 +120,19 @@ export function BulkActions({
         </div>
       </div>
 
-      {/* Kick (not in unified view) */}
+      {/* Reorder (not in unified view) */}
       {!isUnifiedView && (
         <div className="mt-4">
           <label className="mb-2 block text-xs font-medium text-gray-500">
-            Kick
+            Reorder
           </label>
           <div className="flex gap-2">
+            <button
+              onClick={() => sendToFirst(filePath)}
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Tackle
+            </button>
             {kickDistances.map((d) => (
               <button
                 key={d}
@@ -135,10 +143,16 @@ export function BulkActions({
               </button>
             ))}
             <button
-              onClick={() => kickToEnd(filePath)}
+              onClick={() => sendToLast(filePath)}
               className="rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
-              ↓ End
+              Kick
+            </button>
+            <button
+              onClick={() => dropkick(filePath)}
+              className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50"
+            >
+              Dropkick
             </button>
           </div>
         </div>

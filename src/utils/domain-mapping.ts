@@ -4,7 +4,7 @@ import { isOverdue, isDueWithinDays } from "./dates";
 
 // Computes the display group for a task based on priority and due date.
 // Each task belongs to exactly one group — the highest applicable one.
-function computeGroup(
+export function computeGroup(
   dto: TaskDto,
   timezone: string | null,
 ): TaskGroup {

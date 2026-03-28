@@ -12,10 +12,15 @@ import {
   atomicMoveWrite,
 } from "../repositories";
 import { createTask, createNote } from "../utils";
+import { usePreferencesStore } from "./preferences-store";
 import {
   canTransitionStatus,
   kickTasks,
-  kickTasksToEnd,
+  sendTasksToFirst,
+  sendTasksToLast,
+  moveTasksUp,
+  moveTasksDown,
+  dropkickTasks,
   replaceTask,
   addTask,
   changeTaskStatus,
@@ -82,7 +87,11 @@ interface TaskListState {
     actionability: NoteActionability,
   ) => Promise<WriteResult>;
   kick: (filePath: string, distance: number) => Promise<WriteResult>;
-  kickToEnd: (filePath: string) => Promise<WriteResult>;
+  sendToFirst: (filePath: string) => Promise<WriteResult>;
+  sendToLast: (filePath: string) => Promise<WriteResult>;
+  moveUp: (filePath: string) => Promise<WriteResult>;
+  moveDown: (filePath: string) => Promise<WriteResult>;
+  dropkick: (filePath: string) => Promise<WriteResult>;
   moveTasks: (
     sourceFilePath: string,
     destFilePath: string,
@@ -314,25 +323,75 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   kick: async (filePath, distance) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
-
     const { selectedIds } = get();
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
-
-    const newTasks = kickTasks(fileState.data.tasks, selectedIds, distance);
+    const tz = usePreferencesStore.getState().preferences.timezone;
+    const newTasks = kickTasks(fileState.data.tasks, selectedIds, distance, tz);
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
     return result;
   },
 
-  kickToEnd: async (filePath) => {
+  sendToFirst: async (filePath) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
-
     const { selectedIds } = get();
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const tz = usePreferencesStore.getState().preferences.timezone;
+    const newTasks = sendTasksToFirst(fileState.data.tasks, selectedIds, tz);
+    const newData = { ...fileState.data, tasks: newTasks };
+    const { files, result } = await writeFile(get().files, filePath, newData);
+    if (result.status === "success") set({ files });
+    return result;
+  },
 
-    const newTasks = kickTasksToEnd(fileState.data.tasks, selectedIds);
+  sendToLast: async (filePath) => {
+    const fileState = get().files[filePath];
+    if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
+    const { selectedIds } = get();
+    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const tz = usePreferencesStore.getState().preferences.timezone;
+    const newTasks = sendTasksToLast(fileState.data.tasks, selectedIds, tz);
+    const newData = { ...fileState.data, tasks: newTasks };
+    const { files, result } = await writeFile(get().files, filePath, newData);
+    if (result.status === "success") set({ files });
+    return result;
+  },
+
+  moveUp: async (filePath) => {
+    const fileState = get().files[filePath];
+    if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
+    const { selectedIds } = get();
+    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const tz = usePreferencesStore.getState().preferences.timezone;
+    const newTasks = moveTasksUp(fileState.data.tasks, selectedIds, tz);
+    const newData = { ...fileState.data, tasks: newTasks };
+    const { files, result } = await writeFile(get().files, filePath, newData);
+    if (result.status === "success") set({ files });
+    return result;
+  },
+
+  moveDown: async (filePath) => {
+    const fileState = get().files[filePath];
+    if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
+    const { selectedIds } = get();
+    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const tz = usePreferencesStore.getState().preferences.timezone;
+    const newTasks = moveTasksDown(fileState.data.tasks, selectedIds, tz);
+    const newData = { ...fileState.data, tasks: newTasks };
+    const { files, result } = await writeFile(get().files, filePath, newData);
+    if (result.status === "success") set({ files });
+    return result;
+  },
+
+  dropkick: async (filePath) => {
+    const fileState = get().files[filePath];
+    if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
+    const { selectedIds } = get();
+    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const tz = usePreferencesStore.getState().preferences.timezone;
+    const newTasks = dropkickTasks(fileState.data.tasks, selectedIds, tz);
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });

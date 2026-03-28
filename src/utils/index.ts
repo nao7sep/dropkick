@@ -11,4 +11,4 @@ export {
 
 export { createTask, createNote } from "./factories";
 
-export { toTask, toDto } from "./domain-mapping";
+export { computeGroup, toTask, toDto } from "./domain-mapping";

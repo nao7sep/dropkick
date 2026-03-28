@@ -26,11 +26,18 @@ const GROUP_COLORS: Record<TaskGroup, string> = {
   Default: "text-gray-500 border-gray-200",
 };
 
-const PRIORITY_STYLES: Record<string, string> = {
-  Critical: "border-l-red-500 bg-red-50/50",
-  Urgent: "border-l-amber-400 bg-amber-50/50",
-  Important: "border-l-blue-400 bg-blue-50/50",
+const PRIORITY_BORDERS: Record<string, string> = {
+  Critical: "border-l-red-500",
+  Urgent: "border-l-amber-400",
+  Important: "border-l-blue-400",
   Default: "border-l-transparent",
+};
+
+const PRIORITY_BGS: Record<string, string> = {
+  Critical: "bg-red-50/50",
+  Urgent: "bg-amber-50/50",
+  Important: "bg-blue-50/50",
+  Default: "",
 };
 
 export function TaskListPane({ filePath, isUnifiedView }: TaskListPaneProps) {
@@ -190,11 +197,11 @@ function TaskRow({
   return (
     <div
       onClick={onClick}
-      className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-gray-100 px-3 py-2 transition-colors ${
-        PRIORITY_STYLES[task.priority] ?? ""
-      } ${isSelected ? "bg-blue-100" : "hover:bg-gray-50"} ${
-        isHandled ? "opacity-60" : ""
-      }`}
+      className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-gray-100 px-3 py-2 transition-colors ${PRIORITY_BORDERS[task.priority] ?? ""} ${
+        isSelected
+          ? "bg-blue-100"
+          : `${PRIORITY_BGS[task.priority] ?? ""} hover:bg-gray-50`
+      } ${isHandled ? "opacity-60" : ""}`}
     >
       {/* Status indicator */}
       <span className="shrink-0 text-xs">
