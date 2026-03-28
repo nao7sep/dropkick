@@ -210,15 +210,6 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
         </DndContext>
       </div>
 
-      {/* Settings gear icon */}
-      <button
-        onClick={onOpenSettings}
-        className="flex h-10 w-10 items-center justify-center text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-        title="Settings"
-      >
-        <Settings size={15} />
-      </button>
-
       {/* New tab button */}
       <div className="relative" ref={menuRef}>
         <button
@@ -274,6 +265,15 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
           </div>
         )}
       </div>
+
+      {/* Settings gear icon */}
+      <button
+        onClick={onOpenSettings}
+        className="flex h-10 w-10 items-center justify-center text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+        title="Settings"
+      >
+        <Settings size={15} />
+      </button>
     </div>
   );
 }
