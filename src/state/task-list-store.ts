@@ -12,6 +12,7 @@ import {
   atomicMoveWrite,
 } from "../repositories";
 import { createTask, createNote } from "../utils";
+import type { CreateTaskOptions } from "../utils";
 import { usePreferencesStore } from "./preferences-store";
 import {
   canTransitionStatus,
@@ -63,7 +64,7 @@ interface TaskListState {
   showMoreHandled: (filePath: string, pageSize: number) => void;
 
   // Actions: task operations (all write to disk immediately).
-  addNewTask: (filePath: string, title: string) => Promise<WriteResult>;
+  addNewTask: (filePath: string, options: CreateTaskOptions) => Promise<WriteResult>;
   updateTitle: (filePath: string, taskId: string, title: string) => Promise<WriteResult>;
   updateDescription: (
     filePath: string,
@@ -189,11 +190,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
 
   // --- Task operations ---
 
-  addNewTask: async (filePath: string, title: string) => {
+  addNewTask: async (filePath: string, options: CreateTaskOptions) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
 
-    const task = createTask(title);
+    const task = createTask(options);
     const newTasks = addTask(fileState.data.tasks, task);
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);

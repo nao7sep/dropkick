@@ -8,6 +8,7 @@ import { useTaskListStore } from "../../state/task-list-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
+import { NewTaskModal } from "./NewTaskModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
 
@@ -51,13 +52,14 @@ export function MainWindow() {
   const clearSelection = useTaskListStore((s) => s.clearSelection);
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showNewTask, setShowNewTask] = useState(false);
 
   const hasActiveTab = activeTab !== null;
   const isUnifiedView = activeTab?.isUnifiedView ?? false;
   const filePath = activeTab?.filePath ?? "";
 
   // Register global keyboard shortcuts.
-  useKeyboardShortcuts(filePath, isUnifiedView);
+  useKeyboardShortcuts(filePath, isUnifiedView, () => setShowNewTask(true));
 
   // Load the active tab's file when the active tab changes.
   useEffect(() => {
@@ -131,6 +133,15 @@ export function MainWindow() {
       {/* Settings modal */}
       {showSettings && (
         <SettingsModal onClose={() => setShowSettings(false)} />
+      )}
+
+      {/* New task modal */}
+      {showNewTask && (
+        <NewTaskModal
+          currentFilePath={filePath}
+          isUnifiedView={isUnifiedView}
+          onClose={() => setShowNewTask(false)}
+        />
       )}
     </div>
   );

@@ -10,6 +10,8 @@ interface DatePickerProps {
   value: string | null; // "YYYY-MM-DD" or null
   onChange: (value: string | null) => void;
   isOverdue?: boolean;
+  /** Where to open the calendar popover. Default: "below". */
+  popoverPosition?: "below" | "above";
 }
 
 // Parse "YYYY-MM-DD" to a local Date (noon to avoid timezone edge cases).
@@ -26,7 +28,7 @@ function formatDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export function DatePicker({ value, onChange, isOverdue }: DatePickerProps) {
+export function DatePicker({ value, onChange, isOverdue, popoverPosition = "below" }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +91,7 @@ export function DatePicker({ value, onChange, isOverdue }: DatePickerProps) {
 
       {/* Popover */}
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+        <div className={`absolute left-0 z-50 rounded-lg border border-gray-200 bg-white p-2 shadow-lg ${popoverPosition === "above" ? "bottom-full mb-1" : "top-full mt-1"}`}>
           <DayPicker
             mode="single"
             selected={selected}

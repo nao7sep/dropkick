@@ -21,12 +21,12 @@ function isTyping(e: KeyboardEvent): boolean {
 export function useKeyboardShortcuts(
   filePath: string,
   isUnifiedView: boolean,
+  onNewTask: () => void,
 ) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const files = useTaskListStore((s) => s.files);
   const selectedIds = useTaskListStore((s) => s.selectedIds);
   const setSelection = useTaskListStore((s) => s.setSelection);
-  const addNewTask = useTaskListStore((s) => s.addNewTask);
   const addNewNote = useTaskListStore((s) => s.addNewNote);
   const setStatus = useTaskListStore((s) => s.setStatus);
   const moveUp = useTaskListStore((s) => s.moveUp);
@@ -82,12 +82,11 @@ export function useKeyboardShortcuts(
     async (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
-      // --- Ctrl/Cmd+N: New task ---
+      // --- Ctrl/Cmd+N: New task modal ---
       if (mod && !e.shiftKey && e.key === "n") {
         if (isTyping(e)) return;
-        if (isUnifiedView) return;
         e.preventDefault();
-        await addNewTask(filePath, "");
+        onNewTask();
         return;
       }
 
@@ -246,7 +245,7 @@ export function useKeyboardShortcuts(
       allTasks,
       workspace.openTabs,
       workspace.activeTabIndex,
-      addNewTask,
+      onNewTask,
       addNewNote,
       setStatus,
       moveUp,

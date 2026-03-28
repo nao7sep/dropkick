@@ -10,5 +10,6 @@ export {
 } from "./dates";
 
 export { createTask, createNote } from "./factories";
+export type { CreateTaskOptions } from "./factories";
 
 export { computeGroup, toTask, toDto } from "./domain-mapping";
