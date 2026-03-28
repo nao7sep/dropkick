@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Component } from "react";
 import type { ReactNode } from "react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -61,6 +62,13 @@ export function MainWindow() {
   // Register global keyboard shortcuts.
   useKeyboardShortcuts(filePath, isUnifiedView, () => setShowNewTask(true));
 
+  // Apply saved zoom level on startup and when changed via settings.
+  useEffect(() => {
+    getCurrentWebview()
+      .setZoom(preferences.zoomLevel)
+      .catch((e) => console.warn("[zoom] Failed to set zoom:", e));
+  }, [preferences.zoomLevel]);
+
   // Load the active tab's file when the active tab changes.
   useEffect(() => {
     (async () => {
@@ -96,7 +104,6 @@ export function MainWindow() {
       className="flex h-screen flex-col bg-gray-50"
       style={{
         fontFamily: preferences.fontFamily,
-        fontSize: `${preferences.fontSize}px`,
       }}
     >
       {/* Tab bar */}

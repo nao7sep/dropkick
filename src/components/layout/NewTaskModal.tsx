@@ -107,7 +107,7 @@ export function NewTaskModal({
       onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
     >
-      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-800">New Task</h2>
@@ -120,7 +120,7 @@ export function NewTaskModal({
         </div>
 
         {/* Body */}
-        <div className="space-y-4 px-6 py-5" onKeyDown={handleKeyDown}>
+        <div className="space-y-4 overflow-y-auto px-6 py-5" onKeyDown={handleKeyDown}>
           {/* Target list */}
           {fileTabs.length > 0 && (
             <div>

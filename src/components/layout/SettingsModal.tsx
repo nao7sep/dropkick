@@ -62,7 +62,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
     >
-      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-800">Settings</h2>
@@ -75,7 +75,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         {/* Body */}
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 overflow-y-auto px-6 py-5">
           {/* Font family */}
           <Field label="Font family">
             <input
@@ -86,18 +86,24 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             />
           </Field>
 
-          {/* Font size */}
-          <Field label="Font size (px)">
-            <input
-              type="number"
-              min={10}
-              max={24}
-              value={draft.fontSize}
-              onChange={(e) =>
-                setField("fontSize", parseInt(e.target.value, 10) || 14)
-              }
-              className="w-24 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
-            />
+          {/* Zoom level */}
+          <Field label="Zoom level">
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={50}
+                max={200}
+                step={10}
+                value={Math.round(draft.zoomLevel * 100)}
+                onChange={(e) =>
+                  setField("zoomLevel", parseInt(e.target.value, 10) / 100)
+                }
+                className="flex-1"
+              />
+              <span className="w-12 text-right text-sm text-gray-600">
+                {Math.round(draft.zoomLevel * 100)}%
+              </span>
+            </div>
           </Field>
 
           {/* Date format */}

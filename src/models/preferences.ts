@@ -5,7 +5,7 @@ export interface PreferencesDto {
   version: string;
   name: string;
   fontFamily: string;
-  fontSize: number;
+  zoomLevel: number; // 0.5–2.0 (1.0 = 100%)
   dateFormat: string;
   timeFormat: "24h" | "12h";
   timezone: string | null; // IANA timezone e.g. "Asia/Tokyo"; null = system
@@ -18,7 +18,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     version: "1.0.0",
     name,
     fontFamily: "system-ui",
-    fontSize: 14,
+    zoomLevel: 1.0,
     dateFormat: "YYYY-MM-DD",
     timeFormat: "24h",
     timezone: null,

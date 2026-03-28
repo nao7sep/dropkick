@@ -6,11 +6,13 @@ import { readJsonFile, writeJsonFile } from "./file-system";
 
 // Loads a preferences file. Returns default preferences if the file is missing or invalid.
 export async function loadPreferences(path: string): Promise<PreferencesDto> {
-  const data = await readJsonFile<PreferencesDto>(path);
+  const data = await readJsonFile<Partial<PreferencesDto>>(path);
   if (data === null) {
     return createDefaultPreferences("Default");
   }
-  return data;
+  // Merge with defaults so newly added fields are always present.
+  const defaults = createDefaultPreferences(data.name ?? "Default");
+  return { ...defaults, ...data };
 }
 
 // Saves preferences to disk.

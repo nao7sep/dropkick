@@ -26,6 +26,7 @@
       "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick" }, { "path": "$HOME/.dropkick/**" }]
     },
     "fs:default",
-    "store:default"
+    "store:default",
+    "core:webview:allow-set-webview-zoom"
   ]
 }
