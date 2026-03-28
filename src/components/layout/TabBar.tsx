@@ -4,6 +4,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Plus, X, Layout, FileText, Settings } from "lucide-react";
+import { sanitizeSingleLine } from "../../utils";
 import {
   DndContext,
   closestCenter,
@@ -163,8 +164,11 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
   };
 
   const handleRenameSubmit = async () => {
-    if (editingIndex !== null && editValue.trim()) {
-      await renameTab(editingIndex, editValue.trim());
+    if (editingIndex !== null) {
+      const cleaned = sanitizeSingleLine(editValue);
+      if (cleaned) {
+        await renameTab(editingIndex, cleaned);
+      }
     }
     setEditingIndex(null);
   };

@@ -1,7 +1,7 @@
 // Single task detail — shown in right pane when exactly 1 task is selected.
 // All fields are editable inline. Notes are listed newest first.
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -13,7 +13,7 @@ import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from 
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { showConfirm } from "../../repositories";
-import { formatTimestamp, formatDueDate } from "../../utils";
+import { formatTimestamp, formatDueDate, sanitizeSingleLine } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 
 interface TaskDetailProps {
@@ -49,12 +49,24 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
     setNewNoteContent("");
   }
 
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+
+  const autoGrowTitle = useCallback(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  // Auto-grow on content change and when task switches.
+  useEffect(() => autoGrowTitle(), [titleDraft, autoGrowTitle]);
+
   const handleTitleBlur = async () => {
-    const trimmed = titleDraft.trim();
-    if (trimmed !== task.title) {
-      await updateTitle(filePath, task.id, trimmed);
+    const cleaned = sanitizeSingleLine(titleDraft);
+    if (cleaned !== task.title) {
+      await updateTitle(filePath, task.id, cleaned);
     }
-    setTitleDraft(trimmed);
+    setTitleDraft(cleaned);
   };
 
   const handleDescBlur = async () => {
@@ -92,15 +104,17 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-4">
+    <div className="flex h-full min-w-0 flex-col overflow-y-auto p-4">
       {/* Title */}
-      <input
+      <textarea
+        ref={titleRef}
         value={titleDraft}
         onChange={(e) => setTitleDraft(e.target.value)}
         onBlur={handleTitleBlur}
-        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
         placeholder="Task title..."
-        className="mb-4 w-full text-lg font-semibold text-gray-800 outline-none placeholder:text-gray-300"
+        rows={1}
+        className="mb-4 w-full resize-none text-lg font-semibold text-gray-800 outline-none placeholder:text-gray-300"
       />
 
       {/* Status, Priority, Due Date row */}

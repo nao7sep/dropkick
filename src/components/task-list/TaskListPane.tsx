@@ -6,7 +6,7 @@ import { Plus, AlertCircle } from "lucide-react";
 import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
-import { toTask } from "../../utils";
+import { toTask, sanitizeSingleLine } from "../../utils";
 import {
   groupTasksForList,
   groupTasksForUnifiedView,
@@ -115,10 +115,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   const handleRename = async (task: Task, newTitle: string) => {
-    const trimmed = newTitle.trim();
-    if (trimmed !== task.title) {
+    const cleaned = sanitizeSingleLine(newTitle);
+    if (cleaned !== task.title) {
       const taskFile = isUnifiedView ? task.sourceFile : filePath;
-      await updateTitle(taskFile, task.id, trimmed);
+      await updateTitle(taskFile, task.id, cleaned);
     }
     setEditingTaskId(null);
   };

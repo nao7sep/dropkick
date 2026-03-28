@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import type { TaskPriority } from "../../models";
+import { sanitizeSingleLine } from "../../utils";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { DatePicker } from "../shared/DatePicker";
@@ -66,7 +67,7 @@ export function NewTaskModal({
       const prevCount = fileState?.data.tasks.length ?? 0;
 
       const result = await addNewTask(targetFile, {
-        title: title.trim(),
+        title: sanitizeSingleLine(title),
         description,
         priority,
         dueDate,
