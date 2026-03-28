@@ -1,7 +1,7 @@
 // Left pane — displays tasks grouped by priority/due rules.
 // Supports selection (click, shift+click, cmd+click).
 
-import { useState, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Plus, AlertCircle } from "lucide-react";
 import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -46,6 +46,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
   const selectedIds = useTaskListStore((s) => s.selectedIds);
   const setSelection = useTaskListStore((s) => s.setSelection);
+  const updateTitle = useTaskListStore((s) => s.updateTitle);
   const showMoreHandled = useTaskListStore((s) => s.showMoreHandled);
   const handledVisible = useTaskListStore(
     (s) => s.handledVisible[filePath] ?? pageSize,
@@ -111,6 +112,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     setSelection(new Set([task.id]));
   };
 
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+
+  const handleRename = async (task: Task, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (trimmed !== task.title) {
+      const taskFile = isUnifiedView ? task.sourceFile : filePath;
+      await updateTitle(taskFile, task.id, trimmed);
+    }
+    setEditingTaskId(null);
+  };
+
   const [handledExpanded, setHandledExpanded] = useState(false);
 
   const visibleHandled = grouped.handled.slice(0, handledVisible);
@@ -148,8 +160,12 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               key={task.id}
               task={task}
               isSelected={selectedIds.has(task.id)}
+              isEditing={editingTaskId === task.id}
               isUnifiedView={isUnifiedView}
               onClick={(e) => handleTaskClick(task, e)}
+              onDoubleClick={() => setEditingTaskId(task.id)}
+              onRename={(title) => handleRename(task, title)}
+              onCancelRename={() => setEditingTaskId(null)}
             />
           ))}
         </div>
@@ -173,8 +189,12 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                   key={task.id}
                   task={task}
                   isSelected={selectedIds.has(task.id)}
+                  isEditing={editingTaskId === task.id}
                   isUnifiedView={isUnifiedView}
                   onClick={(e) => handleTaskClick(task, e)}
+                  onDoubleClick={() => setEditingTaskId(task.id)}
+                  onRename={(title) => handleRename(task, title)}
+                  onCancelRename={() => setEditingTaskId(null)}
                 />
               ))}
               {handledVisible < grouped.handledTotal && (
@@ -197,19 +217,42 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 function TaskRow({
   task,
   isSelected,
+  isEditing,
   isUnifiedView,
   onClick,
+  onDoubleClick,
+  onRename,
+  onCancelRename,
 }: {
   task: Task;
   isSelected: boolean;
+  isEditing: boolean;
   isUnifiedView: boolean;
   onClick: (e: React.MouseEvent) => void;
+  onDoubleClick: () => void;
+  onRename: (title: string) => void;
+  onCancelRename: () => void;
 }) {
   const isHandled = task.status !== "Pending";
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState(task.title);
+
+  // Reset draft and focus when entering edit mode.
+  useEffect(() => {
+    if (isEditing) {
+      setDraft(task.title);
+      // Defer focus so the input is mounted.
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
+    }
+  }, [isEditing, task.title]);
 
   return (
     <div
-      onClick={onClick}
+      onClick={isEditing ? undefined : onClick}
+      onDoubleClick={isEditing ? undefined : onDoubleClick}
       className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-gray-100 px-3 py-2 transition-colors ${PRIORITY_BORDERS[task.priority] ?? ""} ${
         isSelected
           ? "bg-blue-100"
@@ -226,14 +269,34 @@ function TaskRow({
         )}
       </span>
 
-      {/* Title */}
-      <span
-        className={`min-w-0 flex-1 truncate text-sm ${
-          task.status === "Dismissed" ? "line-through text-gray-400" : ""
-        } ${task.status === "Completed" ? "text-gray-500" : ""}`}
-      >
-        {task.title || "Untitled"}
-      </span>
+      {/* Title — editable on double-click */}
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => onRename(draft)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onRename(draft);
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              onCancelRename();
+            }
+          }}
+          className="min-w-0 flex-1 rounded border border-blue-300 bg-white px-1 py-0 text-sm outline-none"
+        />
+      ) : (
+        <span
+          className={`min-w-0 flex-1 truncate text-sm ${
+            task.status === "Dismissed" ? "line-through text-gray-400" : ""
+          } ${task.status === "Completed" ? "text-gray-500" : ""}`}
+        >
+          {task.title || "Untitled"}
+        </span>
+      )}
 
       {/* Actionable notes indicator */}
       {task.hasActionableNotes && (
