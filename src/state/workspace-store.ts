@@ -4,7 +4,7 @@
 import { create } from "zustand";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
-import { loadWorkspace, saveWorkspace } from "../repositories";
+import { loadWorkspace, saveWorkspace, fileExists, showMessage } from "../repositories";
 
 interface WorkspaceState {
   // Current workspace data.
@@ -40,15 +40,55 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   load: async (filePath: string) => {
     const ws = await loadWorkspace(filePath);
 
+    // Remove tabs whose files no longer exist on disk.
+    const validTabs = [];
+    const missingFiles: string[] = [];
+    for (const tab of ws.openTabs) {
+      if (tab.isUnifiedView) {
+        validTabs.push(tab);
+      } else {
+        const found = await fileExists(tab.filePath);
+        if (found) {
+          validTabs.push(tab);
+        } else {
+          missingFiles.push(tab.filePath);
+        }
+      }
+    }
+
+    // Also remove recent files whose files no longer exist on disk.
+    const validRecent: RecentFileDto[] = [];
+    for (const r of ws.recentFiles) {
+      const found = await fileExists(r.filePath);
+      if (found) {
+        validRecent.push(r);
+      } else if (!missingFiles.includes(r.filePath)) {
+        // Track it for the dialog if not already listed from tabs.
+        missingFiles.push(r.filePath);
+      }
+    }
+
+    if (missingFiles.length > 0) {
+      console.warn(
+        "[workspace] Removed references to missing files:",
+        missingFiles,
+      );
+      const fileList = missingFiles.map((f) => `  • ${f}`).join("\n");
+      await showMessage(
+        "Missing Files",
+        `The following task list file(s) could no longer be found and have been removed:\n\n${fileList}\n\nIf this was unexpected, check whether the files were moved or deleted.`,
+      );
+    }
+
     // On startup: prefer unified view tab, otherwise first tab.
-    const unifiedIdx = ws.openTabs.findIndex((t) => t.isUnifiedView);
+    const unifiedIdx = validTabs.findIndex((t) => t.isUnifiedView);
     const startIdx =
       unifiedIdx !== -1
         ? unifiedIdx
-        : ws.openTabs.length > 0
+        : validTabs.length > 0
           ? 0
           : -1;
-    const updated = { ...ws, activeTabIndex: startIdx };
+    const updated = { ...ws, openTabs: validTabs, recentFiles: validRecent, activeTabIndex: startIdx };
 
     set({ workspace: updated, filePath, loaded: true });
     await persist(filePath, updated);
