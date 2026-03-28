@@ -7,6 +7,7 @@ import type { AppConfigDto } from "./models";
 import { initializeAppConfig, saveAppConfig } from "./repositories";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
+import { startBackupSchedule } from "./services";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { MainWindow } from "./components/layout/MainWindow";
 
@@ -56,6 +57,14 @@ function App() {
     // Load preferences and workspace into stores.
     await loadPreferences(preferencesPath);
     await loadWorkspace(workspacePath);
+
+    // Start backup system: immediate backup + periodic backups every 2 hours.
+    // Does not block the main window from appearing.
+    const workspace = useWorkspaceStore.getState().workspace;
+    const taskListPaths = workspace.openTabs
+      .filter((t) => !t.isUnifiedView && t.filePath)
+      .map((t) => t.filePath);
+    startBackupSchedule(preferencesPath, workspacePath, taskListPaths);
 
     setPhase({ kind: "main" });
   };

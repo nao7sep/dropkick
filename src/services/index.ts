@@ -30,3 +30,5 @@ export {
 
 export type { MoveResult } from "./move-operations";
 export { prepareMoveOperation } from "./move-operations";
+
+export { startBackupSchedule } from "./backup";

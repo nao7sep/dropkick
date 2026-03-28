@@ -6,12 +6,18 @@ export function nowUtc(): string {
   return new Date().toISOString();
 }
 
+// Returns the current time as a Date-like object in the given timezone.
+// If timezone is null, uses the system timezone.
+// Used internally for calendar-date comparisons (due dates).
+function nowInTimezone(timezone: string | null): Date {
+  const now = new Date();
+  return timezone ? toZonedTime(now, timezone) : now;
+}
+
 // Returns today's date as "YYYY-MM-DD" in the given timezone.
 // If timezone is null, uses the system timezone.
 export function todayInTimezone(timezone: string | null): string {
-  const now = new Date();
-  const zoned = timezone ? toZonedTime(now, timezone) : now;
-  return format(zoned, "yyyy-MM-dd");
+  return format(nowInTimezone(timezone), "yyyy-MM-dd");
 }
 
 // Formats an ISO 8601 UTC timestamp for display, converted to the user's timezone.

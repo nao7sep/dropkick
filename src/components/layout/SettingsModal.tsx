@@ -195,6 +195,22 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               className="w-24 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
             />
           </Field>
+
+          {/* Automatic backup */}
+          <Field label="Automatic backup">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={draft.backupEnabled}
+                onChange={(e) => setField("backupEnabled", e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              Back up task lists on startup and hourly
+            </label>
+            <p className="mt-1 text-xs text-gray-400">
+              Backups are saved to ~/.dropkick/backups/ and pruned automatically.
+            </p>
+          </Field>
         </div>
 
         {/* Footer */}
