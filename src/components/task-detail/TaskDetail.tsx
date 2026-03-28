@@ -11,6 +11,7 @@ import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from 
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { formatTimestamp, formatDueDate } from "../../utils";
+import { DatePicker } from "../shared/DatePicker";
 
 interface TaskDetailProps {
   task: Task;
@@ -122,13 +123,10 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
         {/* Due Date */}
         <div>
           <label className="mb-1 block text-xs text-gray-400">Due</label>
-          <input
-            type="date"
-            value={task.dueDate ?? ""}
-            onChange={(e) => handleDueDateChange(e.target.value)}
-            className={`rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700 ${
-              task.isOverdue ? "border-red-300 text-red-600" : ""
-            }`}
+          <DatePicker
+            value={task.dueDate}
+            onChange={(v) => handleDueDateChange(v ?? "")}
+            isOverdue={task.isOverdue}
           />
         </div>
       </div>
