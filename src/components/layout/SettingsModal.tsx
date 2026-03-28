@@ -40,8 +40,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     const parsed = kickInput
       .split(",")
       .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n) && n > 0);
-    const kickDistances = parsed.length > 0 ? parsed : [5, 25];
+      .filter((n) => !isNaN(n) && n > 0)
+      .map((n) => Math.min(n, 999));
+    const deduplicated = [...new Set(parsed)];
+    const kickDistances = deduplicated.length > 0 ? deduplicated : [5, 25];
 
     await update({ ...draft, kickDistances });
     onClose();
