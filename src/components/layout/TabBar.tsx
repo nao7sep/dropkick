@@ -176,7 +176,7 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
   return (
     <div className="flex h-10 items-center border-b border-gray-200 bg-white">
       {/* Tabs with drag-and-drop */}
-      <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
+      <div className="flex min-w-0 items-center overflow-x-auto">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -210,8 +210,8 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
         </DndContext>
       </div>
 
-      {/* New tab button */}
-      <div className="relative" ref={menuRef}>
+      {/* New tab button — next to tabs, outside overflow container */}
+      <div className="relative shrink-0" ref={menuRef}>
         <button
           onClick={() => setShowNewMenu(!showNewMenu)}
           className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:bg-gray-100"
@@ -220,7 +220,7 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
         </button>
 
         {showNewMenu && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+          <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
             <button
               onClick={handleNewTaskList}
               className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
@@ -233,12 +233,14 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
             >
               Open existing file...
             </button>
-            <button
-              onClick={handleUnifiedView}
-              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Unified view
-            </button>
+            {!workspace.openTabs.some((t) => t.isUnifiedView) && (
+              <button
+                onClick={handleUnifiedView}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Unified view
+              </button>
+            )}
 
             {recentFiles.length > 0 && (
               <>
@@ -265,6 +267,9 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
           </div>
         )}
       </div>
+
+      {/* Spacer */}
+      <div className="flex-1" />
 
       {/* Settings gear icon */}
       <button

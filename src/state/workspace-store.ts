@@ -39,7 +39,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   load: async (filePath: string) => {
     const ws = await loadWorkspace(filePath);
-    set({ workspace: ws, filePath, loaded: true });
+
+    // On startup: prefer unified view tab, otherwise first tab.
+    const unifiedIdx = ws.openTabs.findIndex((t) => t.isUnifiedView);
+    const startIdx =
+      unifiedIdx !== -1
+        ? unifiedIdx
+        : ws.openTabs.length > 0
+          ? 0
+          : -1;
+    const updated = { ...ws, activeTabIndex: startIdx };
+
+    set({ workspace: updated, filePath, loaded: true });
+    await persist(filePath, updated);
   },
 
   addTab: async (taskFilePath: string, displayName: string) => {
