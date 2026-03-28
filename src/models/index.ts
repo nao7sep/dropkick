@@ -22,7 +22,6 @@ export {
 export type {
   TaskStatus,
   TaskPriority,
-  NoteFormat,
   NoteActionability,
   NoteDto,
   TaskDto,

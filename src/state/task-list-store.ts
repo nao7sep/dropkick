@@ -2,7 +2,7 @@
 // Task lists are loaded lazily (on first tab activation) and kept until the tab closes.
 
 import { create } from "zustand";
-import type { TaskListDto, NoteFormat, NoteActionability, TaskStatus, TaskPriority } from "../models";
+import type { TaskListDto, NoteActionability, TaskStatus, TaskPriority } from "../models";
 import type { WriteResult } from "../repositories";
 import {
   loadTaskList,
@@ -64,7 +64,6 @@ interface TaskListState {
     filePath: string,
     taskId: string,
     description: string,
-    format: NoteFormat,
   ) => Promise<WriteResult>;
   setStatus: (filePath: string, taskId: string, status: TaskStatus) => Promise<WriteResult | { status: "validation"; reason: string }>;
   setPriority: (filePath: string, taskId: string, priority: TaskPriority) => Promise<WriteResult>;
@@ -75,7 +74,6 @@ interface TaskListState {
     taskId: string,
     noteId: string,
     content: string,
-    format: NoteFormat,
   ) => Promise<WriteResult>;
   setNoteActionability: (
     filePath: string,
@@ -208,14 +206,14 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     return result;
   },
 
-  updateDescription: async (filePath, taskId, description, format) => {
+  updateDescription: async (filePath, taskId, description) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
 
     const task = fileState.data.tasks.find((t) => t.id === taskId);
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
-    const updated = updateTaskDescription(task, description, format);
+    const updated = updateTaskDescription(task, description);
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -285,14 +283,14 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     return result;
   },
 
-  updateNote: async (filePath, taskId, noteId, content, format) => {
+  updateNote: async (filePath, taskId, noteId, content) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
 
     const task = fileState.data.tasks.find((t) => t.id === taskId);
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
-    const updated = updateNoteContent(task, noteId, content, format);
+    const updated = updateNoteContent(task, noteId, content);
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });

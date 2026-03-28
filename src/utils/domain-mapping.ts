@@ -60,7 +60,6 @@ export function toDto(task: Task): TaskDto {
     id: task.id,
     title: task.title,
     description: task.description,
-    descriptionFormat: task.descriptionFormat,
     status: task.status,
     priority: task.priority,
     dueDate: task.dueDate,

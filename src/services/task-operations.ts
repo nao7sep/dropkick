@@ -17,13 +17,12 @@ export function updateTaskTitle(
   return { ...task, title, updatedAtUtc: nowUtc() };
 }
 
-// Updates a task's description and format.
+// Updates a task's description.
 export function updateTaskDescription(
   task: TaskDto,
   description: string,
-  descriptionFormat: "plaintext" | "markdown",
 ): TaskDto {
-  return { ...task, description, descriptionFormat, updatedAtUtc: nowUtc() };
+  return { ...task, description, updatedAtUtc: nowUtc() };
 }
 
 // Changes a task's status. Sets completedAtUtc when transitioning to Completed/Dismissed.
@@ -68,17 +67,16 @@ export function addNote(task: TaskDto, note: NoteDto): TaskDto {
   };
 }
 
-// Updates a note's content and format.
+// Updates a note's content.
 export function updateNoteContent(
   task: TaskDto,
   noteId: string,
   content: string,
-  format: "plaintext" | "markdown",
 ): TaskDto {
   return {
     ...task,
     notes: task.notes.map((n) =>
-      n.id === noteId ? { ...n, content, format } : n,
+      n.id === noteId ? { ...n, content } : n,
     ),
     updatedAtUtc: nowUtc(),
   };

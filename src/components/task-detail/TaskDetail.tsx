@@ -2,17 +2,12 @@
 // All fields are editable inline. Notes are listed newest first.
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   AlertCircle,
   CheckCircle,
   Info,
-  Plus,
-  Eye,
-  EyeOff,
 } from "lucide-react";
-import type { Task, TaskStatus, TaskPriority, NoteDto, NoteFormat, NoteActionability } from "../../models";
+import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { formatTimestamp, formatDueDate } from "../../utils";
@@ -36,8 +31,6 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
 
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description);
-  const [descFormat, setDescFormat] = useState<NoteFormat>(task.descriptionFormat);
-  const [showDescPreview, setShowDescPreview] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState("");
 
   // Sync drafts when task changes.
@@ -46,8 +39,6 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
     setLastTaskId(task.id);
     setTitleDraft(task.title);
     setDescDraft(task.description);
-    setDescFormat(task.descriptionFormat);
-    setShowDescPreview(false);
     setNewNoteContent("");
   }
 
@@ -58,8 +49,8 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   };
 
   const handleDescBlur = async () => {
-    if (descDraft !== task.description || descFormat !== task.descriptionFormat) {
-      await updateDescription(filePath, task.id, descDraft, descFormat);
+    if (descDraft !== task.description) {
+      await updateDescription(filePath, task.id, descDraft);
     }
   };
 
@@ -77,7 +68,7 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
 
   const handleAddNote = async () => {
     if (!newNoteContent.trim()) return;
-    await addNewNote(filePath, task.id, newNoteContent.trim());
+    await addNewNote(filePath, task.id, newNoteContent);
     setNewNoteContent("");
   };
 
@@ -155,49 +146,21 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
           onClick={() => kickToEnd(filePath)}
           className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
         >
-          ↓ End
+          Dropkick
         </button>
       </div>
 
       {/* Description */}
       <div className="mb-4">
-        <div className="mb-1 flex items-center gap-2">
-          <label className="text-xs text-gray-400">Description</label>
-          <select
-            value={descFormat}
-            onChange={(e) => setDescFormat(e.target.value as NoteFormat)}
-            className="rounded border border-gray-200 px-1 py-0.5 text-xs text-gray-500"
-          >
-            <option value="plaintext">Plain text</option>
-            <option value="markdown">Markdown</option>
-          </select>
-          {descFormat === "markdown" && (
-            <button
-              onClick={() => setShowDescPreview(!showDescPreview)}
-              className="text-gray-400 hover:text-gray-600"
-              title={showDescPreview ? "Edit" : "Preview"}
-            >
-              {showDescPreview ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
-          )}
-        </div>
-
-        {showDescPreview && descFormat === "markdown" ? (
-          <div className="prose prose-sm max-w-none rounded-md border border-gray-200 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {descDraft || "*No description*"}
-            </ReactMarkdown>
-          </div>
-        ) : (
-          <textarea
-            value={descDraft}
-            onChange={(e) => setDescDraft(e.target.value)}
-            onBlur={handleDescBlur}
-            rows={4}
-            placeholder="Add a description..."
-            className="w-full resize-y rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-blue-300"
-          />
-        )}
+        <label className="mb-1 block text-xs text-gray-400">Description</label>
+        <textarea
+          value={descDraft}
+          onChange={(e) => setDescDraft(e.target.value)}
+          onBlur={handleDescBlur}
+          rows={4}
+          placeholder="Add a description..."
+          className="w-full resize-y rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-blue-300"
+        />
       </div>
 
       {/* Timestamps */}
@@ -243,21 +206,29 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
         <h4 className="mb-3 text-sm font-medium text-gray-600">Notes</h4>
 
         {/* Add note */}
-        <div className="mb-3 flex gap-2">
-          <input
+        <div className="mb-3">
+          <textarea
             value={newNoteContent}
             onChange={(e) => setNewNoteContent(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
-            placeholder="Add a note..."
-            className="flex-1 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                handleAddNote();
+              }
+            }}
+            placeholder="Add a note... (Ctrl+Enter to save)"
+            rows={2}
+            className="w-full resize-y rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
           />
-          <button
-            onClick={handleAddNote}
-            disabled={!newNoteContent.trim()}
-            className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:bg-gray-300"
-          >
-            <Plus size={14} />
-          </button>
+          <div className="mt-1 flex justify-end">
+            <button
+              onClick={handleAddNote}
+              disabled={!newNoteContent.trim()}
+              className="rounded-md bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-300"
+            >
+              Add Note
+            </button>
+          </div>
         </div>
 
         {/* Notes list */}
@@ -297,11 +268,10 @@ function NoteItem({
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.content);
-  const [format, setFormat] = useState<NoteFormat>(note.format);
 
   const handleSave = async () => {
-    if (draft !== note.content || format !== note.format) {
-      await updateNote(filePath, taskId, note.id, draft, format);
+    if (draft !== note.content) {
+      await updateNote(filePath, taskId, note.id, draft);
     }
     setEditing(false);
   };
@@ -354,19 +324,15 @@ function NoteItem({
 
       {editing ? (
         <div>
-          <div className="mb-1 flex items-center gap-2">
-            <select
-              value={format}
-              onChange={(e) => setFormat(e.target.value as NoteFormat)}
-              className="rounded border border-gray-200 px-1 py-0.5 text-xs text-gray-500"
-            >
-              <option value="plaintext">Plain text</option>
-              <option value="markdown">Markdown</option>
-            </select>
-          </div>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                handleSave();
+              }
+            }}
             rows={3}
             className="w-full resize-y rounded border border-gray-200 p-2 text-sm outline-none focus:border-blue-300"
             autoFocus
@@ -382,7 +348,6 @@ function NoteItem({
               onClick={() => {
                 setEditing(false);
                 setDraft(note.content);
-                setFormat(note.format);
               }}
               className="rounded border border-gray-200 px-3 py-1 text-xs text-gray-500 hover:bg-gray-50"
             >
@@ -395,15 +360,7 @@ function NoteItem({
           onClick={() => setEditing(true)}
           className="cursor-pointer text-sm text-gray-700"
         >
-          {note.format === "markdown" && !editing ? (
-            <div className="prose prose-sm max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {note.content}
-              </ReactMarkdown>
-            </div>
-          ) : (
-            <p className="whitespace-pre-wrap">{note.content}</p>
-          )}
+          <p className="whitespace-pre-wrap">{note.content}</p>
         </div>
       )}
     </div>

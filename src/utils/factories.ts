@@ -10,7 +10,6 @@ export function createTask(title: string): TaskDto {
     id: generateId(),
     title,
     description: "",
-    descriptionFormat: "plaintext",
     status: "Pending",
     priority: "Default",
     dueDate: null,
@@ -27,7 +26,6 @@ export function createNote(content: string): NoteDto {
   return {
     id: generateId(),
     content,
-    format: "plaintext",
     actionability: "Informational",
     createdAtUtc: nowUtc(),
   };

@@ -5,14 +5,11 @@ export type TaskStatus = "Pending" | "Completed" | "Dismissed";
 
 export type TaskPriority = "Critical" | "Urgent" | "Important" | "Default";
 
-export type NoteFormat = "plaintext" | "markdown";
-
 export type NoteActionability = "Informational" | "Actionable" | "Resolved";
 
 export interface NoteDto {
   id: string;
   content: string;
-  format: NoteFormat;
   actionability: NoteActionability;
   createdAtUtc: string; // ISO 8601
 }
@@ -21,7 +18,6 @@ export interface TaskDto {
   id: string;
   title: string;
   description: string;
-  descriptionFormat: NoteFormat;
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: string | null; // date only "YYYY-MM-DD", no timezone
