@@ -97,6 +97,23 @@ export function changeNoteActionability(
   };
 }
 
+// Removes a task from the array by ID.
+export function deleteTask(tasks: TaskDto[], taskId: string): TaskDto[] {
+  return tasks.filter((t) => t.id !== taskId);
+}
+
+// Removes a note from a task by note ID.
+export function deleteNote(
+  task: TaskDto,
+  noteId: string,
+): TaskDto {
+  return {
+    ...task,
+    notes: task.notes.filter((n) => n.id !== noteId),
+    updatedAtUtc: nowUtc(),
+  };
+}
+
 // Replaces a task in the array by ID with an updated version.
 export function replaceTask(
   tasks: TaskDto[],

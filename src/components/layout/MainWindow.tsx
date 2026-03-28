@@ -108,7 +108,7 @@ export function MainWindow() {
           {/* Left pane — task list */}
           <div className="flex h-full w-80 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-white">
             <ErrorBoundary>
-              <TaskListPane filePath={filePath} isUnifiedView={isUnifiedView} />
+              <TaskListPane filePath={filePath} isUnifiedView={isUnifiedView} onNewTask={() => setShowNewTask(true)} />
             </ErrorBoundary>
           </div>
 

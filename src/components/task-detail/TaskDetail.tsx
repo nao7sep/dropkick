@@ -6,10 +6,13 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
+  Trash2,
+  X,
 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
+import { showConfirm } from "../../repositories";
 import { formatTimestamp, formatDueDate } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 
@@ -31,6 +34,7 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
   const sendToLast = useTaskListStore((s) => s.sendToLast);
   const dropkick = useTaskListStore((s) => s.dropkick);
+  const removeTask = useTaskListStore((s) => s.removeTask);
 
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description);
@@ -69,6 +73,16 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
 
   const handleDueDateChange = async (value: string) => {
     await setDueDate(filePath, task.id, value || null);
+  };
+
+  const handleDeleteTask = async () => {
+    const confirmed = await showConfirm(
+      "Delete Task",
+      `Permanently delete "${task.title || "Untitled"}"? This cannot be undone.`,
+    );
+    if (confirmed) {
+      await removeTask(filePath, task.id);
+    }
   };
 
   const handleAddNote = async () => {
@@ -134,7 +148,7 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
       </div>
 
       {/* Reorder buttons */}
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           onClick={() => sendToFirst(filePath)}
           className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
@@ -161,6 +175,14 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
           className="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50"
         >
           Dropkick
+        </button>
+        <span className="mx-1 text-gray-200">|</span>
+        <button
+          onClick={handleDeleteTask}
+          className="flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-400 hover:border-red-200 hover:text-red-500"
+        >
+          <Trash2 size={12} />
+          Delete
         </button>
       </div>
 
@@ -278,6 +300,7 @@ function NoteItem({
 }) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const updateNote = useTaskListStore((s) => s.updateNote);
+  const removeNote = useTaskListStore((s) => s.removeNote);
   const setActionability = useTaskListStore((s) => s.setNoteActionability);
 
   const [editing, setEditing] = useState(false);
@@ -288,6 +311,16 @@ function NoteItem({
       await updateNote(filePath, taskId, note.id, draft);
     }
     setEditing(false);
+  };
+
+  const handleDeleteNote = async () => {
+    const confirmed = await showConfirm(
+      "Delete Note",
+      "Permanently delete this note?",
+    );
+    if (confirmed) {
+      await removeNote(filePath, taskId, note.id);
+    }
   };
 
   const handleActionabilityChange = async (actionability: NoteActionability) => {
@@ -334,6 +367,13 @@ function NoteItem({
             preferences.timezone,
           )}
         </span>
+        <button
+          onClick={handleDeleteNote}
+          className="rounded p-0.5 text-gray-300 hover:text-red-500"
+          title="Delete note"
+        >
+          <X size={14} />
+        </button>
       </div>
 
       {editing ? (

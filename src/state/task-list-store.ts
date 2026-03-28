@@ -24,12 +24,14 @@ import {
   dropkickTasks,
   replaceTask,
   addTask,
+  deleteTask,
   changeTaskStatus,
   changeTaskPriority,
   changeTaskDueDate,
   updateTaskTitle,
   updateTaskDescription,
   addNote,
+  deleteNote,
   updateNoteContent,
   changeNoteActionability,
   prepareMoveOperation,
@@ -65,6 +67,7 @@ interface TaskListState {
 
   // Actions: task operations (all write to disk immediately).
   addNewTask: (filePath: string, options: CreateTaskOptions) => Promise<WriteResult>;
+  removeTask: (filePath: string, taskId: string) => Promise<WriteResult>;
   updateTitle: (filePath: string, taskId: string, title: string) => Promise<WriteResult>;
   updateDescription: (
     filePath: string,
@@ -75,6 +78,7 @@ interface TaskListState {
   setPriority: (filePath: string, taskId: string, priority: TaskPriority) => Promise<WriteResult>;
   setDueDate: (filePath: string, taskId: string, dueDate: string | null) => Promise<WriteResult>;
   addNewNote: (filePath: string, taskId: string, content: string) => Promise<WriteResult>;
+  removeNote: (filePath: string, taskId: string, noteId: string) => Promise<WriteResult>;
   updateNote: (
     filePath: string,
     taskId: string,
@@ -202,6 +206,22 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     return result;
   },
 
+  removeTask: async (filePath: string, taskId: string) => {
+    const fileState = get().files[filePath];
+    if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
+
+    const newTasks = deleteTask(fileState.data.tasks, taskId);
+    const newData = { ...fileState.data, tasks: newTasks };
+    const { files, result } = await writeFile(get().files, filePath, newData);
+    if (result.status === "success") {
+      set((state) => ({
+        files,
+        selectedIds: new Set([...state.selectedIds].filter((id) => id !== taskId)),
+      }));
+    }
+    return result;
+  },
+
   updateTitle: async (filePath: string, taskId: string, title: string) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
@@ -287,6 +307,20 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
 
     const note = createNote(content);
     const updated = addNote(task, note);
+    const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
+    const { files, result } = await writeFile(get().files, filePath, newData);
+    if (result.status === "success") set({ files });
+    return result;
+  },
+
+  removeNote: async (filePath, taskId, noteId) => {
+    const fileState = get().files[filePath];
+    if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
+
+    const task = fileState.data.tasks.find((t) => t.id === taskId);
+    if (!task) return { status: "error", message: "Task not found" } as WriteResult;
+
+    const updated = deleteNote(task, noteId);
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });

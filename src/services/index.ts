@@ -15,12 +15,14 @@ export {
 
 export {
   addTask,
+  deleteTask,
   updateTaskTitle,
   updateTaskDescription,
   changeTaskStatus,
   changeTaskPriority,
   changeTaskDueDate,
   addNote,
+  deleteNote,
   updateNoteContent,
   changeNoteActionability,
   replaceTask,

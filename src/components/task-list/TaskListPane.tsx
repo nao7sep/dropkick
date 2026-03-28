@@ -2,7 +2,7 @@
 // Supports selection (click, shift+click, cmd+click).
 
 import { useState, useMemo } from "react";
-import { AlertCircle } from "lucide-react";
+import { Plus, AlertCircle } from "lucide-react";
 import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
@@ -15,6 +15,7 @@ import {
 interface TaskListPaneProps {
   filePath: string;
   isUnifiedView: boolean;
+  onNewTask: () => void;
 }
 
 const GROUP_COLORS: Record<TaskGroup, string> = {
@@ -40,7 +41,7 @@ const PRIORITY_BGS: Record<string, string> = {
   Default: "",
 };
 
-export function TaskListPane({ filePath, isUnifiedView }: TaskListPaneProps) {
+export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPaneProps) {
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
   const selectedIds = useTaskListStore((s) => s.selectedIds);
@@ -116,10 +117,22 @@ export function TaskListPane({ filePath, isUnifiedView }: TaskListPaneProps) {
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
+      {/* New task button */}
+      <button
+        onClick={onNewTask}
+        className="flex w-full items-center gap-1.5 border-b border-gray-200 px-3 py-2 text-xs text-gray-500 hover:bg-gray-50"
+      >
+        <Plus size={14} />
+        New Task
+        <span className="ml-auto text-gray-300">
+          {navigator.platform.includes("Mac") ? "⌘" : "Ctrl+"}N
+        </span>
+      </button>
+
       {/* Active task groups */}
       {grouped.groups.length === 0 && grouped.handledTotal === 0 && (
         <div className="flex flex-1 items-center justify-center p-8 text-sm text-gray-400">
-          No tasks yet. Press Ctrl+N to create one.
+          No tasks yet.
         </div>
       )}
 
