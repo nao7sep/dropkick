@@ -374,7 +374,7 @@ function SortableTab({
 }
 
 function fileNameWithoutExt(path: string): string {
-  const parts = path.split("/");
+  const parts = path.split(/[\\/]/);
   const name = parts[parts.length - 1] ?? "tasks";
   return name.replace(/\.json$/, "");
 }

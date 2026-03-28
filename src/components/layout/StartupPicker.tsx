@@ -193,7 +193,7 @@ function Section({
 // Helpers
 
 function fileNameWithoutExt(path: string): string {
-  const parts = path.split("/");
+  const parts = path.split(/[\\/]/);
   const name = parts[parts.length - 1] ?? "default";
   return name.replace(/\.json$/, "");
 }
