@@ -1,8 +1,11 @@
 // Workspace stored as a portable JSON file at any path.
 // Tracks open tabs, recent files, and active tab state.
 
+import { generateId } from "../utils/ids";
+
 export interface WorkspaceDto {
   version: string;
+  id: string; // unique, generated once, used for backup subdirectory
   name: string;
   openTabs: TabDto[];
   recentFiles: RecentFileDto[];
@@ -23,6 +26,7 @@ export interface RecentFileDto {
 export function createDefaultWorkspace(name: string): WorkspaceDto {
   return {
     version: "1.0.0",
+    id: generateId(),
     name,
     openTabs: [],
     recentFiles: [],

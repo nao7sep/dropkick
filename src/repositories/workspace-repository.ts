@@ -5,12 +5,14 @@ import { createDefaultWorkspace } from "../models";
 import { readJsonFile, writeJsonFile } from "./file-system";
 
 // Loads a workspace file. Returns a default empty workspace if the file is missing or invalid.
+// Merges with defaults so newly added fields (like id) are always present.
 export async function loadWorkspace(path: string): Promise<WorkspaceDto> {
-  const data = await readJsonFile<WorkspaceDto>(path);
+  const data = await readJsonFile<Partial<WorkspaceDto>>(path);
   if (data === null) {
     return createDefaultWorkspace("Default");
   }
-  return data;
+  const defaults = createDefaultWorkspace(data.name ?? "Default");
+  return { ...defaults, ...data };
 }
 
 // Saves workspace to disk.

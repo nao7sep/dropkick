@@ -9,6 +9,8 @@ import { useTaskListStore } from "../../state/task-list-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
+import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
+import { AboutModal } from "./AboutModal";
 import { NewTaskModal } from "./NewTaskModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
@@ -53,6 +55,8 @@ export function MainWindow() {
   const clearSelection = useTaskListStore((s) => s.clearSelection);
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [showNewTask, setShowNewTask] = useState(false);
 
   const hasActiveTab = activeTab !== null;
@@ -107,7 +111,13 @@ export function MainWindow() {
       }}
     >
       {/* Tab bar */}
-      <TabBar onOpenSettings={() => setShowSettings(true)} />
+      <TabBar
+        onGearMenuSelect={(item) => {
+          if (item === "settings") setShowSettings(true);
+          else if (item === "shortcuts") setShowShortcuts(true);
+          else if (item === "about") setShowAbout(true);
+        }}
+      />
 
       {/* Content area */}
       {hasActiveTab ? (
@@ -141,6 +151,14 @@ export function MainWindow() {
       {showSettings && (
         <SettingsModal onClose={() => setShowSettings(false)} />
       )}
+
+      {/* Keyboard shortcuts modal */}
+      {showShortcuts && (
+        <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />
+      )}
+
+      {/* About modal */}
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
 
       {/* New task modal */}
       {showNewTask && (

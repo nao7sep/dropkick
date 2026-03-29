@@ -58,13 +58,13 @@ function App() {
     await loadPreferences(preferencesPath);
     await loadWorkspace(workspacePath);
 
-    // Start backup system: immediate backup + periodic backups every 2 hours.
+    // Start backup system: immediate backup + periodic backups every hour.
     // Does not block the main window from appearing.
     const workspace = useWorkspaceStore.getState().workspace;
     const taskListPaths = workspace.openTabs
       .filter((t) => !t.isUnifiedView && t.filePath)
       .map((t) => t.filePath);
-    startBackupSchedule(preferencesPath, workspacePath, taskListPaths);
+    startBackupSchedule(workspace.id, preferencesPath, workspacePath, taskListPaths);
 
     setPhase({ kind: "main" });
   };

@@ -1,6 +1,6 @@
 // Automatic backup — creates a zip of all referenced files on app startup
 // and every hour while the app is running.
-// Backups are stored in ~/.dropkick/backups/ and pruned with GFS rotation
+// Backups are stored in ~/.dropkick/backups/<workspace-id>/ and pruned with GFS rotation
 // using UTC-aligned sliding windows:
 //   - 0–24 hours old: keep one per hour
 //   - 1–7 days old: keep one per day
@@ -131,14 +131,18 @@ function parseBackupUtcMs(filename: string): number | null {
   return Date.UTC(+y!, +mo! - 1, +d!, +h!, +mi!, +s!);
 }
 
-async function getBackupsDir(): Promise<string> {
+// Returns the backup subdirectory for a workspace.
+// Each workspace gets its own directory keyed by its unique ID
+// so that GFS pruning operates independently per workspace.
+async function getBackupsDir(workspaceId: string): Promise<string> {
   const home = await homeDir();
   const sep = home.endsWith("/") || home.endsWith("\\") ? "" : "/";
-  return `${home}${sep}.dropkick/${BACKUPS_DIR_NAME}`;
+  return `${home}${sep}.dropkick/${BACKUPS_DIR_NAME}/${workspaceId}`;
 }
 
 // Creates a backup zip of the given file paths.
 async function createBackup(
+  workspaceId: string,
   preferencesPath: string,
   workspacePath: string,
   taskListPaths: string[],
@@ -157,7 +161,7 @@ async function createBackup(
 
   if (entries.length === 0) return;
 
-  const backupsDir = await getBackupsDir();
+  const backupsDir = await getBackupsDir(workspaceId);
   const outputPath = `${backupsDir}/backup-${backupTimestamp()}.zip`;
 
   try {
@@ -253,12 +257,13 @@ async function pruneBackups(backupsDir: string): Promise<void> {
 // Starts the backup system: creates an immediate backup, then schedules
 // periodic backups every hour. Call once after workspace is loaded.
 export function startBackupSchedule(
+  workspaceId: string,
   preferencesPath: string,
   workspacePath: string,
   taskListPaths: string[],
 ): void {
   // Immediate backup on startup.
-  createBackup(preferencesPath, workspacePath, taskListPaths).catch((e) =>
+  createBackup(workspaceId, preferencesPath, workspacePath, taskListPaths).catch((e) =>
     console.error("[backup] Startup backup failed:", e),
   );
 
@@ -267,7 +272,7 @@ export function startBackupSchedule(
     clearInterval(backupTimer);
   }
   backupTimer = setInterval(() => {
-    createBackup(preferencesPath, workspacePath, taskListPaths).catch((e) =>
+    createBackup(workspaceId, preferencesPath, workspacePath, taskListPaths).catch((e) =>
       console.error("[backup] Periodic backup failed:", e),
     );
   }, MS_HOUR);

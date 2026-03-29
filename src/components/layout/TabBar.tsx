@@ -1,9 +1,9 @@
 // Tab bar — displays open tabs with drag-to-reorder, close, and rename.
 // The [+] button opens a menu to create/open task list files.
-// The gear icon opens the settings modal.
+// The gear icon opens a menu with Settings, Keyboard Shortcuts, and About.
 
 import { useState, useRef, useEffect } from "react";
-import { Plus, X, Layout, FileText, Settings } from "lucide-react";
+import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info } from "lucide-react";
 import { sanitizeSingleLine } from "../../utils";
 import {
   DndContext,
@@ -26,11 +26,13 @@ import {
   saveJsonFileDialog,
 } from "../../repositories";
 
+type GearMenuItem = "settings" | "shortcuts" | "about";
+
 interface TabBarProps {
-  onOpenSettings: () => void;
+  onGearMenuSelect: (item: GearMenuItem) => void;
 }
 
-export function TabBar({ onOpenSettings }: TabBarProps) {
+export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const workspace = useWorkspaceStore((s) => s.workspace);
   const activeTabIndex = workspace.activeTabIndex;
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
@@ -45,10 +47,12 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
   const unloadFile = useTaskListStore((s) => s.unloadFile);
 
   const [showNewMenu, setShowNewMenu] = useState(false);
+  const [showGearMenu, setShowGearMenu] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const gearMenuRef = useRef<HTMLDivElement>(null);
 
   // Focus rename input when editing starts.
   useEffect(() => {
@@ -58,17 +62,28 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
     }
   }, [editingIndex]);
 
-  // Close menu when clicking outside.
+  // Close menus when clicking outside.
   useEffect(() => {
-    if (!showNewMenu) return;
+    if (!showNewMenu && !showGearMenu) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (
+        showNewMenu &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node)
+      ) {
         setShowNewMenu(false);
+      }
+      if (
+        showGearMenu &&
+        gearMenuRef.current &&
+        !gearMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowGearMenu(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [showNewMenu]);
+  }, [showNewMenu, showGearMenu]);
 
   // --- Drag-and-drop ---
 
@@ -275,14 +290,52 @@ export function TabBar({ onOpenSettings }: TabBarProps) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Settings gear icon */}
-      <button
-        onClick={onOpenSettings}
-        className="flex h-10 w-10 items-center justify-center text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-        title="Settings"
-      >
-        <Settings size={15} />
-      </button>
+      {/* Gear menu */}
+      <div className="relative shrink-0" ref={gearMenuRef}>
+        <button
+          onClick={() => setShowGearMenu(!showGearMenu)}
+          className="flex h-10 w-10 items-center justify-center text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          title="Menu"
+        >
+          <Menu size={15} />
+        </button>
+
+        {showGearMenu && (
+          <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+            <button
+              onClick={() => {
+                setShowGearMenu(false);
+                onGearMenuSelect("settings");
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Settings size={14} className="text-gray-400" />
+              Settings
+            </button>
+            <button
+              onClick={() => {
+                setShowGearMenu(false);
+                onGearMenuSelect("shortcuts");
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Keyboard size={14} className="text-gray-400" />
+              Keyboard Shortcuts
+            </button>
+            <div className="my-1 border-t border-gray-100" />
+            <button
+              onClick={() => {
+                setShowGearMenu(false);
+                onGearMenuSelect("about");
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Info size={14} className="text-gray-400" />
+              About Dropkick
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
