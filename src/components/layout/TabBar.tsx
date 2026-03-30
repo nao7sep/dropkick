@@ -193,150 +193,148 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   );
 
   return (
-    <div className="flex h-10 items-center border-b border-gray-200 bg-white">
-      {/* Tabs with drag-and-drop */}
-      <div className="flex min-w-0 items-center overflow-x-auto">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={tabIds}
-            strategy={horizontalListSortingStrategy}
-          >
-            {workspace.openTabs.map((tab, index) => (
-              <SortableTab
-                key={tab.isUnifiedView ? "__unified__" : tab.filePath}
-                id={tab.isUnifiedView ? "__unified__" : tab.filePath}
-                tab={tab}
-                index={index}
-                isActive={index === activeTabIndex}
-                isEditing={editingIndex === index}
-                editValue={editValue}
-                editInputRef={
-                  editingIndex === index ? editInputRef : undefined
-                }
-                onActivate={() => setActiveTab(index)}
-                onDoubleClick={() => handleDoubleClick(index)}
-                onClose={(e) => handleCloseTab(e, index)}
-                onEditChange={setEditValue}
-                onEditSubmit={handleRenameSubmit}
-                onEditCancel={() => setEditingIndex(null)}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
-      </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={tabIds}
+        strategy={horizontalListSortingStrategy}
+      >
+        <div className="flex min-h-10 flex-wrap items-center border-b border-gray-200 bg-white">
+          {/* Tabs */}
+          {workspace.openTabs.map((tab, index) => (
+            <SortableTab
+              key={tab.isUnifiedView ? "__unified__" : tab.filePath}
+              id={tab.isUnifiedView ? "__unified__" : tab.filePath}
+              tab={tab}
+              index={index}
+              isActive={index === activeTabIndex}
+              isEditing={editingIndex === index}
+              editValue={editValue}
+              editInputRef={
+                editingIndex === index ? editInputRef : undefined
+              }
+              onActivate={() => setActiveTab(index)}
+              onDoubleClick={() => handleDoubleClick(index)}
+              onClose={(e) => handleCloseTab(e, index)}
+              onEditChange={setEditValue}
+              onEditSubmit={handleRenameSubmit}
+              onEditCancel={() => setEditingIndex(null)}
+            />
+          ))}
 
-      {/* New tab button — next to tabs, outside overflow container */}
-      <div className="relative shrink-0" ref={menuRef}>
-        <button
-          onClick={() => setShowNewMenu(!showNewMenu)}
-          className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:bg-gray-100"
-        >
-          <Plus size={16} />
-        </button>
-
-        {showNewMenu && (
-          <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+          {/* New tab button */}
+          <div className="relative shrink-0" ref={menuRef}>
             <button
-              onClick={handleNewTaskList}
-              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              onClick={() => setShowNewMenu(!showNewMenu)}
+              className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:bg-gray-100"
             >
-              New task list...
+              <Plus size={16} />
             </button>
-            <button
-              onClick={handleOpenExisting}
-              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Open existing file...
-            </button>
-            {!workspace.openTabs.some((t) => t.isUnifiedView) && (
-              <button
-                onClick={handleUnifiedView}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Unified view
-              </button>
-            )}
 
-            {recentFiles.length > 0 && (
-              <>
-                <div className="my-1 border-t border-gray-100" />
-                <div className="px-4 py-1 text-xs font-medium text-gray-400">
-                  Recent
-                </div>
-                {recentFiles.slice(0, 10).map((r) => (
+            {showNewMenu && (
+              <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                <button
+                  onClick={handleNewTaskList}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  New task list...
+                </button>
+                <button
+                  onClick={handleOpenExisting}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Open existing file...
+                </button>
+                {!workspace.openTabs.some((t) => t.isUnifiedView) && (
                   <button
-                    key={r.filePath}
-                    onClick={() => handleOpenRecent(r.filePath)}
-                    className="w-full px-4 py-1.5 text-left text-sm text-gray-600 hover:bg-gray-50"
+                    onClick={handleUnifiedView}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    <span className="block truncate" title={r.filePath}>
-                      {fileNameWithoutExt(r.filePath)}
-                    </span>
-                    <span className="block truncate text-xs text-gray-400">
-                      {r.filePath}
-                    </span>
+                    Unified view
                   </button>
-                ))}
-              </>
+                )}
+
+                {recentFiles.length > 0 && (
+                  <>
+                    <div className="my-1 border-t border-gray-100" />
+                    <div className="px-4 py-1 text-xs font-medium text-gray-400">
+                      Recent
+                    </div>
+                    {recentFiles.slice(0, 10).map((r) => (
+                      <button
+                        key={r.filePath}
+                        onClick={() => handleOpenRecent(r.filePath)}
+                        className="w-full px-4 py-1.5 text-left text-sm text-gray-600 hover:bg-gray-50"
+                      >
+                        <span className="block truncate" title={r.filePath}>
+                          {fileNameWithoutExt(r.filePath)}
+                        </span>
+                        <span className="block truncate text-xs text-gray-400">
+                          {r.filePath}
+                        </span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+          {/* Spacer */}
+          <div className="flex-1" />
 
-      {/* Gear menu */}
-      <div className="relative shrink-0" ref={gearMenuRef}>
-        <button
-          onClick={() => setShowGearMenu(!showGearMenu)}
-          className="flex h-10 w-10 items-center justify-center text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-          title="Menu"
-        >
-          <Menu size={15} />
-        </button>
+          {/* Gear menu */}
+          <div className="relative shrink-0" ref={gearMenuRef}>
+            <button
+              onClick={() => setShowGearMenu(!showGearMenu)}
+              className="flex h-10 w-10 items-center justify-center text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              title="Menu"
+            >
+              <Menu size={15} />
+            </button>
 
-        {showGearMenu && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-            <button
-              onClick={() => {
-                setShowGearMenu(false);
-                onGearMenuSelect("settings");
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-            >
-              <Settings size={14} className="text-gray-400" />
-              Settings
-            </button>
-            <button
-              onClick={() => {
-                setShowGearMenu(false);
-                onGearMenuSelect("shortcuts");
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-            >
-              <Keyboard size={14} className="text-gray-400" />
-              Keyboard Shortcuts
-            </button>
-            <div className="my-1 border-t border-gray-100" />
-            <button
-              onClick={() => {
-                setShowGearMenu(false);
-                onGearMenuSelect("about");
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-            >
-              <Info size={14} className="text-gray-400" />
-              About Dropkick
-            </button>
+            {showGearMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                <button
+                  onClick={() => {
+                    setShowGearMenu(false);
+                    onGearMenuSelect("settings");
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <Settings size={14} className="text-gray-400" />
+                  Settings
+                </button>
+                <button
+                  onClick={() => {
+                    setShowGearMenu(false);
+                    onGearMenuSelect("shortcuts");
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <Keyboard size={14} className="text-gray-400" />
+                  Keyboard Shortcuts
+                </button>
+                <div className="my-1 border-t border-gray-100" />
+                <button
+                  onClick={() => {
+                    setShowGearMenu(false);
+                    onGearMenuSelect("about");
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <Info size={14} className="text-gray-400" />
+                  About Dropkick
+                </button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }
 

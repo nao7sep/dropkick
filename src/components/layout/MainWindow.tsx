@@ -121,7 +121,7 @@ export function MainWindow() {
 
       {/* Content area */}
       {hasActiveTab ? (
-        <div className="flex h-[calc(100vh-2.5rem)] min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1">
           {/* Left pane — task list */}
           <div className="flex h-full w-80 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-white">
             <ErrorBoundary>
