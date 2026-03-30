@@ -204,7 +204,7 @@ export function NewTaskModal({
               <label className="mb-1 block text-xs font-medium text-gray-500">
                 Due date
               </label>
-              <DatePicker value={dueDate} onChange={setDueDate} popoverPosition="above" />
+              <DatePicker value={dueDate} onChange={setDueDate} popoverPosition="top" />
             </div>
           </div>
         </div>
