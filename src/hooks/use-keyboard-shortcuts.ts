@@ -85,7 +85,6 @@ export function useKeyboardShortcuts(
 
       // --- Ctrl/Cmd+N: New task modal ---
       if (mod && !e.shiftKey && e.key === "n") {
-        if (isTyping(e)) return;
         e.preventDefault();
         onNewTask();
         return;
@@ -93,7 +92,6 @@ export function useKeyboardShortcuts(
 
       // --- Ctrl/Cmd+M: Move selected tasks to another list ---
       if (mod && !e.shiftKey && e.key === "m") {
-        if (isTyping(e)) return;
         if (selectedIds.size === 0) return;
         e.preventDefault();
         onMoveTasks();
@@ -102,7 +100,6 @@ export function useKeyboardShortcuts(
 
       // --- Ctrl/Cmd+Shift+N: New note on selected task ---
       if (mod && e.shiftKey && e.key === "N") {
-        if (isTyping(e)) return;
         if (selectedIds.size !== 1) return;
         e.preventDefault();
         const taskId = [...selectedIds][0];
@@ -220,7 +217,6 @@ export function useKeyboardShortcuts(
 
       // --- Ctrl/Cmd+W: Close current tab ---
       if (mod && e.key === "w") {
-        if (isTyping(e)) return;
         e.preventDefault();
         const idx = workspace.activeTabIndex;
         if (idx >= 0 && idx < workspace.openTabs.length) {
@@ -231,7 +227,6 @@ export function useKeyboardShortcuts(
 
       // --- Ctrl/Cmd+U: Open unified view ---
       if (mod && e.key === "u") {
-        if (isTyping(e)) return;
         e.preventDefault();
         await addUnifiedViewTab();
         return;
