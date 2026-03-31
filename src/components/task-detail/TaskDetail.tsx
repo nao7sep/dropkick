@@ -127,7 +127,7 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   };
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-y-auto p-4">
+    <div className="flex h-full min-w-0 flex-col overflow-y-auto px-4 pt-4">
       {/* Title */}
       <textarea
         ref={titleRef}
@@ -339,6 +339,9 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
           </div>
         )}
       </div>
+
+      {/* Bottom spacer — prevents margin collapse at the scroll boundary */}
+      <div className="shrink-0 pb-4" />
     </div>
   );
 }
