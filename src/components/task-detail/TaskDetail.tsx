@@ -12,6 +12,7 @@ import {
 import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
+import { useWorkspaceStore } from "../../state/workspace-store";
 import { showConfirm } from "../../repositories";
 import { formatTimestamp, formatDueDate, sanitizeSingleLine } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
@@ -37,10 +38,19 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   const sendToLast = useTaskListStore((s) => s.sendToLast);
   const dropkick = useTaskListStore((s) => s.dropkick);
   const removeTask = useTaskListStore((s) => s.removeTask);
+  const moveTasks = useTaskListStore((s) => s.moveTasks);
+  const setSelection = useTaskListStore((s) => s.setSelection);
+  const workspace = useWorkspaceStore((s) => s.workspace);
 
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description);
   const [newNoteContent, setNewNoteContent] = useState("");
+  const [moveTarget, setMoveTarget] = useState("");
+
+  // Available move destinations (other open task list tabs).
+  const moveDestinations = workspace.openTabs.filter(
+    (t) => !t.isUnifiedView && t.filePath !== filePath,
+  );
 
   // Sync drafts when task changes (different task selected).
   const [lastTaskId, setLastTaskId] = useState(task.id);
@@ -124,6 +134,16 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
     if (!newNoteContent.trim()) return;
     await addNewNote(filePath, task.id, newNoteContent);
     setNewNoteContent("");
+  };
+
+  const handleMoveTask = async () => {
+    if (!moveTarget) return;
+    const ids = new Set([task.id]);
+    await moveTasks(filePath, moveTarget, ids);
+    // Re-select: in unified view the task is still visible under the new source;
+    // in specific list view the ID won't match any task, so summary is shown.
+    setSelection(ids);
+    setMoveTarget("");
   };
 
   return (
@@ -229,6 +249,32 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
           Delete
         </button>
       </div>
+
+      {/* Move to another list */}
+      {moveDestinations.length > 0 && (
+        <div className="mb-4 flex items-center gap-2">
+          <label className="text-xs text-gray-400">Move to</label>
+          <select
+            value={moveTarget}
+            onChange={(e) => setMoveTarget(e.target.value)}
+            className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-600"
+          >
+            <option value="">Select destination...</option>
+            {moveDestinations.map((t) => (
+              <option key={t.filePath} value={t.filePath}>
+                {t.displayName}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleMoveTask}
+            disabled={!moveTarget}
+            className="rounded-md bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-300"
+          >
+            Move
+          </button>
+        </div>
+      )}
 
       {/* Description */}
       <div className="mb-4">

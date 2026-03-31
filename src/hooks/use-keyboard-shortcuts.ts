@@ -22,6 +22,7 @@ export function useKeyboardShortcuts(
   filePath: string,
   isUnifiedView: boolean,
   onNewTask: () => void,
+  onMoveTasks: () => void,
 ) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const files = useTaskListStore((s) => s.files);
@@ -87,6 +88,15 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         e.preventDefault();
         onNewTask();
+        return;
+      }
+
+      // --- Ctrl/Cmd+M: Move selected tasks to another list ---
+      if (mod && !e.shiftKey && e.key === "m") {
+        if (isTyping(e)) return;
+        if (selectedIds.size === 0) return;
+        e.preventDefault();
+        onMoveTasks();
         return;
       }
 
@@ -246,6 +256,7 @@ export function useKeyboardShortcuts(
       workspace.openTabs,
       workspace.activeTabIndex,
       onNewTask,
+      onMoveTasks,
       addNewNote,
       setStatus,
       moveUp,

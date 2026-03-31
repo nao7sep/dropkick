@@ -26,6 +26,7 @@ export function BulkActions({
   const setStatus = useTaskListStore((s) => s.setStatus);
   const setPriority = useTaskListStore((s) => s.setPriority);
   const moveTasks = useTaskListStore((s) => s.moveTasks);
+  const setSelection = useTaskListStore((s) => s.setSelection);
   const workspace = useWorkspaceStore((s) => s.workspace);
 
   const [moveTarget, setMoveTarget] = useState("");
@@ -46,13 +47,32 @@ export function BulkActions({
 
   const handleMove = async () => {
     if (!moveTarget) return;
-    const ids = new Set(selectedTasks.map((t) => t.id));
-    await moveTasks(filePath, moveTarget, ids);
+    if (isUnifiedView) {
+      // Group tasks by source file and move each group.
+      const bySource = new Map<string, Set<string>>();
+      for (const task of selectedTasks) {
+        const ids = bySource.get(task.sourceFile) ?? new Set();
+        ids.add(task.id);
+        bySource.set(task.sourceFile, ids);
+      }
+      for (const [src, ids] of bySource) {
+        await moveTasks(src, moveTarget, ids);
+      }
+      // Re-select — tasks are still visible in unified view.
+      setSelection(new Set(selectedTasks.map((t) => t.id)));
+    } else {
+      const ids = new Set(selectedTasks.map((t) => t.id));
+      await moveTasks(filePath, moveTarget, ids);
+    }
   };
 
   // Available move destinations (other open task list tabs).
+  // In unified view, exclude any file that is a source for the selected tasks.
+  const sourceFiles = isUnifiedView
+    ? new Set(selectedTasks.map((t) => t.sourceFile))
+    : new Set([filePath]);
   const moveDestinations = workspace.openTabs.filter(
-    (t) => !t.isUnifiedView && t.filePath !== filePath,
+    (t) => !t.isUnifiedView && !sourceFiles.has(t.filePath),
   );
 
   return (
@@ -158,8 +178,8 @@ export function BulkActions({
         </div>
       )}
 
-      {/* Move to another list (not in unified view) */}
-      {!isUnifiedView && moveDestinations.length > 0 && (
+      {/* Move to another list */}
+      {moveDestinations.length > 0 && (
         <div className="mt-4">
           <label className="mb-2 block text-xs font-medium text-gray-500">
             Move to

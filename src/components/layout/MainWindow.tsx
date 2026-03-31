@@ -1,17 +1,19 @@
 // Main window — tab bar + two-panel layout (task list | task detail).
 
-import { useEffect, useState, useRef, useCallback, Component } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, Component } from "react";
 import type { ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
+import { toTask } from "../../utils";
 import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
 import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
 import { AboutModal } from "./AboutModal";
 import { NewTaskModal } from "./NewTaskModal";
+import { MoveTasksModal } from "./MoveTasksModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
 
@@ -54,11 +56,14 @@ export function MainWindow() {
 
   const loadFile = useTaskListStore((s) => s.loadFile);
   const clearSelection = useTaskListStore((s) => s.clearSelection);
+  const selectedIds = useTaskListStore((s) => s.selectedIds);
+  const files = useTaskListStore((s) => s.files);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [showMoveTasks, setShowMoveTasks] = useState(false);
 
   const hasActiveTab = activeTab !== null;
   const isUnifiedView = activeTab?.isUnifiedView ?? false;
@@ -109,7 +114,7 @@ export function MainWindow() {
   );
 
   // Register global keyboard shortcuts.
-  useKeyboardShortcuts(filePath, isUnifiedView, () => setShowNewTask(true));
+  useKeyboardShortcuts(filePath, isUnifiedView, () => setShowNewTask(true), () => setShowMoveTasks(true));
 
   // Apply saved zoom level on startup and when changed via settings.
   useEffect(() => {
@@ -147,6 +152,27 @@ export function MainWindow() {
       }
     })();
   }, [activeTab?.isUnifiedView, workspace.openTabs.length]);
+
+  // Compute selected tasks for the move modal.
+  const selectedTasks = useMemo(() => {
+    if (!showMoveTasks || selectedIds.size === 0) return [];
+    const tasks = [];
+    if (isUnifiedView) {
+      for (const [fp, fileState] of Object.entries(files)) {
+        for (const dto of fileState.data.tasks) {
+          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, fp, preferences.timezone));
+        }
+      }
+    } else {
+      const fileState = files[filePath];
+      if (fileState) {
+        for (const dto of fileState.data.tasks) {
+          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, filePath, preferences.timezone));
+        }
+      }
+    }
+    return tasks;
+  }, [showMoveTasks, selectedIds, files, filePath, isUnifiedView, preferences.timezone]);
 
   return (
     <div
@@ -220,6 +246,16 @@ export function MainWindow() {
           currentFilePath={filePath}
           isUnifiedView={isUnifiedView}
           onClose={() => setShowNewTask(false)}
+        />
+      )}
+
+      {/* Move tasks modal */}
+      {showMoveTasks && selectedTasks.length > 0 && (
+        <MoveTasksModal
+          selectedTasks={selectedTasks}
+          sourceFilePath={filePath}
+          isUnifiedView={isUnifiedView}
+          onClose={() => setShowMoveTasks(false)}
         />
       )}
     </div>

@@ -6,6 +6,7 @@ import { Plus, AlertCircle } from "lucide-react";
 import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
+import { useWorkspaceStore } from "../../state/workspace-store";
 import { toTask, sanitizeSingleLine } from "../../utils";
 import {
   groupTasksForList,
@@ -320,14 +321,18 @@ function TaskRow({
       {/* Source file label (unified view only) */}
       {isUnifiedView && (
         <span className="shrink-0 max-w-20 truncate text-xs text-gray-400">
-          {fileNameFromPath(task.sourceFile)}
+          {tabDisplayName(task.sourceFile)}
         </span>
       )}
     </div>
   );
 }
 
-function fileNameFromPath(path: string): string {
+/** Look up the tab's display name for a file path; fall back to raw filename. */
+function tabDisplayName(path: string): string {
+  const tabs = useWorkspaceStore.getState().workspace.openTabs;
+  const tab = tabs.find((t) => t.filePath === path);
+  if (tab) return tab.displayName;
   const parts = path.split(/[\\/]/);
   return (parts[parts.length - 1] ?? "").replace(/\.json$/, "");
 }

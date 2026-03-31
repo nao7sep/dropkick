@@ -10,6 +10,7 @@ interface KeyboardShortcutsModalProps {
 const shortcuts: { label: string; keys: string }[] = [
   { label: "New task", keys: "\u2318N" },
   { label: "New note on selected task", keys: "\u2318\u21e7N" },
+  { label: "Move selected tasks", keys: "\u2318M" },
   { label: "Submit dialog", keys: "\u2318\u21a9" },
   { label: "Save note", keys: "\u2318\u21a9" },
   { label: "Dismiss selected tasks", keys: "\u232b" },

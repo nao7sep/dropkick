@@ -13,10 +13,13 @@ Built with Tauri v2, React, and TypeScript.
 - **Priority groups** — tasks are auto-grouped by priority (Critical, Urgent, Important, Default) and due date (Past Due, Due Within 7 Days)
 - **Multiple task lists** — open several task list files as tabs, reorder tabs with drag and drop
 - **Unified view** — see all open task lists merged into one view
+- **Move tasks between lists** — move tasks to another open list via ⌘M modal, task detail dropdown, or bulk actions
 - **Notes with actionability** — attach notes to tasks, mark them as Informational, Actionable, or Resolved; tasks with actionable notes can't be completed until resolved
+- **Resizable sidebar** — drag the divider or set a specific width in settings
 - **File integrity** — SHA-256 hash checks detect external modifications before overwriting
 - **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically)
-- **Configurable** — font family, zoom level, date/time format, timezone, kick distances
+- **IME composition support** — Japanese/Chinese/Korean input works correctly in all text fields
+- **Configurable** — font family, zoom level, sidebar width, date/time format, timezone, kick distances
 
 ## Data Storage
 
@@ -36,22 +39,25 @@ Every change is written to disk immediately. There is no "save" action.
 
 | Action | Shortcut |
 |---|---|
-| New task | Ctrl/Cmd+N |
-| New note on selected task | Ctrl/Cmd+Shift+N |
-| Dismiss selected tasks | Delete / Backspace |
-| Move task up | Ctrl/Cmd+Up |
-| Move task down | Ctrl/Cmd+Down |
-| Send to first in group | Ctrl/Cmd+Home |
-| Send to last in group | Ctrl/Cmd+End |
-| Navigate selection | Up / Down |
-| Extend selection | Shift+Up / Shift+Down |
-| Next tab | Ctrl/Cmd+Tab |
-| Previous tab | Ctrl/Cmd+Shift+Tab |
-| Close tab | Ctrl/Cmd+W |
-| Unified view | Ctrl/Cmd+U |
-| Clear selection | Escape |
-| Zoom in / out | Ctrl/Cmd+Plus / Ctrl/Cmd+Minus |
-| Reset zoom | Ctrl/Cmd+0 |
+| New task | ⌘N |
+| New note on selected task | ⌘⇧N |
+| Move selected tasks | ⌘M |
+| Submit dialog | ⌘↩ |
+| Save note | ⌘↩ |
+| Dismiss selected tasks | ⌫ |
+| Move task up | ⌘↑ |
+| Move task down | ⌘↓ |
+| Send to first in group | ⌘Home |
+| Send to last in group | ⌘End |
+| Navigate selection | ↑ / ↓ |
+| Extend selection | ⇧↑ / ⇧↓ |
+| Next tab | ⌘Tab |
+| Previous tab | ⌘⇧Tab |
+| Close tab | ⌘W |
+| Unified view | ⌘U |
+| Clear selection | Esc |
+| Zoom in / out | ⌘+ / ⌘− |
+| Reset zoom | ⌘0 |
 | Rename tab | Double-click tab |
 
 ## Building from Source
