@@ -117,6 +117,11 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 
   const handleRename = async (task: Task, newTitle: string) => {
     const cleaned = sanitizeSingleLine(newTitle);
+    if (!cleaned) {
+      // Don't allow empty titles — just cancel the rename.
+      setEditingTaskId(null);
+      return;
+    }
     if (cleaned !== task.title) {
       const taskFile = isUnifiedView ? task.sourceFile : filePath;
       await updateTitle(taskFile, task.id, cleaned);

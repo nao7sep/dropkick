@@ -1,6 +1,6 @@
 // New Task modal — Ctrl+N opens this to create a task with full attributes.
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import type { TaskPriority } from "../../models";
 import { sanitizeSingleLine } from "../../utils";
@@ -8,6 +8,7 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
+import { useAutoGrow } from "../../hooks/useAutoGrow";
 
 interface NewTaskModalProps {
   currentFilePath: string;
@@ -39,15 +40,11 @@ export function NewTaskModal({
   const [submitting, setSubmitting] = useState(false);
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const composing = useComposing();
-
-  const autoGrowTitle = useCallback(() => {
-    const el = titleRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, []);
+  const autoGrowTitle = useAutoGrow(titleRef);
+  const autoGrowDesc = useAutoGrow(descRef);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -195,11 +192,15 @@ export function NewTaskModal({
               Description
             </label>
             <textarea
+              ref={descRef}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                autoGrowDesc();
+              }}
               placeholder="Optional details..."
-              rows={3}
-              className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+              rows={2}
+              className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
             />
           </div>
 

@@ -1,7 +1,7 @@
 // Single task detail — shown in right pane when exactly 1 task is selected.
 // All fields are editable inline. Notes are listed newest first.
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -16,6 +16,7 @@ import { showConfirm } from "../../repositories";
 import { formatTimestamp, formatDueDate, sanitizeSingleLine } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
+import { useAutoGrow } from "../../hooks/useAutoGrow";
 
 interface TaskDetailProps {
   task: Task;
@@ -52,8 +53,12 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
+  const newNoteRef = useRef<HTMLTextAreaElement>(null);
   const titleComposing = useComposing();
   const noteComposing = useComposing();
+  const autoGrowTitle = useAutoGrow(titleRef);
+  const autoGrowDesc = useAutoGrow(descRef);
+  const autoGrowNewNote = useAutoGrow(newNoteRef);
 
   // Sync drafts when the same task is updated externally (e.g. renamed in the left pane).
   // Skip if the field is focused — the user is actively editing.
@@ -69,18 +74,18 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
     }
   }, [task.description]);
 
-  const autoGrowTitle = useCallback(() => {
-    const el = titleRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, []);
-
-  // Auto-grow on content change and when task switches.
+  // Re-measure after external sync or content change.
   useEffect(() => autoGrowTitle(), [titleDraft, autoGrowTitle]);
+  useEffect(() => autoGrowDesc(), [descDraft, autoGrowDesc]);
+  useEffect(() => autoGrowNewNote(), [newNoteContent, autoGrowNewNote]);
 
   const handleTitleBlur = async () => {
     const cleaned = sanitizeSingleLine(titleDraft);
+    if (!cleaned) {
+      // Revert — don't allow empty titles.
+      setTitleDraft(task.title);
+      return;
+    }
     if (cleaned !== task.title) {
       await updateTitle(filePath, task.id, cleaned);
     }
@@ -139,7 +144,7 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
         {...titleComposing.handlers}
         placeholder="Task title..."
         rows={1}
-        className="mb-4 w-full resize-none text-lg font-semibold text-gray-800 outline-none placeholder:text-gray-300"
+        className="mb-4 w-full shrink-0 resize-none text-lg font-semibold text-gray-800 outline-none placeholder:text-gray-300"
       />
 
       {/* Status, Priority, Due Date row */}
@@ -231,11 +236,14 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
         <textarea
           ref={descRef}
           value={descDraft}
-          onChange={(e) => setDescDraft(e.target.value)}
+          onChange={(e) => {
+            setDescDraft(e.target.value);
+            autoGrowDesc();
+          }}
           onBlur={handleDescBlur}
-          rows={4}
+          rows={2}
           placeholder="Add a description..."
-          className="w-full resize-y rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-blue-300"
+          className="w-full resize-none rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-blue-300"
         />
       </div>
 
@@ -284,8 +292,12 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
         {/* Add note */}
         <div className="mb-3">
           <textarea
+            ref={newNoteRef}
             value={newNoteContent}
-            onChange={(e) => setNewNoteContent(e.target.value)}
+            onChange={(e) => {
+              setNewNoteContent(e.target.value);
+              autoGrowNewNote();
+            }}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 if (isComposingKeyboardEvent(noteComposing.composingRef, e)) return;
@@ -296,7 +308,7 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
             {...noteComposing.handlers}
             placeholder="Add a note... (⌘Return to save)"
             rows={2}
-            className="w-full resize-y rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+            className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
           />
           <div className="mt-1 flex justify-end">
             <button
@@ -348,8 +360,21 @@ function NoteItem({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.content);
   const composing = useComposing();
+  const editRef = useRef<HTMLTextAreaElement>(null);
+  const autoGrowEdit = useAutoGrow(editRef);
+
+  // Re-measure when draft changes or when entering edit mode.
+  useEffect(() => {
+    if (editing) autoGrowEdit();
+  }, [draft, editing, autoGrowEdit]);
 
   const handleSave = async () => {
+    if (!draft.trim()) {
+      // Revert — don't allow empty notes.
+      setDraft(note.content);
+      setEditing(false);
+      return;
+    }
     if (draft !== note.content) {
       await updateNote(filePath, taskId, note.id, draft);
     }
@@ -422,8 +447,12 @@ function NoteItem({
       {editing ? (
         <div>
           <textarea
+            ref={editRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              autoGrowEdit();
+            }}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 if (isComposingKeyboardEvent(composing.composingRef, e)) return;
@@ -432,14 +461,15 @@ function NoteItem({
               }
             }}
             {...composing.handlers}
-            rows={3}
-            className="w-full resize-y rounded border border-gray-200 p-2 text-sm outline-none focus:border-blue-300"
+            rows={2}
+            className="w-full resize-none rounded border border-gray-200 p-2 text-sm outline-none focus:border-blue-300"
             autoFocus
           />
           <div className="mt-1 flex gap-2">
             <button
               onClick={handleSave}
-              className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700"
+              disabled={!draft.trim()}
+              className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-300"
             >
               Save
             </button>
@@ -459,7 +489,7 @@ function NoteItem({
           onClick={() => setEditing(true)}
           className="cursor-pointer text-sm text-gray-700"
         >
-          <p className="whitespace-pre-wrap">{note.content}</p>
+          <p className="whitespace-pre-wrap break-words">{note.content}</p>
         </div>
       )}
     </div>
