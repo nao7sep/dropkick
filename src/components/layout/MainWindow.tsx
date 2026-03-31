@@ -158,9 +158,12 @@ export function MainWindow() {
     if (!showMoveTasks || selectedIds.size === 0) return [];
     const tasks = [];
     if (isUnifiedView) {
-      for (const [fp, fileState] of Object.entries(files)) {
+      for (const tab of workspace.openTabs) {
+        if (tab.isUnifiedView) continue;
+        const fileState = files[tab.filePath];
+        if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, fp, preferences.timezone));
+          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, tab.filePath, preferences.timezone));
         }
       }
     } else {
@@ -172,7 +175,7 @@ export function MainWindow() {
       }
     }
     return tasks;
-  }, [showMoveTasks, selectedIds, files, filePath, isUnifiedView, preferences.timezone]);
+  }, [showMoveTasks, selectedIds, files, filePath, isUnifiedView, preferences.timezone, workspace.openTabs]);
 
   return (
     <div

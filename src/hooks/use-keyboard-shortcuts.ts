@@ -46,9 +46,12 @@ export function useKeyboardShortcuts(
   const visualTasks: Task[] = useMemo(() => {
     const allTasks: Task[] = [];
     if (isUnifiedView) {
-      for (const [fp, fileState] of Object.entries(files)) {
+      for (const tab of workspace.openTabs) {
+        if (tab.isUnifiedView) continue;
+        const fileState = files[tab.filePath];
+        if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          allTasks.push(toTask(dto, fp, timezone));
+          allTasks.push(toTask(dto, tab.filePath, timezone));
         }
       }
     } else {
@@ -65,19 +68,22 @@ export function useKeyboardShortcuts(
       : groupTasksForList(allTasks);
 
     return grouped.groups.flatMap((g) => g.tasks);
-  }, [files, filePath, isUnifiedView, timezone]);
+  }, [files, filePath, isUnifiedView, timezone, workspace.openTabs]);
 
   // All tasks (for finding sourceFile in unified view).
   const allTasks: Task[] = useMemo(() => {
     if (!isUnifiedView) return [];
     const tasks: Task[] = [];
-    for (const [fp, fileState] of Object.entries(files)) {
+    for (const tab of workspace.openTabs) {
+      if (tab.isUnifiedView) continue;
+      const fileState = files[tab.filePath];
+      if (!fileState) continue;
       for (const dto of fileState.data.tasks) {
-        tasks.push(toTask(dto, fp, timezone));
+        tasks.push(toTask(dto, tab.filePath, timezone));
       }
     }
     return tasks;
-  }, [files, isUnifiedView, timezone]);
+  }, [files, isUnifiedView, timezone, workspace.openTabs]);
 
   const handler = useCallback(
     async (e: KeyboardEvent) => {

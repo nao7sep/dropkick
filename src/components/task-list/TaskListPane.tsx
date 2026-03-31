@@ -56,13 +56,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 
   // Select raw data from store (stable references), compute domain models in useMemo.
   const files = useTaskListStore((s) => s.files);
+  const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
 
   const tasks = useMemo(() => {
     if (isUnifiedView) {
       const allTasks: Task[] = [];
-      for (const [fp, fileState] of Object.entries(files)) {
+      for (const tab of openTabs) {
+        if (tab.isUnifiedView) continue;
+        const fileState = files[tab.filePath];
+        if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          allTasks.push(toTask(dto, fp, timezone));
+          allTasks.push(toTask(dto, tab.filePath, timezone));
         }
       }
       return allTasks;
@@ -70,7 +74,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     const fileState = files[filePath];
     if (!fileState) return [] as Task[];
     return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone));
-  }, [files, filePath, isUnifiedView, timezone]);
+  }, [files, filePath, isUnifiedView, timezone, openTabs]);
 
   const grouped = useMemo(
     () =>

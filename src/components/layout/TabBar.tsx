@@ -45,7 +45,6 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const addRecentFile = useWorkspaceStore((s) => s.addRecentFile);
   const loadFile = useTaskListStore((s) => s.loadFile);
   const createFile = useTaskListStore((s) => s.createFile);
-  const unloadFile = useTaskListStore((s) => s.unloadFile);
 
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [showGearMenu, setShowGearMenu] = useState(false);
@@ -165,10 +164,6 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
 
   const handleCloseTab = async (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
-    const tab = workspace.openTabs[index];
-    if (tab && !tab.isUnifiedView) {
-      unloadFile(tab.filePath);
-    }
     await closeTab(index);
   };
 

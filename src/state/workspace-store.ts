@@ -5,6 +5,7 @@ import { create } from "zustand";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
 import { loadWorkspace, saveWorkspace, fileExists, showMessage } from "../repositories";
+import { useTaskListStore } from "./task-list-store";
 
 interface WorkspaceState {
   // Current workspace data.
@@ -145,7 +146,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   closeTab: async (index: number) => {
     const { workspace, filePath } = get();
+    const closingTab = workspace.openTabs[index];
     const newTabs = workspace.openTabs.filter((_, i) => i !== index);
+
+    // Unload cached file data so it doesn't leak into unified view.
+    if (closingTab && !closingTab.isUnifiedView) {
+      useTaskListStore.getState().unloadFile(closingTab.filePath);
+    }
 
     // Adjust active tab index.
     let newActive = workspace.activeTabIndex;

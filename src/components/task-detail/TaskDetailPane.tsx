@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useTaskListStore } from "../../state/task-list-store";
+import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { toTask } from "../../utils";
 import type { Task } from "../../models";
@@ -17,6 +18,7 @@ interface TaskDetailPaneProps {
 export function TaskDetailPane({ filePath, isUnifiedView }: TaskDetailPaneProps) {
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
   const selectedIds = useTaskListStore((s) => s.selectedIds);
+  const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
 
   // Select raw data from store (stable reference), compute domain models in useMemo.
   const files = useTaskListStore((s) => s.files);
@@ -24,9 +26,12 @@ export function TaskDetailPane({ filePath, isUnifiedView }: TaskDetailPaneProps)
   const tasks = useMemo(() => {
     if (isUnifiedView) {
       const allTasks: Task[] = [];
-      for (const [fp, fileState] of Object.entries(files)) {
+      for (const tab of openTabs) {
+        if (tab.isUnifiedView) continue;
+        const fileState = files[tab.filePath];
+        if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          allTasks.push(toTask(dto, fp, timezone));
+          allTasks.push(toTask(dto, tab.filePath, timezone));
         }
       }
       return allTasks;
@@ -34,7 +39,7 @@ export function TaskDetailPane({ filePath, isUnifiedView }: TaskDetailPaneProps)
     const fileState = files[filePath];
     if (!fileState) return [] as Task[];
     return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone));
-  }, [files, filePath, isUnifiedView, timezone]);
+  }, [files, filePath, isUnifiedView, timezone, openTabs]);
 
   const selectedTasks = tasks.filter((t) => selectedIds.has(t.id));
 
