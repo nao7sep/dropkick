@@ -324,7 +324,7 @@ function TaskRow({
 
       {/* Source file label (unified view only) */}
       {isUnifiedView && (
-        <span className="shrink-0 max-w-20 truncate text-xs text-gray-400">
+        <span className="shrink-0 max-w-[30%] truncate text-xs text-gray-400">
           {tabDisplayName(task.sourceFile)}
         </span>
       )}
