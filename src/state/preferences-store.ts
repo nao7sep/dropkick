@@ -37,7 +37,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   update: async (changes: Partial<PreferencesDto>) => {
     const { preferences, filePath } = get();
     const updated = { ...preferences, ...changes };
-    await savePreferences(filePath, updated);
-    set({ preferences: updated });
+    const saved = await savePreferences(filePath, updated);
+    set({ preferences: saved });
   },
 }));

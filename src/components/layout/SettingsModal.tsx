@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import type { PreferencesDto } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
+import { validateTimezone } from "../../utils/timezone";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -37,7 +38,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (e.target === backdropRef.current) onClose();
   };
 
+  const timezoneValidation = validateTimezone(draft.timezone);
+  const timezoneError = timezoneValidation.valid
+    ? null
+    : "Invalid IANA timezone";
+
   const handleSave = async () => {
+    if (!timezoneValidation.valid) return;
+
     // Parse kick distances from comma-separated string.
     const parsed = kickInput
       .split(",")
@@ -47,7 +55,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     const deduplicated = [...new Set(parsed)];
     const kickDistances = deduplicated.length > 0 ? deduplicated : [5, 25];
 
-    await update({ ...draft, kickDistances });
+    await update({
+      ...draft,
+      timezone: timezoneValidation.value,
+      kickDistances,
+    });
     onClose();
   };
 
@@ -193,10 +205,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 Detect
               </button>
             </div>
-            <p className="mt-1 text-xs text-gray-400">
-              IANA timezone (e.g. Asia/Tokyo, America/New_York). Leave empty for
-              system default.
-            </p>
+            {timezoneError ? (
+              <p className="mt-1 text-xs text-red-500">{timezoneError}</p>
+            ) : (
+              <p className="mt-1 text-xs text-gray-400">
+                IANA timezone (e.g. Asia/Tokyo, America/New_York). Leave empty for
+                system default.
+              </p>
+            )}
           </Field>
 
           {/* Kick distances */}
@@ -258,7 +274,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </button>
           <button
             onClick={handleSave}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            disabled={!timezoneValidation.valid}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
             Save
           </button>

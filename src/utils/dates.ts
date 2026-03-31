@@ -1,5 +1,6 @@
 import { format, parseISO, isValid } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
+import { coerceTimezone } from "./timezone";
 
 // Returns the current time as an ISO 8601 UTC string.
 export function nowUtc(): string {
@@ -11,7 +12,8 @@ export function nowUtc(): string {
 // Used internally for calendar-date comparisons (due dates).
 function nowInTimezone(timezone: string | null): Date {
   const now = new Date();
-  return timezone ? toZonedTime(now, timezone) : now;
+  const safeTimezone = coerceTimezone(timezone);
+  return safeTimezone ? toZonedTime(now, safeTimezone) : now;
 }
 
 // Returns today's date as "YYYY-MM-DD" in the given timezone.
@@ -31,7 +33,8 @@ export function formatTimestamp(
   const date = parseISO(isoUtc);
   if (!isValid(date)) return isoUtc;
 
-  const zoned = timezone ? toZonedTime(date, timezone) : date;
+  const safeTimezone = coerceTimezone(timezone);
+  const zoned = safeTimezone ? toZonedTime(date, safeTimezone) : date;
   const timePart = timeFormat === "24h" ? "HH:mm" : "hh:mm a";
 
   // Convert user-facing date format tokens to date-fns tokens.
