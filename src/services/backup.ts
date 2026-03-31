@@ -10,6 +10,7 @@
 import { homeDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import { usePreferencesStore } from "../state/preferences-store";
+import { useWorkspaceStore } from "../state/workspace-store";
 
 const BACKUPS_DIR_NAME = "backups";
 
@@ -254,25 +255,32 @@ async function pruneBackups(backupsDir: string): Promise<void> {
   }
 }
 
+// Returns the current task list file paths from the workspace store.
+function currentTaskListPaths(): string[] {
+  return useWorkspaceStore
+    .getState()
+    .workspace.openTabs.filter((t) => !t.isUnifiedView && t.filePath)
+    .map((t) => t.filePath);
+}
+
 // Starts the backup system: creates an immediate backup, then schedules
 // periodic backups every hour. Call once after workspace is loaded.
 export function startBackupSchedule(
   workspaceId: string,
   preferencesPath: string,
   workspacePath: string,
-  taskListPaths: string[],
 ): void {
   // Immediate backup on startup.
-  createBackup(workspaceId, preferencesPath, workspacePath, taskListPaths).catch((e) =>
+  createBackup(workspaceId, preferencesPath, workspacePath, currentTaskListPaths()).catch((e) =>
     console.error("[backup] Startup backup failed:", e),
   );
 
-  // Periodic backups while the app is running.
+  // Periodic backups — reads current open tabs each time so new files are included.
   if (backupTimer !== null) {
     clearInterval(backupTimer);
   }
   backupTimer = setInterval(() => {
-    createBackup(workspaceId, preferencesPath, workspacePath, taskListPaths).catch((e) =>
+    createBackup(workspaceId, preferencesPath, workspacePath, currentTaskListPaths()).catch((e) =>
       console.error("[backup] Periodic backup failed:", e),
     );
   }, MS_HOUR);
