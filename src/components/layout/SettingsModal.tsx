@@ -118,6 +118,29 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             </div>
           </Field>
 
+          {/* Sidebar width */}
+          <Field label="Sidebar width">
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={160}
+                max={1280}
+                step={10}
+                value={draft.sidebarWidth ?? 320}
+                onChange={(e) =>
+                  setField("sidebarWidth", parseInt(e.target.value, 10))
+                }
+                className="flex-1"
+              />
+              <span className="w-14 text-right text-sm text-gray-600">
+                {draft.sidebarWidth ?? 320}px
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-gray-400">
+              You can also drag the divider between the task list and detail pane.
+            </p>
+          </Field>
+
           {/* Date format */}
           <Field label="Date format">
             <select
