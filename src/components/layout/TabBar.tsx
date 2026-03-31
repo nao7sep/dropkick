@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info } from "lucide-react";
 import { sanitizeSingleLine } from "../../utils";
+import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import {
   DndContext,
   closestCenter,
@@ -378,6 +379,7 @@ function SortableTab({
     transition,
     isDragging,
   } = useSortable({ id });
+  const composing = useComposing();
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -413,9 +415,13 @@ function SortableTab({
           onChange={(e) => onEditChange(e.target.value)}
           onBlur={onEditSubmit}
           onKeyDown={(e) => {
-            if (e.key === "Enter") onEditSubmit();
+            if (e.key === "Enter") {
+              if (isComposingKeyboardEvent(composing.composingRef, e)) return;
+              onEditSubmit();
+            }
             if (e.key === "Escape") onEditCancel();
           }}
+          {...composing.handlers}
           className="w-24 rounded border border-blue-300 px-1 text-sm outline-none"
           onClick={(e) => e.stopPropagation()}
         />

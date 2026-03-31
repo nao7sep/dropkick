@@ -1,12 +1,13 @@
 // New Task modal — Ctrl+N opens this to create a task with full attributes.
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
 import type { TaskPriority } from "../../models";
 import { sanitizeSingleLine } from "../../utils";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { DatePicker } from "../shared/DatePicker";
+import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 
 interface NewTaskModalProps {
   currentFilePath: string;
@@ -37,8 +38,16 @@ export function NewTaskModal({
   const [targetFile, setTargetFile] = useState(defaultTarget);
   const [submitting, setSubmitting] = useState(false);
 
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const composing = useComposing();
+
+  const autoGrowTitle = useCallback(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -90,8 +99,9 @@ export function NewTaskModal({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Enter in the title input submits (but not in the textarea).
-    if (e.key === "Enter" && (e.target as HTMLElement)?.tagName !== "TEXTAREA") {
+    // Cmd/Ctrl+Enter submits from anywhere in the modal.
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      if (isComposingKeyboardEvent(composing.composingRef, e)) return;
       e.preventDefault();
       handleCreate();
     }
@@ -108,7 +118,7 @@ export function NewTaskModal({
       onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
     >
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white shadow-xl">
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white shadow-xl" onKeyDown={handleKeyDown}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-800">New Task</h2>
@@ -121,7 +131,7 @@ export function NewTaskModal({
         </div>
 
         {/* Body */}
-        <div className="space-y-4 overflow-y-auto px-6 py-5" onKeyDown={handleKeyDown}>
+        <div className="space-y-4 overflow-y-auto px-6 py-5">
           {/* Target list */}
           {fileTabs.length > 0 && (
             <div>
@@ -158,13 +168,24 @@ export function NewTaskModal({
             <label className="mb-1 block text-xs font-medium text-gray-500">
               Title
             </label>
-            <input
+            <textarea
               ref={titleRef}
-              type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                autoGrowTitle();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  if (isComposingKeyboardEvent(composing.composingRef, e)) return;
+                  e.preventDefault();
+                  handleCreate();
+                }
+              }}
+              {...composing.handlers}
               placeholder="Task title (optional)"
-              className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+              rows={1}
+              className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
             />
           </div>
 

@@ -11,6 +11,7 @@ import {
   groupTasksForList,
   groupTasksForUnifiedView,
 } from "../../services";
+import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 
 interface TaskListPaneProps {
   filePath: string;
@@ -137,7 +138,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         <Plus size={14} />
         New Task
         <span className="ml-auto text-gray-300">
-          {navigator.platform.includes("Mac") ? "⌘" : "Ctrl+"}N
+          ⌘N
         </span>
       </button>
 
@@ -236,6 +237,7 @@ function TaskRow({
   const isHandled = task.status !== "Pending";
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(task.title);
+  const composing = useComposing();
 
   // Reset draft and focus when entering edit mode.
   useEffect(() => {
@@ -278,6 +280,7 @@ function TaskRow({
           onBlur={() => onRename(draft)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
+              if (isComposingKeyboardEvent(composing.composingRef, e)) return;
               e.preventDefault();
               onRename(draft);
             }
@@ -286,6 +289,7 @@ function TaskRow({
               onCancelRename();
             }
           }}
+          {...composing.handlers}
           className="min-w-0 flex-1 rounded border border-blue-300 bg-white px-1 py-0 text-sm outline-none"
         />
       ) : (

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import type { PreferencesDto } from "../../models";
+import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -14,6 +15,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const update = usePreferencesStore((s) => s.update);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const composing = useComposing();
 
   // Local draft state — everything is edited locally, saved on "Save".
   const [draft, setDraft] = useState<PreferencesDto>({ ...preferences });
@@ -62,7 +64,17 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
     >
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white shadow-xl">
+      <div
+        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white shadow-xl"
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            if (isComposingKeyboardEvent(composing.composingRef, e)) return;
+            e.preventDefault();
+            handleSave();
+          }
+        }}
+        {...composing.handlers}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-800">Settings</h2>

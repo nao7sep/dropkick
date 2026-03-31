@@ -7,29 +7,27 @@ interface KeyboardShortcutsModalProps {
   onClose: () => void;
 }
 
-const isMac =
-  typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
-const mod = isMac ? "\u2318" : "Ctrl";
-
 const shortcuts: { label: string; keys: string }[] = [
-  { label: "New task", keys: `${mod}+N` },
-  { label: "New note on selected task", keys: `${mod}+Shift+N` },
-  { label: "Dismiss selected tasks", keys: "Delete / Backspace" },
-  { label: "Move task up", keys: `${mod}+\u2191` },
-  { label: "Move task down", keys: `${mod}+\u2193` },
-  { label: "Send to first in group", keys: `${mod}+Home` },
-  { label: "Send to last in group", keys: `${mod}+End` },
+  { label: "New task", keys: "\u2318N" },
+  { label: "New note on selected task", keys: "\u2318\u21e7N" },
+  { label: "Submit dialog", keys: "\u2318\u21a9" },
+  { label: "Save note", keys: "\u2318\u21a9" },
+  { label: "Dismiss selected tasks", keys: "\u232b" },
+  { label: "Move task up", keys: "\u2318\u2191" },
+  { label: "Move task down", keys: "\u2318\u2193" },
+  { label: "Send to first in group", keys: "\u2318Home" },
+  { label: "Send to last in group", keys: "\u2318End" },
   { label: "Navigate selection up", keys: "\u2191" },
   { label: "Navigate selection down", keys: "\u2193" },
-  { label: "Extend selection", keys: "Shift+\u2191 / Shift+\u2193" },
-  { label: "Next tab", keys: `${mod}+Tab` },
-  { label: "Previous tab", keys: `${mod}+Shift+Tab` },
-  { label: "Close tab", keys: `${mod}+W` },
-  { label: "Unified view", keys: `${mod}+U` },
-  { label: "Clear selection", keys: "Escape" },
+  { label: "Extend selection", keys: "\u21e7\u2191 / \u21e7\u2193" },
+  { label: "Next tab", keys: "\u2318Tab" },
+  { label: "Previous tab", keys: "\u2318\u21e7Tab" },
+  { label: "Close tab", keys: "\u2318W" },
+  { label: "Unified view", keys: "\u2318U" },
+  { label: "Clear selection", keys: "Esc" },
   { label: "Rename tab", keys: "Double-click tab" },
-  { label: "Zoom in / out", keys: `${mod}+Plus / ${mod}+Minus` },
-  { label: "Reset zoom", keys: `${mod}+0` },
+  { label: "Zoom in / out", keys: "\u2318+ / \u2318\u2212" },
+  { label: "Reset zoom", keys: "\u23180" },
 ];
 
 export function KeyboardShortcutsModal({

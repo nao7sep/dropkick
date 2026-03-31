@@ -15,6 +15,7 @@ import { usePreferencesStore } from "../../state/preferences-store";
 import { showConfirm } from "../../repositories";
 import { formatTimestamp, formatDueDate, sanitizeSingleLine } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
+import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 
 interface TaskDetailProps {
   task: Task;
@@ -40,7 +41,7 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   const [descDraft, setDescDraft] = useState(task.description);
   const [newNoteContent, setNewNoteContent] = useState("");
 
-  // Sync drafts when task changes.
+  // Sync drafts when task changes (different task selected).
   const [lastTaskId, setLastTaskId] = useState(task.id);
   if (task.id !== lastTaskId) {
     setLastTaskId(task.id);
@@ -50,6 +51,23 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   }
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
+  const titleComposing = useComposing();
+  const noteComposing = useComposing();
+
+  // Sync drafts when the same task is updated externally (e.g. renamed in the left pane).
+  // Skip if the field is focused — the user is actively editing.
+  useEffect(() => {
+    if (document.activeElement !== titleRef.current) {
+      setTitleDraft(task.title);
+    }
+  }, [task.title]);
+
+  useEffect(() => {
+    if (document.activeElement !== descRef.current) {
+      setDescDraft(task.description);
+    }
+  }, [task.description]);
 
   const autoGrowTitle = useCallback(() => {
     const el = titleRef.current;
@@ -111,7 +129,14 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
         value={titleDraft}
         onChange={(e) => setTitleDraft(e.target.value)}
         onBlur={handleTitleBlur}
-        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            if (isComposingKeyboardEvent(titleComposing.composingRef, e)) return;
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+        {...titleComposing.handlers}
         placeholder="Task title..."
         rows={1}
         className="mb-4 w-full resize-none text-lg font-semibold text-gray-800 outline-none placeholder:text-gray-300"
@@ -204,6 +229,7 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
       <div className="mb-4">
         <label className="mb-1 block text-xs text-gray-400">Description</label>
         <textarea
+          ref={descRef}
           value={descDraft}
           onChange={(e) => setDescDraft(e.target.value)}
           onBlur={handleDescBlur}
@@ -262,11 +288,13 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
             onChange={(e) => setNewNoteContent(e.target.value)}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                if (isComposingKeyboardEvent(noteComposing.composingRef, e)) return;
                 e.preventDefault();
                 handleAddNote();
               }
             }}
-            placeholder="Add a note... (Ctrl+Enter to save)"
+            {...noteComposing.handlers}
+            placeholder="Add a note... (⌘Return to save)"
             rows={2}
             className="w-full resize-y rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
           />
@@ -319,6 +347,7 @@ function NoteItem({
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.content);
+  const composing = useComposing();
 
   const handleSave = async () => {
     if (draft !== note.content) {
@@ -397,10 +426,12 @@ function NoteItem({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                if (isComposingKeyboardEvent(composing.composingRef, e)) return;
                 e.preventDefault();
                 handleSave();
               }
             }}
+            {...composing.handlers}
             rows={3}
             className="w-full resize-y rounded border border-gray-200 p-2 text-sm outline-none focus:border-blue-300"
             autoFocus
