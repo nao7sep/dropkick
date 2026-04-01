@@ -9,7 +9,7 @@ interface KeyboardShortcutsModalProps {
 
 const shortcuts: { label: string; keys: string }[] = [
   { label: "New task", keys: "\u2318N" },
-  { label: "New note on selected task", keys: "\u2318\u21e7N" },
+  { label: "Focus new note field", keys: "\u2318\u21e7N" },
   { label: "Move selected tasks", keys: "\u2318M" },
   { label: "Submit dialog", keys: "\u2318\u21a9" },
   { label: "Save note", keys: "\u2318\u21a9" },
@@ -70,6 +70,10 @@ export function KeyboardShortcutsModal({
 
         {/* Body */}
         <div className="overflow-y-auto px-6 py-4">
+          <p className="mb-3 text-xs leading-5 text-gray-500">
+            On macOS, some shortcut combinations may respond more reliably with
+            Control than Command, even when Command is shown below.
+          </p>
           <table className="w-full">
             <tbody>
               {shortcuts.map(({ label, keys }) => (

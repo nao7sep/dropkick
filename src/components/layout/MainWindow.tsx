@@ -64,6 +64,7 @@ export function MainWindow() {
   const [showAbout, setShowAbout] = useState(false);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showMoveTasks, setShowMoveTasks] = useState(false);
+  const [focusNewNoteSignal, setFocusNewNoteSignal] = useState(0);
 
   const hasActiveTab = activeTab !== null;
   const isUnifiedView = activeTab?.isUnifiedView ?? false;
@@ -114,7 +115,13 @@ export function MainWindow() {
   );
 
   // Register global keyboard shortcuts.
-  useKeyboardShortcuts(filePath, isUnifiedView, () => setShowNewTask(true), () => setShowMoveTasks(true));
+  useKeyboardShortcuts(
+    filePath,
+    isUnifiedView,
+    () => setShowNewTask(true),
+    () => setShowMoveTasks(true),
+    () => setFocusNewNoteSignal((value) => value + 1),
+  );
 
   // Apply saved zoom level on startup and when changed via settings.
   useEffect(() => {
@@ -215,7 +222,11 @@ export function MainWindow() {
           {/* Right pane — detail/summary/bulk */}
           <div className="h-full min-w-0 flex-1 overflow-y-auto bg-white">
             <ErrorBoundary>
-              <TaskDetailPane filePath={filePath} isUnifiedView={isUnifiedView} />
+              <TaskDetailPane
+                filePath={filePath}
+                isUnifiedView={isUnifiedView}
+                focusNewNoteSignal={focusNewNoteSignal}
+              />
             </ErrorBoundary>
           </div>
         </div>

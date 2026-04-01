@@ -301,6 +301,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   addNewNote: async (filePath, taskId, content) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
+    if (!content.trim()) {
+      return { status: "error", message: "Note content cannot be empty" } as WriteResult;
+    }
 
     const task = fileState.data.tasks.find((t) => t.id === taskId);
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
@@ -330,6 +333,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   updateNote: async (filePath, taskId, noteId, content) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
+    if (!content.trim()) {
+      return { status: "error", message: "Note content cannot be empty" } as WriteResult;
+    }
 
     const task = fileState.data.tasks.find((t) => t.id === taskId);
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;

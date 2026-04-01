@@ -13,9 +13,14 @@ import { BulkActions } from "./BulkActions";
 interface TaskDetailPaneProps {
   filePath: string;
   isUnifiedView: boolean;
+  focusNewNoteSignal: number;
 }
 
-export function TaskDetailPane({ filePath, isUnifiedView }: TaskDetailPaneProps) {
+export function TaskDetailPane({
+  filePath,
+  isUnifiedView,
+  focusNewNoteSignal,
+}: TaskDetailPaneProps) {
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
   const selectedIds = useTaskListStore((s) => s.selectedIds);
   const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
@@ -48,6 +53,7 @@ export function TaskDetailPane({ filePath, isUnifiedView }: TaskDetailPaneProps)
       <TaskDetail
         task={selectedTasks[0]}
         filePath={isUnifiedView ? selectedTasks[0].sourceFile : filePath}
+        focusNewNoteSignal={focusNewNoteSignal}
       />
     );
   }

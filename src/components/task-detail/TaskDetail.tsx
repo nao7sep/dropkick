@@ -22,9 +22,14 @@ import { useAutoGrow } from "../../hooks/useAutoGrow";
 interface TaskDetailProps {
   task: Task;
   filePath: string;
+  focusNewNoteSignal: number;
 }
 
-export function TaskDetail({ task, filePath }: TaskDetailProps) {
+export function TaskDetail({
+  task,
+  filePath,
+  focusNewNoteSignal,
+}: TaskDetailProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const updateTitle = useTaskListStore((s) => s.updateTitle);
   const updateDescription = useTaskListStore((s) => s.updateDescription);
@@ -88,6 +93,19 @@ export function TaskDetail({ task, filePath }: TaskDetailProps) {
   useEffect(() => autoGrowTitle(), [titleDraft, autoGrowTitle]);
   useEffect(() => autoGrowDesc(), [descDraft, autoGrowDesc]);
   useEffect(() => autoGrowNewNote(), [newNoteContent, autoGrowNewNote]);
+  useEffect(() => {
+    if (focusNewNoteSignal === 0) return;
+
+    requestAnimationFrame(() => {
+      const textarea = newNoteRef.current;
+      if (!textarea) return;
+
+      textarea.focus();
+      const end = textarea.value.length;
+      textarea.setSelectionRange(end, end);
+      autoGrowNewNote();
+    });
+  }, [focusNewNoteSignal, autoGrowNewNote]);
 
   const handleTitleBlur = async () => {
     const cleaned = sanitizeSingleLine(titleDraft);

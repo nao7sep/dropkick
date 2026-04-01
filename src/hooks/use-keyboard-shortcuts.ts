@@ -23,12 +23,12 @@ export function useKeyboardShortcuts(
   isUnifiedView: boolean,
   onNewTask: () => void,
   onMoveTasks: () => void,
+  onFocusNewNote: () => void,
 ) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const files = useTaskListStore((s) => s.files);
   const selectedIds = useTaskListStore((s) => s.selectedIds);
   const setSelection = useTaskListStore((s) => s.setSelection);
-  const addNewNote = useTaskListStore((s) => s.addNewNote);
   const setStatus = useTaskListStore((s) => s.setStatus);
   const moveUp = useTaskListStore((s) => s.moveUp);
   const moveDown = useTaskListStore((s) => s.moveDown);
@@ -104,15 +104,11 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+Shift+N: New note on selected task ---
+      // --- Ctrl/Cmd+Shift+N: Focus new note field on selected task ---
       if (mod && e.shiftKey && e.key === "N") {
         if (selectedIds.size !== 1) return;
         e.preventDefault();
-        const taskId = [...selectedIds][0];
-        const taskFile = isUnifiedView
-          ? allTasks.find((t) => t.id === taskId)?.sourceFile ?? filePath
-          : filePath;
-        await addNewNote(taskFile, taskId, "");
+        onFocusNewNote();
         return;
       }
 
@@ -258,7 +254,7 @@ export function useKeyboardShortcuts(
       workspace.activeTabIndex,
       onNewTask,
       onMoveTasks,
-      addNewNote,
+      onFocusNewNote,
       setStatus,
       moveUp,
       moveDown,

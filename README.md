@@ -40,7 +40,7 @@ Every change is written to disk immediately. There is no "save" action.
 | Action | Shortcut |
 |---|---|
 | New task | ⌘N |
-| New note on selected task | ⌘⇧N |
+| Focus new note field | ⌘⇧N |
 | Move selected tasks | ⌘M |
 | Submit dialog | ⌘↩ |
 | Save note | ⌘↩ |
