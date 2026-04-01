@@ -230,6 +230,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
     const updated = updateTaskTitle(task, title);
+    if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -244,6 +245,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
     const updated = updateTaskDescription(task, description);
+    if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -256,6 +258,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
 
     const task = fileState.data.tasks.find((t) => t.id === taskId);
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
+    if (task.status === status) {
+      return { status: "success", newHash: fileState.hash } as WriteResult;
+    }
 
     // Validate the transition.
     const validation = canTransitionStatus(task, status);
@@ -264,6 +269,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     }
 
     const updated = changeTaskStatus(task, status);
+    if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -278,6 +284,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
     const updated = changeTaskPriority(task, priority);
+    if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -292,6 +299,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
     const updated = changeTaskDueDate(task, dueDate);
+    if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -324,6 +332,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
     const updated = deleteNote(task, noteId);
+    if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -341,6 +350,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
     const updated = updateNoteContent(task, noteId, content);
+    if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -355,6 +365,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
     const updated = changeNoteActionability(task, noteId, actionability);
+    if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -368,6 +379,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const newTasks = kickTasks(fileState.data.tasks, selectedIds, distance, tz);
+    if (newTasks === fileState.data.tasks) {
+      return { status: "success", newHash: fileState.hash } as WriteResult;
+    }
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -381,6 +395,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const newTasks = sendTasksToFirst(fileState.data.tasks, selectedIds, tz);
+    if (newTasks === fileState.data.tasks) {
+      return { status: "success", newHash: fileState.hash } as WriteResult;
+    }
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -394,6 +411,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const newTasks = sendTasksToLast(fileState.data.tasks, selectedIds, tz);
+    if (newTasks === fileState.data.tasks) {
+      return { status: "success", newHash: fileState.hash } as WriteResult;
+    }
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -407,6 +427,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const newTasks = moveTasksUp(fileState.data.tasks, selectedIds, tz);
+    if (newTasks === fileState.data.tasks) {
+      return { status: "success", newHash: fileState.hash } as WriteResult;
+    }
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -420,6 +443,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const newTasks = moveTasksDown(fileState.data.tasks, selectedIds, tz);
+    if (newTasks === fileState.data.tasks) {
+      return { status: "success", newHash: fileState.hash } as WriteResult;
+    }
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });
@@ -433,6 +459,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const newTasks = dropkickTasks(fileState.data.tasks, selectedIds, tz);
+    if (newTasks === fileState.data.tasks) {
+      return { status: "success", newHash: fileState.hash } as WriteResult;
+    }
     const newData = { ...fileState.data, tasks: newTasks };
     const { files, result } = await writeFile(get().files, filePath, newData);
     if (result.status === "success") set({ files });

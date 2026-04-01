@@ -1,5 +1,7 @@
 // Task-level operations: add, update, status transitions.
 // All functions return new arrays/objects — no mutation.
+// Rule: updatedAtUtc changes only when persisted task data changes.
+// No-op edits must return the original task object so callers can skip writes.
 
 import type { TaskDto, TaskStatus, TaskPriority, NoteDto } from "../models";
 import { nowUtc } from "../utils";
@@ -14,6 +16,7 @@ export function updateTaskTitle(
   task: TaskDto,
   title: string,
 ): TaskDto {
+  if (task.title === title) return task;
   return { ...task, title, updatedAtUtc: nowUtc() };
 }
 
@@ -22,6 +25,7 @@ export function updateTaskDescription(
   task: TaskDto,
   description: string,
 ): TaskDto {
+  if (task.description === description) return task;
   return { ...task, description, updatedAtUtc: nowUtc() };
 }
 
@@ -32,6 +36,8 @@ export function changeTaskStatus(
   task: TaskDto,
   status: TaskStatus,
 ): TaskDto {
+  if (task.status === status) return task;
+
   const now = nowUtc();
 
   if (status === "Completed" || status === "Dismissed") {
@@ -47,6 +53,7 @@ export function changeTaskPriority(
   task: TaskDto,
   priority: TaskPriority,
 ): TaskDto {
+  if (task.priority === priority) return task;
   return { ...task, priority, updatedAtUtc: nowUtc() };
 }
 
@@ -55,6 +62,7 @@ export function changeTaskDueDate(
   task: TaskDto,
   dueDate: string | null,
 ): TaskDto {
+  if (task.dueDate === dueDate) return task;
   return { ...task, dueDate, updatedAtUtc: nowUtc() };
 }
 
@@ -73,6 +81,9 @@ export function updateNoteContent(
   noteId: string,
   content: string,
 ): TaskDto {
+  const note = task.notes.find((n) => n.id === noteId);
+  if (!note || note.content === content) return task;
+
   return {
     ...task,
     notes: task.notes.map((n) =>
@@ -88,6 +99,9 @@ export function changeNoteActionability(
   noteId: string,
   actionability: "Informational" | "Actionable" | "Resolved",
 ): TaskDto {
+  const note = task.notes.find((n) => n.id === noteId);
+  if (!note || note.actionability === actionability) return task;
+
   return {
     ...task,
     notes: task.notes.map((n) =>
@@ -107,6 +121,8 @@ export function deleteNote(
   task: TaskDto,
   noteId: string,
 ): TaskDto {
+  if (!task.notes.some((n) => n.id === noteId)) return task;
+
   return {
     ...task,
     notes: task.notes.filter((n) => n.id !== noteId),
@@ -119,5 +135,9 @@ export function replaceTask(
   tasks: TaskDto[],
   updatedTask: TaskDto,
 ): TaskDto[] {
+  const index = tasks.findIndex((t) => t.id === updatedTask.id);
+  if (index === -1) return tasks;
+  if (tasks[index] === updatedTask) return tasks;
+
   return tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t));
 }

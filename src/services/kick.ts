@@ -11,6 +11,14 @@ import type { TaskDto, TaskGroup } from "../models";
 import { computeGroup } from "../utils";
 import { nowUtc } from "../utils";
 
+function arraysShallowEqual<T>(a: T[], b: T[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 // --- Core helper ---
 
 // Returns the array indices where tasks of the given group sit,
@@ -66,7 +74,7 @@ function reorderWithinGroups(
     }
   }
 
-  return result;
+  return arraysShallowEqual(result, tasks) ? tasks : result;
 }
 
 // --- Public operations ---
@@ -192,12 +200,19 @@ export function dropkickTasks(
   }
 
   // Modify their attributes.
-  const modified = toDropkick.map((item) => ({
-    ...item.task,
-    priority: "Default" as const,
-    dueDate: null,
-    updatedAtUtc: now,
-  }));
+  const modified = toDropkick.map((item) => {
+    const needsFieldChange =
+      item.task.priority !== "Default" || item.task.dueDate !== null;
+
+    if (!needsFieldChange) return item.task;
+
+    return {
+      ...item.task,
+      priority: "Default" as const,
+      dueDate: null,
+      updatedAtUtc: now,
+    };
+  });
 
   // Find the insertion point: after the last Default-group pending task.
   // If no Default tasks exist, insert after the last pending task.
@@ -222,5 +237,5 @@ export function dropkickTasks(
   // Insert the dropkicked tasks.
   result.splice(insertAt, 0, ...modified);
 
-  return result;
+  return arraysShallowEqual(result, tasks) ? tasks : result;
 }
