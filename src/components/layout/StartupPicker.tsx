@@ -2,17 +2,17 @@
 // User selects a preferences file and a workspace file, then clicks Launch.
 
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { FolderOpen, Plus, X } from "lucide-react";
 import type { AppConfigDto } from "../../models";
 import {
-  readJsonFile,
-  saveJsonFileDialog,
-  registerPreferencesPath,
-  registerWorkspacePath,
-  unregisterPreferencesPath,
-  unregisterWorkspacePath,
   createPreferencesFile,
   createWorkspaceFile,
+  openJsonFileDialog,
+  registerPreferencesPath,
+  registerWorkspacePath,
+  saveJsonFileDialog,
+  unregisterPreferencesPath,
+  unregisterWorkspacePath,
 } from "../../repositories";
 
 interface StartupPickerProps {
@@ -33,32 +33,40 @@ export function StartupPicker({
     appConfig.lastWorkspacePath,
   );
 
-  const handleAddPreferences = async () => {
-    // Save dialog handles both creating new and selecting existing.
-    const path = await saveJsonFileDialog("preferences.json");
+  const handleOpenPreferences = async () => {
+    const path = await openJsonFileDialog();
     if (!path) return;
-
-    // Try opening as existing first; if it doesn't parse, create new.
-    const openPath = await tryOpenOrCreate(path, async (p) => {
-      await createPreferencesFile(p, fileNameWithoutExt(p));
-    });
-
-    const updated = await registerPreferencesPath(appConfig, openPath);
+    const updated = await registerPreferencesPath(appConfig, path);
     onConfigChange(updated);
-    setSelectedPrefs(openPath);
+    setSelectedPrefs(path);
   };
 
-  const handleAddWorkspace = async () => {
+  const handleNewPreferences = async () => {
+    const path = await saveJsonFileDialog("preferences.json");
+    if (!path) return;
+    const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
+    await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
+    const updated = await registerPreferencesPath(appConfig, normalizedPath);
+    onConfigChange(updated);
+    setSelectedPrefs(normalizedPath);
+  };
+
+  const handleOpenWorkspace = async () => {
+    const path = await openJsonFileDialog();
+    if (!path) return;
+    const updated = await registerWorkspacePath(appConfig, path);
+    onConfigChange(updated);
+    setSelectedWorkspace(path);
+  };
+
+  const handleNewWorkspace = async () => {
     const path = await saveJsonFileDialog("workspace.json");
     if (!path) return;
-
-    const openPath = await tryOpenOrCreate(path, async (p) => {
-      await createWorkspaceFile(p, fileNameWithoutExt(p));
-    });
-
-    const updated = await registerWorkspacePath(appConfig, openPath);
+    const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
+    await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
+    const updated = await registerWorkspacePath(appConfig, normalizedPath);
     onConfigChange(updated);
-    setSelectedWorkspace(openPath);
+    setSelectedWorkspace(normalizedPath);
   };
 
   const handleRemovePreferences = async (path: string) => {
@@ -92,7 +100,8 @@ export function StartupPicker({
           items={appConfig.knownPreferences}
           selected={selectedPrefs}
           onSelect={setSelectedPrefs}
-          onAdd={handleAddPreferences}
+          onOpen={handleOpenPreferences}
+          onNew={handleNewPreferences}
           onRemove={handleRemovePreferences}
         />
 
@@ -102,7 +111,8 @@ export function StartupPicker({
           items={appConfig.knownWorkspaces}
           selected={selectedWorkspace}
           onSelect={setSelectedWorkspace}
-          onAdd={handleAddWorkspace}
+          onOpen={handleOpenWorkspace}
+          onNew={handleNewWorkspace}
           onRemove={handleRemoveWorkspace}
         />
 
@@ -125,14 +135,16 @@ function Section({
   items,
   selected,
   onSelect,
-  onAdd,
+  onOpen,
+  onNew,
   onRemove,
 }: {
   label: string;
   items: string[];
   selected: string;
   onSelect: (path: string) => void;
-  onAdd: () => void;
+  onOpen: () => void;
+  onNew: () => void;
   onRemove: (path: string) => void;
 }) {
   return (
@@ -170,11 +182,18 @@ function Section({
 
       <div className="mt-2 flex gap-2">
         <button
-          onClick={onAdd}
+          onClick={onOpen}
+          className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+        >
+          <FolderOpen size={14} />
+          Open
+        </button>
+        <button
+          onClick={onNew}
           className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
         >
           <Plus size={14} />
-          Open/New
+          New
         </button>
         {selected && (
           <button
@@ -196,23 +215,4 @@ function fileNameWithoutExt(path: string): string {
   const parts = path.split(/[\\/]/);
   const name = parts[parts.length - 1] ?? "default";
   return name.replace(/\.json$/, "");
-}
-
-async function tryOpenOrCreate(
-  path: string,
-  createFn: (path: string) => Promise<void>,
-): Promise<string> {
-  // If the file doesn't end with .json, add the extension.
-  const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
-
-  try {
-    // Try to read it — if it exists and is valid JSON, it's an existing file.
-    const existing = await readJsonFile(normalizedPath);
-    if (existing !== null) return normalizedPath;
-  } catch {
-    // Not valid JSON or doesn't exist — create new.
-  }
-
-  await createFn(normalizedPath);
-  return normalizedPath;
 }
