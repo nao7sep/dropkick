@@ -473,6 +473,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const destState = get().files[destFilePath];
     if (!sourceState) return { status: "error", message: "Source file not loaded" };
     if (!destState) return { status: "error", message: "Destination file not loaded" };
+    if (sourceFilePath === destFilePath) {
+      return { status: "error", message: "Source and destination must be different" };
+    }
 
     const moveResult = prepareMoveOperation(
       sourceState.data.tasks,
