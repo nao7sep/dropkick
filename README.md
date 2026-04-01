@@ -37,14 +37,16 @@ Every change is written to disk immediately. There is no "save" action.
 
 ## Keyboard Shortcuts
 
+Shortcuts are shown in macOS notation. On Windows, use `Ctrl` where `⌘` is shown.
+
 | Action | Shortcut |
 |---|---|
 | New task | ⌘N |
 | Focus new note field | ⌘⇧N |
 | Move selected tasks | ⌘M |
-| Submit dialog | ⌘↩ |
+| Submit new task / settings | ⌘↩ |
 | Save note | ⌘↩ |
-| Dismiss selected tasks | ⌫ |
+| Dismiss selected tasks | ⌫ / Delete |
 | Move task up | ⌘↑ |
 | Move task down | ⌘↓ |
 | Send to first in group | ⌘Home |

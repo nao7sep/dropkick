@@ -11,9 +11,9 @@ const shortcuts: { label: string; keys: string }[] = [
   { label: "New task", keys: "\u2318N" },
   { label: "Focus new note field", keys: "\u2318\u21e7N" },
   { label: "Move selected tasks", keys: "\u2318M" },
-  { label: "Submit dialog", keys: "\u2318\u21a9" },
+  { label: "Submit new task / settings", keys: "\u2318\u21a9" },
   { label: "Save note", keys: "\u2318\u21a9" },
-  { label: "Dismiss selected tasks", keys: "\u232b" },
+  { label: "Dismiss selected tasks", keys: "\u232b / Delete" },
   { label: "Move task up", keys: "\u2318\u2191" },
   { label: "Move task down", keys: "\u2318\u2193" },
   { label: "Send to first in group", keys: "\u2318Home" },
@@ -71,8 +71,9 @@ export function KeyboardShortcutsModal({
         {/* Body */}
         <div className="overflow-y-auto px-6 py-4">
           <p className="mb-3 text-xs leading-5 text-gray-500">
-            On macOS, some shortcut combinations may respond more reliably with
-            Control than Command, even when Command is shown below.
+            Shortcuts are shown in macOS notation. On Windows, use Control
+            where Command is shown. On macOS, some combinations may still
+            respond more reliably with Control.
           </p>
           <table className="w-full">
             <tbody>
