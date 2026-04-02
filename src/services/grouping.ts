@@ -56,7 +56,8 @@ export function groupTasksForList(tasks: Task[]): GroupedTasks {
 }
 
 // Groups tasks for the unified view.
-// Within each group, tasks retain their per-file manual order.
+// Within each group, tasks are sorted by creation time (newest first)
+// so that tasks from different files are interleaved chronologically.
 export function groupTasksForUnifiedView(tasks: Task[]): GroupedTasks {
   const active = tasks.filter((t) => t.status === "Pending");
   const handled = tasks
@@ -77,6 +78,10 @@ export function groupTasksForUnifiedView(tasks: Task[]): GroupedTasks {
     }
   }
 
+  // Sort each group by creation time (newest first) to merge across files.
+  for (const tasks of groupMap.values()) {
+    tasks.sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc));
+  }
 
   const groups = TASK_GROUP_ORDER.filter((g) => groupMap.has(g)).map((g) => ({
     group: g,
