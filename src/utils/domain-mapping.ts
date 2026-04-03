@@ -20,7 +20,8 @@ export function computeGroup(
     return "Critical";
   }
 
-  // Due within 7 days elevates any remaining task.
+  // Due within the current 7-day window (today + next 6 days)
+  // elevates any remaining task.
   if (hasDue && isDueWithinDays(dto.dueDate!, 7, timezone)) {
     return "DueWithinWeek";
   }

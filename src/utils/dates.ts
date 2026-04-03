@@ -1,5 +1,5 @@
 import { format, parseISO, isValid } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { coerceTimezone } from "./timezone";
 
 // Returns the current time as an ISO 8601 UTC string.
@@ -7,19 +7,14 @@ export function nowUtc(): string {
   return new Date().toISOString();
 }
 
-// Returns the current time as a Date-like object in the given timezone.
-// If timezone is null, uses the system timezone.
-// Used internally for calendar-date comparisons (due dates).
-function nowInTimezone(timezone: string | null): Date {
-  const now = new Date();
-  const safeTimezone = coerceTimezone(timezone);
-  return safeTimezone ? toZonedTime(now, safeTimezone) : now;
-}
-
 // Returns today's date as "YYYY-MM-DD" in the given timezone.
 // If timezone is null, uses the system timezone.
 export function todayInTimezone(timezone: string | null): string {
-  return format(nowInTimezone(timezone), "yyyy-MM-dd");
+  const now = new Date();
+  const safeTimezone = coerceTimezone(timezone);
+  return safeTimezone
+    ? formatInTimeZone(now, safeTimezone, "yyyy-MM-dd")
+    : format(now, "yyyy-MM-dd");
 }
 
 // Formats an ISO 8601 UTC timestamp for display, converted to the user's timezone.
@@ -71,19 +66,22 @@ export function isOverdue(
   return dueDate < today;
 }
 
-// Checks if a due date is within the next N days relative to today in the given timezone.
+// Checks if a due date falls within an N-day calendar window starting today
+// in the given timezone. For example, N=7 means today through the next 6 days.
 export function isDueWithinDays(
   dueDate: string,
   days: number,
   timezone: string | null,
 ): boolean {
-  const today = todayInTimezone(timezone);
-  if (dueDate <= today) return false; // past due or today — handled separately
+  if (days <= 0) return false;
 
-  // Build the cutoff date string by adding days to today.
+  const today = todayInTimezone(timezone);
+  if (dueDate < today) return false;
+
+  // Build the cutoff date string by adding the remaining days in the window.
   const todayDate = parseISO(today);
   const cutoff = new Date(todayDate);
-  cutoff.setDate(cutoff.getDate() + days);
+  cutoff.setDate(cutoff.getDate() + (days - 1));
   const cutoffStr = format(cutoff, "yyyy-MM-dd");
 
   return dueDate <= cutoffStr;

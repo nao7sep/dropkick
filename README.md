@@ -10,7 +10,7 @@ Built with Tauri v2, React, and TypeScript.
 
 - **Local JSON files** — task lists, workspaces, and preferences are portable JSON files at paths you choose
 - **Kick mechanism** — push tasks down the list by configurable distances (+5, +25, or to the end) instead of endlessly re-prioritizing
-- **Priority groups** — tasks are auto-grouped by priority (Critical, Urgent, Important, Default) and due date (Past Due, Due Within 7 Days)
+- **Priority groups** — tasks are auto-grouped by priority (Critical, Urgent, Important, Default) and due date (Past Due, Due Within 7 Days; this window includes today)
 - **Multiple task lists** — open several task list files as tabs, reorder tabs with drag and drop
 - **Unified view** — see all open task lists merged into one view
 - **Move tasks between lists** — move tasks to another open list via ⌘M modal, task detail dropdown, or bulk actions
