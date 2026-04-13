@@ -18,6 +18,14 @@ function isTyping(e: KeyboardEvent): boolean {
   return false;
 }
 
+function isInsideInteractiveLayer(e: KeyboardEvent): boolean {
+  return (
+    (e.target as HTMLElement | null)?.closest(
+      "[data-dropkick-interactive-layer]",
+    ) !== null
+  );
+}
+
 export function useKeyboardShortcuts(
   filePath: string,
   isUnifiedView: boolean,
@@ -87,6 +95,8 @@ export function useKeyboardShortcuts(
 
   const handler = useCallback(
     async (e: KeyboardEvent) => {
+      if (isInsideInteractiveLayer(e)) return;
+
       const mod = e.metaKey || e.ctrlKey;
 
       // --- Ctrl/Cmd+N: New task modal ---

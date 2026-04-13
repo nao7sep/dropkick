@@ -67,6 +67,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
 
       <Popover.Portal>
         <Popover.Content
+          data-dropkick-interactive-layer=""
           side={popoverPosition}
           align="start"
           sideOffset={4}

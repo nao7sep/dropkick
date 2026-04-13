@@ -1,7 +1,6 @@
 // Keyboard shortcuts reference — lists all global shortcuts in a modal overlay.
 
-import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { AppModal } from "../shared/AppModal";
 
 interface KeyboardShortcutsModalProps {
   onClose: () => void;
@@ -34,73 +33,41 @@ const shortcuts: { label: string; keys: string }[] = [
 export function KeyboardShortcutsModal({
   onClose,
 }: KeyboardShortcutsModalProps) {
-  const backdropRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === backdropRef.current) onClose();
-  };
-
   return (
-    <div
-      ref={backdropRef}
-      onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-    >
-      <div className="flex max-h-[90vh] w-full max-w-sm flex-col rounded-lg bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-800">
-            Keyboard Shortcuts
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto px-6 py-4">
-          <p className="mb-3 text-xs leading-5 text-gray-500">
-            Shortcuts are shown in macOS notation. On Windows, use Control
-            where Command is shown. On macOS, some combinations may still
-            respond more reliably with Control.
-          </p>
-          <table className="w-full">
-            <tbody>
-              {shortcuts.map(({ label, keys }) => (
-                <tr key={label} className="border-b border-gray-50 last:border-0">
-                  <td className="py-1.5 pr-4 text-sm text-gray-700">
-                    {label}
-                  </td>
-                  <td className="py-1.5 text-right text-xs text-gray-400">
-                    {keys}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end border-t border-gray-200 px-6 py-4">
+    <AppModal
+      title="Keyboard Shortcuts"
+      onClose={onClose}
+      maxWidth={384}
+      bodyClassName="overflow-y-auto px-6 py-4"
+      footerClassName="flex justify-end border-t border-gray-200 px-6 py-4"
+      footer={
           <button
             onClick={onClose}
             className="rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
           >
             Close
           </button>
-        </div>
-      </div>
-    </div>
+      }
+    >
+      <p className="mb-3 text-xs leading-5 text-gray-500">
+        Shortcuts are shown in macOS notation. On Windows, use Control
+        where Command is shown. On macOS, some combinations may still
+        respond more reliably with Control.
+      </p>
+      <table className="w-full">
+        <tbody>
+          {shortcuts.map(({ label, keys }) => (
+            <tr key={label} className="border-b border-gray-50 last:border-0">
+              <td className="py-1.5 pr-4 text-sm text-gray-700">
+                {label}
+              </td>
+              <td className="py-1.5 text-right text-xs text-gray-400">
+                {keys}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </AppModal>
   );
 }

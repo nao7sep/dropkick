@@ -26,6 +26,7 @@ export function AppDialogHost() {
 
         {current && (
           <Dialog.Content
+            data-dropkick-interactive-layer=""
             className="fixed left-1/2 top-1/2 z-[101] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white shadow-xl focus:outline-none"
             onPointerDownOutside={(e) => e.preventDefault()}
           >
