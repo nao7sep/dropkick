@@ -1,7 +1,8 @@
-// Native OS dialog wrappers via Tauri dialog plugin.
-// Used for file open/save and confirmation prompts.
+// Dialog helpers.
+// File pickers remain native via Tauri; message/confirm dialogs are rendered in-app.
 
-import { open, save, message, ask } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { showAppConfirm, showAppMessage } from "../state/dialog-store";
 
 // Opens a native file dialog for selecting an existing JSON file.
 // Returns the selected file path, or null if cancelled.
@@ -33,7 +34,7 @@ export async function showMessage(
   title: string,
   body: string,
 ): Promise<void> {
-  await message(body, { title });
+  await showAppMessage(title, body);
 }
 
 // Shows a confirmation dialog with OK/Cancel.
@@ -42,7 +43,7 @@ export async function showConfirm(
   title: string,
   body: string,
 ): Promise<boolean> {
-  return await ask(body, { title });
+  return await showAppConfirm(title, body);
 }
 
 // Shows a conflict dialog for external file modifications.
@@ -50,12 +51,12 @@ export async function showConfirm(
 export async function showFileConflictDialog(
   filePath: string,
 ): Promise<"overwrite" | "cancel"> {
-  const overwrite = await ask(
+  const overwrite = await showAppConfirm(
+    "File Modified Externally",
     `The file has been modified outside Dropkick:\n\n${filePath}\n\nOverwrite with your version, or discard your changes and reload?`,
     {
-      title: "File Modified Externally",
-      kind: "warning",
-      okLabel: "Overwrite",
+      tone: "warning",
+      confirmLabel: "Overwrite",
       cancelLabel: "Discard & Reload",
     },
   );
@@ -67,12 +68,12 @@ export async function showFileConflictDialog(
 export async function showFileDeletedDialog(
   filePath: string,
 ): Promise<"save" | "close"> {
-  const save = await ask(
+  const save = await showAppConfirm(
+    "File Deleted",
     `This file no longer exists:\n\n${filePath}\n\nSave to recreate it, or close the tab?`,
     {
-      title: "File Deleted",
-      kind: "warning",
-      okLabel: "Save",
+      tone: "warning",
+      confirmLabel: "Save",
       cancelLabel: "Close Tab",
     },
   );

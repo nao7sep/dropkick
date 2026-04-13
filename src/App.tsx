@@ -2,6 +2,7 @@
 // On launch: initialize app config → show startup picker → load preferences & workspace → show main window.
 
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import "./App.css";
 import type { AppConfigDto } from "./models";
 import { initializeAppConfig, saveAppConfig } from "./repositories";
@@ -10,6 +11,7 @@ import { useWorkspaceStore } from "./state/workspace-store";
 import { startBackupSchedule } from "./services";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { MainWindow } from "./components/layout/MainWindow";
+import { AppDialogHost } from "./components/shared/AppDialogHost";
 
 type AppPhase =
   | { kind: "loading" }
@@ -66,16 +68,19 @@ function App() {
     setPhase({ kind: "main" });
   };
 
+  let content: ReactNode;
+
   switch (phase.kind) {
     case "loading":
-      return (
+      content = (
         <div className="flex h-screen items-center justify-center bg-gray-50">
           <div className="text-gray-400">Loading...</div>
         </div>
       );
+      break;
 
     case "error":
-      return (
+      content = (
         <div className="flex h-screen items-center justify-center bg-gray-50">
           <div className="max-w-md rounded-lg bg-white p-6 shadow-lg">
             <h2 className="mb-2 text-lg font-bold text-red-600">
@@ -85,19 +90,29 @@ function App() {
           </div>
         </div>
       );
+      break;
 
     case "startup":
-      return (
+      content = (
         <StartupPicker
           appConfig={phase.config}
           onConfigChange={handleConfigChange}
           onLaunch={handleLaunch}
         />
       );
+      break;
 
     case "main":
-      return <MainWindow />;
+      content = <MainWindow />;
+      break;
   }
+
+  return (
+    <>
+      {content}
+      <AppDialogHost />
+    </>
+  );
 }
 
 export default App;
