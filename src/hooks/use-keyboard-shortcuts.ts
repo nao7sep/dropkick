@@ -10,6 +10,7 @@ import { showConfirm } from "../repositories";
 import { groupTasksForList, groupTasksForUnifiedView } from "../services";
 import type { Task } from "../models";
 import { toTask } from "../utils";
+import { hasPrimaryShortcutModifier, matchesShortcutKey } from "../utils";
 
 function isTyping(e: KeyboardEvent): boolean {
   const tag = (e.target as HTMLElement)?.tagName;
@@ -97,25 +98,27 @@ export function useKeyboardShortcuts(
     async (e: KeyboardEvent) => {
       if (isInsideInteractiveLayer(e)) return;
 
-      const mod = e.metaKey || e.ctrlKey;
+      const mod = hasPrimaryShortcutModifier(e);
 
-      // --- Ctrl/Cmd+N: New task modal ---
-      if (mod && !e.shiftKey && e.key === "n") {
+      // --- Primary modifier + N: New task modal ---
+      if (mod && !e.shiftKey && matchesShortcutKey(e, "n")) {
         e.preventDefault();
         onNewTask();
         return;
       }
 
-      // --- Ctrl/Cmd+M: Move selected tasks to another list ---
-      if (mod && !e.shiftKey && e.key === "m") {
+      // --- Primary modifier + M: Move selected tasks to another list ---
+      if (mod && !e.shiftKey && matchesShortcutKey(e, "m")) {
         if (selectedIds.size === 0) return;
         e.preventDefault();
         onMoveTasks();
         return;
       }
 
-      // --- Ctrl/Cmd+Shift+N: Focus new note field on selected task ---
-      if (mod && e.shiftKey && e.key === "N") {
+      // --- Primary modifier + Shift + N: Focus the new note field.
+      // Normalize the letter match so shifted shortcuts do not depend on
+      // whether the underlying webview reports "n" or "N".
+      if (mod && e.shiftKey && matchesShortcutKey(e, "n")) {
         if (selectedIds.size !== 1) return;
         e.preventDefault();
         onFocusNewNote();
@@ -141,7 +144,7 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+Up: Move selection up one position ---
+      // --- Primary modifier + Up: Move selection up one position ---
       if (mod && !e.shiftKey && e.key === "ArrowUp") {
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
@@ -150,7 +153,7 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+Down: Move selection down one position ---
+      // --- Primary modifier + Down: Move selection down one position ---
       if (mod && !e.shiftKey && e.key === "ArrowDown") {
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
@@ -159,7 +162,7 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+Home: Send to first in group (Tackle) ---
+      // --- Primary modifier + Home: Send to first in group (Tackle) ---
       if (mod && e.key === "Home") {
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
@@ -168,7 +171,7 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+End: Send to last in group (Kick) ---
+      // --- Primary modifier + End: Send to last in group (Kick) ---
       if (mod && e.key === "End") {
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
@@ -215,7 +218,7 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+Tab / Ctrl/Cmd+Shift+Tab: Switch tabs ---
+      // --- Primary modifier + Tab / Primary modifier + Shift + Tab: Switch tabs ---
       if (mod && e.key === "Tab") {
         e.preventDefault();
         const tabs = workspace.openTabs;
@@ -227,8 +230,8 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+W: Close current tab ---
-      if (mod && e.key === "w") {
+      // --- Primary modifier + W: Close current tab ---
+      if (mod && matchesShortcutKey(e, "w")) {
         e.preventDefault();
         const idx = workspace.activeTabIndex;
         if (idx >= 0 && idx < workspace.openTabs.length) {
@@ -237,8 +240,8 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl/Cmd+U: Open unified view ---
-      if (mod && e.key === "u") {
+      // --- Primary modifier + U: Open unified view ---
+      if (mod && matchesShortcutKey(e, "u")) {
         e.preventDefault();
         await addUnifiedViewTab();
         return;

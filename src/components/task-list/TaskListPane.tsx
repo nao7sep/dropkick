@@ -1,5 +1,5 @@
 // Left pane — displays tasks grouped by priority/due rules.
-// Supports selection (click, shift+click, cmd+click).
+// Supports selection (click, Shift+click, Cmd+click on macOS / Ctrl+click on Windows).
 
 import { useState, useRef, useMemo, useEffect } from "react";
 import { Plus, AlertCircle } from "lucide-react";
@@ -7,7 +7,7 @@ import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
-import { toTask, sanitizeSingleLine } from "../../utils";
+import { toTask, sanitizeSingleLine, hasPrimaryShortcutModifier } from "../../utils";
 import {
   groupTasksForList,
   groupTasksForUnifiedView,
@@ -102,7 +102,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       }
     }
 
-    if (e.metaKey || e.ctrlKey) {
+    if (hasPrimaryShortcutModifier(e)) {
       // Toggle single.
       const next = new Set(selectedIds);
       if (next.has(task.id)) {
@@ -148,7 +148,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         <Plus size={14} />
         New Task
         <span className="ml-auto text-gray-300">
-          ⌘N
+          Cmd+N
         </span>
       </button>
 
@@ -340,4 +340,3 @@ function tabDisplayName(path: string): string {
   const parts = path.split(/[\\/]/);
   return (parts[parts.length - 1] ?? "").replace(/\.json$/, "");
 }
-

@@ -7,6 +7,7 @@ import type { PreferencesDto } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { validateTimezone } from "../../utils/timezone";
 import { AppModal } from "../shared/AppModal";
+import { hasPrimaryShortcutModifier } from "../../utils";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -80,7 +81,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       }
       contentProps={{
         onKeyDown: (e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+          if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
             if (isComposingKeyboardEvent(composing.composingRef, e)) return;
             e.preventDefault();
             handleSave();

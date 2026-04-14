@@ -14,7 +14,12 @@ import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { showConfirm } from "../../repositories";
-import { formatTimestamp, formatDueDate, sanitizeSingleLine } from "../../utils";
+import {
+  formatTimestamp,
+  formatDueDate,
+  sanitizeSingleLine,
+  hasPrimaryShortcutModifier,
+} from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
@@ -363,14 +368,14 @@ export function TaskDetail({
               autoGrowNewNote();
             }}
             onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
                 if (isComposingKeyboardEvent(noteComposing.composingRef, e)) return;
                 e.preventDefault();
                 handleAddNote();
               }
             }}
             {...noteComposing.handlers}
-            placeholder="Add a note... (⌘Return to save)"
+            placeholder="Add a note... (Cmd+Enter to save)"
             rows={2}
             className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
           />
@@ -521,7 +526,7 @@ function NoteItem({
               autoGrowEdit();
             }}
             onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
                 if (isComposingKeyboardEvent(composing.composingRef, e)) return;
                 e.preventDefault();
                 handleSave();

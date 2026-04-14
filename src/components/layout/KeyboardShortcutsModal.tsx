@@ -7,27 +7,27 @@ interface KeyboardShortcutsModalProps {
 }
 
 const shortcuts: { label: string; keys: string }[] = [
-  { label: "New task", keys: "\u2318N" },
-  { label: "Focus new note field", keys: "\u2318\u21e7N" },
-  { label: "Move selected tasks", keys: "\u2318M" },
-  { label: "Submit new task / settings", keys: "\u2318\u21a9" },
-  { label: "Save note", keys: "\u2318\u21a9" },
-  { label: "Dismiss selected tasks", keys: "\u232b / Delete" },
-  { label: "Move task up", keys: "\u2318\u2191" },
-  { label: "Move task down", keys: "\u2318\u2193" },
-  { label: "Send to first in group", keys: "\u2318Home" },
-  { label: "Send to last in group", keys: "\u2318End" },
-  { label: "Navigate selection up", keys: "\u2191" },
-  { label: "Navigate selection down", keys: "\u2193" },
-  { label: "Extend selection", keys: "\u21e7\u2191 / \u21e7\u2193" },
-  { label: "Next tab", keys: "\u2318Tab" },
-  { label: "Previous tab", keys: "\u2318\u21e7Tab" },
-  { label: "Close tab", keys: "\u2318W" },
-  { label: "Unified view", keys: "\u2318U" },
+  { label: "New task", keys: "Cmd+N" },
+  { label: "Focus new note field", keys: "Cmd+Shift+N" },
+  { label: "Move selected tasks", keys: "Cmd+M" },
+  { label: "Submit new task / settings", keys: "Cmd+Enter" },
+  { label: "Save note", keys: "Cmd+Enter" },
+  { label: "Dismiss selected tasks", keys: "Backspace / Delete" },
+  { label: "Move task up", keys: "Cmd+Up" },
+  { label: "Move task down", keys: "Cmd+Down" },
+  { label: "Send to first in group", keys: "Cmd+Home" },
+  { label: "Send to last in group", keys: "Cmd+End" },
+  { label: "Navigate selection up", keys: "Up" },
+  { label: "Navigate selection down", keys: "Down" },
+  { label: "Extend selection", keys: "Shift+Up / Shift+Down" },
+  { label: "Next tab", keys: "Cmd+Tab" },
+  { label: "Previous tab", keys: "Cmd+Shift+Tab" },
+  { label: "Close tab", keys: "Cmd+W" },
+  { label: "Unified view", keys: "Cmd+U" },
   { label: "Clear selection", keys: "Esc" },
   { label: "Rename tab", keys: "Double-click tab" },
-  { label: "Zoom in / out", keys: "\u2318+ / \u2318\u2212" },
-  { label: "Reset zoom", keys: "\u23180" },
+  { label: "Zoom in / out", keys: "Cmd+Plus / Cmd+Minus" },
+  { label: "Reset zoom", keys: "Cmd+0" },
 ];
 
 export function KeyboardShortcutsModal({
@@ -50,9 +50,7 @@ export function KeyboardShortcutsModal({
       }
     >
       <p className="mb-3 text-xs leading-5 text-gray-500">
-        Shortcuts are shown in macOS notation. On Windows, use Control
-        where Command is shown. On macOS, some combinations may still
-        respond more reliably with Control.
+        Shortcuts are shown with Cmd. On Windows, use Ctrl instead.
       </p>
       <table className="w-full">
         <tbody>

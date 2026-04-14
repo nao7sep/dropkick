@@ -1,4 +1,4 @@
-// New Task modal — Ctrl+N opens this to create a task with full attributes.
+// New Task modal — opened via the primary new-task shortcut.
 
 import { useState, useEffect, useRef } from "react";
 import type { TaskPriority } from "../../models";
@@ -9,6 +9,7 @@ import { DatePicker } from "../shared/DatePicker";
 import { AppModal } from "../shared/AppModal";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
+import { hasPrimaryShortcutModifier } from "../../utils";
 
 interface NewTaskModalProps {
   currentFilePath: string;
@@ -83,8 +84,8 @@ export function NewTaskModal({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Cmd/Ctrl+Enter submits from anywhere in the modal.
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+    // Primary modifier + Enter submits from anywhere in the modal.
+    if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
       if (isComposingKeyboardEvent(composing.composingRef, e)) return;
       e.preventDefault();
       handleCreate();
