@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo, Component } from "react";
 import type { ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -69,6 +70,9 @@ export function MainWindow() {
   const hasActiveTab = activeTab !== null;
   const isUnifiedView = activeTab?.isUnifiedView ?? false;
   const filePath = activeTab?.filePath ?? "";
+  const activePaneKey = activeTab?.isUnifiedView
+    ? "__unified__"
+    : activeTab?.filePath ?? "__none__";
 
   // Sidebar resize state.
   const MIN_SIDEBAR = 160;
@@ -129,6 +133,14 @@ export function MainWindow() {
       .setZoom(preferences.zoomLevel)
       .catch((e) => console.warn("[zoom] Failed to set zoom:", e));
   }, [preferences.zoomLevel]);
+
+  useEffect(() => {
+    const title = activeTab ? `${activeTab.displayName} - Dropkick` : "Dropkick";
+    document.title = title;
+    getCurrentWindow()
+      .setTitle(title)
+      .catch((e) => console.warn("[window] Failed to set title:", e));
+  }, [activeTab?.displayName, activeTab?.filePath, activeTab?.isUnifiedView]);
 
   // Load the active tab's file when the active tab changes.
   useEffect(() => {
@@ -205,11 +217,16 @@ export function MainWindow() {
         <div className="flex min-h-0 flex-1">
           {/* Left pane — task list */}
           <div
-            className="flex h-full shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-white"
+            className="flex h-full shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white"
             style={{ width: dragWidth }}
           >
             <ErrorBoundary>
-              <TaskListPane filePath={filePath} isUnifiedView={isUnifiedView} onNewTask={() => setShowNewTask(true)} />
+              <TaskListPane
+                key={activePaneKey}
+                filePath={filePath}
+                isUnifiedView={isUnifiedView}
+                onNewTask={() => setShowNewTask(true)}
+              />
             </ErrorBoundary>
           </div>
 
@@ -220,9 +237,10 @@ export function MainWindow() {
           />
 
           {/* Right pane — detail/summary/bulk */}
-          <div className="h-full min-w-0 flex-1 overflow-y-auto bg-white">
+          <div className="h-full min-w-0 flex-1 overflow-hidden bg-white">
             <ErrorBoundary>
               <TaskDetailPane
+                key={activePaneKey}
                 filePath={filePath}
                 isUnifiedView={isUnifiedView}
                 focusNewNoteSignal={focusNewNoteSignal}

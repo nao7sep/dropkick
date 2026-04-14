@@ -47,10 +47,13 @@ export function TaskDetailPane({
   }, [files, filePath, isUnifiedView, timezone, openTabs]);
 
   const selectedTasks = tasks.filter((t) => selectedIds.has(t.id));
+  const selectedTaskIds = selectedTasks.map((t) => t.id);
+  const selectionKey = selectedTaskIds.join("|");
 
   if (selectedTasks.length === 1) {
     return (
       <TaskDetail
+        key={`task:${selectedTasks[0].id}`}
         task={selectedTasks[0]}
         filePath={isUnifiedView ? selectedTasks[0].sourceFile : filePath}
         focusNewNoteSignal={focusNewNoteSignal}
@@ -61,6 +64,7 @@ export function TaskDetailPane({
   if (selectedTasks.length > 1) {
     return (
       <BulkActions
+        key={`bulk:${selectionKey}`}
         selectedTasks={selectedTasks}
         filePath={filePath}
         isUnifiedView={isUnifiedView}
@@ -68,5 +72,5 @@ export function TaskDetailPane({
     );
   }
 
-  return <TaskSummary tasks={tasks} />;
+  return <TaskSummary key={`summary:${isUnifiedView ? "__unified__" : filePath}`} tasks={tasks} />;
 }

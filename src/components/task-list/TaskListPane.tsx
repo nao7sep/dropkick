@@ -83,6 +83,28 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         : groupTasksForList(tasks),
     [tasks, isUnifiedView],
   );
+  const [handledExpanded, setHandledExpanded] = useState(false);
+  const visibleHandled = grouped.handled.slice(0, handledVisible);
+  const rowRefs = useRef(new Map<string, HTMLDivElement>());
+  const dominantSelectedId = useMemo(() => {
+    const ids = [...selectedIds];
+    return ids.length > 0 ? ids[ids.length - 1] : null;
+  }, [selectedIds]);
+
+  useEffect(() => {
+    if (!dominantSelectedId) return;
+    const row = rowRefs.current.get(dominantSelectedId);
+    if (!row) return;
+    row.scrollIntoView({ block: "nearest" });
+  }, [dominantSelectedId, tasks, handledExpanded, handledVisible]);
+
+  const registerRowRef = (taskId: string) => (node: HTMLDivElement | null) => {
+    if (node) {
+      rowRefs.current.set(taskId, node);
+    } else {
+      rowRefs.current.delete(taskId);
+    }
+  };
 
   const handleTaskClick = (task: Task, e: React.MouseEvent) => {
     if (e.shiftKey && selectedIds.size > 0) {
@@ -134,10 +156,6 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     setEditingTaskId(null);
   };
 
-  const [handledExpanded, setHandledExpanded] = useState(false);
-
-  const visibleHandled = grouped.handled.slice(0, handledVisible);
-
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* New task button */}
@@ -169,6 +187,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           {groupTasks.map((task) => (
             <TaskRow
               key={task.id}
+              rowRef={registerRowRef(task.id)}
               task={task}
               isSelected={selectedIds.has(task.id)}
               isEditing={editingTaskId === task.id}
@@ -198,6 +217,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               {visibleHandled.map((task) => (
                 <TaskRow
                   key={task.id}
+                  rowRef={registerRowRef(task.id)}
                   task={task}
                   isSelected={selectedIds.has(task.id)}
                   isEditing={editingTaskId === task.id}
@@ -226,6 +246,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 
 // Individual task row in the list.
 function TaskRow({
+  rowRef,
   task,
   isSelected,
   isEditing,
@@ -235,6 +256,7 @@ function TaskRow({
   onRename,
   onCancelRename,
 }: {
+  rowRef?: (node: HTMLDivElement | null) => void;
   task: Task;
   isSelected: boolean;
   isEditing: boolean;
@@ -263,6 +285,7 @@ function TaskRow({
 
   return (
     <div
+      ref={rowRef}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
       className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-gray-100 px-3 py-2 transition-colors ${PRIORITY_BORDERS[task.priority] ?? ""} ${

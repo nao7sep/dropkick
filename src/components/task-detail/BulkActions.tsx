@@ -76,7 +76,7 @@ export function BulkActions({
   );
 
   return (
-    <div className="flex h-full flex-col p-6">
+    <div className="flex h-full flex-col overflow-y-auto p-6">
       <h3 className="mb-4 text-lg font-medium text-gray-700">
         {selectedTasks.length} tasks selected
       </h3>
