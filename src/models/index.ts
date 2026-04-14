@@ -10,6 +10,7 @@ export { createDefaultPreferences } from "./preferences";
 
 export type {
   WorkspaceDto,
+  PersistedWorkspaceDto,
   TabDto,
   RecentFileDto,
 } from "./workspace";

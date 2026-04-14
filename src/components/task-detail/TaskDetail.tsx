@@ -217,8 +217,8 @@ export function TaskDetail({
             className={`rounded-md border px-2 py-1 text-sm ${prioritySelectStyle(task.priority)}`}
           >
             <option value="Critical">Critical</option>
-            <option value="Urgent">Urgent</option>
             <option value="Important">Important</option>
+            <option value="Urgent">Urgent</option>
             <option value="Default">Default</option>
           </select>
         </div>

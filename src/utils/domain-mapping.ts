@@ -26,9 +26,9 @@ export function computeGroup(
     return "DueWithinWeek";
   }
 
-  // Then standard priority cascade.
-  if (dto.priority === "Urgent") return "Urgent";
+  // Then standard priority cascade, with Important ahead of Urgent.
   if (dto.priority === "Important") return "Important";
+  if (dto.priority === "Urgent") return "Urgent";
   return "Default";
 }
 

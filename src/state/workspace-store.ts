@@ -1,5 +1,5 @@
-// WorkspaceStore — loaded at launch, written to disk on every structural change.
-// Manages open tabs, recent files, and active tab index.
+// WorkspaceStore — loaded at launch, written to disk on structural changes.
+// Manages open tabs, recent files, and runtime active tab state.
 
 import { create } from "zustand";
 import type { WorkspaceDto, RecentFileDto } from "../models";
@@ -28,7 +28,13 @@ interface WorkspaceState {
   addRecentFile: (filePath: string) => Promise<void>;
 }
 
-// Helper: persists workspace to disk.
+function startupTabIndex(openTabs: WorkspaceDto["openTabs"]): number {
+  const unifiedIdx = openTabs.findIndex((t) => t.isUnifiedView);
+  if (unifiedIdx !== -1) return unifiedIdx;
+  return openTabs.length > 0 ? 0 : -1;
+}
+
+// Helper: persists workspace to disk. The repository omits runtime-only fields.
 async function persist(filePath: string, workspace: WorkspaceDto) {
   await saveWorkspace(filePath, workspace);
 }
@@ -82,13 +88,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
 
     // On startup: prefer unified view tab, otherwise first tab.
-    const unifiedIdx = validTabs.findIndex((t) => t.isUnifiedView);
-    const startIdx =
-      unifiedIdx !== -1
-        ? unifiedIdx
-        : validTabs.length > 0
-          ? 0
-          : -1;
+    const startIdx = startupTabIndex(validTabs);
     const updated = { ...ws, openTabs: validTabs, recentFiles: validRecent, activeTabIndex: startIdx };
 
     set({ workspace: updated, filePath, loaded: true });
@@ -106,7 +106,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       // Just switch to the existing tab.
       const updated = { ...workspace, activeTabIndex: alreadyOpen };
       set({ workspace: updated });
-      await persist(filePath, updated);
       return;
     }
 
@@ -129,7 +128,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (alreadyOpen !== -1) {
       const updated = { ...workspace, activeTabIndex: alreadyOpen };
       set({ workspace: updated });
-      await persist(filePath, updated);
       return;
     }
 
@@ -174,12 +172,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   setActiveTab: async (index: number) => {
-    const { workspace, filePath } = get();
+    const { workspace } = get();
     if (index === workspace.activeTabIndex) return;
 
     const updated = { ...workspace, activeTabIndex: index };
     set({ workspace: updated });
-    await persist(filePath, updated);
   },
 
   renameTab: async (index: number, displayName: string) => {

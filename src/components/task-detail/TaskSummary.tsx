@@ -13,8 +13,8 @@ export function TaskSummary({ tasks }: TaskSummaryProps) {
   const dismissed = tasks.filter((t) => t.status === "Dismissed").length;
 
   const critical = tasks.filter((t) => t.status === "Pending" && t.priority === "Critical").length;
-  const urgent = tasks.filter((t) => t.status === "Pending" && t.priority === "Urgent").length;
   const important = tasks.filter((t) => t.status === "Pending" && t.priority === "Important").length;
+  const urgent = tasks.filter((t) => t.status === "Pending" && t.priority === "Urgent").length;
 
   const actionableNotes = tasks.reduce(
     (count, t) => count + t.notes.filter((n) => n.actionability === "Actionable").length,
@@ -54,16 +54,16 @@ export function TaskSummary({ tasks }: TaskSummaryProps) {
                 <span className="font-medium text-red-600">{critical}</span>
               </div>
             )}
-            {urgent > 0 && (
-              <div className="flex justify-between">
-                <span className="text-amber-600">Urgent</span>
-                <span className="font-medium text-amber-600">{urgent}</span>
-              </div>
-            )}
             {important > 0 && (
               <div className="flex justify-between">
                 <span className="text-blue-600">Important</span>
                 <span className="font-medium text-blue-600">{important}</span>
+              </div>
+            )}
+            {urgent > 0 && (
+              <div className="flex justify-between">
+                <span className="text-amber-600">Urgent</span>
+                <span className="font-medium text-amber-600">{urgent}</span>
               </div>
             )}
           </div>

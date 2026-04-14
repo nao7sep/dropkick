@@ -1,5 +1,5 @@
 // Workspace stored as a portable JSON file at any path.
-// Tracks open tabs, recent files, and active tab state.
+// Tracks open tabs, recent files, and runtime tab state.
 
 import { generateId } from "../utils/ids";
 
@@ -9,8 +9,10 @@ export interface WorkspaceDto {
   name: string;
   openTabs: TabDto[];
   recentFiles: RecentFileDto[];
-  activeTabIndex: number;
+  activeTabIndex: number; // runtime-only, not persisted to workspace.json
 }
+
+export type PersistedWorkspaceDto = Omit<WorkspaceDto, "activeTabIndex">;
 
 export interface TabDto {
   filePath: string;

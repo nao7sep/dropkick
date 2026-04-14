@@ -120,16 +120,16 @@ export function BulkActions({
             Critical
           </button>
           <button
-            onClick={() => handleBulkPriority("Urgent")}
-            className="rounded-md border border-amber-200 px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50"
-          >
-            Urgent
-          </button>
-          <button
             onClick={() => handleBulkPriority("Important")}
             className="rounded-md border border-blue-200 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50"
           >
             Important
+          </button>
+          <button
+            onClick={() => handleBulkPriority("Urgent")}
+            className="rounded-md border border-amber-200 px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50"
+          >
+            Urgent
           </button>
           <button
             onClick={() => handleBulkPriority("Default")}

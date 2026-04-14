@@ -16,8 +16,8 @@ export const TASK_GROUP_ORDER: TaskGroup[] = [
   "PastDue",
   "Critical",
   "DueWithinWeek",
-  "Urgent",
   "Important",
+  "Urgent",
   "Default",
 ];
 
