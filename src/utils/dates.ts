@@ -1,4 +1,4 @@
-import { format, parseISO, isValid } from "date-fns";
+import { addDays, format, parseISO, isValid } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { coerceTimezone } from "./timezone";
 
@@ -15,6 +15,13 @@ export function todayInTimezone(timezone: string | null): string {
   return safeTimezone
     ? formatInTimeZone(now, safeTimezone, "yyyy-MM-dd")
     : format(now, "yyyy-MM-dd");
+}
+
+// Returns tomorrow's date as "YYYY-MM-DD" in the given timezone.
+// The calculation starts from the timezone-adjusted calendar date, then adds one day.
+export function tomorrowInTimezone(timezone: string | null): string {
+  const today = parseISO(todayInTimezone(timezone));
+  return format(addDays(today, 1), "yyyy-MM-dd");
 }
 
 // Formats an ISO 8601 UTC timestamp for display, converted to the user's timezone.

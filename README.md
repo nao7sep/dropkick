@@ -10,11 +10,12 @@ Built with Tauri v2, React, and TypeScript.
 
 - **Local JSON files** — task lists, workspaces, and preferences are portable JSON files at paths you choose
 - **Kick mechanism** — push tasks down the list by configurable distances (+5, +25, or to the end) instead of endlessly re-prioritizing
-- **Priority groups** — tasks are auto-grouped by priority (Critical, Urgent, Important, Default) and due date (Past Due, Due Within 7 Days; this window includes today)
+- **Priority groups** — tasks are auto-grouped by due date and priority (Past Due, Critical, Due Within 7 Days, Important, Urgent, Tasks)
 - **Multiple task lists** — open several task list files as tabs, reorder tabs with drag and drop
 - **Unified view** — see all open task lists merged into one view
-- **Move tasks between lists** — move tasks to another open list via ⌘M modal, task detail dropdown, or bulk actions
+- **Move tasks between lists** — move tasks to another open list via `Cmd+M`, the task detail dropdown, or bulk actions
 - **Notes with actionability** — attach notes to tasks, mark them as Informational, Actionable, or Resolved; tasks with actionable notes can't be completed until resolved
+- **Keyboard-first workflow** — selection shortcuts can change status, priority, and due dates; dialogs close with `Esc`
 - **Resizable sidebar** — drag the divider or set a specific width in settings
 - **File integrity** — SHA-256 hash checks detect external modifications before overwriting
 - **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically)
@@ -29,38 +30,51 @@ All data lives on your filesystem:
 |---|---|---|
 | App config | `~/.dropkick/app.json` | Remembers known workspaces and preferences |
 | Preferences | Any path (default: `~/.dropkick/default-preferences.json`) | Display and behavior settings |
-| Workspace | Any path (default: `~/.dropkick/default-workspace.json`) | Open tabs, recent files, active tab |
+| Workspace | Any path (default: `~/.dropkick/default-workspace.json`) | Open tabs and recent files |
 | Task lists | Any path | Your tasks |
 | Backups | `~/.dropkick/backups/<workspace-id>/` | Automatic zip backups |
 
 Every change is written to disk immediately. There is no "save" action.
+At startup, Dropkick reopens unified view if it is among the open tabs; otherwise it opens the first task list tab. The current active tab is runtime-only and is not written to `workspace.json`.
 
 ## Keyboard Shortcuts
 
-Shortcuts are shown in macOS notation. On Windows, use `Ctrl` where `⌘` is shown.
+Shortcuts are shown with `Cmd`. On Windows, use `Ctrl` instead. Letter and number shortcuts apply to the current task selection.
 
 | Action | Shortcut |
 |---|---|
-| New task | ⌘N |
-| Focus new note field | ⌘⇧N |
-| Move selected tasks | ⌘M |
-| Submit new task / settings | ⌘↩ |
-| Save note | ⌘↩ |
-| Dismiss selected tasks | ⌫ / Delete |
-| Move task up | ⌘↑ |
-| Move task down | ⌘↓ |
-| Send to first in group | ⌘Home |
-| Send to last in group | ⌘End |
-| Navigate selection | ↑ / ↓ |
-| Extend selection | ⇧↑ / ⇧↓ |
-| Next tab | ⌘Tab |
-| Previous tab | ⌘⇧Tab |
-| Close tab | ⌘W |
-| Unified view | ⌘U |
-| Clear selection | Esc |
-| Zoom in / out | ⌘+ / ⌘− |
-| Reset zoom | ⌘0 |
+| New task | Cmd+N |
+| Focus new note field | Cmd+Shift+N |
+| Move selected tasks | Cmd+M |
+| Submit new task / settings | Cmd+Enter |
+| Save note | Cmd+Enter |
+| Set status to Pending | P |
+| Set status to Completed | C |
+| Set status to Dismissed | X |
+| Set priority to Default | 1 |
+| Set priority to Important | 2 |
+| Set priority to Urgent | 3 |
+| Set priority to Critical | 4 |
+| Set due date to today | T |
+| Set due date to tomorrow | Y |
+| Clear due date | N |
+| Dismiss selected tasks | Backspace / Delete |
+| Move task up | Cmd+Up |
+| Move task down | Cmd+Down |
+| Send to first in group | Cmd+Home |
+| Send to last in group | Cmd+End |
+| Navigate selection | Up / Down |
+| Extend selection | Shift+Up / Shift+Down |
+| Next tab (Windows/Linux) | Ctrl+Tab |
+| Previous tab (Windows/Linux) | Ctrl+Shift+Tab |
+| Close tab | Cmd+W |
+| Unified view | Cmd+U |
+| Close active dialog / clear selection | Esc |
+| Zoom in / out | Cmd+Plus / Cmd+Minus |
+| Reset zoom | Cmd+0 |
 | Rename tab | Double-click tab |
+
+On macOS, `Cmd+Tab` and `Cmd+Shift+Tab` are reserved by the system for app switching.
 
 ## Building from Source
 

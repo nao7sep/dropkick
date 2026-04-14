@@ -28,7 +28,8 @@ export function AboutModal({ onClose }: AboutModalProps) {
       <p className="text-2xl font-bold text-gray-800">Dropkick</p>
       <p className="mt-1 text-sm text-gray-500">Version 0.1.0</p>
       <p className="mt-4 text-sm text-gray-600">
-        A local-first task manager.
+        A local-first task manager for working with plain JSON task lists
+        across multiple files. Your data stays on your machine.
       </p>
       <div className="mt-4 flex justify-center gap-4">
         <button
