@@ -101,7 +101,7 @@ interface TaskListState {
     sourceFilePath: string,
     destFilePath: string,
     taskIds: Set<string>,
-  ) => Promise<{ status: string; message?: string }>;
+  ) => Promise<{ status: "success" } | { status: "error"; message: string }>;
 
   // Actions: conflict resolution.
   forceWrite: (filePath: string) => Promise<void>;
@@ -490,6 +490,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       destFilePath,
       moveResult.destinationTasks,
       destState.hash,
+      destState.data.tasks,
     );
 
     if (result.status === "success") {
@@ -507,9 +508,52 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
         },
         selectedIds: new Set(),
       }));
+      return { status: "success" };
     }
 
-    return result;
+    if (result.status === "dest-conflict") {
+      return {
+        status: "error",
+        message:
+          "The destination file was modified outside Dropkick. No tasks were moved.",
+      };
+    }
+
+    if (result.status === "dest-deleted") {
+      return {
+        status: "error",
+        message:
+          "The destination file no longer exists. No tasks were moved.",
+      };
+    }
+
+    if (result.status === "source-conflict") {
+      return {
+        status: "error",
+        message:
+          "The source file was modified outside Dropkick. The destination was restored, so no tasks were moved.",
+      };
+    }
+
+    if (result.status === "source-deleted") {
+      return {
+        status: "error",
+        message:
+          "The source file no longer exists. The destination was restored, so no tasks were moved.",
+      };
+    }
+
+    if (result.status === "rollback-failed") {
+      return {
+        status: "error",
+        message: result.message,
+      };
+    }
+
+    return {
+      status: "error",
+      message: result.message,
+    };
   },
 
   // --- Conflict resolution ---

@@ -92,8 +92,51 @@ export async function forceWriteTaskList(
   return { hash: hash! };
 }
 
-// Executes the atomic move sequence between two task list files.
-// Writes destination first, then source. See blueprint for rationale.
+// Executes a two-file move with rollback on source-side failure.
+// Writes destination first, then source, and restores the destination if the
+// source update fails after the destination has already been written.
+async function rollbackDestinationWrite(
+  destFilePath: string,
+  destOriginalTasks: TaskDto[],
+  movedDestHash: string,
+  cause: string,
+): Promise<
+  | { status: "success" }
+  | { status: "failed"; message: string }
+> {
+  const rollbackData: TaskListDto = {
+    version: "1.0.0",
+    tasks: destOriginalTasks,
+  };
+  const rollback = await writeTaskList(destFilePath, rollbackData, movedDestHash);
+
+  if (rollback.status === "success") {
+    return { status: "success" };
+  }
+
+  if (rollback.status === "conflict") {
+    return {
+      status: "failed",
+      message:
+        `The move failed while updating the ${cause}, and Dropkick could not restore the destination because it changed again. Reload both files before continuing.`,
+    };
+  }
+
+  if (rollback.status === "deleted") {
+    return {
+      status: "failed",
+      message:
+        `The move failed while updating the ${cause}, and the destination file disappeared before it could be restored. Reload both files before continuing.`,
+    };
+  }
+
+  return {
+    status: "failed",
+    message:
+      `The move failed while updating the ${cause}, and Dropkick could not restore the destination automatically: ${rollback.message}`,
+  };
+}
+
 export async function atomicMoveWrite(
   sourceFilePath: string,
   sourceTasks: TaskDto[],
@@ -101,12 +144,14 @@ export async function atomicMoveWrite(
   destFilePath: string,
   destTasks: TaskDto[],
   destExpectedHash: string,
+  destOriginalTasks: TaskDto[],
 ): Promise<
   | { status: "success"; sourceHash: string; destHash: string }
   | { status: "source-conflict" }
   | { status: "dest-conflict" }
   | { status: "source-deleted" }
   | { status: "dest-deleted" }
+  | { status: "rollback-failed"; message: string }
   | { status: "error"; message: string }
 > {
   // Step 1: Write destination first (addition before deletion).
@@ -121,9 +166,45 @@ export async function atomicMoveWrite(
   const sourceData: TaskListDto = { version: "1.0.0", tasks: sourceTasks };
   const sourceResult = await writeTaskList(sourceFilePath, sourceData, sourceExpectedHash);
 
-  if (sourceResult.status === "conflict") return { status: "source-conflict" };
-  if (sourceResult.status === "deleted") return { status: "source-deleted" };
-  if (sourceResult.status === "error") return { status: "error", message: sourceResult.message };
+  if (sourceResult.status === "conflict") {
+    const rollback = await rollbackDestinationWrite(
+      destFilePath,
+      destOriginalTasks,
+      destResult.newHash,
+      "source file",
+    );
+    return rollback.status === "success"
+      ? { status: "source-conflict" }
+      : { status: "rollback-failed", message: rollback.message };
+  }
+
+  if (sourceResult.status === "deleted") {
+    const rollback = await rollbackDestinationWrite(
+      destFilePath,
+      destOriginalTasks,
+      destResult.newHash,
+      "source file",
+    );
+    return rollback.status === "success"
+      ? { status: "source-deleted" }
+      : { status: "rollback-failed", message: rollback.message };
+  }
+
+  if (sourceResult.status === "error") {
+    const rollback = await rollbackDestinationWrite(
+      destFilePath,
+      destOriginalTasks,
+      destResult.newHash,
+      "source file",
+    );
+    return rollback.status === "success"
+      ? {
+          status: "error",
+          message:
+            `The move failed while updating the source file. The destination was restored. ${sourceResult.message}`,
+        }
+      : { status: "rollback-failed", message: rollback.message };
+  }
 
   return {
     status: "success",

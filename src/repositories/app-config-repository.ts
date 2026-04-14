@@ -52,7 +52,8 @@ export async function initializeAppConfig(): Promise<{
   // Create default workspace if missing.
   if (!(await fileExists(workspacePath))) {
     const workspace = createDefaultWorkspace("Default");
-    await writeJsonFile(workspacePath, workspace);
+    const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
+    await writeJsonFile(workspacePath, persisted);
   }
 
   // Create or read app config.

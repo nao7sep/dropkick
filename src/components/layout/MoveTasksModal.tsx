@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import type { Task } from "../../models";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
+import { showMessage } from "../../repositories";
 import { AppModal } from "../shared/AppModal";
 
 interface MoveTasksModalProps {
@@ -52,13 +53,29 @@ export function MoveTasksModal({
         ids.add(task.id);
         bySource.set(task.sourceFile, ids);
       }
+      let movedAny = false;
       for (const [src, ids] of bySource) {
-        await moveTasks(src, moveTarget, ids);
+        const result = await moveTasks(src, moveTarget, ids);
+        if (result.status === "error") {
+          setSelection(taskIds);
+          setMoving(false);
+          const message = movedAny
+            ? `Some selected tasks were moved before the operation stopped.\n\n${result.message}`
+            : result.message;
+          await showMessage("Move Failed", message);
+          return;
+        }
+        movedAny = true;
       }
       // Re-select — tasks are still visible in unified view.
       setSelection(taskIds);
     } else {
-      await moveTasks(sourceFilePath, moveTarget, taskIds);
+      const result = await moveTasks(sourceFilePath, moveTarget, taskIds);
+      if (result.status === "error") {
+        setMoving(false);
+        await showMessage("Move Failed", result.message);
+        return;
+      }
       // Selection already cleared by moveTasks; tasks are gone from this list.
     }
 

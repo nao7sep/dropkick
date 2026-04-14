@@ -6,6 +6,7 @@ import type { Task, TaskStatus, TaskPriority } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
+import { showMessage } from "../../repositories";
 
 interface BulkActionsProps {
   selectedTasks: Task[];
@@ -32,9 +33,43 @@ export function BulkActions({
   const [moveTarget, setMoveTarget] = useState("");
 
   const handleBulkStatus = async (status: TaskStatus) => {
+    const validationReasons = new Map<string, number>();
+    let firstError: string | null = null;
+
     for (const task of selectedTasks) {
       const taskFile = isUnifiedView ? task.sourceFile : filePath;
-      await setStatus(taskFile, task.id, status);
+      const result = await setStatus(taskFile, task.id, status);
+      if (result.status === "validation") {
+        validationReasons.set(
+          result.reason,
+          (validationReasons.get(result.reason) ?? 0) + 1,
+        );
+      } else if (result.status === "error" && firstError === null) {
+        firstError = result.message;
+      }
+    }
+
+    if (validationReasons.size > 0 || firstError !== null) {
+      const details: string[] = [];
+
+      if (validationReasons.size > 0) {
+        const skippedCount = [...validationReasons.values()].reduce(
+          (total, count) => total + count,
+          0,
+        );
+        const reasons = [...validationReasons.entries()]
+          .map(([reason, count]) =>
+            count === 1 ? reason : `${reason} (${count} tasks)`,
+          )
+          .join("; ");
+        details.push(`Skipped ${skippedCount} task(s): ${reasons}.`);
+      }
+
+      if (firstError !== null) {
+        details.push(`First error: ${firstError}`);
+      }
+
+      await showMessage("Some Tasks Were Not Updated", details.join("\n\n"));
     }
   };
 
@@ -55,14 +90,30 @@ export function BulkActions({
         ids.add(task.id);
         bySource.set(task.sourceFile, ids);
       }
+      let movedAny = false;
       for (const [src, ids] of bySource) {
-        await moveTasks(src, moveTarget, ids);
+        const result = await moveTasks(src, moveTarget, ids);
+        if (result.status === "error") {
+          const message = movedAny
+            ? `Some selected tasks were moved before the operation stopped.\n\n${result.message}`
+            : result.message;
+          setSelection(new Set(selectedTasks.map((t) => t.id)));
+          await showMessage("Move Failed", message);
+          return;
+        }
+        movedAny = true;
       }
       // Re-select — tasks are still visible in unified view.
       setSelection(new Set(selectedTasks.map((t) => t.id)));
+      setMoveTarget("");
     } else {
       const ids = new Set(selectedTasks.map((t) => t.id));
-      await moveTasks(filePath, moveTarget, ids);
+      const result = await moveTasks(filePath, moveTarget, ids);
+      if (result.status === "error") {
+        await showMessage("Move Failed", result.message);
+        return;
+      }
+      setMoveTarget("");
     }
   };
 
