@@ -1,5 +1,6 @@
 export {
   readJsonFile,
+  readJsonFileWithHash,
   writeJsonFile,
   hashFile,
   fileExists,

@@ -1,7 +1,7 @@
 // Move Tasks modal — choose a destination list for selected tasks.
-// Opened via ⌘M shortcut. Works in both specific list and unified view.
+// Opened via Cmd+M shortcut. Works in both specific list and unified view.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Task } from "../../models";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -26,6 +26,7 @@ export function MoveTasksModal({
 
   const [moveTarget, setMoveTarget] = useState("");
   const [moving, setMoving] = useState(false);
+  const destinationRef = useRef<HTMLSelectElement>(null);
 
   // In unified view, tasks may come from different files — collect all unique source files.
   const sourceFiles = isUnifiedView
@@ -86,6 +87,13 @@ export function MoveTasksModal({
           </button>
         </>
       }
+      contentProps={{
+        onOpenAutoFocus: (e) => {
+          if (destinations.length === 0) return;
+          e.preventDefault();
+          destinationRef.current?.focus();
+        },
+      }}
     >
       {/* Task list */}
       <div className="mb-4 max-h-32 space-y-1 overflow-y-auto text-sm text-gray-500">
@@ -106,10 +114,10 @@ export function MoveTasksModal({
             Destination
           </label>
           <select
+            ref={destinationRef}
             value={moveTarget}
             onChange={(e) => setMoveTarget(e.target.value)}
             className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 outline-none focus:border-blue-300"
-            autoFocus
           >
             <option value="">Select destination...</option>
             {destinations.map((t) => (

@@ -1,7 +1,7 @@
 // Settings modal — edits preferences (font, date/time format, timezone, kick distances, etc.).
 // Opens from a gear icon in the tab bar. Changes are saved immediately on close.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import type { PreferencesDto } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -23,6 +23,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [kickInput, setKickInput] = useState(
     preferences.kickDistances.join(", "),
   );
+  const timezoneRef = useRef<HTMLInputElement>(null);
 
   const timezoneValidation = validateTimezone(draft.timezone);
   const timezoneError = timezoneValidation.valid
@@ -85,6 +86,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             if (isComposingKeyboardEvent(composing.composingRef, e)) return;
             e.preventDefault();
             handleSave();
+          }
+        },
+        onOpenAutoFocus: (e) => {
+          if (!timezoneValidation.valid) {
+            e.preventDefault();
+            timezoneRef.current?.focus();
           }
         },
         ...composing.handlers,
@@ -174,6 +181,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       <Field label="Timezone">
         <div className="flex items-center gap-2">
           <input
+            ref={timezoneRef}
             type="text"
             value={draft.timezone ?? ""}
             onChange={(e) => setField("timezone", e.target.value || null)}

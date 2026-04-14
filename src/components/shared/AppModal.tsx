@@ -1,5 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { useRef } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 type DialogContentProps = Omit<
@@ -30,16 +31,27 @@ export function AppModal({
   contentClassName = "",
   contentProps,
 }: AppModalProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { onOpenAutoFocus, ...restContentProps } = contentProps ?? {};
+
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30" />
         <Dialog.Content
+          ref={contentRef}
           aria-describedby={undefined}
           data-dropkick-interactive-layer=""
           className={`fixed left-1/2 top-1/2 z-[51] flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-white shadow-xl focus:outline-none ${contentClassName}`}
           style={{ maxWidth }}
-          {...contentProps}
+          tabIndex={-1}
+          onOpenAutoFocus={(e) => {
+            onOpenAutoFocus?.(e);
+            if (e.defaultPrevented) return;
+            e.preventDefault();
+            contentRef.current?.focus();
+          }}
+          {...restContentProps}
         >
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <Dialog.Title className="text-lg font-semibold text-gray-800">

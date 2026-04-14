@@ -4,6 +4,11 @@
 import { readTextFile, writeTextFile, exists, mkdir } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 
+interface JsonFileWithHash<T> {
+  data: T;
+  hash: string;
+}
+
 // Reads a JSON file from disk and parses it.
 // Returns null if the file does not exist.
 export async function readJsonFile<T>(path: string): Promise<T | null> {
@@ -12,6 +17,16 @@ export async function readJsonFile<T>(path: string): Promise<T | null> {
 
   const text = await readTextFile(path);
   return JSON.parse(text) as T;
+}
+
+// Reads a JSON file once via the backend and returns the parsed data plus a
+// hash of the exact bytes that were read. Returns null if the file is missing.
+export async function readJsonFileWithHash<T>(
+  path: string,
+): Promise<JsonFileWithHash<T> | null> {
+  return await invoke<JsonFileWithHash<T> | null>("read_json_file_with_hash", {
+    path,
+  });
 }
 
 // Writes an object to disk as formatted JSON.

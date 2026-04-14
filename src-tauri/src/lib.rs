@@ -1,17 +1,72 @@
-use sha2::{Sha256, Digest};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use hex;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NoteDto {
+    id: String,
+    content: String,
+    actionability: String,
+    created_at_utc: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TaskDto {
+    id: String,
+    title: String,
+    description: String,
+    status: String,
+    priority: String,
+    due_date: Option<String>,
+    created_at_utc: String,
+    updated_at_utc: String,
+    completed_at_utc: Option<String>,
+    notes: Vec<NoteDto>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct TaskListDto {
+    version: String,
+    tasks: Vec<TaskDto>,
+}
+
+#[derive(Serialize)]
+struct JsonFileWithHash {
+    data: TaskListDto,
+    hash: String,
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hex::encode(hasher.finalize())
+}
 
 // Computes SHA-256 hash of a file's raw bytes.
 // Called from TypeScript before every write to detect external modifications.
 #[tauri::command]
 fn hash_file(path: &str) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    let mut hasher = Sha256::new();
-    hasher.update(&bytes);
-    let result = hasher.finalize();
-    Ok(hex::encode(result))
+    Ok(sha256_hex(&bytes))
+}
+
+// Reads a JSON file once, parses it, and returns the parsed data with a hash
+// of the exact bytes that were read. Missing files return None.
+#[tauri::command]
+fn read_json_file_with_hash(path: &str) -> Result<Option<JsonFileWithHash>, String> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err.to_string()),
+    };
+
+    let data = serde_json::from_slice::<TaskListDto>(&bytes).map_err(|e| e.to_string())?;
+    let hash = sha256_hex(&bytes);
+    Ok(Some(JsonFileWithHash { data, hash }))
 }
 
 // Creates a zip backup from a list of (source_path, zip_entry_name) pairs.
@@ -83,7 +138,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![hash_file, create_backup, list_directory, delete_file])
+        .invoke_handler(tauri::generate_handler![
+            hash_file,
+            read_json_file_with_hash,
+            create_backup,
+            list_directory,
+            delete_file
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

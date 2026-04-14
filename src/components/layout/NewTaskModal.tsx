@@ -1,6 +1,6 @@
 // New Task modal — opened via the primary new-task shortcut.
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import type { TaskPriority } from "../../models";
 import { sanitizeSingleLine } from "../../utils";
 import { useWorkspaceStore } from "../../state/workspace-store";
@@ -45,10 +45,6 @@ export function NewTaskModal({
   const composing = useComposing();
   const autoGrowTitle = useAutoGrow(titleRef);
   const autoGrowDesc = useAutoGrow(descRef);
-
-  useEffect(() => {
-    titleRef.current?.focus();
-  }, []);
 
   const canCreate = targetFile !== "" && fileTabs.length > 0;
 
@@ -120,7 +116,13 @@ export function NewTaskModal({
           </button>
         </>
       }
-      contentProps={{ onKeyDown: handleKeyDown }}
+      contentProps={{
+        onKeyDown: handleKeyDown,
+        onOpenAutoFocus: (e) => {
+          e.preventDefault();
+          titleRef.current?.focus();
+        },
+      }}
     >
       {/* Target list */}
       {fileTabs.length > 0 && (

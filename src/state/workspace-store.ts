@@ -216,15 +216,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     await persist(filePath, updated);
   },
 
-  addRecentFile: async (filePath: string) => {
+  addRecentFile: async (taskFilePath: string) => {
     const { workspace, filePath: wsPath } = get();
     const now = new Date().toISOString();
 
     // Remove existing entry for this path (if any) and add to front.
     const filtered = workspace.recentFiles.filter(
-      (r) => r.filePath !== filePath,
+      (r) => r.filePath !== taskFilePath,
     );
-    const entry: RecentFileDto = { filePath, lastOpenedAtUtc: now };
+    const entry: RecentFileDto = {
+      filePath: taskFilePath,
+      lastOpenedAtUtc: now,
+    };
     const recentFiles = [entry, ...filtered].slice(0, 50); // keep at most 50
 
     const updated = { ...workspace, recentFiles };

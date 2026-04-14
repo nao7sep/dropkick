@@ -1,7 +1,8 @@
 // Startup picker — shown on every launch.
 // User selects a preferences file and a workspace file, then clicks Launch.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { FolderOpen, Plus, X } from "lucide-react";
 import type { AppConfigDto } from "../../models";
 import {
@@ -32,6 +33,20 @@ export function StartupPicker({
   const [selectedWorkspace, setSelectedWorkspace] = useState(
     appConfig.lastWorkspacePath,
   );
+  const prefsOpenRef = useRef<HTMLButtonElement>(null);
+  const workspaceOpenRef = useRef<HTMLButtonElement>(null);
+  const launchRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const target =
+      selectedPrefs === ""
+        ? prefsOpenRef.current
+        : selectedWorkspace === ""
+          ? workspaceOpenRef.current
+          : launchRef.current;
+
+    target?.focus();
+  }, [selectedPrefs, selectedWorkspace]);
 
   const handleOpenPreferences = async () => {
     const path = await openJsonFileDialog();
@@ -103,6 +118,7 @@ export function StartupPicker({
           onOpen={handleOpenPreferences}
           onNew={handleNewPreferences}
           onRemove={handleRemovePreferences}
+          openButtonRef={prefsOpenRef}
         />
 
         {/* Workspace section */}
@@ -114,10 +130,12 @@ export function StartupPicker({
           onOpen={handleOpenWorkspace}
           onNew={handleNewWorkspace}
           onRemove={handleRemoveWorkspace}
+          openButtonRef={workspaceOpenRef}
         />
 
         {/* Launch button */}
         <button
+          ref={launchRef}
           onClick={() => onLaunch(selectedPrefs, selectedWorkspace)}
           disabled={!canLaunch}
           className="mt-6 w-full rounded-md bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
@@ -138,6 +156,7 @@ function Section({
   onOpen,
   onNew,
   onRemove,
+  openButtonRef,
 }: {
   label: string;
   items: string[];
@@ -146,6 +165,7 @@ function Section({
   onOpen: () => void;
   onNew: () => void;
   onRemove: (path: string) => void;
+  openButtonRef?: RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <div className="mb-6">
@@ -182,6 +202,7 @@ function Section({
 
       <div className="mt-2 flex gap-2">
         <button
+          ref={openButtonRef}
           onClick={onOpen}
           className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
         >

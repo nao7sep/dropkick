@@ -3,7 +3,12 @@
 
 import type { TaskListDto, TaskDto } from "../models";
 import { createEmptyTaskList } from "../models";
-import { readJsonFile, writeJsonFile, hashFile, fileExists } from "./file-system";
+import {
+  readJsonFileWithHash,
+  writeJsonFile,
+  hashFile,
+  fileExists,
+} from "./file-system";
 
 // Represents a loaded task list along with its integrity hash.
 export interface LoadedTaskList {
@@ -23,13 +28,9 @@ export type WriteResult =
 export async function loadTaskList(
   filePath: string,
 ): Promise<LoadedTaskList | null> {
-  const data = await readJsonFile<TaskListDto>(filePath);
-  if (data === null) return null;
-
-  const hash = await hashFile(filePath);
-  if (hash === null) return null;
-
-  return { filePath, data, hash };
+  const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
+  if (loaded === null) return null;
+  return { filePath, data: loaded.data, hash: loaded.hash };
 }
 
 // Creates a new empty task list file on disk and returns the loaded result.
