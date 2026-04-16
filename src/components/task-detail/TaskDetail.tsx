@@ -133,6 +133,9 @@ export function TaskDetail({
 
   const handleStatusChange = async (status: TaskStatus) => {
     await setStatusAction(filePath, task.id, status);
+    if (status === "Completed" || status === "Dismissed") {
+      setSelection(new Set());
+    }
   };
 
   const handlePriorityChange = async (priority: TaskPriority) => {

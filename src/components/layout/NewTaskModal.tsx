@@ -24,8 +24,6 @@ export function NewTaskModal({
 }: NewTaskModalProps) {
   const workspace = useWorkspaceStore((s) => s.workspace);
   const addNewTask = useTaskListStore((s) => s.addNewTask);
-  const setSelection = useTaskListStore((s) => s.setSelection);
-  const files = useTaskListStore((s) => s.files);
 
   const fileTabs = workspace.openTabs.filter((t) => !t.isUnifiedView);
 
@@ -53,9 +51,6 @@ export function NewTaskModal({
 
     setSubmitting(true);
     try {
-      const fileState = files[targetFile];
-      const prevCount = fileState?.data.tasks.length ?? 0;
-
       const result = await addNewTask(targetFile, {
         title: sanitizeSingleLine(title),
         description,
@@ -64,14 +59,6 @@ export function NewTaskModal({
       });
 
       if (result.status === "success") {
-        const updatedFiles = useTaskListStore.getState().files;
-        const updatedState = updatedFiles[targetFile];
-        if (updatedState && updatedState.data.tasks.length > prevCount) {
-          const newTask = updatedState.data.tasks[0];
-          if (newTask) {
-            setSelection(new Set([newTask.id]));
-          }
-        }
         onClose();
       }
     } finally {
@@ -211,8 +198,8 @@ export function NewTaskModal({
             className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
           >
             <option value="Default">Default</option>
-            <option value="Important">Important</option>
             <option value="Urgent">Urgent</option>
+            <option value="Important">Important</option>
             <option value="Critical">Critical</option>
           </select>
         </div>

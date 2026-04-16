@@ -51,10 +51,10 @@ Shortcuts are shown with `Cmd`. On Windows, use `Ctrl` instead. Letter and numbe
 | Set status to Pending | P |
 | Set status to Completed | C |
 | Set status to Dismissed | X |
-| Set priority to Default | 1 |
+| Set priority to Default | 0 |
+| Set priority to Urgent | 1 |
 | Set priority to Important | 2 |
-| Set priority to Urgent | 3 |
-| Set priority to Critical | 4 |
+| Set priority to Critical | 3 |
 | Set due date to today | T |
 | Set due date to tomorrow | Y |
 | Clear due date | N |

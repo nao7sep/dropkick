@@ -71,6 +71,10 @@ export function BulkActions({
 
       await showMessage("Some Tasks Were Not Updated", details.join("\n\n"));
     }
+
+    if (status === "Completed" || status === "Dismissed") {
+      setSelection(new Set());
+    }
   };
 
   const handleBulkPriority = async (priority: TaskPriority) => {

@@ -12,6 +12,17 @@ import type { Task, TaskPriority, TaskStatus } from "../models";
 import { toTask, todayInTimezone, tomorrowInTimezone } from "../utils";
 import { hasPrimaryShortcutModifier, matchesShortcutKey } from "../utils";
 
+// Returns the ID of the task to select after the current single-selected task
+// moves away or disappears. Prefers the task below; falls back to the one above.
+// Returns null for multi-selection or when the list is empty.
+function pickAdvanceId(selectedIds: Set<string>, visualTasks: Task[]): string | null {
+  if (selectedIds.size !== 1) return null;
+  const [id] = selectedIds;
+  const idx = visualTasks.findIndex((t) => t.id === id);
+  if (idx === -1) return null;
+  return (visualTasks[idx + 1] ?? visualTasks[idx - 1])?.id ?? null;
+}
+
 function isTyping(e: KeyboardEvent): boolean {
   const tag = (e.target as HTMLElement)?.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
@@ -228,54 +239,72 @@ export function useKeyboardShortcuts(
 
         if (matchesShortcutKey(e, "c")) {
           e.preventDefault();
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
           await applyStatusToSelection("Completed");
           return;
         }
 
         if (matchesShortcutKey(e, "x")) {
           e.preventDefault();
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
           await applyStatusToSelection("Dismissed");
+          return;
+        }
+
+        if (e.key === "0") {
+          e.preventDefault();
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
+          await applyPriorityToSelection("Default");
           return;
         }
 
         if (e.key === "1") {
           e.preventDefault();
-          await applyPriorityToSelection("Default");
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
+          await applyPriorityToSelection("Urgent");
           return;
         }
 
         if (e.key === "2") {
           e.preventDefault();
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
           await applyPriorityToSelection("Important");
           return;
         }
 
         if (e.key === "3") {
           e.preventDefault();
-          await applyPriorityToSelection("Urgent");
-          return;
-        }
-
-        if (e.key === "4") {
-          e.preventDefault();
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
           await applyPriorityToSelection("Critical");
           return;
         }
 
         if (matchesShortcutKey(e, "t")) {
           e.preventDefault();
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
           await applyDueDateToSelection(todayInTimezone(timezone));
           return;
         }
 
         if (matchesShortcutKey(e, "y")) {
           e.preventDefault();
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
           await applyDueDateToSelection(tomorrowInTimezone(timezone));
           return;
         }
 
         if (matchesShortcutKey(e, "n")) {
           e.preventDefault();
+          const advanceId = pickAdvanceId(selectedIds, visualTasks);
+          if (advanceId) setSelection(new Set([advanceId]));
           await applyDueDateToSelection(null);
           return;
         }
@@ -286,11 +315,13 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (selectedIds.size === 0) return;
         e.preventDefault();
+        const advanceId = pickAdvanceId(selectedIds, visualTasks);
         const confirmed = await showConfirm(
           "Dismiss Tasks",
           `Dismiss ${selectedIds.size} selected task(s)?`,
         );
         if (!confirmed) return;
+        if (advanceId) setSelection(new Set([advanceId]));
         for (const taskId of selectedIds) {
           const taskFile = tasksById.get(taskId)?.sourceFile ?? filePath;
           await setStatus(taskFile, taskId, "Dismissed");
