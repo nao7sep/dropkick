@@ -52,6 +52,7 @@ export function useKeyboardShortcuts(
   const addUnifiedViewTab = useWorkspaceStore((s) => s.addUnifiedViewTab);
 
   const timezone = preferences.timezone;
+  const dueSoonDays = preferences.dueSoonDays;
 
   const contextTasks: Task[] = useMemo(() => {
     const tasks: Task[] = [];
@@ -61,19 +62,19 @@ export function useKeyboardShortcuts(
         const fileState = files[tab.filePath];
         if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          tasks.push(toTask(dto, tab.filePath, timezone));
+          tasks.push(toTask(dto, tab.filePath, timezone, dueSoonDays));
         }
       }
     } else {
       const fileState = files[filePath];
       if (!fileState) return [];
       for (const dto of fileState.data.tasks) {
-        tasks.push(toTask(dto, filePath, timezone));
+        tasks.push(toTask(dto, filePath, timezone, dueSoonDays));
       }
     }
 
     return tasks;
-  }, [files, filePath, isUnifiedView, timezone, workspace.openTabs]);
+  }, [files, filePath, isUnifiedView, timezone, dueSoonDays, workspace.openTabs]);
 
   // Compute tasks in visual (grouped) order for arrow navigation.
   const visualTasks: Task[] = useMemo(() => {

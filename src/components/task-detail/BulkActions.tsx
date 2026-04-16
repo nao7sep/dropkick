@@ -166,7 +166,7 @@ export function BulkActions({
         <div className="flex gap-2">
           <button
             onClick={() => handleBulkPriority("Critical")}
-            className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+            className="rounded-md border border-violet-200 px-3 py-1.5 text-sm text-violet-600 hover:bg-violet-50"
           >
             Critical
           </button>

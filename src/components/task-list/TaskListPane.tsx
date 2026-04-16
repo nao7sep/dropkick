@@ -22,29 +22,37 @@ interface TaskListPaneProps {
 
 const GROUP_COLORS: Record<TaskGroup, string> = {
   PastDue: "text-red-600 border-red-200",
-  Critical: "text-red-600 border-red-200",
-  DueWithinWeek: "text-amber-600 border-amber-200",
-  Urgent: "text-amber-600 border-amber-200",
+  Critical: "text-violet-600 border-violet-200",
+  DueToday: "text-orange-500 border-orange-200",
   Important: "text-blue-600 border-blue-200",
+  Urgent: "text-amber-500 border-amber-200",
+  DueSoon: "text-teal-600 border-teal-200",
   Default: "text-gray-500 border-gray-200",
 };
 
-const PRIORITY_BORDERS: Record<string, string> = {
-  Critical: "border-l-red-500",
-  Urgent: "border-l-amber-400",
+const GROUP_BORDERS: Record<TaskGroup, string> = {
+  PastDue: "border-l-red-500",
+  Critical: "border-l-violet-500",
+  DueToday: "border-l-orange-400",
   Important: "border-l-blue-400",
+  Urgent: "border-l-amber-400",
+  DueSoon: "border-l-teal-400",
   Default: "border-l-transparent",
 };
 
-const PRIORITY_BGS: Record<string, string> = {
-  Critical: "bg-red-50/50",
-  Urgent: "bg-amber-50/50",
+const GROUP_BGS: Record<TaskGroup, string> = {
+  PastDue: "bg-red-50/50",
+  Critical: "bg-violet-50/50",
+  DueToday: "bg-orange-50/50",
   Important: "bg-blue-50/50",
+  Urgent: "bg-amber-50/50",
+  DueSoon: "bg-teal-50/50",
   Default: "",
 };
 
 export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPaneProps) {
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
+  const dueSoonDays = usePreferencesStore((s) => s.preferences.dueSoonDays);
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
   const selectedIds = useTaskListStore((s) => s.selectedIds);
   const setSelection = useTaskListStore((s) => s.setSelection);
@@ -66,15 +74,15 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         const fileState = files[tab.filePath];
         if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          allTasks.push(toTask(dto, tab.filePath, timezone));
+          allTasks.push(toTask(dto, tab.filePath, timezone, dueSoonDays));
         }
       }
       return allTasks;
     }
     const fileState = files[filePath];
     if (!fileState) return [] as Task[];
-    return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone));
-  }, [files, filePath, isUnifiedView, timezone, openTabs]);
+    return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone, dueSoonDays));
+  }, [files, filePath, isUnifiedView, timezone, dueSoonDays, openTabs]);
 
   const grouped = useMemo(
     () =>
@@ -189,6 +197,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               key={task.id}
               rowRef={registerRowRef(task.id)}
               task={task}
+              group={group}
               isSelected={selectedIds.has(task.id)}
               isEditing={editingTaskId === task.id}
               isUnifiedView={isUnifiedView}
@@ -219,6 +228,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                   key={task.id}
                   rowRef={registerRowRef(task.id)}
                   task={task}
+                  group="Default"
                   isSelected={selectedIds.has(task.id)}
                   isEditing={editingTaskId === task.id}
                   isUnifiedView={isUnifiedView}
@@ -248,6 +258,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 function TaskRow({
   rowRef,
   task,
+  group,
   isSelected,
   isEditing,
   isUnifiedView,
@@ -258,6 +269,7 @@ function TaskRow({
 }: {
   rowRef?: (node: HTMLDivElement | null) => void;
   task: Task;
+  group: TaskGroup;
   isSelected: boolean;
   isEditing: boolean;
   isUnifiedView: boolean;
@@ -288,10 +300,10 @@ function TaskRow({
       ref={rowRef}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
-      className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-gray-100 px-3 py-2 transition-colors ${PRIORITY_BORDERS[task.priority] ?? ""} ${
+      className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-gray-100 px-3 py-2 transition-colors ${GROUP_BORDERS[group]} ${
         isSelected
           ? "bg-blue-100"
-          : `${PRIORITY_BGS[task.priority] ?? ""} hover:bg-gray-50`
+          : `${GROUP_BGS[group]} hover:bg-gray-50`
       } ${isHandled ? "opacity-60" : ""}`}
     >
       {/* Status indicator */}

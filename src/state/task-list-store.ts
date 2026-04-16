@@ -378,7 +378,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const { selectedIds } = get();
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
-    const newTasks = kickTasks(fileState.data.tasks, selectedIds, distance, tz);
+    const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
+    const newTasks = kickTasks(fileState.data.tasks, selectedIds, distance, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -394,7 +395,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const { selectedIds } = get();
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
-    const newTasks = sendTasksToFirst(fileState.data.tasks, selectedIds, tz);
+    const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
+    const newTasks = sendTasksToFirst(fileState.data.tasks, selectedIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -410,7 +412,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const { selectedIds } = get();
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
-    const newTasks = sendTasksToLast(fileState.data.tasks, selectedIds, tz);
+    const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
+    const newTasks = sendTasksToLast(fileState.data.tasks, selectedIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -426,7 +429,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const { selectedIds } = get();
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
-    const newTasks = moveTasksUp(fileState.data.tasks, selectedIds, tz);
+    const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
+    const newTasks = moveTasksUp(fileState.data.tasks, selectedIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -442,7 +446,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const { selectedIds } = get();
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
-    const newTasks = moveTasksDown(fileState.data.tasks, selectedIds, tz);
+    const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
+    const newTasks = moveTasksDown(fileState.data.tasks, selectedIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -458,7 +463,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const { selectedIds } = get();
     if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
-    const newTasks = dropkickTasks(fileState.data.tasks, selectedIds, tz);
+    const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
+    const newTasks = dropkickTasks(fileState.data.tasks, selectedIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }

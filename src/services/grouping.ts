@@ -16,7 +16,8 @@ export interface GroupedTasks {
 const GROUP_LABELS: Record<TaskGroup, string> = {
   PastDue: "Past Due",
   Critical: "Critical",
-  DueWithinWeek: "Due Within 7 Days",
+  DueToday: "Due Today",
+  DueSoon: "Due Soon",
   Urgent: "Urgent",
   Important: "Important",
   Default: "Tasks",

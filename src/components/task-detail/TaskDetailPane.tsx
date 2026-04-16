@@ -22,6 +22,7 @@ export function TaskDetailPane({
   focusNewNoteSignal,
 }: TaskDetailPaneProps) {
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
+  const dueSoonDays = usePreferencesStore((s) => s.preferences.dueSoonDays);
   const selectedIds = useTaskListStore((s) => s.selectedIds);
   const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
 
@@ -36,15 +37,15 @@ export function TaskDetailPane({
         const fileState = files[tab.filePath];
         if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          allTasks.push(toTask(dto, tab.filePath, timezone));
+          allTasks.push(toTask(dto, tab.filePath, timezone, dueSoonDays));
         }
       }
       return allTasks;
     }
     const fileState = files[filePath];
     if (!fileState) return [] as Task[];
-    return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone));
-  }, [files, filePath, isUnifiedView, timezone, openTabs]);
+    return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone, dueSoonDays));
+  }, [files, filePath, isUnifiedView, timezone, dueSoonDays, openTabs]);
 
   const selectedTasks = tasks.filter((t) => selectedIds.has(t.id));
   const selectedTaskIds = selectedTasks.map((t) => t.id);

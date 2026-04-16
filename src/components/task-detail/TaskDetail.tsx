@@ -575,7 +575,7 @@ function NoteItem({
 function prioritySelectStyle(priority: string): string {
   switch (priority) {
     case "Critical":
-      return "border-red-300 text-red-600";
+      return "border-violet-300 text-violet-600";
     case "Urgent":
       return "border-amber-300 text-amber-600";
     case "Important":

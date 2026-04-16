@@ -27,11 +27,12 @@ function groupSlots(
   tasks: TaskDto[],
   group: TaskGroup,
   timezone: string | null,
+  dueSoonDays: number,
 ): number[] {
   const slots: number[] = [];
   for (let i = 0; i < tasks.length; i++) {
     const t = tasks[i];
-    if (t.status === "Pending" && computeGroup(t, timezone) === group) {
+    if (t.status === "Pending" && computeGroup(t, timezone, dueSoonDays) === group) {
       slots.push(i);
     }
   }
@@ -44,13 +45,14 @@ function reorderWithinGroups(
   tasks: TaskDto[],
   selectedIds: Set<string>,
   timezone: string | null,
+  dueSoonDays: number,
   reorderFn: (groupTasks: TaskDto[], selected: Set<string>) => TaskDto[],
 ): TaskDto[] {
   // Find which groups have selected tasks.
   const affectedGroups = new Set<TaskGroup>();
   for (const t of tasks) {
     if (selectedIds.has(t.id) && t.status === "Pending") {
-      affectedGroups.add(computeGroup(t, timezone));
+      affectedGroups.add(computeGroup(t, timezone, dueSoonDays));
     }
   }
 
@@ -59,7 +61,7 @@ function reorderWithinGroups(
   const result = [...tasks];
 
   for (const group of affectedGroups) {
-    const slots = groupSlots(result, group, timezone);
+    const slots = groupSlots(result, group, timezone, dueSoonDays);
     const groupTasks = slots.map((i) => result[i]);
 
     const selectedInGroup = new Set(
@@ -84,8 +86,9 @@ export function sendTasksToFirst(
   tasks: TaskDto[],
   selectedIds: Set<string>,
   timezone: string | null,
+  dueSoonDays: number,
 ): TaskDto[] {
-  return reorderWithinGroups(tasks, selectedIds, timezone, (groupTasks, selected) => {
+  return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
     const sel: TaskDto[] = [];
     const rest: TaskDto[] = [];
     for (const t of groupTasks) {
@@ -101,8 +104,9 @@ export function sendTasksToLast(
   tasks: TaskDto[],
   selectedIds: Set<string>,
   timezone: string | null,
+  dueSoonDays: number,
 ): TaskDto[] {
-  return reorderWithinGroups(tasks, selectedIds, timezone, (groupTasks, selected) => {
+  return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
     const sel: TaskDto[] = [];
     const rest: TaskDto[] = [];
     for (const t of groupTasks) {
@@ -119,8 +123,9 @@ export function kickTasks(
   selectedIds: Set<string>,
   distance: number,
   timezone: string | null,
+  dueSoonDays: number,
 ): TaskDto[] {
-  return reorderWithinGroups(tasks, selectedIds, timezone, (groupTasks, selected) => {
+  return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
     const sel: TaskDto[] = [];
     const rest: TaskDto[] = [];
     for (const t of groupTasks) {
@@ -145,8 +150,9 @@ export function moveTasksUp(
   tasks: TaskDto[],
   selectedIds: Set<string>,
   timezone: string | null,
+  dueSoonDays: number,
 ): TaskDto[] {
-  return reorderWithinGroups(tasks, selectedIds, timezone, (groupTasks, selected) => {
+  return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
     const result = [...groupTasks];
     for (let i = 0; i < result.length; i++) {
       if (selected.has(result[i].id) && i > 0 && !selected.has(result[i - 1].id)) {
@@ -162,8 +168,9 @@ export function moveTasksDown(
   tasks: TaskDto[],
   selectedIds: Set<string>,
   timezone: string | null,
+  dueSoonDays: number,
 ): TaskDto[] {
-  return reorderWithinGroups(tasks, selectedIds, timezone, (groupTasks, selected) => {
+  return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
     const result = [...groupTasks];
     for (let i = result.length - 1; i >= 0; i--) {
       if (selected.has(result[i].id) && i < result.length - 1 && !selected.has(result[i + 1].id)) {
@@ -180,6 +187,7 @@ export function dropkickTasks(
   tasks: TaskDto[],
   selectedIds: Set<string>,
   timezone: string | null,
+  dueSoonDays: number,
 ): TaskDto[] {
   const now = nowUtc();
   const result = [...tasks];
@@ -218,7 +226,7 @@ export function dropkickTasks(
   // If no Default tasks exist, insert after the last pending task.
   let insertAt = -1;
   for (let i = result.length - 1; i >= 0; i--) {
-    if (result[i].status === "Pending" && computeGroup(result[i], timezone) === "Default") {
+    if (result[i].status === "Pending" && computeGroup(result[i], timezone, dueSoonDays) === "Default") {
       insertAt = i + 1;
       break;
     }

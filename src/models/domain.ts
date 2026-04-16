@@ -6,18 +6,20 @@ import type { TaskDto } from "./task-list";
 export type TaskGroup =
   | "PastDue"
   | "Critical"
-  | "DueWithinWeek"
-  | "Urgent"
+  | "DueToday"
   | "Important"
+  | "Urgent"
+  | "DueSoon"
   | "Default";
 
 // The order defines display priority (lower index = shown higher).
 export const TASK_GROUP_ORDER: TaskGroup[] = [
   "PastDue",
   "Critical",
-  "DueWithinWeek",
+  "DueToday",
   "Important",
   "Urgent",
+  "DueSoon",
   "Default",
 ];
 
@@ -26,7 +28,7 @@ export interface Task extends TaskDto {
   hasActionableNotes: boolean;
   canComplete: boolean; // false if any note is Actionable
   isOverdue: boolean;
-  isDueWithinWeek: boolean;
+  isDueToday: boolean;
   group: TaskGroup;
 
   // Source tracking (which task list this belongs to)

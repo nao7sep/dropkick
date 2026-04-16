@@ -226,6 +226,26 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         </p>
       </Field>
 
+      {/* Due soon window */}
+      <Field label="Due soon window">
+        <input
+          type="number"
+          min={1}
+          max={365}
+          value={draft.dueSoonDays}
+          onChange={(e) =>
+            setField(
+              "dueSoonDays",
+              Math.max(1, parseInt(e.target.value, 10) || 7),
+            )
+          }
+          className="w-24 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+        />
+        <p className="mt-1 text-xs text-gray-400">
+          Tasks due within this many days from tomorrow appear in the Due Soon group.
+        </p>
+      </Field>
+
       {/* Handled tasks page size */}
       <Field label="Handled tasks page size">
         <input

@@ -73,23 +73,22 @@ export function isOverdue(
   return dueDate < today;
 }
 
-// Checks if a due date falls within an N-day calendar window starting today
-// in the given timezone. For example, N=7 means today through the next 6 days.
-export function isDueWithinDays(
+// Returns true if dueDate falls within a window of `count` days starting `startOffset` days from today.
+// startOffset=0 starts from today; startOffset=1 starts from tomorrow.
+// Example: isDueInDayRange(date, 0, 1, tz) matches today only.
+// Example: isDueInDayRange(date, 1, 7, tz) matches tomorrow through today+7.
+export function isDueInDayRange(
   dueDate: string,
-  days: number,
+  startOffset: number,
+  count: number,
   timezone: string | null,
 ): boolean {
-  if (days <= 0) return false;
+  if (count <= 0) return false;
 
   const today = todayInTimezone(timezone);
-  if (dueDate < today) return false;
-
-  // Build the cutoff date string by adding the remaining days in the window.
   const todayDate = parseISO(today);
-  const cutoff = new Date(todayDate);
-  cutoff.setDate(cutoff.getDate() + (days - 1));
-  const cutoffStr = format(cutoff, "yyyy-MM-dd");
+  const startStr = format(addDays(todayDate, startOffset), "yyyy-MM-dd");
+  const endStr = format(addDays(todayDate, startOffset + count - 1), "yyyy-MM-dd");
 
-  return dueDate <= cutoffStr;
+  return dueDate >= startStr && dueDate <= endStr;
 }

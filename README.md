@@ -10,7 +10,7 @@ Built with Tauri v2, React, and TypeScript.
 
 - **Local JSON files** — task lists, workspaces, and preferences are portable JSON files at paths you choose
 - **Kick mechanism** — push tasks down the list by configurable distances (+5, +25, or to the end) instead of endlessly re-prioritizing
-- **Priority groups** — tasks are auto-grouped by due date and priority (Past Due, Critical, Due Within 7 Days, Important, Urgent, Tasks)
+- **Priority groups** — tasks are auto-grouped and displayed in this order: Past Due → Critical → Due Today → Important → Urgent → Due Soon → Tasks. Due Today and Due Soon are date-based: they elevate tasks regardless of their priority setting. Important ranks above Urgent by design — urgent-but-unimportant work is a common productivity trap.
 - **Multiple task lists** — open several task list files as tabs, reorder tabs with drag and drop
 - **Unified view** — see all open task lists merged into one view
 - **Move tasks between lists** — move tasks to another open list via `Cmd+M`, the task detail dropdown, or bulk actions
@@ -20,7 +20,7 @@ Built with Tauri v2, React, and TypeScript.
 - **File integrity** — SHA-256 hash checks detect external modifications before overwriting
 - **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically)
 - **IME composition support** — Japanese/Chinese/Korean input works correctly in all text fields
-- **Configurable** — font family, zoom level, sidebar width, date/time format, timezone, kick distances
+- **Configurable** — font family, zoom level, sidebar width, date/time format, timezone, kick distances, due soon window (days from tomorrow, default 7)
 
 ## Data Storage
 

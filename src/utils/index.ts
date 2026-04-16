@@ -7,7 +7,7 @@ export {
   formatTimestamp,
   formatDueDate,
   isOverdue,
-  isDueWithinDays,
+  isDueInDayRange,
 } from "./dates";
 
 export { createTask, createNote } from "./factories";

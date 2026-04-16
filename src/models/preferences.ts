@@ -11,6 +11,7 @@ export interface PreferencesDto {
   timeFormat: "24h" | "12h";
   timezone: string | null; // IANA timezone e.g. "Asia/Tokyo"; null = system
   kickDistances: number[];
+  dueSoonDays: number;
   handledTasksPageSize: number;
   backupEnabled: boolean;
 }
@@ -26,6 +27,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     timeFormat: "24h",
     timezone: null,
     kickDistances: [5, 25],
+    dueSoonDays: 7,
     handledTasksPageSize: 50,
     backupEnabled: true,
   };

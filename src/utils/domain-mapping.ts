@@ -1,12 +1,13 @@
 import type { TaskDto } from "../models";
 import type { Task, TaskGroup } from "../models";
-import { isOverdue, isDueWithinDays } from "./dates";
+import { isOverdue, isDueInDayRange } from "./dates";
 
 // Computes the display group for a task based on priority and due date.
 // Each task belongs to exactly one group — the highest applicable one.
 export function computeGroup(
   dto: TaskDto,
   timezone: string | null,
+  dueSoonDays: number,
 ): TaskGroup {
   const hasDue = dto.dueDate !== null;
 
@@ -20,15 +21,19 @@ export function computeGroup(
     return "Critical";
   }
 
-  // Due within the current 7-day window (today + next 6 days)
-  // elevates any remaining task.
-  if (hasDue && isDueWithinDays(dto.dueDate!, 7, timezone)) {
-    return "DueWithinWeek";
+  // Due today takes priority over explicit priority flags (except Critical above).
+  if (hasDue && isDueInDayRange(dto.dueDate!, 0, 1, timezone)) {
+    return "DueToday";
   }
 
-  // Then standard priority cascade, with Important ahead of Urgent.
+  // Explicit priority cascade: Important and Urgent outrank the lookahead window.
   if (dto.priority === "Important") return "Important";
   if (dto.priority === "Urgent") return "Urgent";
+
+  // Due soon: elevates Default-priority tasks with an imminent due date.
+  if (hasDue && isDueInDayRange(dto.dueDate!, 1, dueSoonDays, timezone)) {
+    return "DueSoon";
+  }
   return "Default";
 }
 
@@ -37,6 +42,7 @@ export function toTask(
   dto: TaskDto,
   sourceFile: string,
   timezone: string | null,
+  dueSoonDays: number,
 ): Task {
   const hasActionableNotes = dto.notes.some(
     (n) => n.actionability === "Actionable",
@@ -47,9 +53,9 @@ export function toTask(
     hasActionableNotes,
     canComplete: !hasActionableNotes,
     isOverdue: dto.dueDate !== null && isOverdue(dto.dueDate, timezone),
-    isDueWithinWeek:
-      dto.dueDate !== null && isDueWithinDays(dto.dueDate, 7, timezone),
-    group: computeGroup(dto, timezone),
+    isDueToday:
+      dto.dueDate !== null && isDueInDayRange(dto.dueDate, 0, 1, timezone),
+    group: computeGroup(dto, timezone, dueSoonDays),
     sourceFile,
   };
 }

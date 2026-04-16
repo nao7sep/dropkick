@@ -50,8 +50,8 @@ export function TaskSummary({ tasks }: TaskSummaryProps) {
           <div className="border-t border-gray-100 pt-3">
             {critical > 0 && (
               <div className="flex justify-between">
-                <span className="text-red-600">Critical</span>
-                <span className="font-medium text-red-600">{critical}</span>
+                <span className="text-violet-600">Critical</span>
+                <span className="font-medium text-violet-600">{critical}</span>
               </div>
             )}
             {important > 0 && (

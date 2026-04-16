@@ -182,19 +182,19 @@ export function MainWindow() {
         const fileState = files[tab.filePath];
         if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, tab.filePath, preferences.timezone));
+          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, tab.filePath, preferences.timezone, preferences.dueSoonDays));
         }
       }
     } else {
       const fileState = files[filePath];
       if (fileState) {
         for (const dto of fileState.data.tasks) {
-          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, filePath, preferences.timezone));
+          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, filePath, preferences.timezone, preferences.dueSoonDays));
         }
       }
     }
     return tasks;
-  }, [showMoveTasks, selectedIds, files, filePath, isUnifiedView, preferences.timezone, workspace.openTabs]);
+  }, [showMoveTasks, selectedIds, files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
 
   return (
     <div
