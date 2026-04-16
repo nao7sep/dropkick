@@ -165,7 +165,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
+    <div className="flex flex-1 flex-col overflow-y-auto scroll-pt-[25px]">
       {/* New task button */}
       <button
         onClick={onNewTask}
