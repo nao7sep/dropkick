@@ -1,6 +1,6 @@
 // New Task modal — opened via the primary new-task shortcut.
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import type { TaskPriority } from "../../models";
 import { sanitizeSingleLine } from "../../utils";
 import { useWorkspaceStore } from "../../state/workspace-store";
@@ -10,6 +10,7 @@ import { AppModal } from "../shared/AppModal";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { hasPrimaryShortcutModifier } from "../../utils";
+import { showUnsavedChangesConfirm } from "../../repositories";
 
 interface NewTaskModalProps {
   currentFilePath: string;
@@ -45,6 +46,25 @@ export function NewTaskModal({
   const autoGrowDesc = useAutoGrow(descRef);
 
   const canCreate = targetFile !== "" && fileTabs.length > 0;
+
+  const isDirty = useMemo(
+    () =>
+      title !== "" ||
+      description !== "" ||
+      priority !== "Default" ||
+      dueDate !== null ||
+      targetFile !== defaultTarget,
+    [title, description, priority, dueDate, targetFile, defaultTarget],
+  );
+
+  const handleRequestClose = async () => {
+    if (!isDirty) {
+      onClose();
+      return;
+    }
+    const discard = await showUnsavedChangesConfirm();
+    if (discard) onClose();
+  };
 
   const handleCreate = async () => {
     if (!canCreate || submitting) return;
@@ -84,12 +104,13 @@ export function NewTaskModal({
     <AppModal
       title="New Task"
       onClose={onClose}
+      onRequestClose={handleRequestClose}
       maxWidth={448}
       bodyClassName="space-y-4 overflow-y-auto px-6 py-5"
       footer={
         <>
           <button
-            onClick={onClose}
+            onClick={handleRequestClose}
             className="rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
           >
             Cancel
