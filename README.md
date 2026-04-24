@@ -34,7 +34,7 @@ All data lives on your filesystem:
 | Task lists | Any path | Your tasks |
 | Backups | `~/.dropkick/backups/<workspace-id>/` | Automatic zip backups |
 
-Every change is written to disk immediately. There is no "save" action.
+Task changes are written to disk immediately. Preferences require an explicit **Save** in the Settings dialog.
 At startup, Dropkick reopens unified view if it is among the open tabs; otherwise it opens the first task list tab. The current active tab is runtime-only and is not written to `workspace.json`.
 
 ## Keyboard Shortcuts
