@@ -104,7 +104,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     const row = rowRefs.current.get(dominantSelectedId);
     if (!row) return;
     row.scrollIntoView({ block: "nearest" });
-  }, [dominantSelectedId, tasks, handledExpanded, handledVisible]);
+  }, [dominantSelectedId, tasks]);
 
   const registerRowRef = (taskId: string) => (node: HTMLDivElement | null) => {
     if (node) {
