@@ -63,6 +63,20 @@ export async function showFileConflictDialog(
   return overwrite ? "overwrite" : "cancel";
 }
 
+// Shows a confirmation dialog when the user tries to close a form with unsaved changes.
+// Returns true if the user chose to discard changes, false to keep editing.
+export async function showUnsavedChangesConfirm(): Promise<boolean> {
+  return await showAppConfirm(
+    "Discard Changes",
+    "You have unsaved changes. Discard them and close?",
+    {
+      tone: "warning",
+      confirmLabel: "Discard",
+      cancelLabel: "Keep Editing",
+    },
+  );
+}
+
 // Shows a dialog when a file has been deleted while open.
 // Returns "save" or "close".
 export async function showFileDeletedDialog(

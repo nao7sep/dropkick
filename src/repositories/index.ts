@@ -14,6 +14,7 @@ export {
   showConfirm,
   showFileConflictDialog,
   showFileDeletedDialog,
+  showUnsavedChangesConfirm,
 } from "./dialogs";
 
 export {

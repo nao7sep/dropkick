@@ -1,13 +1,14 @@
 // Settings modal — edits preferences (font, date/time format, timezone, kick distances, etc.).
-// Opens from a gear icon in the tab bar. Changes are saved immediately on close.
+// Opens from a gear icon in the tab bar. Changes are staged locally and saved only on "Save".
 
-import { useRef, useState } from "react";
+import { useRef, useMemo, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import type { PreferencesDto } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { validateTimezone } from "../../utils/timezone";
 import { AppModal } from "../shared/AppModal";
 import { hasPrimaryShortcutModifier } from "../../utils";
+import { showUnsavedChangesConfirm } from "../../repositories";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -30,6 +31,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     ? null
     : "Invalid IANA timezone";
 
+  const isDirty = useMemo(() => {
+    if (kickInput !== preferences.kickDistances.join(", ")) return true;
+    const keys = Object.keys(preferences) as (keyof PreferencesDto)[];
+    return keys.some((k) => draft[k] !== preferences[k]);
+  }, [draft, kickInput, preferences]);
+
   const handleSave = async () => {
     if (!timezoneValidation.valid) return;
 
@@ -50,6 +57,15 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     onClose();
   };
 
+  const handleRequestClose = async () => {
+    if (!isDirty) {
+      onClose();
+      return;
+    }
+    const discard = await showUnsavedChangesConfirm();
+    if (discard) onClose();
+  };
+
   const setField = <K extends keyof PreferencesDto>(
     key: K,
     value: PreferencesDto[K],
@@ -61,6 +77,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     <AppModal
       title="Settings"
       onClose={onClose}
+      onRequestClose={handleRequestClose}
       maxWidth={448}
       bodyClassName="space-y-5 overflow-y-auto px-6 py-5"
       footer={

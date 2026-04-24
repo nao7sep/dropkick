@@ -11,6 +11,10 @@ type DialogContentProps = Omit<
 interface AppModalProps {
   title: string;
   onClose: () => void;
+  // When provided, replaces the default close behaviour for the X button,
+  // Escape key, and outside-click. Use this to run an async guard (e.g. a
+  // dirty-check confirmation) before actually closing.
+  onRequestClose?: () => void;
   children: ReactNode;
   footer?: ReactNode;
   maxWidth?: number;
@@ -23,6 +27,7 @@ interface AppModalProps {
 export function AppModal({
   title,
   onClose,
+  onRequestClose,
   children,
   footer,
   maxWidth = 448,
@@ -33,6 +38,31 @@ export function AppModal({
 }: AppModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const { onOpenAutoFocus, ...restContentProps } = contentProps ?? {};
+
+  // When a close guard is active, Escape and outside-click are intercepted and
+  // routed through onRequestClose instead of triggering the default dismiss.
+  // Outside-clicks that land inside another stacked dialog (marked with
+  // data-dropkick-interactive-layer) are ignored — otherwise confirming the
+  // guard's own confirmation dialog would re-trigger the close request.
+  const escapeAndOutsideHandlers = onRequestClose
+    ? {
+        onEscapeKeyDown: (e: Event) => {
+          e.preventDefault();
+          onRequestClose();
+        },
+        onInteractOutside: (e: Event) => {
+          e.preventDefault();
+          // Ignore clicks that landed inside another stacked dialog layer
+          // (e.g. the unsaved-changes confirmation that this modal itself
+          // opened). Otherwise confirming the guard would re-trigger the
+          // close request and queue a duplicate confirmation.
+          const target = e.target as Element | null;
+          const layer = target?.closest?.("[data-dropkick-interactive-layer]");
+          if (layer && layer !== contentRef.current) return;
+          onRequestClose();
+        },
+      }
+    : {};
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
@@ -51,21 +81,33 @@ export function AppModal({
             e.preventDefault();
             contentRef.current?.focus();
           }}
+          {...escapeAndOutsideHandlers}
           {...restContentProps}
         >
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <Dialog.Title className="text-lg font-semibold text-gray-800">
               {title}
             </Dialog.Title>
-            <Dialog.Close asChild>
+            {onRequestClose ? (
               <button
                 type="button"
                 aria-label={`Close ${title}`}
+                onClick={onRequestClose}
                 className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
               >
                 <X size={18} />
               </button>
-            </Dialog.Close>
+            ) : (
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  aria-label={`Close ${title}`}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                >
+                  <X size={18} />
+                </button>
+              </Dialog.Close>
+            )}
           </div>
 
           <div className={bodyClassName}>{children}</div>
