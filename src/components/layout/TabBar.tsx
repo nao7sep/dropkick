@@ -225,7 +225,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
           <div className="relative shrink-0" ref={menuRef}>
             <button
               onClick={() => setShowNewMenu(!showNewMenu)}
-              className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:bg-gray-100"
+              className="flex h-10 w-10 items-center justify-center text-sky-700 transition-colors hover:bg-sky-50"
             >
               <Plus size={16} />
             </button>
@@ -256,7 +256,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                 {recentFiles.length > 0 && (
                   <>
                     <div className="my-1 border-t border-gray-100" />
-                    <div className="px-4 py-1 text-xs font-medium text-gray-400">
+                    <div className="px-4 py-1 text-xs font-medium text-gray-500">
                       Recent
                     </div>
                     {recentFiles.slice(0, 10).map((r) => (
@@ -268,7 +268,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                         <span className="block truncate" title={r.filePath}>
                           {fileNameWithoutExt(r.filePath)}
                         </span>
-                        <span className="block truncate text-xs text-gray-400">
+                        <span className="block truncate text-xs text-gray-500">
                           {r.filePath}
                         </span>
                       </button>
@@ -286,7 +286,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
           <div className="relative shrink-0" ref={gearMenuRef}>
             <button
               onClick={() => setShowGearMenu(!showGearMenu)}
-              className="flex h-10 w-10 items-center justify-center text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
               title="Menu"
             >
               <Menu size={15} />
@@ -301,7 +301,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                   }}
                   className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <Settings size={14} className="text-gray-400" />
+                  <Settings size={14} className="text-gray-500" />
                   Settings
                 </button>
                 <button
@@ -311,7 +311,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                   }}
                   className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <Keyboard size={14} className="text-gray-400" />
+                  <Keyboard size={14} className="text-gray-500" />
                   Keyboard Shortcuts
                 </button>
                 <div className="my-1 border-t border-gray-100" />
@@ -322,7 +322,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                   }}
                   className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <Info size={14} className="text-gray-400" />
+                  <Info size={14} className="text-gray-500" />
                   About Dropkick
                 </button>
               </div>
@@ -393,8 +393,8 @@ function SortableTab({
       onDoubleClick={onDoubleClick}
       className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-r border-gray-200 px-3 py-2 text-sm transition-colors ${
         isActive
-          ? "bg-blue-50 text-blue-700"
-          : "text-gray-600 hover:bg-gray-50"
+          ? "bg-sky-50 text-sky-800"
+          : "text-gray-700 hover:bg-gray-50"
       }`}
     >
       {tab.isUnifiedView ? (
@@ -417,7 +417,7 @@ function SortableTab({
             if (e.key === "Escape") onEditCancel();
           }}
           {...composing.handlers}
-          className="w-24 rounded border border-blue-300 px-1 text-sm outline-none"
+          className="w-24 rounded border border-sky-400 px-1 text-sm outline-none"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (

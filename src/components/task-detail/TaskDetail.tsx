@@ -194,14 +194,14 @@ export function TaskDetail({
         {...titleComposing.handlers}
         placeholder="Task title..."
         rows={1}
-        className="mb-4 w-full shrink-0 resize-none text-lg font-semibold text-gray-800 outline-none placeholder:text-gray-300"
+        className="mb-4 w-full shrink-0 resize-none text-lg font-semibold text-gray-800 outline-none placeholder:text-gray-500"
       />
 
       {/* Status, Priority, Due Date row */}
       <div className="mb-4 flex flex-wrap gap-3">
         {/* Status */}
         <div>
-          <label className="mb-1 block text-xs text-gray-400">Status</label>
+          <label className="mb-1 block text-xs text-gray-500">Status</label>
           <select
             value={task.status}
             onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
@@ -217,7 +217,7 @@ export function TaskDetail({
 
         {/* Priority */}
         <div>
-          <label className="mb-1 block text-xs text-gray-400">Priority</label>
+          <label className="mb-1 block text-xs text-gray-500">Priority</label>
           <select
             value={task.priority}
             onChange={(e) => handlePriorityChange(e.target.value as TaskPriority)}
@@ -232,7 +232,7 @@ export function TaskDetail({
 
         {/* Due Date */}
         <div>
-          <label className="mb-1 block text-xs text-gray-400">Due</label>
+          <label className="mb-1 block text-xs text-gray-500">Due</label>
           <DatePicker
             value={task.dueDate}
             onChange={(v) => handleDueDateChange(v ?? "")}
@@ -245,7 +245,7 @@ export function TaskDetail({
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           onClick={() => sendToFirst(filePath)}
-          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
         >
           Tackle
         </button>
@@ -253,27 +253,27 @@ export function TaskDetail({
           <button
             key={d}
             onClick={() => kick(filePath, d)}
-            className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+            className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
           >
             +{d}
           </button>
         ))}
         <button
           onClick={() => sendToLast(filePath)}
-          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
         >
           Kick
         </button>
         <button
           onClick={() => dropkick(filePath)}
-          className="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+          className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
         >
           Dropkick
         </button>
         <span className="mx-1 text-gray-200">|</span>
         <button
           onClick={handleDeleteTask}
-          className="flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-400 hover:border-red-200 hover:text-red-500"
+          className="flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:border-red-200 hover:text-red-700"
         >
           <Trash2 size={12} />
           Delete
@@ -283,7 +283,7 @@ export function TaskDetail({
       {/* Move to another list */}
       {moveDestinations.length > 0 && (
         <div className="mb-4 flex items-center gap-2">
-          <label className="text-xs text-gray-400">Move to</label>
+          <label className="text-xs text-gray-500">Move to</label>
           <select
             value={moveTarget}
             onChange={(e) => setMoveTarget(e.target.value)}
@@ -299,7 +299,7 @@ export function TaskDetail({
           <button
             onClick={handleMoveTask}
             disabled={!moveTarget}
-            className="rounded-md bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-300"
+            className="rounded-md bg-sky-700 px-3 py-1 text-xs text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
           >
             Move
           </button>
@@ -308,7 +308,7 @@ export function TaskDetail({
 
       {/* Description */}
       <div className="mb-4">
-        <label className="mb-1 block text-xs text-gray-400">Description</label>
+        <label className="mb-1 block text-xs text-gray-500">Description</label>
         <textarea
           ref={descRef}
           value={descDraft}
@@ -319,12 +319,12 @@ export function TaskDetail({
           onBlur={handleDescBlur}
           rows={2}
           placeholder="Add a description..."
-          className="w-full resize-none rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-blue-300"
+          className="w-full resize-none rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-sky-400"
         />
       </div>
 
       {/* Timestamps */}
-      <div className="mb-4 space-y-0.5 text-xs text-gray-400">
+      <div className="mb-4 space-y-0.5 text-xs text-gray-500">
         <div>
           Created:{" "}
           {formatTimestamp(
@@ -384,13 +384,13 @@ export function TaskDetail({
             {...noteComposing.handlers}
             placeholder="Add a note... (Cmd+Enter to save)"
             rows={2}
-            className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+            className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
           />
           <div className="mt-1 flex justify-end">
             <button
               onClick={handleAddNote}
               disabled={!newNoteContent.trim()}
-              className="rounded-md bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-300"
+              className="rounded-md bg-sky-700 px-3 py-1 text-xs text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
             >
               Add Note
             </button>
@@ -399,7 +399,7 @@ export function TaskDetail({
 
         {/* Notes list */}
         {task.notes.length === 0 ? (
-          <div className="py-4 text-center text-sm text-gray-400">
+          <div className="py-4 text-center text-sm text-gray-500">
             No notes yet
           </div>
         ) : (
@@ -483,11 +483,11 @@ function NoteItem({
 
   const icon =
     note.actionability === "Actionable" ? (
-      <AlertCircle size={14} className="text-orange-500" />
+      <AlertCircle size={14} className="text-orange-700" />
     ) : note.actionability === "Resolved" ? (
-      <CheckCircle size={14} className="text-green-500" />
+      <CheckCircle size={14} className="text-green-700" />
     ) : (
-      <Info size={14} className="text-gray-400" />
+      <Info size={14} className="text-gray-500" />
     );
 
   return (
@@ -506,7 +506,7 @@ function NoteItem({
           <option value="Resolved">Resolved</option>
         </select>
 
-        <span className="ml-auto text-xs text-gray-400">
+        <span className="ml-auto text-xs text-gray-500">
           {formatTimestamp(
             note.createdAtUtc,
             preferences.dateFormat,
@@ -516,7 +516,7 @@ function NoteItem({
         </span>
         <button
           onClick={handleDeleteNote}
-          className="rounded p-0.5 text-gray-300 hover:text-red-500"
+          className="rounded p-0.5 text-gray-500 hover:text-red-700"
           title="Delete note"
         >
           <X size={14} />
@@ -541,14 +541,14 @@ function NoteItem({
             }}
             {...composing.handlers}
             rows={2}
-            className="w-full resize-none rounded border border-gray-200 p-2 text-sm outline-none focus:border-blue-300"
+            className="w-full resize-none rounded border border-gray-200 p-2 text-sm outline-none focus:border-sky-400"
             autoFocus
           />
           <div className="mt-1 flex gap-2">
             <button
               onClick={handleSave}
               disabled={!draft.trim()}
-              className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:bg-gray-300"
+              className="rounded bg-sky-700 px-3 py-1 text-xs text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
             >
               Save
             </button>
@@ -578,11 +578,11 @@ function NoteItem({
 function prioritySelectStyle(priority: string): string {
   switch (priority) {
     case "Critical":
-      return "border-violet-300 text-violet-600";
+      return "border-violet-300 text-violet-700";
     case "Urgent":
-      return "border-amber-300 text-amber-600";
+      return "border-rose-300 text-rose-700";
     case "Important":
-      return "border-blue-300 text-blue-600";
+      return "border-blue-300 text-blue-700";
     default:
       return "border-gray-200 text-gray-600";
   }

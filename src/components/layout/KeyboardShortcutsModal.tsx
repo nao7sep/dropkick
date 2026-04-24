@@ -102,7 +102,7 @@ export function KeyboardShortcutsModal({
                   className="flex items-start justify-between gap-4 border-b border-gray-100 pb-2 last:border-0 last:pb-0"
                 >
                   <span className="text-sm text-gray-700">{label}</span>
-                  <span className="shrink-0 text-right text-xs text-gray-400">
+                  <span className="shrink-0 text-right text-xs font-medium text-sky-700">
                     {keys}
                   </span>
                 </div>

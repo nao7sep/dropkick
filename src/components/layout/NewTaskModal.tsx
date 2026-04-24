@@ -118,7 +118,7 @@ export function NewTaskModal({
           <button
             onClick={handleCreate}
             disabled={!canCreate || submitting}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-sky-700 px-4 py-2 text-sm text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
           >
             Create
           </button>
@@ -141,7 +141,7 @@ export function NewTaskModal({
           <select
             value={targetFile}
             onChange={(e) => setTargetFile(e.target.value)}
-            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
           >
             {!targetFile && (
               <option value="" disabled>
@@ -158,7 +158,7 @@ export function NewTaskModal({
       )}
 
       {fileTabs.length === 0 && (
-        <p className="text-xs text-red-500">
+        <p className="text-xs text-red-700">
           No task lists open. Open or create a task list first.
         </p>
       )}
@@ -185,7 +185,7 @@ export function NewTaskModal({
           {...composing.handlers}
           placeholder="Task title (optional)"
           rows={1}
-          className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+          className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         />
       </div>
 
@@ -203,7 +203,7 @@ export function NewTaskModal({
           }}
           placeholder="Optional details..."
           rows={2}
-          className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+          className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         />
       </div>
 
@@ -216,7 +216,7 @@ export function NewTaskModal({
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value as TaskPriority)}
-            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
           >
             <option value="Default">Default</option>
             <option value="Urgent">Urgent</option>

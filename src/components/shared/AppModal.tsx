@@ -93,7 +93,7 @@ export function AppModal({
                 type="button"
                 aria-label={`Close ${title}`}
                 onClick={onRequestClose}
-                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
               >
                 <X size={18} />
               </button>
@@ -102,7 +102,7 @@ export function AppModal({
                 <button
                   type="button"
                   aria-label={`Close ${title}`}
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                 >
                   <X size={18} />
                 </button>

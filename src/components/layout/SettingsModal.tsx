@@ -91,7 +91,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <button
             onClick={handleSave}
             disabled={!timezoneValidation.valid}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-sky-700 px-4 py-2 text-sm text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
           >
             Save
           </button>
@@ -120,7 +120,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           type="text"
           value={draft.fontFamily}
           onChange={(e) => setField("fontFamily", e.target.value)}
-          className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+          className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         />
       </Field>
 
@@ -162,7 +162,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             {draft.sidebarWidth ?? 320}px
           </span>
         </div>
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-gray-500">
           You can also drag the divider between the task list and detail pane.
         </p>
       </Field>
@@ -172,7 +172,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         <select
           value={draft.dateFormat}
           onChange={(e) => setField("dateFormat", e.target.value)}
-          className="rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+          className="rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         >
           <option value="YYYY-MM-DD">YYYY-MM-DD</option>
           <option value="MM/DD/YYYY">MM/DD/YYYY</option>
@@ -187,7 +187,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           onChange={(e) =>
             setField("timeFormat", e.target.value as "24h" | "12h")
           }
-          className="rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+          className="rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         >
           <option value="24h">24-hour</option>
           <option value="12h">12-hour</option>
@@ -203,7 +203,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             value={draft.timezone ?? ""}
             onChange={(e) => setField("timezone", e.target.value || null)}
             placeholder="System default"
-            className="flex-1 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+            className="flex-1 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
           />
           <button
             onClick={() =>
@@ -219,9 +219,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </button>
         </div>
         {timezoneError ? (
-          <p className="mt-1 text-xs text-red-500">{timezoneError}</p>
+          <p className="mt-1 text-xs text-red-700">{timezoneError}</p>
         ) : (
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             IANA timezone (e.g. Asia/Tokyo, America/New_York). Leave empty for
             system default.
           </p>
@@ -235,9 +235,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           value={kickInput}
           onChange={(e) => setKickInput(e.target.value)}
           placeholder="5, 25"
-          className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+          className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         />
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-gray-500">
           Comma-separated numbers (e.g. 5, 25). "Kick to End" is always
           available.
         </p>
@@ -256,9 +256,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               Math.max(1, parseInt(e.target.value, 10) || 7),
             )
           }
-          className="w-24 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+          className="w-24 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         />
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-gray-500">
           Tasks due within this many days from tomorrow appear in the Due Soon group.
         </p>
       </Field>
@@ -276,7 +276,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               parseInt(e.target.value, 10) || 50,
             )
           }
-          className="w-24 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+          className="w-24 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         />
       </Field>
 
@@ -291,7 +291,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           />
           Back up task lists on startup and hourly
         </label>
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-gray-500">
           Backups are saved to ~/.dropkick/backups/ (per workspace) and pruned automatically.
         </p>
       </Field>

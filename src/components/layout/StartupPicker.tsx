@@ -133,15 +133,17 @@ export function StartupPicker({
           openButtonRef={workspaceOpenRef}
         />
 
-        {/* Launch button */}
-        <button
-          ref={launchRef}
-          onClick={() => onLaunch(selectedPrefs, selectedWorkspace)}
-          disabled={!canLaunch}
-          className="mt-6 w-full rounded-md bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          Launch
-        </button>
+        {/* Launch action */}
+        <div className="mt-6 flex justify-end border-t border-gray-200 pt-4">
+          <button
+            ref={launchRef}
+            onClick={() => onLaunch(selectedPrefs, selectedWorkspace)}
+            disabled={!canLaunch}
+            className="min-w-28 rounded-md bg-sky-700 px-4 py-2 font-medium text-white transition-colors hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+          >
+            Launch
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -175,7 +177,7 @@ function Section({
 
       <div className="max-h-36 overflow-y-auto rounded-md border border-gray-200">
         {items.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-gray-400">
+          <div className="px-3 py-2 text-sm text-gray-500">
             No {label.toLowerCase()} files configured
           </div>
         ) : (
@@ -185,7 +187,7 @@ function Section({
               onClick={() => onSelect(path)}
               className={`flex cursor-pointer items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${
                 selected === path
-                  ? "bg-blue-50 text-blue-700"
+                  ? "bg-sky-50 text-sky-800"
                   : "text-gray-600"
               }`}
             >
@@ -193,7 +195,7 @@ function Section({
                 {path}
               </span>
               {selected === path && (
-                <span className="shrink-0 text-xs text-blue-500">←</span>
+                <span className="shrink-0 text-xs text-sky-700">←</span>
               )}
             </div>
           ))
@@ -219,7 +221,7 @@ function Section({
         {selected && (
           <button
             onClick={() => onRemove(selected)}
-            className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-red-500 transition-colors hover:bg-red-50"
+            className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-red-700 transition-colors hover:bg-red-50"
           >
             <X size={14} />
             Remove

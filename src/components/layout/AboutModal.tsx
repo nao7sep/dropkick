@@ -36,7 +36,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
           onClick={() =>
             openUrl("https://github.com/nao7sep/dropkick").catch(() => {})
           }
-          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-sky-700 hover:text-sky-800 hover:underline"
         >
           GitHub
           <ExternalLink size={12} />
@@ -47,16 +47,16 @@ export function AboutModal({ onClose }: AboutModalProps) {
               () => {},
             )
           }
-          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-sky-700 hover:text-sky-800 hover:underline"
         >
           Report Issue
           <ExternalLink size={12} />
         </button>
       </div>
-      <p className="mt-4 text-xs text-gray-400">
+      <p className="mt-4 text-xs text-gray-500">
         &copy; 2026 Yoshinao Inoguchi
       </p>
-      <p className="mt-1 text-xs text-gray-400">MIT License</p>
+      <p className="mt-1 text-xs text-gray-500">MIT License</p>
     </AppModal>
   );
 }

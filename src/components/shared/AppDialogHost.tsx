@@ -47,8 +47,8 @@ export function AppDialogHost() {
                 <div
                   className={`flex h-9 w-9 items-center justify-center rounded-full ${
                     isWarning
-                      ? "bg-amber-100 text-amber-600"
-                      : "bg-blue-100 text-blue-600"
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-sky-100 text-sky-700"
                   }`}
                 >
                   {isWarning ? <AlertTriangle size={18} /> : <Info size={18} />}
@@ -87,7 +87,7 @@ export function AppDialogHost() {
                 ref={confirmRef}
                 onClick={confirmCurrent}
                 className={`rounded-md px-4 py-2 text-sm text-white ${
-                  isWarning ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-600 hover:bg-blue-700"
+                  isWarning ? "bg-amber-800 hover:bg-amber-900" : "bg-sky-700 hover:bg-sky-800"
                 }`}
               >
                 {current.confirmLabel}

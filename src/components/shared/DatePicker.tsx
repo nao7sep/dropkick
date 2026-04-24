@@ -54,10 +54,10 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
         <button
           className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors hover:bg-gray-50 ${
             isOverdue
-              ? "border-red-300 text-red-600"
+              ? "border-red-300 text-red-700"
               : value
                 ? "border-gray-200 text-gray-700"
-                : "border-gray-200 text-gray-400"
+                : "border-gray-200 text-gray-500"
           }`}
         >
           <Calendar size={14} />
@@ -84,7 +84,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
             <div className="border-t border-gray-100 pt-2">
               <button
                 onClick={handleClear}
-                className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-700"
               >
                 <X size={12} />
                 Clear due date

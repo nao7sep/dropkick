@@ -170,19 +170,19 @@ export function BulkActions({
         <div className="flex gap-2">
           <button
             onClick={() => handleBulkPriority("Critical")}
-            className="rounded-md border border-violet-200 px-3 py-1.5 text-sm text-violet-600 hover:bg-violet-50"
+            className="rounded-md border border-violet-200 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-50"
           >
             Critical
           </button>
           <button
             onClick={() => handleBulkPriority("Important")}
-            className="rounded-md border border-blue-200 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50"
+            className="rounded-md border border-blue-200 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
           >
             Important
           </button>
           <button
             onClick={() => handleBulkPriority("Urgent")}
-            className="rounded-md border border-amber-200 px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50"
+            className="rounded-md border border-rose-200 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50"
           >
             Urgent
           </button>
@@ -225,7 +225,7 @@ export function BulkActions({
             </button>
             <button
               onClick={() => dropkick(filePath)}
-              className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50"
+              className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
             >
               Dropkick
             </button>
@@ -255,7 +255,7 @@ export function BulkActions({
             <button
               onClick={handleMove}
               disabled={!moveTarget}
-              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:bg-gray-300"
+              className="rounded-md bg-sky-700 px-4 py-1.5 text-sm text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
             >
               Move
             </button>

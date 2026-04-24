@@ -74,7 +74,7 @@ function App() {
     case "loading":
       content = (
         <div className="flex h-screen items-center justify-center bg-gray-50">
-          <div className="text-gray-400">Loading...</div>
+          <div className="text-gray-500">Loading...</div>
         </div>
       );
       break;
@@ -83,7 +83,7 @@ function App() {
       content = (
         <div className="flex h-screen items-center justify-center bg-gray-50">
           <div className="max-w-md rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-bold text-red-600">
+            <h2 className="mb-2 text-lg font-bold text-red-700">
               Startup Error
             </h2>
             <p className="text-sm text-gray-600">{phase.message}</p>

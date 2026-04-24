@@ -38,11 +38,11 @@ export function TaskSummary({ tasks }: TaskSummaryProps) {
           </div>
           <div className="flex justify-between">
             <span>Completed</span>
-            <span className="font-medium text-green-600">{completed}</span>
+            <span className="font-medium text-green-700">{completed}</span>
           </div>
           <div className="flex justify-between">
             <span>Dismissed</span>
-            <span className="font-medium text-gray-400">{dismissed}</span>
+            <span className="font-medium text-gray-500">{dismissed}</span>
           </div>
         </div>
 
@@ -50,20 +50,20 @@ export function TaskSummary({ tasks }: TaskSummaryProps) {
           <div className="border-t border-gray-100 pt-3">
             {critical > 0 && (
               <div className="flex justify-between">
-                <span className="text-violet-600">Critical</span>
-                <span className="font-medium text-violet-600">{critical}</span>
+                <span className="text-violet-700">Critical</span>
+                <span className="font-medium text-violet-700">{critical}</span>
               </div>
             )}
             {important > 0 && (
               <div className="flex justify-between">
-                <span className="text-blue-600">Important</span>
-                <span className="font-medium text-blue-600">{important}</span>
+                <span className="text-blue-700">Important</span>
+                <span className="font-medium text-blue-700">{important}</span>
               </div>
             )}
             {urgent > 0 && (
               <div className="flex justify-between">
-                <span className="text-amber-600">Urgent</span>
-                <span className="font-medium text-amber-600">{urgent}</span>
+                <span className="text-rose-700">Urgent</span>
+                <span className="font-medium text-rose-700">{urgent}</span>
               </div>
             )}
           </div>
@@ -72,8 +72,8 @@ export function TaskSummary({ tasks }: TaskSummaryProps) {
         {actionableNotes > 0 && (
           <div className="border-t border-gray-100 pt-3">
             <div className="flex justify-between">
-              <span className="text-orange-500">Actionable notes</span>
-              <span className="font-medium text-orange-500">{actionableNotes}</span>
+              <span className="text-orange-700">Actionable notes</span>
+              <span className="font-medium text-orange-700">{actionableNotes}</span>
             </div>
           </div>
         )}

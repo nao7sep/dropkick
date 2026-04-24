@@ -36,7 +36,7 @@ class ErrorBoundary extends Component<
         <div className="flex h-full items-center justify-center p-8">
           <div className="max-w-md rounded-lg bg-red-50 p-6">
             <h3 className="mb-2 font-bold text-red-700">Rendering Error</h3>
-            <p className="text-sm text-red-600">{this.state.error}</p>
+            <p className="text-sm text-red-700">{this.state.error}</p>
           </div>
         </div>
       );
@@ -233,7 +233,7 @@ export function MainWindow() {
           {/* Resize divider */}
           <div
             onMouseDown={handleDividerDown}
-            className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-300 active:bg-blue-400 transition-colors"
+            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-sky-300 active:bg-sky-400"
           />
 
           {/* Right pane — detail/summary/bulk */}
@@ -250,7 +250,7 @@ export function MainWindow() {
         </div>
       ) : (
         <div className="flex flex-1 items-center justify-center">
-          <div className="text-center text-gray-400">
+          <div className="text-center text-gray-500">
             <p className="text-lg">Welcome to Dropkick</p>
             <p className="mt-2 text-sm">
               Click the + button to open or create a task list.

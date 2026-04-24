@@ -98,7 +98,7 @@ export function MoveTasksModal({
           <button
             onClick={handleMove}
             disabled={!moveTarget || moving}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:bg-gray-300"
+            className="rounded-md bg-sky-700 px-4 py-2 text-sm text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
           >
             Move
           </button>
@@ -122,7 +122,7 @@ export function MoveTasksModal({
       </div>
 
       {destinations.length === 0 ? (
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-500">
           No other lists are open. Open another list tab first.
         </p>
       ) : (
@@ -134,7 +134,7 @@ export function MoveTasksModal({
             ref={destinationRef}
             value={moveTarget}
             onChange={(e) => setMoveTarget(e.target.value)}
-            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 outline-none focus:border-blue-300"
+            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 outline-none focus:border-sky-400"
           >
             <option value="">Select destination...</option>
             {destinations.map((t) => (
