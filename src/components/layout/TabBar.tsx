@@ -222,7 +222,11 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
           ))}
 
           {/* New tab button */}
-          <div className="relative shrink-0" ref={menuRef}>
+          <div
+            className="relative shrink-0"
+            data-dropkick-interactive-layer={showNewMenu ? "" : undefined}
+            ref={menuRef}
+          >
             <button
               onClick={() => setShowNewMenu(!showNewMenu)}
               className="flex h-10 w-10 items-center justify-center text-sky-700 transition-colors hover:bg-sky-50"
@@ -283,7 +287,11 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
           <div className="flex-1" />
 
           {/* Gear menu */}
-          <div className="relative shrink-0" ref={gearMenuRef}>
+          <div
+            className="relative shrink-0"
+            data-dropkick-interactive-layer={showGearMenu ? "" : undefined}
+            ref={gearMenuRef}
+          >
             <button
               onClick={() => setShowGearMenu(!showGearMenu)}
               className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"

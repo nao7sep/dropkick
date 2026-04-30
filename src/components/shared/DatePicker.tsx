@@ -48,22 +48,28 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
     setOpen(false);
   };
 
+  const interactiveLayerProps = open
+    ? { "data-dropkick-interactive-layer": "" }
+    : {};
+
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors hover:bg-gray-50 ${
-            isOverdue
-              ? "border-red-300 text-red-700"
-              : value
-                ? "border-gray-200 text-gray-700"
-                : "border-gray-200 text-gray-500"
-          }`}
-        >
-          <Calendar size={14} />
-          {value ?? "No due date"}
-        </button>
-      </Popover.Trigger>
+      <span {...interactiveLayerProps}>
+        <Popover.Trigger asChild>
+          <button
+            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors hover:bg-gray-50 ${
+              isOverdue
+                ? "border-red-300 text-red-700"
+                : value
+                  ? "border-gray-200 text-gray-700"
+                  : "border-gray-200 text-gray-500"
+            }`}
+          >
+            <Calendar size={14} />
+            {value ?? "No due date"}
+          </button>
+        </Popover.Trigger>
+      </span>
 
       <Popover.Portal>
         <Popover.Content

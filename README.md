@@ -39,18 +39,20 @@ At startup, Dropkick reopens unified view if it is among the open tabs; otherwis
 
 ## Keyboard Shortcuts
 
-Shortcuts are shown with `Cmd`. On Windows, use `Ctrl` instead. Letter and number shortcuts apply to the current task selection.
+Shortcuts are shown with `Cmd`. On Windows, use `Ctrl` instead. Shortcuts can change meaning by context; modal shortcuts apply only inside that modal.
+
+### Task List
 
 | Action | Shortcut |
 |---|---|
 | New task | Cmd+N |
-| Focus new note field | Cmd+Shift+N |
 | Move selected tasks | Cmd+M |
-| Submit new task / settings | Cmd+Enter |
+| Focus new note field | Cmd+Shift+N |
 | Save note | Cmd+Enter |
 | Set status to Pending | P |
 | Set status to Completed | C |
 | Set status to Dismissed | X |
+| Dismiss selected tasks | Backspace / Delete |
 | Set priority to Default | 0 |
 | Set priority to Urgent | 1 |
 | Set priority to Important | 2 |
@@ -58,21 +60,40 @@ Shortcuts are shown with `Cmd`. On Windows, use `Ctrl` instead. Letter and numbe
 | Set due date to today | T |
 | Set due date to tomorrow | Y |
 | Clear due date | N |
-| Dismiss selected tasks | Backspace / Delete |
+| Navigate selection | Up / Down |
+| Extend selection | Shift+Up / Shift+Down |
+| Clear selection | Esc |
 | Move task up | Cmd+Up |
 | Move task down | Cmd+Down |
 | Send to first in group | Cmd+Home |
 | Send to last in group | Cmd+End |
-| Navigate selection | Up / Down |
-| Extend selection | Shift+Up / Shift+Down |
+
+### Dialogs
+
+| Action | Shortcut |
+|---|---|
+| Create task in New Task modal | Cmd+Enter |
+| Set draft priority to Default | Cmd+0 |
+| Set draft priority to Urgent | Cmd+1 |
+| Set draft priority to Important | Cmd+2 |
+| Set draft priority to Critical | Cmd+3 |
+| Set draft due date to today | Cmd+T |
+| Set draft due date to tomorrow | Cmd+Y |
+| Clear draft due date | Cmd+N |
+| Submit settings / move dialog | Cmd+Enter |
+| Close active dialog | Esc |
+
+### Tabs And App
+
+| Action | Shortcut |
+|---|---|
 | Next tab (Windows/Linux) | Ctrl+Tab |
 | Previous tab (Windows/Linux) | Ctrl+Shift+Tab |
 | Close tab | Cmd+W |
 | Unified view | Cmd+U |
-| Close active dialog / clear selection | Esc |
+| Rename tab | Double-click tab |
 | Zoom in / out | Cmd+Plus / Cmd+Minus |
 | Reset zoom | Cmd+0 |
-| Rename tab | Double-click tab |
 
 On macOS, `Cmd+Tab` and `Cmd+Shift+Tab` are reserved by the system for app switching.
 

@@ -7,6 +7,7 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { showMessage } from "../../repositories";
 import { AppModal } from "../shared/AppModal";
+import { hasPrimaryShortcutModifier } from "../../utils";
 
 interface MoveTasksModalProps {
   selectedTasks: Task[];
@@ -82,6 +83,14 @@ export function MoveTasksModal({
     onClose();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.defaultPrevented) return;
+    if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
+      e.preventDefault();
+      handleMove();
+    }
+  };
+
   return (
     <AppModal
       title={`Move ${selectedTasks.length} task${selectedTasks.length > 1 ? "s" : ""}`}
@@ -105,6 +114,7 @@ export function MoveTasksModal({
         </>
       }
       contentProps={{
+        onKeyDown: handleKeyDown,
         onOpenAutoFocus: (e) => {
           if (destinations.length === 0) return;
           e.preventDefault();

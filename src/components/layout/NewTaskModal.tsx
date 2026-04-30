@@ -2,14 +2,20 @@
 
 import { useState, useRef, useMemo } from "react";
 import type { TaskPriority } from "../../models";
-import { sanitizeSingleLine } from "../../utils";
+import {
+  hasPrimaryShortcutModifier,
+  matchesShortcutKey,
+  sanitizeSingleLine,
+  todayInTimezone,
+  tomorrowInTimezone,
+} from "../../utils";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
+import { usePreferencesStore } from "../../state/preferences-store";
 import { DatePicker } from "../shared/DatePicker";
 import { AppModal } from "../shared/AppModal";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
-import { hasPrimaryShortcutModifier } from "../../utils";
 import { showUnsavedChangesConfirm } from "../../repositories";
 
 interface NewTaskModalProps {
@@ -25,6 +31,7 @@ export function NewTaskModal({
 }: NewTaskModalProps) {
   const workspace = useWorkspaceStore((s) => s.workspace);
   const addNewTask = useTaskListStore((s) => s.addNewTask);
+  const timezone = usePreferencesStore((s) => s.preferences.timezone);
 
   const fileTabs = workspace.openTabs.filter((t) => !t.isUnifiedView);
 
@@ -87,11 +94,55 @@ export function NewTaskModal({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.defaultPrevented || !hasPrimaryShortcutModifier(e)) return;
+
     // Primary modifier + Enter submits from anywhere in the modal.
-    if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
+    if (e.key === "Enter") {
       if (isComposingKeyboardEvent(composing.composingRef, e)) return;
       e.preventDefault();
       handleCreate();
+      return;
+    }
+
+    if (matchesShortcutKey(e, "0")) {
+      e.preventDefault();
+      setPriority("Default");
+      return;
+    }
+
+    if (matchesShortcutKey(e, "1")) {
+      e.preventDefault();
+      setPriority("Urgent");
+      return;
+    }
+
+    if (matchesShortcutKey(e, "2")) {
+      e.preventDefault();
+      setPriority("Important");
+      return;
+    }
+
+    if (matchesShortcutKey(e, "3")) {
+      e.preventDefault();
+      setPriority("Critical");
+      return;
+    }
+
+    if (matchesShortcutKey(e, "t")) {
+      e.preventDefault();
+      setDueDate(todayInTimezone(timezone));
+      return;
+    }
+
+    if (matchesShortcutKey(e, "y")) {
+      e.preventDefault();
+      setDueDate(tomorrowInTimezone(timezone));
+      return;
+    }
+
+    if (matchesShortcutKey(e, "n")) {
+      e.preventDefault();
+      setDueDate(null);
     }
   };
 
