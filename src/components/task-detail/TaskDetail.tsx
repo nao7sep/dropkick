@@ -74,6 +74,7 @@ export function TaskDetail({
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
   const newNoteRef = useRef<HTMLTextAreaElement>(null);
+  const lastFocusNewNoteSignalRef = useRef(focusNewNoteSignal);
   const titleComposing = useComposing();
   const noteComposing = useComposing();
   const autoGrowTitle = useAutoGrow(titleRef);
@@ -99,6 +100,8 @@ export function TaskDetail({
   useEffect(() => autoGrowDesc(), [descDraft, autoGrowDesc]);
   useEffect(() => autoGrowNewNote(), [newNoteContent, autoGrowNewNote]);
   useEffect(() => {
+    if (focusNewNoteSignal === lastFocusNewNoteSignalRef.current) return;
+    lastFocusNewNoteSignalRef.current = focusNewNoteSignal;
     if (focusNewNoteSignal === 0) return;
 
     requestAnimationFrame(() => {

@@ -196,6 +196,12 @@ export function MainWindow() {
     return tasks;
   }, [showMoveTasks, selectedIds, files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
 
+  useEffect(() => {
+    if (showMoveTasks && selectedTasks.length === 0) {
+      setShowMoveTasks(false);
+    }
+  }, [showMoveTasks, selectedTasks.length]);
+
   return (
     <div
       className="flex h-screen flex-col bg-gray-50"
