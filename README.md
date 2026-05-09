@@ -17,7 +17,7 @@ Built with Tauri v2, React, and TypeScript.
 - **Notes with actionability** — attach notes to tasks, mark them as Informational, Actionable, or Resolved; tasks with actionable notes can't be completed until resolved
 - **Keyboard-first workflow** — selection shortcuts can change status, priority, and due dates; dialogs close with `Esc`
 - **Resizable sidebar** — drag the divider or set a specific width in settings
-- **File integrity** — SHA-256 hash checks detect external modifications before overwriting
+- **File integrity** — SHA-256 hash checks detect external modifications before overwriting; if a file changed outside Dropkick, you can overwrite or reload, and if it was deleted, you can recreate it or cancel the change
 - **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically)
 - **IME composition support** — Japanese/Chinese/Korean input works correctly in all text fields
 - **Configurable** — font family, zoom level, sidebar width, date/time format, timezone, kick distances, due soon window (days from tomorrow, default 7)

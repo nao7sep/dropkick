@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../../models";
+import type { WriteResult } from "../../repositories";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
@@ -85,6 +86,14 @@ export function TaskDetail({
   const autoGrowDesc = useAutoGrow(descRef);
   const autoGrowNewNote = useAutoGrow(newNoteRef);
 
+  const showWriteFailure = async (title: string, result: WriteResult) => {
+    if (result.status === "error") {
+      await showMessage(title, result.message);
+      return true;
+    }
+    return false;
+  };
+
   // Sync drafts when the same task is updated externally (e.g. renamed in the left pane).
   // Skip if the field is focused — the user is actively editing.
   useEffect(() => {
@@ -127,14 +136,21 @@ export function TaskDetail({
       return;
     }
     if (cleaned !== task.title) {
-      await updateTitle(filePath, task.id, cleaned);
+      const result = await updateTitle(filePath, task.id, cleaned);
+      if (await showWriteFailure("Task Update Failed", result)) {
+        setTitleDraft(task.title);
+        return;
+      }
     }
     setTitleDraft(cleaned);
   };
 
   const handleDescBlur = async () => {
     if (descDraft !== task.description) {
-      await updateDescription(filePath, task.id, descDraft);
+      const result = await updateDescription(filePath, task.id, descDraft);
+      if (await showWriteFailure("Task Update Failed", result)) {
+        setDescDraft(task.description);
+      }
     }
   };
 
@@ -153,11 +169,13 @@ export function TaskDetail({
   };
 
   const handlePriorityChange = async (priority: TaskPriority) => {
-    await setPriority(filePath, task.id, priority);
+    const result = await setPriority(filePath, task.id, priority);
+    await showWriteFailure("Task Update Failed", result);
   };
 
   const handleDueDateChange = async (value: string) => {
-    await setDueDate(filePath, task.id, value || null);
+    const result = await setDueDate(filePath, task.id, value || null);
+    await showWriteFailure("Task Update Failed", result);
   };
 
   const handleDeleteTask = async () => {
@@ -177,7 +195,8 @@ export function TaskDetail({
 
   const handleAddNote = async () => {
     if (!newNoteContent.trim()) return;
-    await addNewNote(filePath, task.id, newNoteContent);
+    const result = await addNewNote(filePath, task.id, newNoteContent);
+    if (await showWriteFailure("Note Update Failed", result)) return;
     setNewNoteContent("");
   };
 
@@ -265,7 +284,10 @@ export function TaskDetail({
       {/* Reorder buttons */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
-          onClick={() => sendToFirst(filePath)}
+          onClick={async () => {
+            const result = await sendToFirst(filePath);
+            await showWriteFailure("Task Reorder Failed", result);
+          }}
           className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
         >
           Tackle
@@ -273,20 +295,29 @@ export function TaskDetail({
         {kickDistances.map((d) => (
           <button
             key={d}
-            onClick={() => kick(filePath, d)}
+            onClick={async () => {
+              const result = await kick(filePath, d);
+              await showWriteFailure("Task Reorder Failed", result);
+            }}
             className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
           >
             +{d}
           </button>
         ))}
         <button
-          onClick={() => sendToLast(filePath)}
+          onClick={async () => {
+            const result = await sendToLast(filePath);
+            await showWriteFailure("Task Reorder Failed", result);
+          }}
           className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
         >
           Kick
         </button>
         <button
-          onClick={() => dropkick(filePath)}
+          onClick={async () => {
+            const result = await dropkick(filePath);
+            await showWriteFailure("Task Reorder Failed", result);
+          }}
           className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
         >
           Dropkick
@@ -476,7 +507,12 @@ function NoteItem({
       return;
     }
     if (draft !== note.content) {
-      await updateNote(filePath, taskId, note.id, draft);
+      const result = await updateNote(filePath, taskId, note.id, draft);
+      if (result.status === "error") {
+        await showMessage("Note Update Failed", result.message);
+        setDraft(note.content);
+        return;
+      }
     }
     setEditing(false);
   };
@@ -487,12 +523,18 @@ function NoteItem({
       "Permanently delete this note?",
     );
     if (confirmed) {
-      await removeNote(filePath, taskId, note.id);
+      const result = await removeNote(filePath, taskId, note.id);
+      if (result.status === "error") {
+        await showMessage("Note Update Failed", result.message);
+      }
     }
   };
 
   const handleActionabilityChange = async (actionability: NoteActionability) => {
-    await setActionability(filePath, taskId, note.id, actionability);
+    const result = await setActionability(filePath, taskId, note.id, actionability);
+    if (result.status === "error") {
+      await showMessage("Note Update Failed", result.message);
+    }
   };
 
   const borderColor =

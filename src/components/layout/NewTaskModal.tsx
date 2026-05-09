@@ -16,7 +16,7 @@ import { DatePicker } from "../shared/DatePicker";
 import { AppModal } from "../shared/AppModal";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
-import { showUnsavedChangesConfirm } from "../../repositories";
+import { showMessage, showUnsavedChangesConfirm } from "../../repositories";
 
 interface NewTaskModalProps {
   currentFilePath: string;
@@ -87,6 +87,8 @@ export function NewTaskModal({
 
       if (result.status === "success") {
         onClose();
+      } else if (result.status === "error") {
+        await showMessage("Create Task Failed", result.message);
       }
     } finally {
       setSubmitting(false);

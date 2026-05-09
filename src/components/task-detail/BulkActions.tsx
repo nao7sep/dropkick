@@ -7,6 +7,7 @@ import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { showMessage } from "../../repositories";
+import type { WriteResult } from "../../repositories";
 
 interface BulkActionsProps {
   selectedTasks: Task[];
@@ -33,6 +34,14 @@ export function BulkActions({
   const workspace = useWorkspaceStore((s) => s.workspace);
 
   const [moveTarget, setMoveTarget] = useState("");
+
+  const showWriteFailure = async (title: string, result: WriteResult) => {
+    if (result.status === "error") {
+      await showMessage(title, result.message);
+      return true;
+    }
+    return false;
+  };
 
   const handleBulkStatus = async (status: TaskStatus) => {
     const validationReasons = new Map<string, number>();
@@ -84,9 +93,17 @@ export function BulkActions({
   };
 
   const handleBulkPriority = async (priority: TaskPriority) => {
+    let firstError: string | null = null;
     for (const task of selectedTasks) {
       const taskFile = isUnifiedView ? task.sourceFile : filePath;
-      await setPriority(taskFile, task.id, priority);
+      const result = await setPriority(taskFile, task.id, priority);
+      if (result.status === "error" && firstError === null) {
+        firstError = result.message;
+      }
+    }
+
+    if (firstError !== null) {
+      await showMessage("Task Update Failed", firstError);
     }
   };
 
@@ -210,7 +227,10 @@ export function BulkActions({
           </label>
           <div className="flex gap-2">
             <button
-              onClick={() => sendToFirst(filePath)}
+              onClick={async () => {
+                const result = await sendToFirst(filePath);
+                await showWriteFailure("Task Reorder Failed", result);
+              }}
               className="rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
               Tackle
@@ -218,20 +238,29 @@ export function BulkActions({
             {kickDistances.map((d) => (
               <button
                 key={d}
-                onClick={() => kick(filePath, d)}
+                onClick={async () => {
+                  const result = await kick(filePath, d);
+                  await showWriteFailure("Task Reorder Failed", result);
+                }}
                 className="rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
               >
                 +{d}
               </button>
             ))}
             <button
-              onClick={() => sendToLast(filePath)}
+              onClick={async () => {
+                const result = await sendToLast(filePath);
+                await showWriteFailure("Task Reorder Failed", result);
+              }}
               className="rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
               Kick
             </button>
             <button
-              onClick={() => dropkick(filePath)}
+              onClick={async () => {
+                const result = await dropkick(filePath);
+                await showWriteFailure("Task Reorder Failed", result);
+              }}
               className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
             >
               Dropkick

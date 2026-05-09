@@ -10,6 +10,8 @@ import {
   writeTaskList,
   forceWriteTaskList,
   atomicMoveWrite,
+  showFileConflictDialog,
+  showFileDeletedDialog,
 } from "../repositories";
 import { createTask, createNote } from "../utils";
 import type { CreateTaskOptions } from "../utils";
@@ -132,7 +134,74 @@ async function writeFile(
     };
   }
 
+  if (result.status === "conflict") {
+    const choice = await showFileConflictDialog(filePath);
+    if (choice === "overwrite") {
+      const { hash } = await forceWriteTaskList(filePath, newData);
+      return {
+        files: {
+          ...files,
+          [filePath]: { data: newData, hash },
+        },
+        result: { status: "success", newHash: hash },
+      };
+    }
+
+    const loaded = await loadTaskList(filePath);
+    if (loaded === null) {
+      const { [filePath]: _, ...rest } = files;
+      return {
+        files: rest,
+        result: {
+          status: "error",
+          message: "The file no longer exists. Your in-app change was not saved.",
+        },
+      };
+    }
+
+    return {
+      files: {
+        ...files,
+        [filePath]: { data: loaded.data, hash: loaded.hash },
+      },
+      result: {
+        status: "error",
+        message: "The file was reloaded from disk. Your in-app change was not saved.",
+      },
+    };
+  }
+
+  if (result.status === "deleted") {
+    const choice = await showFileDeletedDialog(filePath);
+    if (choice === "save") {
+      const { hash } = await forceWriteTaskList(filePath, newData);
+      return {
+        files: {
+          ...files,
+          [filePath]: { data: newData, hash },
+        },
+        result: { status: "success", newHash: hash },
+      };
+    }
+
+    return {
+      files,
+      result: {
+        status: "error",
+        message: "The file was not recreated. Your in-app change was not saved.",
+      },
+    };
+  }
+
   return { files, result };
+}
+
+function shouldApplyFiles(
+  before: Record<string, FileState>,
+  after: Record<string, FileState>,
+  result: WriteResult,
+): boolean {
+  return result.status === "success" || after !== before;
 }
 
 export const useTaskListStore = create<TaskListState>((set, get) => ({
@@ -201,8 +270,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const task = createTask(options);
     const newTasks = addTask(fileState.data.tasks, task);
     const newData = { ...fileState.data, tasks: newTasks };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -212,12 +282,15 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
 
     const newTasks = deleteTask(fileState.data.tasks, taskId);
     const newData = { ...fileState.data, tasks: newTasks };
-    const { files, result } = await writeFile(get().files, filePath, newData);
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
     if (result.status === "success") {
       set((state) => ({
         files,
         selectedIds: new Set([...state.selectedIds].filter((id) => id !== taskId)),
       }));
+    } else if (shouldApplyFiles(currentFiles, files, result)) {
+      set({ files });
     }
     return result;
   },
@@ -232,8 +305,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const updated = updateTaskTitle(task, title);
     if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -247,8 +321,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const updated = updateTaskDescription(task, description);
     if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -271,8 +346,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const updated = changeTaskStatus(task, status);
     if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -286,8 +362,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const updated = changeTaskPriority(task, priority);
     if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -301,8 +378,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const updated = changeTaskDueDate(task, dueDate);
     if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -319,8 +397,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const note = createNote(content);
     const updated = addNote(task, note);
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -334,8 +413,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const updated = deleteNote(task, noteId);
     if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -352,8 +432,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const updated = updateNoteContent(task, noteId, content);
     if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -367,8 +448,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const updated = changeNoteActionability(task, noteId, actionability);
     if (updated === task) return { status: "success", newHash: fileState.hash } as WriteResult;
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -384,8 +466,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
     const newData = { ...fileState.data, tasks: newTasks };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -401,8 +484,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
     const newData = { ...fileState.data, tasks: newTasks };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -418,8 +502,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
     const newData = { ...fileState.data, tasks: newTasks };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -435,8 +520,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
     const newData = { ...fileState.data, tasks: newTasks };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -452,8 +538,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
     const newData = { ...fileState.data, tasks: newTasks };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 
@@ -469,8 +556,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
     const newData = { ...fileState.data, tasks: newTasks };
-    const { files, result } = await writeFile(get().files, filePath, newData);
-    if (result.status === "success") set({ files });
+    const currentFiles = get().files;
+    const { files, result } = await writeFile(currentFiles, filePath, newData);
+    if (shouldApplyFiles(currentFiles, files, result)) set({ files });
     return result;
   },
 

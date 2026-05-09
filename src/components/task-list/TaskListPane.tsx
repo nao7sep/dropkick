@@ -7,6 +7,7 @@ import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
+import { showMessage } from "../../repositories";
 import { toTask, sanitizeSingleLine, hasPrimaryShortcutModifier } from "../../utils";
 import {
   groupTasksForList,
@@ -159,7 +160,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     }
     if (cleaned !== task.title) {
       const taskFile = isUnifiedView ? task.sourceFile : filePath;
-      await updateTitle(taskFile, task.id, cleaned);
+      const result = await updateTitle(taskFile, task.id, cleaned);
+      if (result.status === "error") {
+        await showMessage("Task Update Failed", result.message);
+      }
     }
     setEditingTaskId(null);
   };

@@ -78,18 +78,18 @@ export async function showUnsavedChangesConfirm(): Promise<boolean> {
 }
 
 // Shows a dialog when a file has been deleted while open.
-// Returns "save" or "close".
+// Returns "save" or "cancel".
 export async function showFileDeletedDialog(
   filePath: string,
-): Promise<"save" | "close"> {
+): Promise<"save" | "cancel"> {
   const save = await showAppConfirm(
     "File Deleted",
-    `This file no longer exists:\n\n${filePath}\n\nSave to recreate it, or close the tab?`,
+    `This file no longer exists:\n\n${filePath}\n\nSave to recreate it, or cancel this change?`,
     {
       tone: "warning",
       confirmLabel: "Save",
-      cancelLabel: "Close Tab",
+      cancelLabel: "Cancel",
     },
   );
-  return save ? "save" : "close";
+  return save ? "save" : "cancel";
 }

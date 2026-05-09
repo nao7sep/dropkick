@@ -359,6 +359,8 @@ export function useKeyboardShortcuts(
         const result = await moveUp(filePath);
         if (result.status === "success") {
           setSelection(nextId ? new Set([nextId]) : new Set());
+        } else if (result.status === "error") {
+          await showMessage("Task Reorder Failed", result.message);
         }
         return;
       }
@@ -372,6 +374,8 @@ export function useKeyboardShortcuts(
         const result = await moveDown(filePath);
         if (result.status === "success") {
           setSelection(nextId ? new Set([nextId]) : new Set());
+        } else if (result.status === "error") {
+          await showMessage("Task Reorder Failed", result.message);
         }
         return;
       }
@@ -385,6 +389,8 @@ export function useKeyboardShortcuts(
         const result = await sendToFirst(filePath);
         if (result.status === "success") {
           setSelection(nextId ? new Set([nextId]) : new Set());
+        } else if (result.status === "error") {
+          await showMessage("Task Reorder Failed", result.message);
         }
         return;
       }
@@ -398,6 +404,8 @@ export function useKeyboardShortcuts(
         const result = await sendToLast(filePath);
         if (result.status === "success") {
           setSelection(nextId ? new Set([nextId]) : new Set());
+        } else if (result.status === "error") {
+          await showMessage("Task Reorder Failed", result.message);
         }
         return;
       }
