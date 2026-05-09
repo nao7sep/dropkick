@@ -4,7 +4,11 @@ import { useMemo } from "react";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
-import { toTask } from "../../utils";
+import { pickNextActiveId, toTask } from "../../utils";
+import {
+  groupTasksForList,
+  groupTasksForUnifiedView,
+} from "../../services";
 import type { Task } from "../../models";
 import { TaskDetail } from "./TaskDetail";
 import { TaskSummary } from "./TaskSummary";
@@ -50,6 +54,17 @@ export function TaskDetailPane({
   const selectedTasks = tasks.filter((t) => selectedIds.has(t.id));
   const selectedTaskIds = selectedTasks.map((t) => t.id);
   const selectionKey = selectedTaskIds.join("|");
+  const visualTasks = useMemo(() => {
+    const grouped = isUnifiedView
+      ? groupTasksForUnifiedView(tasks)
+      : groupTasksForList(tasks);
+
+    return grouped.groups.flatMap((group) => group.tasks);
+  }, [tasks, isUnifiedView]);
+  const nextActiveTaskId = useMemo(
+    () => pickNextActiveId(selectedIds, visualTasks),
+    [selectedIds, visualTasks],
+  );
 
   if (selectedTasks.length === 1) {
     return (
@@ -57,6 +72,8 @@ export function TaskDetailPane({
         key={`task:${selectedTasks[0].id}`}
         task={selectedTasks[0]}
         filePath={isUnifiedView ? selectedTasks[0].sourceFile : filePath}
+        isUnifiedView={isUnifiedView}
+        nextActiveTaskId={nextActiveTaskId}
         focusNewNoteSignal={focusNewNoteSignal}
       />
     );
@@ -69,6 +86,7 @@ export function TaskDetailPane({
         selectedTasks={selectedTasks}
         filePath={filePath}
         isUnifiedView={isUnifiedView}
+        nextActiveTaskId={nextActiveTaskId}
       />
     );
   }

@@ -27,12 +27,16 @@ import { useAutoGrow } from "../../hooks/useAutoGrow";
 interface TaskDetailProps {
   task: Task;
   filePath: string;
+  isUnifiedView: boolean;
+  nextActiveTaskId: string | null;
   focusNewNoteSignal: number;
 }
 
 export function TaskDetail({
   task,
   filePath,
+  isUnifiedView,
+  nextActiveTaskId,
   focusNewNoteSignal,
 }: TaskDetailProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
@@ -135,10 +139,17 @@ export function TaskDetail({
   };
 
   const handleStatusChange = async (status: TaskStatus) => {
-    await setStatusAction(filePath, task.id, status);
-    if (status === "Completed" || status === "Dismissed") {
-      setSelection(new Set());
+    const result = await setStatusAction(filePath, task.id, status);
+    if (result.status === "validation") {
+      await showMessage("Task Update Failed", result.reason);
+      return;
     }
+    if (result.status === "error") {
+      await showMessage("Task Update Failed", result.message);
+      return;
+    }
+
+    setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
   };
 
   const handlePriorityChange = async (priority: TaskPriority) => {
@@ -155,7 +166,12 @@ export function TaskDetail({
       `Permanently delete "${task.title || "Untitled"}"? This cannot be undone.`,
     );
     if (confirmed) {
-      await removeTask(filePath, task.id);
+      const result = await removeTask(filePath, task.id);
+      if (result.status === "error") {
+        await showMessage("Delete Failed", result.message);
+        return;
+      }
+      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
     }
   };
 
@@ -173,9 +189,11 @@ export function TaskDetail({
       await showMessage("Move Failed", result.message);
       return;
     }
-    // Re-select: in unified view the task is still visible under the new source;
-    // in specific list view the ID won't match any task, so summary is shown.
-    setSelection(ids);
+    if (isUnifiedView) {
+      setSelection(ids);
+    } else {
+      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
+    }
     setMoveTarget("");
   };
 

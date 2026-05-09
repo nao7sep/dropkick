@@ -20,3 +20,5 @@ export {
   hasPrimaryShortcutModifier,
   matchesShortcutKey,
 } from "./shortcuts";
+
+export { pickNextActiveId } from "./selection";

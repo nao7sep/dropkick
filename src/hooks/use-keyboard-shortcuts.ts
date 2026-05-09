@@ -9,19 +9,8 @@ import { usePreferencesStore } from "../state/preferences-store";
 import { showConfirm, showMessage } from "../repositories";
 import { groupTasksForList, groupTasksForUnifiedView } from "../services";
 import type { Task, TaskPriority, TaskStatus } from "../models";
-import { toTask, todayInTimezone, tomorrowInTimezone } from "../utils";
+import { pickNextActiveId, toTask, todayInTimezone, tomorrowInTimezone } from "../utils";
 import { hasPrimaryShortcutModifier, matchesShortcutKey } from "../utils";
-
-// Returns the ID of the task to select after the current single-selected task
-// moves away or disappears. Prefers the task below; falls back to the one above.
-// Returns null for multi-selection or when the list is empty.
-function pickAdvanceId(selectedIds: Set<string>, visualTasks: Task[]): string | null {
-  if (selectedIds.size !== 1) return null;
-  const [id] = selectedIds;
-  const idx = visualTasks.findIndex((t) => t.id === id);
-  if (idx === -1) return null;
-  return (visualTasks[idx + 1] ?? visualTasks[idx - 1])?.id ?? null;
-}
 
 function isTyping(e: KeyboardEvent): boolean {
   const tag = (e.target as HTMLElement)?.tagName;
@@ -112,7 +101,8 @@ export function useKeyboardShortcuts(
 
   const applyStatusToSelection = useCallback(
     async (status: TaskStatus) => {
-      if (selectedTasks.length === 0) return;
+      if (selectedTasks.length === 0) return false;
+      const changed = selectedTasks.some((task) => task.status !== status);
 
       const validationReasons = new Map<string, number>();
       let firstError: string | null = null;
@@ -143,19 +133,23 @@ export function useKeyboardShortcuts(
           "Some Tasks Were Skipped",
           `Skipped ${skippedCount} task(s): ${details}.`,
         );
-        return;
+        return false;
       }
 
       if (firstError !== null) {
         await showMessage("Task Update Failed", firstError);
+        return false;
       }
+
+      return changed;
     },
     [selectedTasks, setStatus],
   );
 
   const applyPriorityToSelection = useCallback(
     async (priority: TaskPriority) => {
-      if (selectedTasks.length === 0) return;
+      if (selectedTasks.length === 0) return false;
+      const changed = selectedTasks.some((task) => task.priority !== priority);
 
       let firstError: string | null = null;
       for (const task of selectedTasks) {
@@ -167,14 +161,18 @@ export function useKeyboardShortcuts(
 
       if (firstError !== null) {
         await showMessage("Task Update Failed", firstError);
+        return false;
       }
+
+      return changed;
     },
     [selectedTasks, setPriority],
   );
 
   const applyDueDateToSelection = useCallback(
     async (dueDate: string | null) => {
-      if (selectedTasks.length === 0) return;
+      if (selectedTasks.length === 0) return false;
+      const changed = selectedTasks.some((task) => task.dueDate !== dueDate);
 
       let firstError: string | null = null;
       for (const task of selectedTasks) {
@@ -186,7 +184,10 @@ export function useKeyboardShortcuts(
 
       if (firstError !== null) {
         await showMessage("Task Update Failed", firstError);
+        return false;
       }
+
+      return changed;
     },
     [selectedTasks, setDueDate],
   );
@@ -233,79 +234,91 @@ export function useKeyboardShortcuts(
       ) {
         if (matchesShortcutKey(e, "p")) {
           e.preventDefault();
-          await applyStatusToSelection("Pending");
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyStatusToSelection("Pending")) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (matchesShortcutKey(e, "c")) {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyStatusToSelection("Completed");
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyStatusToSelection("Completed")) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (matchesShortcutKey(e, "x")) {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyStatusToSelection("Dismissed");
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyStatusToSelection("Dismissed")) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (e.key === "0") {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyPriorityToSelection("Default");
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyPriorityToSelection("Default")) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (e.key === "1") {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyPriorityToSelection("Urgent");
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyPriorityToSelection("Urgent")) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (e.key === "2") {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyPriorityToSelection("Important");
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyPriorityToSelection("Important")) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (e.key === "3") {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyPriorityToSelection("Critical");
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyPriorityToSelection("Critical")) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (matchesShortcutKey(e, "t")) {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyDueDateToSelection(todayInTimezone(timezone));
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyDueDateToSelection(todayInTimezone(timezone))) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (matchesShortcutKey(e, "y")) {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyDueDateToSelection(tomorrowInTimezone(timezone));
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyDueDateToSelection(tomorrowInTimezone(timezone))) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
 
         if (matchesShortcutKey(e, "n")) {
           e.preventDefault();
-          const advanceId = pickAdvanceId(selectedIds, visualTasks);
-          if (advanceId) setSelection(new Set([advanceId]));
-          await applyDueDateToSelection(null);
+          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          if (await applyDueDateToSelection(null)) {
+            setSelection(nextId ? new Set([nextId]) : new Set());
+          }
           return;
         }
       }
@@ -315,17 +328,25 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (selectedIds.size === 0) return;
         e.preventDefault();
-        const advanceId = pickAdvanceId(selectedIds, visualTasks);
+        const nextId = pickNextActiveId(selectedIds, visualTasks);
         const confirmed = await showConfirm(
           "Dismiss Tasks",
           `Dismiss ${selectedIds.size} selected task(s)?`,
         );
         if (!confirmed) return;
-        if (advanceId) setSelection(new Set([advanceId]));
+        let firstError: string | null = null;
         for (const taskId of selectedIds) {
           const taskFile = tasksById.get(taskId)?.sourceFile ?? filePath;
-          await setStatus(taskFile, taskId, "Dismissed");
+          const result = await setStatus(taskFile, taskId, "Dismissed");
+          if (result.status === "error" && firstError === null) {
+            firstError = result.message;
+          }
         }
+        if (firstError !== null) {
+          await showMessage("Task Update Failed", firstError);
+          return;
+        }
+        setSelection(nextId ? new Set([nextId]) : new Set());
         return;
       }
 
@@ -334,7 +355,11 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        await moveUp(filePath);
+        const nextId = pickNextActiveId(selectedIds, visualTasks);
+        const result = await moveUp(filePath);
+        if (result.status === "success") {
+          setSelection(nextId ? new Set([nextId]) : new Set());
+        }
         return;
       }
 
@@ -343,7 +368,11 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        await moveDown(filePath);
+        const nextId = pickNextActiveId(selectedIds, visualTasks);
+        const result = await moveDown(filePath);
+        if (result.status === "success") {
+          setSelection(nextId ? new Set([nextId]) : new Set());
+        }
         return;
       }
 
@@ -352,7 +381,11 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        await sendToFirst(filePath);
+        const nextId = pickNextActiveId(selectedIds, visualTasks);
+        const result = await sendToFirst(filePath);
+        if (result.status === "success") {
+          setSelection(nextId ? new Set([nextId]) : new Set());
+        }
         return;
       }
 
@@ -361,7 +394,11 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        await sendToLast(filePath);
+        const nextId = pickNextActiveId(selectedIds, visualTasks);
+        const result = await sendToLast(filePath);
+        if (result.status === "success") {
+          setSelection(nextId ? new Set([nextId]) : new Set());
+        }
         return;
       }
 

@@ -13,6 +13,7 @@ interface MoveTasksModalProps {
   selectedTasks: Task[];
   sourceFilePath: string;
   isUnifiedView: boolean;
+  nextActiveTaskId: string | null;
   onClose: () => void;
 }
 
@@ -20,6 +21,7 @@ export function MoveTasksModal({
   selectedTasks,
   sourceFilePath,
   isUnifiedView,
+  nextActiveTaskId,
   onClose,
 }: MoveTasksModalProps) {
   const workspace = useWorkspaceStore((s) => s.workspace);
@@ -77,7 +79,7 @@ export function MoveTasksModal({
         await showMessage("Move Failed", result.message);
         return;
       }
-      // Selection already cleared by moveTasks; tasks are gone from this list.
+      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
     }
 
     onClose();

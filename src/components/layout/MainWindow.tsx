@@ -8,7 +8,11 @@ import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
-import { toTask } from "../../utils";
+import { pickNextActiveId, toTask } from "../../utils";
+import {
+  groupTasksForList,
+  groupTasksForUnifiedView,
+} from "../../services";
 import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
 import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
@@ -17,6 +21,7 @@ import { NewTaskModal } from "./NewTaskModal";
 import { MoveTasksModal } from "./MoveTasksModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
+import type { Task } from "../../models";
 
 // Error boundary — catches rendering errors and shows them instead of blank screen.
 class ErrorBoundary extends Component<
@@ -175,7 +180,7 @@ export function MainWindow() {
   // Compute selected tasks for the move modal.
   const selectedTasks = useMemo(() => {
     if (!showMoveTasks || selectedIds.size === 0) return [];
-    const tasks = [];
+    const tasks: Task[] = [];
     if (isUnifiedView) {
       for (const tab of workspace.openTabs) {
         if (tab.isUnifiedView) continue;
@@ -195,6 +200,33 @@ export function MainWindow() {
     }
     return tasks;
   }, [showMoveTasks, selectedIds, files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
+
+  const visualTasks = useMemo(() => {
+    const tasks: Task[] = [];
+    if (isUnifiedView) {
+      for (const tab of workspace.openTabs) {
+        if (tab.isUnifiedView) continue;
+        const fileState = files[tab.filePath];
+        if (!fileState) continue;
+        for (const dto of fileState.data.tasks) {
+          tasks.push(toTask(dto, tab.filePath, preferences.timezone, preferences.dueSoonDays));
+        }
+      }
+      return groupTasksForUnifiedView(tasks).groups.flatMap((group) => group.tasks);
+    }
+
+    const fileState = files[filePath];
+    if (!fileState) return [];
+    for (const dto of fileState.data.tasks) {
+      tasks.push(toTask(dto, filePath, preferences.timezone, preferences.dueSoonDays));
+    }
+    return groupTasksForList(tasks).groups.flatMap((group) => group.tasks);
+  }, [files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
+
+  const nextActiveTaskId = useMemo(
+    () => pickNextActiveId(selectedIds, visualTasks),
+    [selectedIds, visualTasks],
+  );
 
   useEffect(() => {
     if (showMoveTasks && selectedTasks.length === 0) {
@@ -293,6 +325,7 @@ export function MainWindow() {
           selectedTasks={selectedTasks}
           sourceFilePath={filePath}
           isUnifiedView={isUnifiedView}
+          nextActiveTaskId={nextActiveTaskId}
           onClose={() => setShowMoveTasks(false)}
         />
       )}

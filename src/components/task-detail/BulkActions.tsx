@@ -12,12 +12,14 @@ interface BulkActionsProps {
   selectedTasks: Task[];
   filePath: string;
   isUnifiedView: boolean;
+  nextActiveTaskId: string | null;
 }
 
 export function BulkActions({
   selectedTasks,
   filePath,
   isUnifiedView,
+  nextActiveTaskId,
 }: BulkActionsProps) {
   const kickDistances = usePreferencesStore((s) => s.preferences.kickDistances);
   const kick = useTaskListStore((s) => s.kick);
@@ -72,8 +74,12 @@ export function BulkActions({
       await showMessage("Some Tasks Were Not Updated", details.join("\n\n"));
     }
 
-    if (status === "Completed" || status === "Dismissed") {
-      setSelection(new Set());
+    if (
+      validationReasons.size === 0 &&
+      firstError === null &&
+      (status === "Completed" || status === "Dismissed")
+    ) {
+      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
     }
   };
 
@@ -117,6 +123,7 @@ export function BulkActions({
         await showMessage("Move Failed", result.message);
         return;
       }
+      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
       setMoveTarget("");
     }
   };
