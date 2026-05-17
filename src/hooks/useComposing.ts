@@ -74,8 +74,16 @@ export function isComposingKeyboardEvent(
   const nativeEvent = "nativeEvent" in e ? e.nativeEvent : e;
   if (nativeEvent.isComposing) return true;
 
-  // eslint-disable-next-line deprecation/deprecation — intentional fallback
-  if (nativeEvent.keyCode === 229) return true;
+  // Legacy fallback for older IME implementations. Confirmed empirically
+  // necessary — without this layer, IME Enter still triggered handlers in
+  // some test runs during this hook's implementation.
+  //
+  // keyCode is deprecated and may eventually be removed from TypeScript's DOM
+  // types; the cast below lets the build keep working in that case. At runtime
+  // this is also safe: reading a missing property in JavaScript yields
+  // undefined rather than throwing, so no try/catch is needed.
+  const legacyKeyCode = (nativeEvent as { keyCode?: number }).keyCode;
+  if (legacyKeyCode === 229) return true;
 
   return false;
 }
