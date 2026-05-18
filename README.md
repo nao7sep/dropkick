@@ -43,10 +43,12 @@ Shortcuts are shown with `Cmd`. On Windows, use `Ctrl` instead. Shortcuts can ch
 
 ### Selection Flow
 
-Dropkick treats keyboard shortcuts and detail-pane edits as two different flows:
+Dropkick treats review actions and focused edits as two different flows:
 
-- **List review flow** — when you use task-list shortcuts for status, priority, due date, or reordering, Dropkick assumes you are reviewing the list from top to bottom. After a successful change, selection advances to the next active task in visual order, crossing group boundaries when needed. If there is no next active task, selection clears instead of following the task into Handled.
+- **List review flow** — when you use task-list shortcuts for status, priority, or due date, Dropkick assumes you are reviewing the list from top to bottom. After a successful change, selection advances to the next active task in visual order, crossing group boundaries when needed. If there is no next active task, selection clears instead of following the task into Handled.
 - **Focused edit flow** — when you change priority, due date, or order from the task detail pane, Dropkick keeps the same task selected so you can continue editing its title, description, and notes.
+
+Task-list reorder shortcuts also keep the same task selection, so repeated `Cmd+Up` / `Cmd+Down` presses continue moving the tasks you just moved.
 
 Detail-pane status changes, task deletion, and moves out of the current non-unified list leave the current task behind, so they use the list review flow and select the next active task. In unified view, moving a task to another list keeps it selected because the task remains visible.
 

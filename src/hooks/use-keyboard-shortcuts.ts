@@ -355,11 +355,8 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        const nextId = pickNextActiveId(selectedIds, visualTasks);
         const result = await moveUp(filePath);
-        if (result.status === "success") {
-          setSelection(nextId ? new Set([nextId]) : new Set());
-        } else if (result.status === "error") {
+        if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
         }
         return;
@@ -370,11 +367,8 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        const nextId = pickNextActiveId(selectedIds, visualTasks);
         const result = await moveDown(filePath);
-        if (result.status === "success") {
-          setSelection(nextId ? new Set([nextId]) : new Set());
-        } else if (result.status === "error") {
+        if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
         }
         return;
@@ -385,11 +379,8 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        const nextId = pickNextActiveId(selectedIds, visualTasks);
         const result = await sendToFirst(filePath);
-        if (result.status === "success") {
-          setSelection(nextId ? new Set([nextId]) : new Set());
-        } else if (result.status === "error") {
+        if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
         }
         return;
@@ -400,11 +391,8 @@ export function useKeyboardShortcuts(
         if (isTyping(e)) return;
         if (isUnifiedView || selectedIds.size === 0) return;
         e.preventDefault();
-        const nextId = pickNextActiveId(selectedIds, visualTasks);
         const result = await sendToLast(filePath);
-        if (result.status === "success") {
-          setSelection(nextId ? new Set([nextId]) : new Set());
-        } else if (result.status === "error") {
+        if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
         }
         return;
