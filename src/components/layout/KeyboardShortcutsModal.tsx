@@ -18,6 +18,7 @@ const shortcutSections: {
       { label: "Move selected tasks", keys: "Cmd+M" },
       { label: "Focus new note field", keys: "Cmd+Shift+N" },
       { label: "Save note", keys: "Cmd+Enter" },
+      { label: "Save note as actionable", keys: "Cmd+Shift+Enter" },
       { kind: "heading", label: "Status" },
       { label: "Set status to Pending", keys: "P" },
       { label: "Set status to Completed", keys: "C" },

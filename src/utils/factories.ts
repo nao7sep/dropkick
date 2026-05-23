@@ -1,4 +1,4 @@
-import type { TaskDto, TaskPriority, NoteDto } from "../models";
+import type { TaskDto, TaskPriority, NoteDto, NoteActionability } from "../models";
 import { generateId } from "./ids";
 import { nowUtc } from "./dates";
 
@@ -29,11 +29,14 @@ export function createTask(options: CreateTaskOptions): TaskDto {
 
 // Creates a new note with consistent key order.
 // New notes are Informational and plaintext by default.
-export function createNote(content: string): NoteDto {
+export function createNote(
+  content: string,
+  actionability: NoteActionability = "Informational",
+): NoteDto {
   return {
     id: generateId(),
     content,
-    actionability: "Informational",
+    actionability,
     createdAtUtc: nowUtc(),
   };
 }

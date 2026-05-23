@@ -79,7 +79,12 @@ interface TaskListState {
   setStatus: (filePath: string, taskId: string, status: TaskStatus) => Promise<WriteResult | { status: "validation"; reason: string }>;
   setPriority: (filePath: string, taskId: string, priority: TaskPriority) => Promise<WriteResult>;
   setDueDate: (filePath: string, taskId: string, dueDate: string | null) => Promise<WriteResult>;
-  addNewNote: (filePath: string, taskId: string, content: string) => Promise<WriteResult>;
+  addNewNote: (
+    filePath: string,
+    taskId: string,
+    content: string,
+    actionability?: NoteActionability,
+  ) => Promise<WriteResult>;
   removeNote: (filePath: string, taskId: string, noteId: string) => Promise<WriteResult>;
   updateNote: (
     filePath: string,
@@ -384,7 +389,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     return result;
   },
 
-  addNewNote: async (filePath, taskId, content) => {
+  addNewNote: async (filePath, taskId, content, actionability = "Informational") => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
     if (!content.trim()) {
@@ -394,7 +399,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     const task = fileState.data.tasks.find((t) => t.id === taskId);
     if (!task) return { status: "error", message: "Task not found" } as WriteResult;
 
-    const note = createNote(content);
+    const note = createNote(content, actionability);
     const updated = addNote(task, note);
     const newData = { ...fileState.data, tasks: replaceTask(fileState.data.tasks, updated) };
     const currentFiles = get().files;

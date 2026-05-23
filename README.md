@@ -60,6 +60,7 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 | Move selected tasks | Cmd+M |
 | Focus new note field | Cmd+Shift+N |
 | Save note | Cmd+Enter |
+| Save note as actionable | Cmd+Shift+Enter |
 | Set status to Pending | P |
 | Set status to Completed | C |
 | Set status to Dismissed | X |

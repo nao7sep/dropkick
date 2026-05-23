@@ -193,9 +193,16 @@ export function TaskDetail({
     }
   };
 
-  const handleAddNote = async () => {
+  const handleAddNote = async (
+    actionability: NoteActionability = "Informational",
+  ) => {
     if (!newNoteContent.trim()) return;
-    const result = await addNewNote(filePath, task.id, newNoteContent);
+    const result = await addNewNote(
+      filePath,
+      task.id,
+      newNoteContent,
+      actionability,
+    );
     if (await showWriteFailure("Note Update Failed", result)) return;
     setNewNoteContent("");
   };
@@ -430,17 +437,17 @@ export function TaskDetail({
               if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
                 if (isComposingKeyboardEvent(noteComposing.composingRef, e)) return;
                 e.preventDefault();
-                handleAddNote();
+                handleAddNote(e.shiftKey ? "Actionable" : "Informational");
               }
             }}
             {...noteComposing.handlers}
-            placeholder="Add a note... (Cmd+Enter to save)"
+            placeholder="Add a note... (Cmd+Enter to save, Cmd+Shift+Enter actionable)"
             rows={2}
             className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
           />
           <div className="mt-1 flex justify-end">
             <button
-              onClick={handleAddNote}
+              onClick={() => handleAddNote()}
               disabled={!newNoteContent.trim()}
               className="rounded-md bg-sky-700 px-3 py-1 text-xs text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
             >
