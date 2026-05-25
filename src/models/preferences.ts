@@ -5,7 +5,7 @@ export interface PreferencesDto {
   version: string;
   name: string;
   fontFamily: string;
-  zoomLevel: number; // 0.5–2.0 (1.0 = 100%)
+  zoomLevel: number; // 0.5–5.0 (1.0 = 100%)
   sidebarWidth: number; // pixels (160–1280)
   dateFormat: string;
   timeFormat: "24h" | "12h";

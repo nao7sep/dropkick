@@ -3,8 +3,8 @@
 // The gear icon opens a menu with Settings, Keyboard Shortcuts, and About.
 
 import { useState, useRef, useEffect } from "react";
-import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info } from "lucide-react";
-import { sanitizeSingleLine } from "../../utils";
+import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus } from "lucide-react";
+import { sanitizeSingleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import {
   DndContext,
@@ -22,6 +22,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
+import { usePreferencesStore } from "../../state/preferences-store";
 import {
   openJsonFileDialog,
   saveJsonFileDialog,
@@ -34,6 +35,8 @@ interface TabBarProps {
 }
 
 export function TabBar({ onGearMenuSelect }: TabBarProps) {
+  const preferences = usePreferencesStore((s) => s.preferences);
+  const updatePrefs = usePreferencesStore((s) => s.update);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const activeTabIndex = workspace.activeTabIndex;
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
@@ -322,6 +325,46 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                   <Keyboard size={14} className="text-gray-500" />
                   Keyboard Shortcuts
                 </button>
+                {/* Zoom controls — clicking +/− stays in the menu */}
+                <div className="my-1 border-t border-gray-100" />
+                <div className="flex items-center justify-center gap-3 px-3 py-1.5">
+                  <span className="text-sm text-gray-600">Zoom</span>
+                  <div className="flex items-center overflow-hidden rounded border border-gray-200">
+                    <button
+                      onClick={() => {
+                        const next = stepZoomOut(preferences.zoomLevel);
+                        if (next !== preferences.zoomLevel) updatePrefs({ zoomLevel: next });
+                      }}
+                      disabled={stepZoomOut(preferences.zoomLevel) === preferences.zoomLevel}
+                      className="flex h-6 w-6 items-center justify-center bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                      title="Zoom out"
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <span className="w-10 border-x border-gray-200 bg-white text-center text-xs tabular-nums text-gray-700 leading-6">
+                      {Math.round(preferences.zoomLevel * 100)}%
+                    </span>
+                    <button
+                      onClick={() => {
+                        const next = stepZoomIn(preferences.zoomLevel);
+                        if (next !== preferences.zoomLevel) updatePrefs({ zoomLevel: next });
+                      }}
+                      disabled={stepZoomIn(preferences.zoomLevel) === preferences.zoomLevel}
+                      className="flex h-6 w-6 items-center justify-center bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                      title="Zoom in"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                </div>
+                {preferences.zoomLevel !== ZOOM_DEFAULT && (
+                  <button
+                    onClick={() => updatePrefs({ zoomLevel: ZOOM_DEFAULT })}
+                    className="w-full pb-1.5 text-center text-xs text-sky-600 hover:text-sky-800"
+                  >
+                    Reset to 100%
+                  </button>
+                )}
                 <div className="my-1 border-t border-gray-100" />
                 <button
                   onClick={() => {

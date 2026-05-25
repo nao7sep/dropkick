@@ -30,6 +30,7 @@ export function MoveTasksModal({
 
   const [moveTarget, setMoveTarget] = useState("");
   const [moving, setMoving] = useState(false);
+  const [destError, setDestError] = useState(false);
   const destinationRef = useRef<HTMLSelectElement>(null);
 
   // In unified view, tasks may come from different files — collect all unique source files.
@@ -43,7 +44,12 @@ export function MoveTasksModal({
   );
 
   const handleMove = async () => {
-    if (!moveTarget || moving) return;
+    if (moving) return;
+    if (!moveTarget) {
+      setDestError(true);
+      destinationRef.current?.focus();
+      return;
+    }
     setMoving(true);
 
     const taskIds = new Set(selectedTasks.map((t) => t.id));
@@ -145,8 +151,11 @@ export function MoveTasksModal({
           <select
             ref={destinationRef}
             value={moveTarget}
-            onChange={(e) => setMoveTarget(e.target.value)}
-            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 outline-none focus:border-sky-400"
+            onChange={(e) => {
+              setMoveTarget(e.target.value);
+              setDestError(false);
+            }}
+            className={`w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 outline-none focus:border-sky-400 ${destError ? "bg-red-50" : ""}`}
           >
             <option value="">Select destination...</option>
             {destinations.map((t) => (

@@ -16,11 +16,11 @@ Built with Tauri v2, React, and TypeScript.
 - **Move tasks between lists** — move tasks to another open list via `Cmd+M`, the task detail dropdown, or bulk actions
 - **Notes with actionability** — attach notes to tasks, mark them as Informational, Actionable, or Resolved; tasks with actionable notes can't be completed until resolved
 - **Keyboard-first workflow** — selection shortcuts can change status, priority, and due dates; dialogs close with `Esc`
-- **Resizable sidebar** — drag the divider or set a specific width in settings
+- **Resizable sidebar** — drag the divider between the task list and detail pane
 - **File integrity** — SHA-256 hash checks detect external modifications before overwriting; if a file changed outside Dropkick, you can overwrite or reload, and if it was deleted, you can recreate it or cancel the change
 - **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically)
 - **IME composition support** — Japanese/Chinese/Korean input works correctly in all text fields
-- **Configurable** — font family, zoom level, sidebar width, date/time format, timezone, kick distances, due soon window (days from tomorrow, default 7)
+- **Configurable** — font family, date/time format, timezone, kick distances, due soon window in Settings; zoom (50%–500%) via the gear menu or keyboard shortcuts
 
 ## Data Storage
 
@@ -104,7 +104,8 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 | Close tab | Cmd+W |
 | Unified view | Cmd+U |
 | Rename tab | Double-click tab |
-| Zoom in / out | Cmd+Plus / Cmd+Minus |
+| Zoom in | Cmd+Equal / Cmd+Semicolon |
+| Zoom out | Cmd+Minus |
 | Reset zoom | Cmd+0 |
 
 On macOS, `Cmd+Tab` and `Cmd+Shift+Tab` are reserved by the system for app switching.

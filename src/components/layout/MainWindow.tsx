@@ -8,7 +8,7 @@ import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
-import { pickNextActiveId, toTask } from "../../utils";
+import { pickNextActiveId, toTask, isZoomIn, isZoomOut, isZoomReset, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import {
   groupTasksForList,
   groupTasksForUnifiedView,
@@ -132,12 +132,34 @@ export function MainWindow() {
     () => setFocusNewNoteSignal((value) => value + 1),
   );
 
-  // Apply saved zoom level on startup and when changed via settings.
+  // Apply saved zoom level on startup and when changed.
   useEffect(() => {
     getCurrentWebview()
       .setZoom(preferences.zoomLevel)
       .catch((e) => console.warn("[zoom] Failed to set zoom:", e));
   }, [preferences.zoomLevel]);
+
+  // Zoom keyboard shortcuts — separate effect so they work even when the gear menu
+  // is open (the gear menu sets data-dropkick-interactive-layer, which suppresses
+  // shortcuts in useKeyboardShortcuts; zoom should always be accessible).
+  const zoomLevelRef = useRef(preferences.zoomLevel);
+  useEffect(() => { zoomLevelRef.current = preferences.zoomLevel; }, [preferences.zoomLevel]);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (isZoomIn(e)) {
+        e.preventDefault();
+        updatePrefs({ zoomLevel: stepZoomIn(zoomLevelRef.current) });
+      } else if (isZoomOut(e)) {
+        e.preventDefault();
+        updatePrefs({ zoomLevel: stepZoomOut(zoomLevelRef.current) });
+      } else if (isZoomReset(e)) {
+        e.preventDefault();
+        updatePrefs({ zoomLevel: ZOOM_DEFAULT });
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [updatePrefs]);
 
   useEffect(() => {
     const title = activeTab ? `${activeTab.displayName} - Dropkick` : "Dropkick";

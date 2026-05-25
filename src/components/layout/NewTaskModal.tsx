@@ -45,9 +45,11 @@ export function NewTaskModal({
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [targetFile, setTargetFile] = useState(defaultTarget);
   const [submitting, setSubmitting] = useState(false);
+  const [targetError, setTargetError] = useState(false);
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
+  const targetSelectRef = useRef<HTMLSelectElement>(null);
   const composing = useComposing();
   const autoGrowTitle = useAutoGrow(titleRef);
   const autoGrowDesc = useAutoGrow(descRef);
@@ -74,7 +76,14 @@ export function NewTaskModal({
   };
 
   const handleCreate = async () => {
-    if (!canCreate || submitting) return;
+    if (submitting) return;
+    if (!canCreate) {
+      if (fileTabs.length > 0 && targetFile === "") {
+        setTargetError(true);
+        targetSelectRef.current?.focus();
+      }
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -192,9 +201,13 @@ export function NewTaskModal({
             Add to list
           </label>
           <select
+            ref={targetSelectRef}
             value={targetFile}
-            onChange={(e) => setTargetFile(e.target.value)}
-            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
+            onChange={(e) => {
+              setTargetFile(e.target.value);
+              setTargetError(false);
+            }}
+            className={`w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400 ${targetError ? "bg-red-50" : ""}`}
           >
             {!targetFile && (
               <option value="" disabled>

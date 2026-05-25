@@ -14,8 +14,7 @@
       {
         "title": "Dropkick",
         "width": 1280,
-        "height": 720,
-        "zoomHotkeysEnabled": true
+        "height": 720
       }
     ],
     "security": {

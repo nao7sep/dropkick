@@ -33,7 +33,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   const isDirty = useMemo(() => {
     if (kickInput !== preferences.kickDistances.join(", ")) return true;
-    const keys = Object.keys(preferences) as (keyof PreferencesDto)[];
+    // Exclude zoomLevel and sidebarWidth — they are controlled outside this modal
+    // (keyboard shortcuts / drag divider) and must not be compared against the draft.
+    const keys = (Object.keys(preferences) as (keyof PreferencesDto)[])
+      .filter((k) => k !== "zoomLevel" && k !== "sidebarWidth");
     return keys.some((k) => draft[k] !== preferences[k]);
   }, [draft, kickInput, preferences]);
 
@@ -51,6 +54,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
     await update({
       ...draft,
+      // Use live values — these are controlled outside this modal.
+      zoomLevel: preferences.zoomLevel,
+      sidebarWidth: preferences.sidebarWidth,
       timezone: timezoneValidation.value,
       kickDistances,
     });
@@ -122,49 +128,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           onChange={(e) => setField("fontFamily", e.target.value)}
           className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
         />
-      </Field>
-
-      {/* Zoom level */}
-      <Field label="Zoom level">
-        <div className="flex items-center gap-3">
-          <input
-            type="range"
-            min={50}
-            max={200}
-            step={10}
-            value={Math.round(draft.zoomLevel * 100)}
-            onChange={(e) =>
-              setField("zoomLevel", parseInt(e.target.value, 10) / 100)
-            }
-            className="flex-1"
-          />
-          <span className="w-12 text-right text-sm text-gray-600">
-            {Math.round(draft.zoomLevel * 100)}%
-          </span>
-        </div>
-      </Field>
-
-      {/* Sidebar width */}
-      <Field label="Sidebar width">
-        <div className="flex items-center gap-3">
-          <input
-            type="range"
-            min={160}
-            max={1280}
-            step={10}
-            value={draft.sidebarWidth ?? 320}
-            onChange={(e) =>
-              setField("sidebarWidth", parseInt(e.target.value, 10))
-            }
-            className="flex-1"
-          />
-          <span className="w-14 text-right text-sm text-gray-600">
-            {draft.sidebarWidth ?? 320}px
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          You can also drag the divider between the task list and detail pane.
-        </p>
       </Field>
 
       {/* Date format */}
