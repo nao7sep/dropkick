@@ -72,7 +72,7 @@ const shortcutSections: {
       { label: "Unified view", keys: "Cmd+U" },
       { label: "Rename tab", keys: "Double-click tab" },
       { kind: "heading", label: "Display" },
-      { label: "Zoom in", keys: "Cmd+Equal / Cmd+Semicolon" },
+      { label: "Zoom in", keys: "Cmd+Equal / Cmd+Plus / Cmd+Semicolon" },
       { label: "Zoom out", keys: "Cmd+Minus" },
       { label: "Reset zoom", keys: "Cmd+0" },
     ],

@@ -104,7 +104,7 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 | Close tab | Cmd+W |
 | Unified view | Cmd+U |
 | Rename tab | Double-click tab |
-| Zoom in | Cmd+Equal / Cmd+Semicolon |
+| Zoom in | Cmd+Equal / Cmd+Plus / Cmd+Semicolon |
 | Zoom out | Cmd+Minus |
 | Reset zoom | Cmd+0 |
 

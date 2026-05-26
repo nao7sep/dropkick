@@ -341,9 +341,19 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                     >
                       <Minus size={12} />
                     </button>
-                    <span className="w-10 border-x border-gray-200 bg-white text-center text-xs tabular-nums text-gray-700 leading-6">
-                      {Math.round(preferences.zoomLevel * 100)}%
-                    </span>
+                    {preferences.zoomLevel !== ZOOM_DEFAULT ? (
+                      <button
+                        onClick={() => updatePrefs({ zoomLevel: ZOOM_DEFAULT })}
+                        className="w-10 border-x border-gray-200 bg-white text-center text-xs tabular-nums text-sky-600 hover:text-sky-800 leading-6"
+                        title="Reset to 100%"
+                      >
+                        {Math.round(preferences.zoomLevel * 100)}%
+                      </button>
+                    ) : (
+                      <span className="w-10 border-x border-gray-200 bg-white text-center text-xs tabular-nums text-gray-700 leading-6">
+                        {Math.round(preferences.zoomLevel * 100)}%
+                      </span>
+                    )}
                     <button
                       onClick={() => {
                         const next = stepZoomIn(preferences.zoomLevel);
@@ -357,14 +367,6 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                     </button>
                   </div>
                 </div>
-                {preferences.zoomLevel !== ZOOM_DEFAULT && (
-                  <button
-                    onClick={() => updatePrefs({ zoomLevel: ZOOM_DEFAULT })}
-                    className="w-full pb-1.5 text-center text-xs text-sky-600 hover:text-sky-800"
-                  >
-                    Reset to 100%
-                  </button>
-                )}
                 <div className="my-1 border-t border-gray-100" />
                 <button
                   onClick={() => {
