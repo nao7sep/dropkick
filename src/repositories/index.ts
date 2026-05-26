@@ -48,5 +48,5 @@ export {
   createTaskListFile,
   writeTaskList,
   forceWriteTaskList,
-  atomicMoveWrite,
+  moveTasksBetweenFilesWithRollback,
 } from "./task-list-repository";

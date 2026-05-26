@@ -7,20 +7,18 @@ import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
 
 export type LoadPreferencesResult =
   | { status: "success"; preferences: PreferencesDto }
+  | { status: "missing" }
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
-// Loads a preferences file. Missing files fall back to defaults; invalid files
-// are reported so the user does not mistake a parse failure for empty settings.
+// Loads a preferences file. Missing and invalid files are reported explicitly so
+// selected files do not silently become default settings.
 export async function loadPreferences(
   path: string,
 ): Promise<LoadPreferencesResult> {
   const result = await readJsonFileResult<Partial<PreferencesDto>>(path);
   if (result.status === "missing") {
-    return {
-      status: "success",
-      preferences: createDefaultPreferences("Default"),
-    };
+    return { status: "missing" };
   }
   if (result.status !== "success") {
     return result;

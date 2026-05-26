@@ -65,6 +65,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const updateTitle = useTaskListStore((s) => s.updateTitle);
   const showMoreHandled = useTaskListStore((s) => s.showMoreHandled);
   const setHandledExpanded = useTaskListStore((s) => s.setHandledExpanded);
+  const fileLoadError = useTaskListStore((s) => s.fileLoadErrors[filePath]);
+  const loadFile = useTaskListStore((s) => s.loadFile);
+  const activeTabIndex = useWorkspaceStore((s) => s.workspace.activeTabIndex);
+  const closeTab = useWorkspaceStore((s) => s.closeTab);
   const viewKey = isUnifiedView ? "__unified__" : filePath;
   const handledVisible = useTaskListStore(
     (s) => s.handledVisible[viewKey] ?? pageSize,
@@ -165,6 +169,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   };
 
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
+
+  if (!isUnifiedView && fileLoadError) {
+    return (
+      <LoadErrorPane
+        filePath={filePath}
+        message={loadErrorMessage(fileLoadError)}
+        onRetry={() => loadFile(filePath)}
+        onRemove={() => closeTab(activeTabIndex)}
+      />
+    );
+  }
 
   const handleRename = async (task: Task, newTitle: string) => {
     const cleaned = sanitizeSingleLine(newTitle);
@@ -389,6 +404,59 @@ function TaskRow({
       )}
     </div>
   );
+}
+
+function LoadErrorPane({
+  filePath,
+  message,
+  onRetry,
+  onRemove,
+}: {
+  filePath: string;
+  message: string;
+  onRetry: () => Promise<unknown>;
+  onRemove: () => Promise<unknown>;
+}) {
+  return (
+    <div className="flex flex-1 items-center justify-center p-6">
+      <div className="w-full max-w-sm rounded-lg border border-red-200 bg-red-50 p-5 text-sm">
+        <div className="mb-3 flex items-center gap-2 font-semibold text-red-800">
+          <AlertCircle size={16} />
+          Task list could not be loaded
+        </div>
+        <p className="whitespace-pre-wrap text-red-800">{message}</p>
+        <p className="mt-3 truncate text-xs text-red-700" title={filePath}>
+          {filePath}
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={onRetry}
+            className="rounded-md bg-red-700 px-3 py-1.5 font-medium text-white hover:bg-red-800"
+          >
+            Retry
+          </button>
+          <button
+            onClick={onRemove}
+            className="rounded-md border border-red-300 bg-white px-3 py-1.5 font-medium text-red-700 hover:bg-red-100"
+          >
+            Remove tab
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function loadErrorMessage(
+  error:
+    | { status: "missing" }
+    | { status: "invalid"; message: string }
+    | { status: "error"; message: string },
+): string {
+  if (error.status === "missing") {
+    return "The task list file could not be found.";
+  }
+  return `The task list file could not be loaded:\n\n${error.message}`;
 }
 
 /** Look up the tab's display name for a file path; fall back to raw filename. */

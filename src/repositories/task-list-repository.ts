@@ -145,7 +145,7 @@ async function rollbackDestinationWrite(
   };
 }
 
-export async function atomicMoveWrite(
+export async function moveTasksBetweenFilesWithRollback(
   sourceFilePath: string,
   sourceTasks: TaskDto[],
   sourceExpectedHash: string,

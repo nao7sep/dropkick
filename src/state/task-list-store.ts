@@ -9,7 +9,7 @@ import {
   createTaskListFile,
   writeTaskList,
   forceWriteTaskList,
-  atomicMoveWrite,
+  moveTasksBetweenFilesWithRollback,
   showFileConflictDialog,
   showFileDeletedDialog,
 } from "../repositories";
@@ -51,9 +51,17 @@ type LoadFileResult =
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
+type FileLoadError =
+  | { status: "missing" }
+  | { status: "invalid"; message: string }
+  | { status: "error"; message: string };
+
 interface TaskListState {
   // Map of file path → loaded task list data + hash.
   files: Record<string, FileState>;
+
+  // Map of file path → latest failed load result.
+  fileLoadErrors: Record<string, FileLoadError>;
 
   // Currently selected task keys (source file + task ID) for the active tab.
   selectedKeys: Set<string>;
@@ -251,8 +259,14 @@ function selectedTaskIdsForFile(
   return taskIds;
 }
 
+function removeRecordKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const { [key]: _removed, ...rest } = record;
+  return rest;
+}
+
 export const useTaskListStore = create<TaskListState>((set, get) => ({
   files: {},
+  fileLoadErrors: {},
   selectedKeys: new Set(),
   handledVisible: {},
   handledExpanded: {},
@@ -264,13 +278,22 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (get().files[filePath]) return { status: "success" };
 
     const loaded = await loadTaskList(filePath);
-    if (loaded.status !== "success") return loadResultToStoreResult(loaded);
+    if (loaded.status !== "success") {
+      set((state) => ({
+        fileLoadErrors: {
+          ...state.fileLoadErrors,
+          [filePath]: loaded,
+        },
+      }));
+      return loadResultToStoreResult(loaded);
+    }
 
     set((state) => ({
       files: {
         ...state.files,
         [filePath]: { data: loaded.taskList.data, hash: loaded.taskList.hash },
       },
+      fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
     }));
     return { status: "success" };
   },
@@ -282,6 +305,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
         ...state.files,
         [filePath]: { data: loaded.data, hash: loaded.hash },
       },
+      fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
     }));
   },
 
@@ -290,8 +314,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       const { [filePath]: _, ...rest } = state.files;
       const { [filePath]: __, ...restHandled } = state.handledVisible;
       const { [filePath]: ___, ...restExpanded } = state.handledExpanded;
+      const { [filePath]: ____, ...restErrors } = state.fileLoadErrors;
       return {
         files: rest,
+        fileLoadErrors: restErrors,
         handledVisible: restHandled,
         handledExpanded: restExpanded,
       };
@@ -643,7 +669,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
       taskIds,
     );
 
-    const result = await atomicMoveWrite(
+    const result = await moveTasksBetweenFilesWithRollback(
       sourceFilePath,
       moveResult.sourceTasks,
       sourceState.hash,
@@ -733,13 +759,22 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
 
   reloadFile: async (filePath: string) => {
     const loaded = await loadTaskList(filePath);
-    if (loaded.status !== "success") return;
+    if (loaded.status !== "success") {
+      set((state) => ({
+        fileLoadErrors: {
+          ...state.fileLoadErrors,
+          [filePath]: loaded,
+        },
+      }));
+      return;
+    }
 
     set((state) => ({
       files: {
         ...state.files,
         [filePath]: { data: loaded.taskList.data, hash: loaded.taskList.hash },
       },
+      fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
       selectedKeys: new Set(),
     }));
   },

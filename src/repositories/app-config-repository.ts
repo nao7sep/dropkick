@@ -30,7 +30,8 @@ async function getAppConfigPath(): Promise<string> {
 }
 
 // First-launch setup: creates ~/.dropkick/ with default config, preferences, and workspace.
-// Returns the app config. If everything already exists, just reads and returns it.
+// Returns the app config. Once app config exists, selected files are never
+// recreated implicitly; missing selections are reported by their loaders.
 export async function initializeAppConfig(): Promise<{
   config: AppConfigDto;
   configPath: string;
@@ -43,23 +44,23 @@ export async function initializeAppConfig(): Promise<{
   // Ensure ~/.dropkick/ exists.
   await ensureDirectory(dir);
 
-  // Create default preferences if missing.
-  if (!(await fileExists(prefsPath))) {
-    const prefs = createDefaultPreferences("Default");
-    await writeJsonFile(prefsPath, prefs);
-  }
-
-  // Create default workspace if missing.
-  if (!(await fileExists(workspacePath))) {
-    const workspace = createDefaultWorkspace("Default");
-    const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
-    await writeJsonFile(workspacePath, persisted);
-  }
-
   // Create or read app config.
   const configResult = await readJsonFileResult<AppConfigDto>(configPath);
   let config: AppConfigDto;
   if (configResult.status === "missing") {
+    // Create default preferences if missing.
+    if (!(await fileExists(prefsPath))) {
+      const prefs = createDefaultPreferences("Default");
+      await writeJsonFile(prefsPath, prefs);
+    }
+
+    // Create default workspace if missing.
+    if (!(await fileExists(workspacePath))) {
+      const workspace = createDefaultWorkspace("Default");
+      const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
+      await writeJsonFile(workspacePath, persisted);
+    }
+
     config = createDefaultAppConfig();
     config.lastPreferencesPath = prefsPath;
     config.lastWorkspacePath = workspacePath;

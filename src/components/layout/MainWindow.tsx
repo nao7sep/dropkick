@@ -196,6 +196,10 @@ export function MainWindow() {
         clearSelection();
       } catch (e) {
         console.error("Failed to load tab:", e);
+        await showMessage(
+          "Open Task List Failed",
+          `The task list file could not be opened:\n\n${errorMessage(e)}`,
+        );
       }
     })();
   }, [activeTab?.filePath, activeTab?.isUnifiedView]);
@@ -218,6 +222,10 @@ export function MainWindow() {
         }
       } catch (e) {
         console.error("Failed to load files for unified view:", e);
+        await showMessage(
+          "Open Unified View Failed",
+          `One or more task list files could not be opened:\n\n${errorMessage(e)}`,
+        );
       }
     })();
   }, [activeTab?.isUnifiedView, workspace.openTabs.length]);
@@ -391,4 +399,8 @@ function loadFileErrorMessage(
     return `The task list file could not be found:\n\n${path}`;
   }
   return `The task list file could not be loaded:\n\n${path}\n\n${result.message}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

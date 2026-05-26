@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import "./App.css";
 import type { AppConfigDto } from "./models";
+import type { LoadPreferencesResult, LoadWorkspaceResult } from "./repositories";
 import { initializeAppConfig, saveAppConfig, showMessage } from "./repositories";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
@@ -53,7 +54,7 @@ function App() {
     if (preferencesResult.status !== "success") {
       await showMessage(
         "Preferences Load Failed",
-        `The preferences file could not be loaded:\n\n${preferencesPath}\n\n${preferencesResult.message}`,
+        preferencesLoadErrorMessage(preferencesPath, preferencesResult),
       );
       return;
     }
@@ -62,7 +63,7 @@ function App() {
     if (workspaceResult.status !== "success") {
       await showMessage(
         "Workspace Load Failed",
-        `The workspace file could not be loaded:\n\n${workspacePath}\n\n${workspaceResult.message}`,
+        workspaceLoadErrorMessage(workspacePath, workspaceResult),
       );
       return;
     }
@@ -128,6 +129,26 @@ function App() {
       <AppDialogHost />
     </>
   );
+}
+
+function preferencesLoadErrorMessage(
+  path: string,
+  result: Exclude<LoadPreferencesResult, { status: "success" }>,
+): string {
+  if (result.status === "missing") {
+    return `The preferences file could not be found:\n\n${path}`;
+  }
+  return `The preferences file could not be loaded:\n\n${path}\n\n${result.message}`;
+}
+
+function workspaceLoadErrorMessage(
+  path: string,
+  result: Exclude<LoadWorkspaceResult, { status: "success" }>,
+): string {
+  if (result.status === "missing") {
+    return `The workspace file could not be found:\n\n${path}`;
+  }
+  return `The workspace file could not be loaded:\n\n${path}\n\n${result.message}`;
 }
 
 export default App;

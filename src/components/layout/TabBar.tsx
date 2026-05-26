@@ -3,7 +3,7 @@
 // The gear icon opens a menu with Settings, Keyboard Shortcuts, and About.
 
 import { useState, useRef, useEffect } from "react";
-import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus } from "lucide-react";
+import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
 import { sanitizeSingleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import {
@@ -49,6 +49,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const addRecentFile = useWorkspaceStore((s) => s.addRecentFile);
   const loadFile = useTaskListStore((s) => s.loadFile);
   const createFile = useTaskListStore((s) => s.createFile);
+  const fileLoadErrors = useTaskListStore((s) => s.fileLoadErrors);
 
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [showGearMenu, setShowGearMenu] = useState(false);
@@ -126,6 +127,10 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       await addRecentFile(normalizedPath);
     } catch (e) {
       console.error("Failed to create task list:", e);
+      await showMessage(
+        "Create Task List Failed",
+        `The task list file could not be created:\n\n${errorMessage(e)}`,
+      );
     }
   };
 
@@ -147,6 +152,10 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       await addRecentFile(path);
     } catch (e) {
       console.error("Failed to open task list:", e);
+      await showMessage(
+        "Open Task List Failed",
+        `The task list file could not be opened:\n\n${errorMessage(e)}`,
+      );
     }
   };
 
@@ -166,6 +175,10 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       await addRecentFile(path);
     } catch (e) {
       console.error("Failed to open recent file:", e);
+      await showMessage(
+        "Open Recent File Failed",
+        `The recent task list file could not be opened:\n\n${errorMessage(e)}`,
+      );
     }
   };
 
@@ -175,6 +188,10 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       await addUnifiedViewTab();
     } catch (e) {
       console.error("Failed to open unified view:", e);
+      await showMessage(
+        "Open Unified View Failed",
+        `The unified view could not be opened:\n\n${errorMessage(e)}`,
+      );
     }
   };
 
@@ -221,6 +238,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
               key={tab.isUnifiedView ? "__unified__" : tab.filePath}
               id={tab.isUnifiedView ? "__unified__" : tab.filePath}
               tab={tab}
+              hasLoadError={!tab.isUnifiedView && fileLoadErrors[tab.filePath] !== undefined}
               index={index}
               isActive={index === activeTabIndex}
               isEditing={editingIndex === index}
@@ -405,6 +423,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
 interface SortableTabProps {
   id: string;
   tab: { isUnifiedView: boolean; displayName: string; filePath: string };
+  hasLoadError: boolean;
   index: number;
   isActive: boolean;
   isEditing: boolean;
@@ -421,6 +440,7 @@ interface SortableTabProps {
 function SortableTab({
   id,
   tab,
+  hasLoadError,
   isActive,
   isEditing,
   editValue,
@@ -457,13 +477,16 @@ function SortableTab({
       {...listeners}
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
+      title={hasLoadError ? `Load failed: ${tab.filePath}` : undefined}
       className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-r border-gray-200 px-3 py-2 text-sm transition-colors ${
         isActive
           ? "bg-sky-50 text-sky-800"
           : "text-gray-700 hover:bg-gray-50"
       }`}
     >
-      {tab.isUnifiedView ? (
+      {hasLoadError ? (
+        <AlertCircle size={14} className="shrink-0 text-red-600" />
+      ) : tab.isUnifiedView ? (
         <Layout size={14} className="shrink-0" />
       ) : (
         <FileText size={14} className="shrink-0" />
@@ -517,4 +540,8 @@ function loadFileErrorMessage(
     return `The task list file could not be found:\n\n${path}`;
   }
   return `The task list file could not be loaded:\n\n${path}\n\n${result.message}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

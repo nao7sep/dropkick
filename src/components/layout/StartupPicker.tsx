@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { FolderOpen, Plus, X } from "lucide-react";
 import type { AppConfigDto } from "../../models";
+import type { LoadPreferencesResult, LoadWorkspaceResult } from "../../repositories";
 import {
   createPreferencesFile,
   createWorkspaceFile,
@@ -58,7 +59,7 @@ export function StartupPicker({
     if (loadResult.status !== "success") {
       await showMessage(
         "Preferences Load Failed",
-        `The preferences file could not be loaded:\n\n${path}\n\n${loadResult.message}`,
+        preferencesLoadErrorMessage(path, loadResult),
       );
       return;
     }
@@ -84,7 +85,7 @@ export function StartupPicker({
     if (loadResult.status !== "success") {
       await showMessage(
         "Workspace Load Failed",
-        `The workspace file could not be loaded:\n\n${path}\n\n${loadResult.message}`,
+        workspaceLoadErrorMessage(path, loadResult),
       );
       return;
     }
@@ -257,4 +258,24 @@ function fileNameWithoutExt(path: string): string {
   const parts = path.split(/[\\/]/);
   const name = parts[parts.length - 1] ?? "default";
   return name.replace(/\.json$/, "");
+}
+
+function preferencesLoadErrorMessage(
+  path: string,
+  result: Exclude<LoadPreferencesResult, { status: "success" }>,
+): string {
+  if (result.status === "missing") {
+    return `The preferences file could not be found:\n\n${path}`;
+  }
+  return `The preferences file could not be loaded:\n\n${path}\n\n${result.message}`;
+}
+
+function workspaceLoadErrorMessage(
+  path: string,
+  result: Exclude<LoadWorkspaceResult, { status: "success" }>,
+): string {
+  if (result.status === "missing") {
+    return `The workspace file could not be found:\n\n${path}`;
+  }
+  return `The workspace file could not be loaded:\n\n${path}\n\n${result.message}`;
 }

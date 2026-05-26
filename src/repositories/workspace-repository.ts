@@ -6,11 +6,12 @@ import { readJsonFileResult, writeJsonFile } from "./file-system";
 
 export type LoadWorkspaceResult =
   | { status: "success"; workspace: WorkspaceDto }
+  | { status: "missing" }
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
-// Loads a workspace file. Missing files fall back to defaults; invalid files
-// are reported so the user does not mistake a parse failure for an empty workspace.
+// Loads a workspace file. Missing and invalid files are reported explicitly so
+// selected files do not silently become default workspaces.
 // Merges with defaults so newly added fields (like id) are always present.
 // activeTabIndex is runtime-only and is re-injected after parsing.
 export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> {
@@ -18,10 +19,7 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
     Partial<PersistedWorkspaceDto> & { activeTabIndex?: number }
   >(path);
   if (result.status === "missing") {
-    return {
-      status: "success",
-      workspace: createDefaultWorkspace("Default"),
-    };
+    return { status: "missing" };
   }
   if (result.status !== "success") {
     return result;
