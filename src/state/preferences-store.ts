@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import type { PreferencesDto } from "../models";
 import { createDefaultPreferences } from "../models";
+import type { LoadPreferencesResult } from "../repositories";
 import {
   loadPreferences,
   savePreferences,
@@ -20,7 +21,7 @@ interface PreferencesState {
   loaded: boolean;
 
   // Actions.
-  load: (filePath: string) => Promise<void>;
+  load: (filePath: string) => Promise<LoadPreferencesResult>;
   update: (changes: Partial<PreferencesDto>) => Promise<void>;
 }
 
@@ -30,8 +31,11 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   loaded: false,
 
   load: async (filePath: string) => {
-    const prefs = await loadPreferences(filePath);
-    set({ preferences: prefs, filePath, loaded: true });
+    const result = await loadPreferences(filePath);
+    if (result.status !== "success") return result;
+
+    set({ preferences: result.preferences, filePath, loaded: true });
+    return result;
   },
 
   update: async (changes: Partial<PreferencesDto>) => {

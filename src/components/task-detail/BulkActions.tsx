@@ -8,19 +8,20 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { showMessage } from "../../repositories";
 import type { WriteResult } from "../../repositories";
+import { taskKey, taskSelectionKey } from "../../utils";
 
 interface BulkActionsProps {
   selectedTasks: Task[];
   filePath: string;
   isUnifiedView: boolean;
-  nextActiveTaskId: string | null;
+  nextActiveTaskKey: string | null;
 }
 
 export function BulkActions({
   selectedTasks,
   filePath,
   isUnifiedView,
-  nextActiveTaskId,
+  nextActiveTaskKey,
 }: BulkActionsProps) {
   const kickDistances = usePreferencesStore((s) => s.preferences.kickDistances);
   const kick = useTaskListStore((s) => s.kick);
@@ -88,7 +89,7 @@ export function BulkActions({
       firstError === null &&
       (status === "Completed" || status === "Dismissed")
     ) {
-      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
+      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
     }
   };
 
@@ -118,20 +119,30 @@ export function BulkActions({
         bySource.set(task.sourceFile, ids);
       }
       let movedAny = false;
+      const movedSources = new Set<string>();
       for (const [src, ids] of bySource) {
         const result = await moveTasks(src, moveTarget, ids);
         if (result.status === "error") {
           const message = movedAny
             ? `Some selected tasks were moved before the operation stopped.\n\n${result.message}`
             : result.message;
-          setSelection(new Set(selectedTasks.map((t) => t.id)));
+          setSelection(
+            new Set(
+              selectedTasks.map((t) =>
+                movedSources.has(t.sourceFile)
+                  ? taskKey(moveTarget, t.id)
+                  : taskSelectionKey(t),
+              ),
+            ),
+          );
           await showMessage("Move Failed", message);
           return;
         }
         movedAny = true;
+        movedSources.add(src);
       }
       // Re-select — tasks are still visible in unified view.
-      setSelection(new Set(selectedTasks.map((t) => t.id)));
+      setSelection(new Set(selectedTasks.map((t) => taskKey(moveTarget, t.id))));
       setMoveTarget("");
     } else {
       const ids = new Set(selectedTasks.map((t) => t.id));
@@ -140,7 +151,7 @@ export function BulkActions({
         await showMessage("Move Failed", result.message);
         return;
       }
-      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
+      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
       setMoveTarget("");
     }
   };
@@ -162,7 +173,7 @@ export function BulkActions({
 
       <div className="space-y-1 text-sm text-gray-500">
         {selectedTasks.map((t) => (
-          <div key={t.id} className="truncate">
+          <div key={taskSelectionKey(t)} className="truncate">
             • {t.title || "Untitled"}
           </div>
         ))}

@@ -20,6 +20,8 @@ import {
   formatDueDate,
   sanitizeSingleLine,
   hasPrimaryShortcutModifier,
+  taskKey,
+  taskSelectionKey,
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -29,7 +31,7 @@ interface TaskDetailProps {
   task: Task;
   filePath: string;
   isUnifiedView: boolean;
-  nextActiveTaskId: string | null;
+  nextActiveTaskKey: string | null;
   focusNewNoteSignal: number;
 }
 
@@ -37,7 +39,7 @@ export function TaskDetail({
   task,
   filePath,
   isUnifiedView,
-  nextActiveTaskId,
+  nextActiveTaskKey,
   focusNewNoteSignal,
 }: TaskDetailProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
@@ -68,9 +70,10 @@ export function TaskDetail({
   );
 
   // Sync drafts when task changes (different task selected).
-  const [lastTaskId, setLastTaskId] = useState(task.id);
-  if (task.id !== lastTaskId) {
-    setLastTaskId(task.id);
+  const currentTaskKey = taskSelectionKey(task);
+  const [lastTaskKey, setLastTaskKey] = useState(currentTaskKey);
+  if (currentTaskKey !== lastTaskKey) {
+    setLastTaskKey(currentTaskKey);
     setTitleDraft(task.title);
     setDescDraft(task.description);
     setNewNoteContent("");
@@ -165,7 +168,7 @@ export function TaskDetail({
       return;
     }
 
-    setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
+    setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
   };
 
   const handlePriorityChange = async (priority: TaskPriority) => {
@@ -189,7 +192,7 @@ export function TaskDetail({
         await showMessage("Delete Failed", result.message);
         return;
       }
-      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
+      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
     }
   };
 
@@ -216,9 +219,9 @@ export function TaskDetail({
       return;
     }
     if (isUnifiedView) {
-      setSelection(ids);
+      setSelection(new Set([taskKey(moveTarget, task.id)]));
     } else {
-      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
+      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
     }
     setMoveTarget("");
   };
@@ -290,46 +293,50 @@ export function TaskDetail({
 
       {/* Reorder buttons */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button
-          onClick={async () => {
-            const result = await sendToFirst(filePath);
-            await showWriteFailure("Task Reorder Failed", result);
-          }}
-          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-        >
-          Tackle
-        </button>
-        {kickDistances.map((d) => (
-          <button
-            key={d}
-            onClick={async () => {
-              const result = await kick(filePath, d);
-              await showWriteFailure("Task Reorder Failed", result);
-            }}
-            className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-          >
-            +{d}
-          </button>
-        ))}
-        <button
-          onClick={async () => {
-            const result = await sendToLast(filePath);
-            await showWriteFailure("Task Reorder Failed", result);
-          }}
-          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-        >
-          Kick
-        </button>
-        <button
-          onClick={async () => {
-            const result = await dropkick(filePath);
-            await showWriteFailure("Task Reorder Failed", result);
-          }}
-          className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
-        >
-          Dropkick
-        </button>
-        <span className="mx-1 text-gray-200">|</span>
+        {!isUnifiedView && (
+          <>
+            <button
+              onClick={async () => {
+                const result = await sendToFirst(filePath);
+                await showWriteFailure("Task Reorder Failed", result);
+              }}
+              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              Tackle
+            </button>
+            {kickDistances.map((d) => (
+              <button
+                key={d}
+                onClick={async () => {
+                  const result = await kick(filePath, d);
+                  await showWriteFailure("Task Reorder Failed", result);
+                }}
+                className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              >
+                +{d}
+              </button>
+            ))}
+            <button
+              onClick={async () => {
+                const result = await sendToLast(filePath);
+                await showWriteFailure("Task Reorder Failed", result);
+              }}
+              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              Kick
+            </button>
+            <button
+              onClick={async () => {
+                const result = await dropkick(filePath);
+                await showWriteFailure("Task Reorder Failed", result);
+              }}
+              className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+            >
+              Dropkick
+            </button>
+            <span className="mx-1 text-gray-200">|</span>
+          </>
+        )}
         <button
           onClick={handleDeleteTask}
           className="flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:border-red-200 hover:text-red-700"

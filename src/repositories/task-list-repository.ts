@@ -17,6 +17,12 @@ export interface LoadedTaskList {
   hash: string; // SHA-256 of file content at load time
 }
 
+export type LoadTaskListResult =
+  | { status: "success"; taskList: LoadedTaskList }
+  | { status: "missing" }
+  | { status: "invalid"; message: string }
+  | { status: "error"; message: string };
+
 export type WriteResult =
   | { status: "success"; newHash: string }
   | { status: "conflict" } // file was modified externally
@@ -24,13 +30,15 @@ export type WriteResult =
   | { status: "error"; message: string };
 
 // Loads a task list file from disk with its content hash.
-// Returns null if the file does not exist.
 export async function loadTaskList(
   filePath: string,
-): Promise<LoadedTaskList | null> {
+): Promise<LoadTaskListResult> {
   const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
-  if (loaded === null) return null;
-  return { filePath, data: loaded.data, hash: loaded.hash };
+  if (loaded.status !== "success") return loaded;
+  return {
+    status: "success",
+    taskList: { filePath, data: loaded.data, hash: loaded.hash },
+  };
 }
 
 // Creates a new empty task list file on disk and returns the loaded result.

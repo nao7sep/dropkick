@@ -26,6 +26,7 @@ import { usePreferencesStore } from "../../state/preferences-store";
 import {
   openJsonFileDialog,
   saveJsonFileDialog,
+  showMessage,
 } from "../../repositories";
 
 type GearMenuItem = "settings" | "shortcuts" | "about";
@@ -134,7 +135,13 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       const path = await openJsonFileDialog();
       if (!path) return;
       const loaded = await loadFile(path);
-      if (!loaded) return;
+      if (loaded.status !== "success") {
+        await showMessage(
+          "Open Task List Failed",
+          loadFileErrorMessage(path, loaded),
+        );
+        return;
+      }
       const name = fileNameWithoutExt(path);
       await addTab(path, name);
       await addRecentFile(path);
@@ -147,7 +154,13 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
     setShowNewMenu(false);
     try {
       const loaded = await loadFile(path);
-      if (!loaded) return;
+      if (loaded.status !== "success") {
+        await showMessage(
+          "Open Task List Failed",
+          loadFileErrorMessage(path, loaded),
+        );
+        return;
+      }
       const name = fileNameWithoutExt(path);
       await addTab(path, name);
       await addRecentFile(path);
@@ -491,4 +504,17 @@ function fileNameWithoutExt(path: string): string {
   const parts = path.split(/[\\/]/);
   const name = parts[parts.length - 1] ?? "tasks";
   return name.replace(/\.json$/, "");
+}
+
+function loadFileErrorMessage(
+  path: string,
+  result:
+    | { status: "missing" }
+    | { status: "invalid"; message: string }
+    | { status: "error"; message: string },
+): string {
+  if (result.status === "missing") {
+    return `The task list file could not be found:\n\n${path}`;
+  }
+  return `The task list file could not be loaded:\n\n${path}\n\n${result.message}`;
 }

@@ -4,11 +4,22 @@ import { useEffect, useState, useRef, useCallback, useMemo, Component } from "re
 import type { ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { showMessage } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
-import { pickNextActiveId, toTask, isZoomIn, isZoomOut, isZoomReset, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
+import {
+  pickNextActiveKey,
+  taskSelectionKey,
+  toTask,
+  isZoomIn,
+  isZoomOut,
+  isZoomReset,
+  stepZoomIn,
+  stepZoomOut,
+  ZOOM_DEFAULT,
+} from "../../utils";
 import {
   groupTasksForList,
   groupTasksForUnifiedView,
@@ -62,7 +73,7 @@ export function MainWindow() {
 
   const loadFile = useTaskListStore((s) => s.loadFile);
   const clearSelection = useTaskListStore((s) => s.clearSelection);
-  const selectedIds = useTaskListStore((s) => s.selectedIds);
+  const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const files = useTaskListStore((s) => s.files);
 
   const [showSettings, setShowSettings] = useState(false);
@@ -174,7 +185,13 @@ export function MainWindow() {
     (async () => {
       try {
         if (activeTab && !activeTab.isUnifiedView) {
-          await loadFile(activeTab.filePath);
+          const result = await loadFile(activeTab.filePath);
+          if (result.status !== "success") {
+            await showMessage(
+              "Open Task List Failed",
+              loadFileErrorMessage(activeTab.filePath, result),
+            );
+          }
         }
         clearSelection();
       } catch (e) {
@@ -190,7 +207,13 @@ export function MainWindow() {
       try {
         for (const tab of workspace.openTabs) {
           if (!tab.isUnifiedView) {
-            await loadFile(tab.filePath);
+            const result = await loadFile(tab.filePath);
+            if (result.status !== "success") {
+              await showMessage(
+                "Open Task List Failed",
+                loadFileErrorMessage(tab.filePath, result),
+              );
+            }
           }
         }
       } catch (e) {
@@ -201,7 +224,7 @@ export function MainWindow() {
 
   // Compute selected tasks for the move modal.
   const selectedTasks = useMemo(() => {
-    if (!showMoveTasks || selectedIds.size === 0) return [];
+    if (!showMoveTasks || selectedKeys.size === 0) return [];
     const tasks: Task[] = [];
     if (isUnifiedView) {
       for (const tab of workspace.openTabs) {
@@ -209,19 +232,21 @@ export function MainWindow() {
         const fileState = files[tab.filePath];
         if (!fileState) continue;
         for (const dto of fileState.data.tasks) {
-          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, tab.filePath, preferences.timezone, preferences.dueSoonDays));
+          const task = toTask(dto, tab.filePath, preferences.timezone, preferences.dueSoonDays);
+          if (selectedKeys.has(taskSelectionKey(task))) tasks.push(task);
         }
       }
     } else {
       const fileState = files[filePath];
       if (fileState) {
         for (const dto of fileState.data.tasks) {
-          if (selectedIds.has(dto.id)) tasks.push(toTask(dto, filePath, preferences.timezone, preferences.dueSoonDays));
+          const task = toTask(dto, filePath, preferences.timezone, preferences.dueSoonDays);
+          if (selectedKeys.has(taskSelectionKey(task))) tasks.push(task);
         }
       }
     }
     return tasks;
-  }, [showMoveTasks, selectedIds, files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
+  }, [showMoveTasks, selectedKeys, files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
 
   const visualTasks = useMemo(() => {
     const tasks: Task[] = [];
@@ -245,9 +270,9 @@ export function MainWindow() {
     return groupTasksForList(tasks).groups.flatMap((group) => group.tasks);
   }, [files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
 
-  const nextActiveTaskId = useMemo(
-    () => pickNextActiveId(selectedIds, visualTasks),
-    [selectedIds, visualTasks],
+  const nextActiveTaskKey = useMemo(
+    () => pickNextActiveKey(selectedKeys, visualTasks),
+    [selectedKeys, visualTasks],
   );
 
   useEffect(() => {
@@ -347,10 +372,23 @@ export function MainWindow() {
           selectedTasks={selectedTasks}
           sourceFilePath={filePath}
           isUnifiedView={isUnifiedView}
-          nextActiveTaskId={nextActiveTaskId}
+          nextActiveTaskKey={nextActiveTaskKey}
           onClose={() => setShowMoveTasks(false)}
         />
       )}
     </div>
   );
+}
+
+function loadFileErrorMessage(
+  path: string,
+  result:
+    | { status: "missing" }
+    | { status: "invalid"; message: string }
+    | { status: "error"; message: string },
+): string {
+  if (result.status === "missing") {
+    return `The task list file could not be found:\n\n${path}`;
+  }
+  return `The task list file could not be loaded:\n\n${path}\n\n${result.message}`;
 }

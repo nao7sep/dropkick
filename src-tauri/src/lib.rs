@@ -1,6 +1,6 @@
+use hex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use hex;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
@@ -35,9 +35,12 @@ struct TaskListDto {
 }
 
 #[derive(Serialize)]
-struct JsonFileWithHash {
-    data: TaskListDto,
-    hash: String,
+#[serde(rename_all = "camelCase", tag = "status")]
+enum JsonFileWithHashResult {
+    Success { data: TaskListDto, hash: String },
+    Missing,
+    Invalid { message: String },
+    Error { message: String },
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -54,19 +57,32 @@ fn hash_file(path: &str) -> Result<String, String> {
     Ok(sha256_hex(&bytes))
 }
 
-// Reads a JSON file once, parses it, and returns the parsed data with a hash
-// of the exact bytes that were read. Missing files return None.
+// Reads a JSON file once, parses it, and returns an explicit result with a
+// hash of the exact bytes that were read.
 #[tauri::command]
-fn read_json_file_with_hash(path: &str) -> Result<Option<JsonFileWithHash>, String> {
+fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String> {
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => return Err(err.to_string()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(JsonFileWithHashResult::Missing);
+        }
+        Err(err) => {
+            return Ok(JsonFileWithHashResult::Error {
+                message: err.to_string(),
+            });
+        }
     };
 
-    let data = serde_json::from_slice::<TaskListDto>(&bytes).map_err(|e| e.to_string())?;
+    let data = match serde_json::from_slice::<TaskListDto>(&bytes) {
+        Ok(data) => data,
+        Err(err) => {
+            return Ok(JsonFileWithHashResult::Invalid {
+                message: err.to_string(),
+            });
+        }
+    };
     let hash = sha256_hex(&bytes);
-    Ok(Some(JsonFileWithHash { data, hash }))
+    Ok(JsonFileWithHashResult::Success { data, hash })
 }
 
 // Creates a zip backup from a list of (source_path, zip_entry_name) pairs.
@@ -75,14 +91,14 @@ fn read_json_file_with_hash(path: &str) -> Result<Option<JsonFileWithHash>, Stri
 fn create_backup(entries: Vec<(String, String)>, output_path: String) -> Result<String, String> {
     // Ensure parent directory exists.
     if let Some(parent) = std::path::Path::new(&output_path).parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create backup directory: {}", e))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create backup directory: {}", e))?;
     }
 
     let file = std::fs::File::create(&output_path)
         .map_err(|e| format!("Failed to create backup file: {}", e))?;
     let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     for (source_path, entry_name) in &entries {
         let bytes = match std::fs::read(source_path) {
@@ -100,7 +116,8 @@ fn create_backup(entries: Vec<(String, String)>, output_path: String) -> Result<
             .map_err(|e| format!("Failed to write {} to zip: {}", entry_name, e))?;
     }
 
-    zip.finish().map_err(|e| format!("Failed to finalize zip: {}", e))?;
+    zip.finish()
+        .map_err(|e| format!("Failed to finalize zip: {}", e))?;
     Ok(output_path)
 }
 

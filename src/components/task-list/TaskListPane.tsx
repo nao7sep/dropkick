@@ -8,7 +8,12 @@ import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { showMessage } from "../../repositories";
-import { toTask, sanitizeSingleLine, hasPrimaryShortcutModifier } from "../../utils";
+import {
+  toTask,
+  sanitizeSingleLine,
+  hasPrimaryShortcutModifier,
+  taskSelectionKey,
+} from "../../utils";
 import {
   groupTasksForList,
   groupTasksForUnifiedView,
@@ -55,12 +60,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
   const dueSoonDays = usePreferencesStore((s) => s.preferences.dueSoonDays);
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
-  const selectedIds = useTaskListStore((s) => s.selectedIds);
+  const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
   const updateTitle = useTaskListStore((s) => s.updateTitle);
   const showMoreHandled = useTaskListStore((s) => s.showMoreHandled);
+  const setHandledExpanded = useTaskListStore((s) => s.setHandledExpanded);
+  const viewKey = isUnifiedView ? "__unified__" : filePath;
   const handledVisible = useTaskListStore(
-    (s) => s.handledVisible[filePath] ?? pageSize,
+    (s) => s.handledVisible[viewKey] ?? pageSize,
+  );
+  const handledExpanded = useTaskListStore(
+    (s) => s.handledExpanded[viewKey] ?? false,
   );
 
   // Select raw data from store (stable references), compute domain models in useMemo.
@@ -92,70 +102,75 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         : groupTasksForList(tasks),
     [tasks, isUnifiedView],
   );
-  const [handledExpanded, setHandledExpanded] = useState(false);
   const visibleHandled = grouped.handled.slice(0, handledVisible);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
-  const dominantSelectedId = useMemo(() => {
-    const ids = [...selectedIds];
-    return ids.length > 0 ? ids[ids.length - 1] : null;
-  }, [selectedIds]);
+  const dominantSelectedKey = useMemo(() => {
+    const keys = [...selectedKeys];
+    return keys.length > 0 ? keys[keys.length - 1] : null;
+  }, [selectedKeys]);
 
   useEffect(() => {
-    if (!dominantSelectedId) return;
-    const row = rowRefs.current.get(dominantSelectedId);
+    if (!dominantSelectedKey) return;
+    const row = rowRefs.current.get(dominantSelectedKey);
     if (!row) return;
     row.scrollIntoView({ block: "nearest" });
-  }, [dominantSelectedId, tasks]);
+  }, [dominantSelectedKey, tasks]);
 
-  const registerRowRef = (taskId: string) => (node: HTMLDivElement | null) => {
+  const registerRowRef = (selectionKey: string) => (node: HTMLDivElement | null) => {
     if (node) {
-      rowRefs.current.set(taskId, node);
+      rowRefs.current.set(selectionKey, node);
     } else {
-      rowRefs.current.delete(taskId);
+      rowRefs.current.delete(selectionKey);
     }
   };
 
   const handleTaskClick = (task: Task, e: React.MouseEvent) => {
-    if (e.shiftKey && selectedIds.size > 0) {
+    const clickedKey = taskSelectionKey(task);
+
+    if (e.shiftKey && selectedKeys.size > 0) {
       // Range select: find all tasks between last selected and clicked.
       const allActive = grouped.groups.flatMap((g) => g.tasks);
-      const lastSelectedId = [...selectedIds].pop()!;
-      const lastIdx = allActive.findIndex((t) => t.id === lastSelectedId);
-      const clickIdx = allActive.findIndex((t) => t.id === task.id);
+      const lastSelectedKey = [...selectedKeys].pop()!;
+      const lastIdx = allActive.findIndex(
+        (t) => taskSelectionKey(t) === lastSelectedKey,
+      );
+      const clickIdx = allActive.findIndex((t) => taskSelectionKey(t) === clickedKey);
       if (lastIdx !== -1 && clickIdx !== -1) {
         const [start, end] = [
           Math.min(lastIdx, clickIdx),
           Math.max(lastIdx, clickIdx),
         ];
-        const rangeIds = allActive.slice(start, end + 1).map((t) => t.id);
-        setSelection(new Set([...selectedIds, ...rangeIds]));
+        const rangeKeys = allActive
+          .slice(start, end + 1)
+          .map((t) => taskSelectionKey(t));
+        setSelection(new Set([...selectedKeys, ...rangeKeys]));
         return;
       }
     }
 
     if (hasPrimaryShortcutModifier(e)) {
       // Toggle single.
-      const next = new Set(selectedIds);
-      if (next.has(task.id)) {
-        next.delete(task.id);
+      const next = new Set(selectedKeys);
+      if (next.has(clickedKey)) {
+        next.delete(clickedKey);
       } else {
-        next.add(task.id);
+        next.add(clickedKey);
       }
       setSelection(next);
       return;
     }
 
     // Simple click — select only this one.
-    setSelection(new Set([task.id]));
+    setSelection(new Set([clickedKey]));
   };
 
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
 
   const handleRename = async (task: Task, newTitle: string) => {
     const cleaned = sanitizeSingleLine(newTitle);
     if (!cleaned) {
       // Don't allow empty titles — just cancel the rename.
-      setEditingTaskId(null);
+      setEditingTaskKey(null);
       return;
     }
     if (cleaned !== task.title) {
@@ -165,7 +180,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         await showMessage("Task Update Failed", result.message);
       }
     }
-    setEditingTaskId(null);
+    setEditingTaskKey(null);
   };
 
   return (
@@ -196,21 +211,24 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           >
             {label}
           </div>
-          {groupTasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              rowRef={registerRowRef(task.id)}
-              task={task}
-              group={group}
-              isSelected={selectedIds.has(task.id)}
-              isEditing={editingTaskId === task.id}
-              isUnifiedView={isUnifiedView}
-              onClick={(e) => handleTaskClick(task, e)}
-              onDoubleClick={() => setEditingTaskId(task.id)}
-              onRename={(title) => handleRename(task, title)}
-              onCancelRename={() => setEditingTaskId(null)}
-            />
-          ))}
+          {groupTasks.map((task) => {
+            const selectionKey = taskSelectionKey(task);
+            return (
+              <TaskRow
+                key={selectionKey}
+                rowRef={registerRowRef(selectionKey)}
+                task={task}
+                group={group}
+                isSelected={selectedKeys.has(selectionKey)}
+                isEditing={editingTaskKey === selectionKey}
+                isUnifiedView={isUnifiedView}
+                onClick={(e) => handleTaskClick(task, e)}
+                onDoubleClick={() => setEditingTaskKey(selectionKey)}
+                onRename={(title) => handleRename(task, title)}
+                onCancelRename={() => setEditingTaskKey(null)}
+              />
+            );
+          })}
         </div>
       ))}
 
@@ -218,7 +236,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       {grouped.handledTotal > 0 && (
         <div className="mt-auto">
           <button
-            onClick={() => setHandledExpanded(!handledExpanded)}
+            onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
             className="flex w-full items-center gap-2 border-y border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-100"
           >
             <span>{handledExpanded ? "▾" : "▸"}</span>
@@ -227,24 +245,27 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 
           {handledExpanded && (
             <>
-              {visibleHandled.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  rowRef={registerRowRef(task.id)}
-                  task={task}
-                  group="Default"
-                  isSelected={selectedIds.has(task.id)}
-                  isEditing={editingTaskId === task.id}
-                  isUnifiedView={isUnifiedView}
-                  onClick={(e) => handleTaskClick(task, e)}
-                  onDoubleClick={() => setEditingTaskId(task.id)}
-                  onRename={(title) => handleRename(task, title)}
-                  onCancelRename={() => setEditingTaskId(null)}
-                />
-              ))}
+              {visibleHandled.map((task) => {
+                const selectionKey = taskSelectionKey(task);
+                return (
+                  <TaskRow
+                    key={selectionKey}
+                    rowRef={registerRowRef(selectionKey)}
+                    task={task}
+                    group="Default"
+                    isSelected={selectedKeys.has(selectionKey)}
+                    isEditing={editingTaskKey === selectionKey}
+                    isUnifiedView={isUnifiedView}
+                    onClick={(e) => handleTaskClick(task, e)}
+                    onDoubleClick={() => setEditingTaskKey(selectionKey)}
+                    onRename={(title) => handleRename(task, title)}
+                    onCancelRename={() => setEditingTaskKey(null)}
+                  />
+                );
+              })}
               {handledVisible < grouped.handledTotal && (
                 <button
-                  onClick={() => showMoreHandled(filePath, pageSize)}
+                  onClick={() => showMoreHandled(viewKey, pageSize)}
                   className="w-full py-2 text-center text-xs text-sky-700 hover:bg-sky-50"
                 >
                   Show more ({grouped.handledTotal - handledVisible} remaining)

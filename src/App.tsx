@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import "./App.css";
 import type { AppConfigDto } from "./models";
-import { initializeAppConfig, saveAppConfig } from "./repositories";
+import { initializeAppConfig, saveAppConfig, showMessage } from "./repositories";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
 import { startBackupSchedule } from "./services";
@@ -48,17 +48,32 @@ function App() {
   ) => {
     if (phase.kind !== "startup") return;
 
-    // Remember the selection.
+    // Load preferences and workspace into stores.
+    const preferencesResult = await loadPreferences(preferencesPath);
+    if (preferencesResult.status !== "success") {
+      await showMessage(
+        "Preferences Load Failed",
+        `The preferences file could not be loaded:\n\n${preferencesPath}\n\n${preferencesResult.message}`,
+      );
+      return;
+    }
+
+    const workspaceResult = await loadWorkspace(workspacePath);
+    if (workspaceResult.status !== "success") {
+      await showMessage(
+        "Workspace Load Failed",
+        `The workspace file could not be loaded:\n\n${workspacePath}\n\n${workspaceResult.message}`,
+      );
+      return;
+    }
+
+    // Remember only a successfully loaded selection.
     const updated = {
       ...phase.config,
       lastPreferencesPath: preferencesPath,
       lastWorkspacePath: workspacePath,
     };
     await saveAppConfig(updated);
-
-    // Load preferences and workspace into stores.
-    await loadPreferences(preferencesPath);
-    await loadWorkspace(workspacePath);
 
     // Start backup system: immediate backup + periodic backups every hour.
     // Does not block the main window from appearing.

@@ -8,10 +8,13 @@ import type { AppConfigDto } from "../../models";
 import {
   createPreferencesFile,
   createWorkspaceFile,
+  loadPreferences,
+  loadWorkspace,
   openJsonFileDialog,
   registerPreferencesPath,
   registerWorkspacePath,
   saveJsonFileDialog,
+  showMessage,
   unregisterPreferencesPath,
   unregisterWorkspacePath,
 } from "../../repositories";
@@ -51,6 +54,14 @@ export function StartupPicker({
   const handleOpenPreferences = async () => {
     const path = await openJsonFileDialog();
     if (!path) return;
+    const loadResult = await loadPreferences(path);
+    if (loadResult.status !== "success") {
+      await showMessage(
+        "Preferences Load Failed",
+        `The preferences file could not be loaded:\n\n${path}\n\n${loadResult.message}`,
+      );
+      return;
+    }
     const updated = await registerPreferencesPath(appConfig, path);
     onConfigChange(updated);
     setSelectedPrefs(path);
@@ -69,6 +80,14 @@ export function StartupPicker({
   const handleOpenWorkspace = async () => {
     const path = await openJsonFileDialog();
     if (!path) return;
+    const loadResult = await loadWorkspace(path);
+    if (loadResult.status !== "success") {
+      await showMessage(
+        "Workspace Load Failed",
+        `The workspace file could not be loaded:\n\n${path}\n\n${loadResult.message}`,
+      );
+      return;
+    }
     const updated = await registerWorkspacePath(appConfig, path);
     onConfigChange(updated);
     setSelectedWorkspace(path);

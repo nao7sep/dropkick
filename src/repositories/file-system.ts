@@ -4,27 +4,58 @@
 import { readTextFile, writeTextFile, exists, mkdir } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 
-interface JsonFileWithHash<T> {
-  data: T;
-  hash: string;
-}
+export type JsonReadResult<T> =
+  | { status: "success"; data: T }
+  | { status: "missing" }
+  | { status: "invalid"; message: string }
+  | { status: "error"; message: string };
+
+export type JsonReadWithHashResult<T> =
+  | { status: "success"; data: T; hash: string }
+  | { status: "missing" }
+  | { status: "invalid"; message: string }
+  | { status: "error"; message: string };
 
 // Reads a JSON file from disk and parses it.
 // Returns null if the file does not exist.
 export async function readJsonFile<T>(path: string): Promise<T | null> {
-  const fileExists = await exists(path);
-  if (!fileExists) return null;
+  const result = await readJsonFileResult<T>(path);
+  if (result.status === "missing") return null;
+  if (result.status === "success") return result.data;
+  throw new Error(result.message);
+}
 
-  const text = await readTextFile(path);
-  return JSON.parse(text) as T;
+// Reads a JSON file from disk and returns an explicit load result.
+export async function readJsonFileResult<T>(
+  path: string,
+): Promise<JsonReadResult<T>> {
+  try {
+    const fileExists = await exists(path);
+    if (!fileExists) return { status: "missing" };
+
+    const text = await readTextFile(path);
+    try {
+      return { status: "success", data: JSON.parse(text) as T };
+    } catch (e) {
+      return {
+        status: "invalid",
+        message: e instanceof Error ? e.message : String(e),
+      };
+    }
+  } catch (e) {
+    return {
+      status: "error",
+      message: e instanceof Error ? e.message : String(e),
+    };
+  }
 }
 
 // Reads a JSON file once via the backend and returns the parsed data plus a
-// hash of the exact bytes that were read. Returns null if the file is missing.
+// hash of the exact bytes that were read.
 export async function readJsonFileWithHash<T>(
   path: string,
-): Promise<JsonFileWithHash<T> | null> {
-  return await invoke<JsonFileWithHash<T> | null>("read_json_file_with_hash", {
+): Promise<JsonReadWithHashResult<T>> {
+  return await invoke<JsonReadWithHashResult<T>>("read_json_file_with_hash", {
     path,
   });
 }

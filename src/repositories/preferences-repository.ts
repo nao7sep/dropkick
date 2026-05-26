@@ -2,21 +2,39 @@
 
 import type { PreferencesDto } from "../models";
 import { createDefaultPreferences } from "../models";
-import { readJsonFile, writeJsonFile } from "./file-system";
+import { readJsonFileResult, writeJsonFile } from "./file-system";
 import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
 
-// Loads a preferences file. Returns default preferences if the file is missing or invalid.
-export async function loadPreferences(path: string): Promise<PreferencesDto> {
-  const data = await readJsonFile<Partial<PreferencesDto>>(path);
-  if (data === null) {
-    return createDefaultPreferences("Default");
+export type LoadPreferencesResult =
+  | { status: "success"; preferences: PreferencesDto }
+  | { status: "invalid"; message: string }
+  | { status: "error"; message: string };
+
+// Loads a preferences file. Missing files fall back to defaults; invalid files
+// are reported so the user does not mistake a parse failure for empty settings.
+export async function loadPreferences(
+  path: string,
+): Promise<LoadPreferencesResult> {
+  const result = await readJsonFileResult<Partial<PreferencesDto>>(path);
+  if (result.status === "missing") {
+    return {
+      status: "success",
+      preferences: createDefaultPreferences("Default"),
+    };
+  }
+  if (result.status !== "success") {
+    return result;
   }
   // Merge with defaults so newly added fields are always present.
+  const data = result.data;
   const defaults = createDefaultPreferences(data.name ?? "Default");
   const merged = { ...defaults, ...data };
   return {
-    ...merged,
-    timezone: coerceTimezone(data.timezone),
+    status: "success",
+    preferences: {
+      ...merged,
+      timezone: coerceTimezone(data.timezone),
+    },
   };
 }
 

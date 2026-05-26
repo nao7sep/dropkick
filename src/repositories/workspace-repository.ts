@@ -2,23 +2,40 @@
 
 import type { PersistedWorkspaceDto, WorkspaceDto } from "../models";
 import { createDefaultWorkspace } from "../models";
-import { readJsonFile, writeJsonFile } from "./file-system";
+import { readJsonFileResult, writeJsonFile } from "./file-system";
 
-// Loads a workspace file. Returns a default empty workspace if the file is missing or invalid.
+export type LoadWorkspaceResult =
+  | { status: "success"; workspace: WorkspaceDto }
+  | { status: "invalid"; message: string }
+  | { status: "error"; message: string };
+
+// Loads a workspace file. Missing files fall back to defaults; invalid files
+// are reported so the user does not mistake a parse failure for an empty workspace.
 // Merges with defaults so newly added fields (like id) are always present.
 // activeTabIndex is runtime-only and is re-injected after parsing.
-export async function loadWorkspace(path: string): Promise<WorkspaceDto> {
-  const data = await readJsonFile<
+export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> {
+  const result = await readJsonFileResult<
     Partial<PersistedWorkspaceDto> & { activeTabIndex?: number }
   >(path);
-  if (data === null) {
-    return createDefaultWorkspace("Default");
+  if (result.status === "missing") {
+    return {
+      status: "success",
+      workspace: createDefaultWorkspace("Default"),
+    };
   }
+  if (result.status !== "success") {
+    return result;
+  }
+
+  const data = result.data;
   const defaults = createDefaultWorkspace(data.name ?? "Default");
   return {
-    ...defaults,
-    ...data,
-    activeTabIndex: defaults.activeTabIndex,
+    status: "success",
+    workspace: {
+      ...defaults,
+      ...data,
+      activeTabIndex: defaults.activeTabIndex,
+    },
   };
 }
 

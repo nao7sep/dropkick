@@ -7,13 +7,13 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { showMessage } from "../../repositories";
 import { AppModal } from "../shared/AppModal";
-import { hasPrimaryShortcutModifier } from "../../utils";
+import { hasPrimaryShortcutModifier, taskKey, taskSelectionKey } from "../../utils";
 
 interface MoveTasksModalProps {
   selectedTasks: Task[];
   sourceFilePath: string;
   isUnifiedView: boolean;
-  nextActiveTaskId: string | null;
+  nextActiveTaskKey: string | null;
   onClose: () => void;
 }
 
@@ -21,7 +21,7 @@ export function MoveTasksModal({
   selectedTasks,
   sourceFilePath,
   isUnifiedView,
-  nextActiveTaskId,
+  nextActiveTaskKey,
   onClose,
 }: MoveTasksModalProps) {
   const workspace = useWorkspaceStore((s) => s.workspace);
@@ -52,8 +52,6 @@ export function MoveTasksModal({
     }
     setMoving(true);
 
-    const taskIds = new Set(selectedTasks.map((t) => t.id));
-
     if (isUnifiedView) {
       // Group tasks by source file and move each group.
       const bySource = new Map<string, Set<string>>();
@@ -63,10 +61,19 @@ export function MoveTasksModal({
         bySource.set(task.sourceFile, ids);
       }
       let movedAny = false;
+      const movedSources = new Set<string>();
       for (const [src, ids] of bySource) {
         const result = await moveTasks(src, moveTarget, ids);
         if (result.status === "error") {
-          setSelection(taskIds);
+          setSelection(
+            new Set(
+              selectedTasks.map((task) =>
+                movedSources.has(task.sourceFile)
+                  ? taskKey(moveTarget, task.id)
+                  : taskSelectionKey(task),
+              ),
+            ),
+          );
           setMoving(false);
           const message = movedAny
             ? `Some selected tasks were moved before the operation stopped.\n\n${result.message}`
@@ -75,17 +82,19 @@ export function MoveTasksModal({
           return;
         }
         movedAny = true;
+        movedSources.add(src);
       }
       // Re-select — tasks are still visible in unified view.
-      setSelection(taskIds);
+      setSelection(new Set(selectedTasks.map((task) => taskKey(moveTarget, task.id))));
     } else {
+      const taskIds = new Set(selectedTasks.map((t) => t.id));
       const result = await moveTasks(sourceFilePath, moveTarget, taskIds);
       if (result.status === "error") {
         setMoving(false);
         await showMessage("Move Failed", result.message);
         return;
       }
-      setSelection(nextActiveTaskId ? new Set([nextActiveTaskId]) : new Set());
+      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
     }
 
     onClose();
@@ -133,7 +142,7 @@ export function MoveTasksModal({
       {/* Task list */}
       <div className="mb-4 max-h-32 space-y-1 overflow-y-auto text-sm text-gray-500">
         {selectedTasks.map((t) => (
-          <div key={t.id} className="truncate">
+          <div key={taskSelectionKey(t)} className="truncate">
             • {t.title || "Untitled"}
           </div>
         ))}

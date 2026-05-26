@@ -9,7 +9,13 @@ import { usePreferencesStore } from "../state/preferences-store";
 import { showConfirm, showMessage } from "../repositories";
 import { groupTasksForList, groupTasksForUnifiedView } from "../services";
 import type { Task, TaskPriority, TaskStatus } from "../models";
-import { pickNextActiveId, toTask, todayInTimezone, tomorrowInTimezone } from "../utils";
+import {
+  pickNextActiveKey,
+  taskSelectionKey,
+  toTask,
+  todayInTimezone,
+  tomorrowInTimezone,
+} from "../utils";
 import { hasPrimaryShortcutModifier, matchesShortcutKey } from "../utils";
 
 function isTyping(e: KeyboardEvent): boolean {
@@ -36,7 +42,7 @@ export function useKeyboardShortcuts(
 ) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const files = useTaskListStore((s) => s.files);
-  const selectedIds = useTaskListStore((s) => s.selectedIds);
+  const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
   const setStatus = useTaskListStore((s) => s.setStatus);
   const setPriority = useTaskListStore((s) => s.setPriority);
@@ -86,17 +92,17 @@ export function useKeyboardShortcuts(
     return grouped.groups.flatMap((g) => g.tasks);
   }, [contextTasks, isUnifiedView]);
 
-  const tasksById = useMemo(
-    () => new Map(contextTasks.map((task) => [task.id, task])),
+  const tasksByKey = useMemo(
+    () => new Map(contextTasks.map((task) => [taskSelectionKey(task), task])),
     [contextTasks],
   );
 
   const selectedTasks = useMemo(
     () =>
-      [...selectedIds]
-        .map((taskId) => tasksById.get(taskId))
+      [...selectedKeys]
+        .map((taskKey) => tasksByKey.get(taskKey))
         .filter((task): task is Task => task !== undefined),
-    [selectedIds, tasksById],
+    [selectedKeys, tasksByKey],
   );
 
   const applyStatusToSelection = useCallback(
@@ -208,7 +214,7 @@ export function useKeyboardShortcuts(
 
       // --- Primary modifier + M: Move selected tasks to another list ---
       if (mod && !e.shiftKey && matchesShortcutKey(e, "m")) {
-        if (selectedIds.size === 0) return;
+        if (selectedKeys.size === 0) return;
         e.preventDefault();
         onMoveTasks();
         return;
@@ -218,7 +224,7 @@ export function useKeyboardShortcuts(
       // Normalize the letter match so shifted shortcuts do not depend on
       // whether the underlying webview reports "n" or "N".
       if (mod && e.shiftKey && matchesShortcutKey(e, "n")) {
-        if (selectedIds.size !== 1) return;
+        if (selectedKeys.size !== 1) return;
         e.preventDefault();
         onFocusNewNote();
         return;
@@ -234,90 +240,90 @@ export function useKeyboardShortcuts(
       ) {
         if (matchesShortcutKey(e, "p")) {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyStatusToSelection("Pending")) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (matchesShortcutKey(e, "c")) {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyStatusToSelection("Completed")) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (matchesShortcutKey(e, "x")) {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyStatusToSelection("Dismissed")) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (e.key === "0") {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyPriorityToSelection("Default")) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (e.key === "1") {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyPriorityToSelection("Urgent")) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (e.key === "2") {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyPriorityToSelection("Important")) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (e.key === "3") {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyPriorityToSelection("Critical")) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (matchesShortcutKey(e, "t")) {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyDueDateToSelection(todayInTimezone(timezone))) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (matchesShortcutKey(e, "y")) {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyDueDateToSelection(tomorrowInTimezone(timezone))) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
 
         if (matchesShortcutKey(e, "n")) {
           e.preventDefault();
-          const nextId = pickNextActiveId(selectedIds, visualTasks);
+          const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyDueDateToSelection(null)) {
-            setSelection(nextId ? new Set([nextId]) : new Set());
+            setSelection(nextKey ? new Set([nextKey]) : new Set());
           }
           return;
         }
@@ -326,18 +332,17 @@ export function useKeyboardShortcuts(
       // --- Delete/Backspace: Dismiss selected tasks ---
       if (e.key === "Delete" || e.key === "Backspace") {
         if (isTyping(e)) return;
-        if (selectedIds.size === 0) return;
+        if (selectedTasks.length === 0) return;
         e.preventDefault();
-        const nextId = pickNextActiveId(selectedIds, visualTasks);
+        const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
         const confirmed = await showConfirm(
           "Dismiss Tasks",
-          `Dismiss ${selectedIds.size} selected task(s)?`,
+          `Dismiss ${selectedTasks.length} selected task(s)?`,
         );
         if (!confirmed) return;
         let firstError: string | null = null;
-        for (const taskId of selectedIds) {
-          const taskFile = tasksById.get(taskId)?.sourceFile ?? filePath;
-          const result = await setStatus(taskFile, taskId, "Dismissed");
+        for (const task of selectedTasks) {
+          const result = await setStatus(task.sourceFile, task.id, "Dismissed");
           if (result.status === "error" && firstError === null) {
             firstError = result.message;
           }
@@ -346,14 +351,14 @@ export function useKeyboardShortcuts(
           await showMessage("Task Update Failed", firstError);
           return;
         }
-        setSelection(nextId ? new Set([nextId]) : new Set());
+        setSelection(nextKey ? new Set([nextKey]) : new Set());
         return;
       }
 
       // --- Primary modifier + Up: Move selection up one position ---
       if (mod && !e.shiftKey && e.key === "ArrowUp") {
         if (isTyping(e)) return;
-        if (isUnifiedView || selectedIds.size === 0) return;
+        if (isUnifiedView || selectedKeys.size === 0) return;
         e.preventDefault();
         const result = await moveUp(filePath);
         if (result.status === "error") {
@@ -365,7 +370,7 @@ export function useKeyboardShortcuts(
       // --- Primary modifier + Down: Move selection down one position ---
       if (mod && !e.shiftKey && e.key === "ArrowDown") {
         if (isTyping(e)) return;
-        if (isUnifiedView || selectedIds.size === 0) return;
+        if (isUnifiedView || selectedKeys.size === 0) return;
         e.preventDefault();
         const result = await moveDown(filePath);
         if (result.status === "error") {
@@ -377,7 +382,7 @@ export function useKeyboardShortcuts(
       // --- Primary modifier + Home: Send to first in group (Tackle) ---
       if (mod && e.key === "Home") {
         if (isTyping(e)) return;
-        if (isUnifiedView || selectedIds.size === 0) return;
+        if (isUnifiedView || selectedKeys.size === 0) return;
         e.preventDefault();
         const result = await sendToFirst(filePath);
         if (result.status === "error") {
@@ -389,7 +394,7 @@ export function useKeyboardShortcuts(
       // --- Primary modifier + End: Send to last in group (Kick) ---
       if (mod && e.key === "End") {
         if (isTyping(e)) return;
-        if (isUnifiedView || selectedIds.size === 0) return;
+        if (isUnifiedView || selectedKeys.size === 0) return;
         e.preventDefault();
         const result = await sendToLast(filePath);
         if (result.status === "error") {
@@ -406,20 +411,22 @@ export function useKeyboardShortcuts(
 
         const direction = e.key === "ArrowDown" ? 1 : -1;
 
-        if (selectedIds.size === 0) {
+        if (selectedKeys.size === 0) {
           const task =
             direction === 1
               ? visualTasks[0]
               : visualTasks[visualTasks.length - 1];
-          setSelection(new Set([task.id]));
+          setSelection(new Set([taskSelectionKey(task)]));
           return;
         }
 
         // Find the anchor — last item in the selection set.
-        const lastId = [...selectedIds].pop()!;
-        const currentIdx = visualTasks.findIndex((t) => t.id === lastId);
+        const lastKey = [...selectedKeys].pop()!;
+        const currentIdx = visualTasks.findIndex(
+          (t) => taskSelectionKey(t) === lastKey,
+        );
         if (currentIdx === -1) {
-          setSelection(new Set([visualTasks[0].id]));
+          setSelection(new Set([taskSelectionKey(visualTasks[0])]));
           return;
         }
 
@@ -427,11 +434,11 @@ export function useKeyboardShortcuts(
         if (nextIdx < 0 || nextIdx >= visualTasks.length) return;
 
         if (e.shiftKey) {
-          const next = new Set(selectedIds);
-          next.add(visualTasks[nextIdx].id);
+          const next = new Set(selectedKeys);
+          next.add(taskSelectionKey(visualTasks[nextIdx]));
           setSelection(next);
         } else {
-          setSelection(new Set([visualTasks[nextIdx].id]));
+          setSelection(new Set([taskSelectionKey(visualTasks[nextIdx])]));
         }
         return;
       }
@@ -468,7 +475,7 @@ export function useKeyboardShortcuts(
       // --- Escape: Clear selection ---
       if (e.key === "Escape") {
         if (isTyping(e)) return;
-        if (selectedIds.size > 0) {
+        if (selectedKeys.size > 0) {
           e.preventDefault();
           setSelection(new Set());
         }
@@ -478,9 +485,9 @@ export function useKeyboardShortcuts(
     [
       filePath,
       isUnifiedView,
-      selectedIds,
+      selectedKeys,
       selectedTasks,
-      tasksById,
+      tasksByKey,
       timezone,
       applyStatusToSelection,
       applyPriorityToSelection,

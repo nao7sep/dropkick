@@ -1,5 +1,4 @@
 // Task movement between lists.
-// Prepares the data for the atomic write sequence handled by the repository layer.
 
 import type { TaskDto } from "../models";
 

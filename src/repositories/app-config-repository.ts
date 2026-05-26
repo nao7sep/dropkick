@@ -8,7 +8,7 @@ import {
   createDefaultPreferences,
   createDefaultWorkspace,
 } from "../models";
-import { readJsonFile, writeJsonFile, ensureDirectory, fileExists } from "./file-system";
+import { readJsonFileResult, writeJsonFile, ensureDirectory, fileExists } from "./file-system";
 
 const DROPKICK_DIR = ".dropkick";
 const APP_CONFIG_FILE = "app.json";
@@ -57,14 +57,19 @@ export async function initializeAppConfig(): Promise<{
   }
 
   // Create or read app config.
-  let config = await readJsonFile<AppConfigDto>(configPath);
-  if (config === null) {
+  const configResult = await readJsonFileResult<AppConfigDto>(configPath);
+  let config: AppConfigDto;
+  if (configResult.status === "missing") {
     config = createDefaultAppConfig();
     config.lastPreferencesPath = prefsPath;
     config.lastWorkspacePath = workspacePath;
     config.knownPreferences = [prefsPath];
     config.knownWorkspaces = [workspacePath];
     await writeJsonFile(configPath, config);
+  } else if (configResult.status === "success") {
+    config = configResult.data;
+  } else {
+    throw new Error(`Failed to load app config: ${configResult.message}`);
   }
 
   return { config, configPath };

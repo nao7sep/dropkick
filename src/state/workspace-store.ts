@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
+import type { LoadWorkspaceResult } from "../repositories";
 import { loadWorkspace, saveWorkspace, fileExists, showMessage } from "../repositories";
 import { useTaskListStore } from "./task-list-store";
 
@@ -18,7 +19,7 @@ interface WorkspaceState {
   loaded: boolean;
 
   // Actions — each persists to disk after updating state.
-  load: (filePath: string) => Promise<void>;
+  load: (filePath: string) => Promise<LoadWorkspaceResult>;
   addTab: (taskFilePath: string, displayName: string) => Promise<void>;
   addUnifiedViewTab: () => Promise<void>;
   closeTab: (index: number) => Promise<void>;
@@ -45,7 +46,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   loaded: false,
 
   load: async (filePath: string) => {
-    const ws = await loadWorkspace(filePath);
+    const loadResult = await loadWorkspace(filePath);
+    if (loadResult.status !== "success") return loadResult;
+
+    const ws = loadResult.workspace;
 
     // Remove tabs whose files no longer exist on disk.
     const validTabs = [];
@@ -93,6 +97,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
     set({ workspace: updated, filePath, loaded: true });
     await persist(filePath, updated);
+    return { status: "success", workspace: updated };
   },
 
   addTab: async (taskFilePath: string, displayName: string) => {

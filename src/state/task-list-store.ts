@@ -3,7 +3,7 @@
 
 import { create } from "zustand";
 import type { TaskListDto, NoteActionability, TaskStatus, TaskPriority } from "../models";
-import type { WriteResult } from "../repositories";
+import type { LoadTaskListResult, WriteResult } from "../repositories";
 import {
   loadTaskList,
   createTaskListFile,
@@ -13,7 +13,7 @@ import {
   showFileConflictDialog,
   showFileDeletedDialog,
 } from "../repositories";
-import { createTask, createNote } from "../utils";
+import { createTask, createNote, parseTaskKey, taskKey } from "../utils";
 import type { CreateTaskOptions } from "../utils";
 import { usePreferencesStore } from "./preferences-store";
 import {
@@ -45,27 +45,37 @@ interface FileState {
   hash: string;
 }
 
+type LoadFileResult =
+  | { status: "success" }
+  | { status: "missing" }
+  | { status: "invalid"; message: string }
+  | { status: "error"; message: string };
+
 interface TaskListState {
   // Map of file path → loaded task list data + hash.
   files: Record<string, FileState>;
 
-  // Currently selected task IDs (for the active tab).
-  selectedIds: Set<string>;
+  // Currently selected task keys (source file + task ID) for the active tab.
+  selectedKeys: Set<string>;
 
-  // Number of handled tasks visible per file (pagination).
+  // Number of handled tasks visible per task-list view (pagination).
   handledVisible: Record<string, number>;
 
+  // Expanded/collapsed handled section state for the current app session.
+  handledExpanded: Record<string, boolean>;
+
   // Actions: file management.
-  loadFile: (filePath: string) => Promise<boolean>;
+  loadFile: (filePath: string) => Promise<LoadFileResult>;
   createFile: (filePath: string) => Promise<void>;
   unloadFile: (filePath: string) => void;
 
   // Actions: selection.
-  setSelection: (ids: Set<string>) => void;
+  setSelection: (keys: Set<string>) => void;
   clearSelection: () => void;
 
   // Actions: handled tasks pagination.
-  showMoreHandled: (filePath: string, pageSize: number) => void;
+  showMoreHandled: (viewKey: string, pageSize: number) => void;
+  setHandledExpanded: (viewKey: string, expanded: boolean) => void;
 
   // Actions: task operations (all write to disk immediately).
   addNewTask: (filePath: string, options: CreateTaskOptions) => Promise<WriteResult>;
@@ -153,7 +163,7 @@ async function writeFile(
     }
 
     const loaded = await loadTaskList(filePath);
-    if (loaded === null) {
+    if (loaded.status === "missing") {
       const { [filePath]: _, ...rest } = files;
       return {
         files: rest,
@@ -164,10 +174,23 @@ async function writeFile(
       };
     }
 
+    if (loaded.status !== "success") {
+      return {
+        files,
+        result: {
+          status: "error",
+          message: `The file changed outside Dropkick but could not be reloaded: ${loaded.message}`,
+        },
+      };
+    }
+
     return {
       files: {
         ...files,
-        [filePath]: { data: loaded.data, hash: loaded.hash },
+        [filePath]: {
+          data: loaded.taskList.data,
+          hash: loaded.taskList.hash,
+        },
       },
       result: {
         status: "error",
@@ -209,27 +232,47 @@ function shouldApplyFiles(
   return result.status === "success" || after !== before;
 }
 
+function loadResultToStoreResult(result: LoadTaskListResult): LoadFileResult {
+  if (result.status === "success") return { status: "success" };
+  return result;
+}
+
+function selectedTaskIdsForFile(
+  selectedKeys: Set<string>,
+  filePath: string,
+): Set<string> {
+  const taskIds = new Set<string>();
+  for (const key of selectedKeys) {
+    const parsed = parseTaskKey(key);
+    if (parsed?.sourceFile === filePath) {
+      taskIds.add(parsed.taskId);
+    }
+  }
+  return taskIds;
+}
+
 export const useTaskListStore = create<TaskListState>((set, get) => ({
   files: {},
-  selectedIds: new Set(),
+  selectedKeys: new Set(),
   handledVisible: {},
+  handledExpanded: {},
 
   // --- File management ---
 
   loadFile: async (filePath: string) => {
     // Don't reload if already loaded.
-    if (get().files[filePath]) return true;
+    if (get().files[filePath]) return { status: "success" };
 
     const loaded = await loadTaskList(filePath);
-    if (loaded === null) return false;
+    if (loaded.status !== "success") return loadResultToStoreResult(loaded);
 
     set((state) => ({
       files: {
         ...state.files,
-        [filePath]: { data: loaded.data, hash: loaded.hash },
+        [filePath]: { data: loaded.taskList.data, hash: loaded.taskList.hash },
       },
     }));
-    return true;
+    return { status: "success" };
   },
 
   createFile: async (filePath: string) => {
@@ -246,22 +289,36 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     set((state) => {
       const { [filePath]: _, ...rest } = state.files;
       const { [filePath]: __, ...restHandled } = state.handledVisible;
-      return { files: rest, handledVisible: restHandled };
+      const { [filePath]: ___, ...restExpanded } = state.handledExpanded;
+      return {
+        files: rest,
+        handledVisible: restHandled,
+        handledExpanded: restExpanded,
+      };
     });
   },
 
   // --- Selection ---
 
-  setSelection: (ids: Set<string>) => set({ selectedIds: ids }),
-  clearSelection: () => set({ selectedIds: new Set() }),
+  setSelection: (keys: Set<string>) => set({ selectedKeys: keys }),
+  clearSelection: () => set({ selectedKeys: new Set() }),
 
   // --- Handled tasks pagination ---
 
-  showMoreHandled: (filePath: string, pageSize: number) => {
+  showMoreHandled: (viewKey: string, pageSize: number) => {
     set((state) => ({
       handledVisible: {
         ...state.handledVisible,
-        [filePath]: (state.handledVisible[filePath] ?? pageSize) + pageSize,
+        [viewKey]: (state.handledVisible[viewKey] ?? pageSize) + pageSize,
+      },
+    }));
+  },
+
+  setHandledExpanded: (viewKey: string, expanded: boolean) => {
+    set((state) => ({
+      handledExpanded: {
+        ...state.handledExpanded,
+        [viewKey]: expanded,
       },
     }));
   },
@@ -292,7 +349,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
     if (result.status === "success") {
       set((state) => ({
         files,
-        selectedIds: new Set([...state.selectedIds].filter((id) => id !== taskId)),
+        selectedKeys: new Set(
+          [...state.selectedKeys].filter(
+            (key) => key !== taskKey(filePath, taskId),
+          ),
+        ),
       }));
     } else if (shouldApplyFiles(currentFiles, files, result)) {
       set({ files });
@@ -462,11 +523,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   kick: async (filePath, distance) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
-    const { selectedIds } = get();
-    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
+    if (selectedTaskIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
-    const newTasks = kickTasks(fileState.data.tasks, selectedIds, distance, tz, dueSoonDays);
+    const newTasks = kickTasks(fileState.data.tasks, selectedTaskIds, distance, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -480,11 +541,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   sendToFirst: async (filePath) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
-    const { selectedIds } = get();
-    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
+    if (selectedTaskIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
-    const newTasks = sendTasksToFirst(fileState.data.tasks, selectedIds, tz, dueSoonDays);
+    const newTasks = sendTasksToFirst(fileState.data.tasks, selectedTaskIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -498,11 +559,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   sendToLast: async (filePath) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
-    const { selectedIds } = get();
-    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
+    if (selectedTaskIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
-    const newTasks = sendTasksToLast(fileState.data.tasks, selectedIds, tz, dueSoonDays);
+    const newTasks = sendTasksToLast(fileState.data.tasks, selectedTaskIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -516,11 +577,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   moveUp: async (filePath) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
-    const { selectedIds } = get();
-    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
+    if (selectedTaskIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
-    const newTasks = moveTasksUp(fileState.data.tasks, selectedIds, tz, dueSoonDays);
+    const newTasks = moveTasksUp(fileState.data.tasks, selectedTaskIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -534,11 +595,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   moveDown: async (filePath) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
-    const { selectedIds } = get();
-    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
+    if (selectedTaskIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
-    const newTasks = moveTasksDown(fileState.data.tasks, selectedIds, tz, dueSoonDays);
+    const newTasks = moveTasksDown(fileState.data.tasks, selectedTaskIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -552,11 +613,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
   dropkick: async (filePath) => {
     const fileState = get().files[filePath];
     if (!fileState) return { status: "error", message: "File not loaded" } as WriteResult;
-    const { selectedIds } = get();
-    if (selectedIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
+    const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
+    if (selectedTaskIds.size === 0) return { status: "error", message: "No tasks selected" } as WriteResult;
     const tz = usePreferencesStore.getState().preferences.timezone;
     const dueSoonDays = usePreferencesStore.getState().preferences.dueSoonDays;
-    const newTasks = dropkickTasks(fileState.data.tasks, selectedIds, tz, dueSoonDays);
+    const newTasks = dropkickTasks(fileState.data.tasks, selectedTaskIds, tz, dueSoonDays);
     if (newTasks === fileState.data.tasks) {
       return { status: "success", newHash: fileState.hash } as WriteResult;
     }
@@ -605,7 +666,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
             hash: result.destHash,
           },
         },
-        selectedIds: new Set(),
+        selectedKeys: new Set(),
       }));
       return { status: "success" };
     }
@@ -672,14 +733,14 @@ export const useTaskListStore = create<TaskListState>((set, get) => ({
 
   reloadFile: async (filePath: string) => {
     const loaded = await loadTaskList(filePath);
-    if (loaded === null) return;
+    if (loaded.status !== "success") return;
 
     set((state) => ({
       files: {
         ...state.files,
-        [filePath]: { data: loaded.data, hash: loaded.hash },
+        [filePath]: { data: loaded.taskList.data, hash: loaded.taskList.hash },
       },
-      selectedIds: new Set(),
+      selectedKeys: new Set(),
     }));
   },
 

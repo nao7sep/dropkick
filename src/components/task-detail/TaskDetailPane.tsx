@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
-import { pickNextActiveId, toTask } from "../../utils";
+import { pickNextActiveKey, taskSelectionKey, toTask } from "../../utils";
 import {
   groupTasksForList,
   groupTasksForUnifiedView,
@@ -27,7 +27,7 @@ export function TaskDetailPane({
 }: TaskDetailPaneProps) {
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
   const dueSoonDays = usePreferencesStore((s) => s.preferences.dueSoonDays);
-  const selectedIds = useTaskListStore((s) => s.selectedIds);
+  const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
 
   // Select raw data from store (stable reference), compute domain models in useMemo.
@@ -51,9 +51,9 @@ export function TaskDetailPane({
     return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone, dueSoonDays));
   }, [files, filePath, isUnifiedView, timezone, dueSoonDays, openTabs]);
 
-  const selectedTasks = tasks.filter((t) => selectedIds.has(t.id));
-  const selectedTaskIds = selectedTasks.map((t) => t.id);
-  const selectionKey = selectedTaskIds.join("|");
+  const selectedTasks = tasks.filter((t) => selectedKeys.has(taskSelectionKey(t)));
+  const selectedTaskKeys = selectedTasks.map((t) => taskSelectionKey(t));
+  const selectionKey = selectedTaskKeys.join("|");
   const visualTasks = useMemo(() => {
     const grouped = isUnifiedView
       ? groupTasksForUnifiedView(tasks)
@@ -61,19 +61,19 @@ export function TaskDetailPane({
 
     return grouped.groups.flatMap((group) => group.tasks);
   }, [tasks, isUnifiedView]);
-  const nextActiveTaskId = useMemo(
-    () => pickNextActiveId(selectedIds, visualTasks),
-    [selectedIds, visualTasks],
+  const nextActiveTaskKey = useMemo(
+    () => pickNextActiveKey(selectedKeys, visualTasks),
+    [selectedKeys, visualTasks],
   );
 
   if (selectedTasks.length === 1) {
     return (
       <TaskDetail
-        key={`task:${selectedTasks[0].id}`}
+        key={`task:${taskSelectionKey(selectedTasks[0])}`}
         task={selectedTasks[0]}
         filePath={isUnifiedView ? selectedTasks[0].sourceFile : filePath}
         isUnifiedView={isUnifiedView}
-        nextActiveTaskId={nextActiveTaskId}
+        nextActiveTaskKey={nextActiveTaskKey}
         focusNewNoteSignal={focusNewNoteSignal}
       />
     );
@@ -86,7 +86,7 @@ export function TaskDetailPane({
         selectedTasks={selectedTasks}
         filePath={filePath}
         isUnifiedView={isUnifiedView}
-        nextActiveTaskId={nextActiveTaskId}
+        nextActiveTaskKey={nextActiveTaskKey}
       />
     );
   }
