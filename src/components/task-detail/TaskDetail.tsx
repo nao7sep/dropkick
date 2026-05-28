@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../../models";
-import type { WriteResult } from "../../repositories";
+import type { ActionResult } from "../../state";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
@@ -89,7 +89,7 @@ export function TaskDetail({
   const autoGrowDesc = useAutoGrow(descRef);
   const autoGrowNewNote = useAutoGrow(newNoteRef);
 
-  const showWriteFailure = async (title: string, result: WriteResult) => {
+  const showWriteFailure = async (title: string, result: ActionResult) => {
     if (result.status === "error") {
       await showMessage(title, result.message);
       return true;

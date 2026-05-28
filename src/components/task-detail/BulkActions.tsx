@@ -7,7 +7,7 @@ import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { showMessage } from "../../repositories";
-import type { WriteResult } from "../../repositories";
+import type { ActionResult } from "../../state";
 import { taskKey, taskSelectionKey } from "../../utils";
 
 interface BulkActionsProps {
@@ -36,7 +36,7 @@ export function BulkActions({
 
   const [moveTarget, setMoveTarget] = useState("");
 
-  const showWriteFailure = async (title: string, result: WriteResult) => {
+  const showWriteFailure = async (title: string, result: ActionResult) => {
     if (result.status === "error") {
       await showMessage(title, result.message);
       return true;

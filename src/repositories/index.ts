@@ -6,6 +6,8 @@ export {
   hashFile,
   fileExists,
   ensureDirectory,
+  withSerial,
+  withSerialTwo,
 } from "./file-system";
 export type { JsonReadResult, JsonReadWithHashResult } from "./file-system";
 
@@ -37,16 +39,23 @@ export type { LoadPreferencesResult } from "./preferences-repository";
 
 export {
   loadWorkspace,
-  saveWorkspace,
+  flushWorkspace,
   createWorkspaceFile,
 } from "./workspace-repository";
 export type { LoadWorkspaceResult } from "./workspace-repository";
 
-export type { LoadedTaskList, LoadTaskListResult, WriteResult } from "./task-list-repository";
+export type {
+  LoadedTaskList,
+  LoadTaskListResult,
+  WriteResult,
+  MoveResult,
+  MoveInputs,
+} from "./task-list-repository";
 export {
   loadTaskList,
   createTaskListFile,
-  writeTaskList,
-  forceWriteTaskList,
-  moveTasksBetweenFilesWithRollback,
+  flushTaskList,
+  forceFlushTaskList,
+  flushMove,
+  forgetTaskList,
 } from "./task-list-repository";

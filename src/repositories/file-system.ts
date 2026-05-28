@@ -87,3 +87,54 @@ export async function ensureDirectory(path: string): Promise<void> {
     await mkdir(path, { recursive: true });
   }
 }
+
+// --- Per-key serialization ---
+//
+// Some files (task list JSON, workspace JSON) can be mutated by many actions in
+// quick succession. Each mutation reads → checks hash → writes, but the JS
+// event loop allows another action to interleave at any await point. That
+// produces two failure modes: spurious "file modified externally" prompts when
+// two actions race their hash checks, and silent overwrites when two writes
+// land out of order.
+//
+// `withSerial` enforces that only one async callback per key is running at a
+// time; subsequent callers wait for the previous one to settle. Rejections do
+// not break the chain — the next caller runs either way.
+
+const serialChains = new Map<string, Promise<unknown>>();
+
+export async function withSerial<T>(
+  key: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prev = serialChains.get(key) ?? Promise.resolve();
+  const settled = prev.then(
+    () => undefined,
+    () => undefined,
+  );
+  const current = settled.then(fn);
+  const tail = current.then(
+    () => undefined,
+    () => undefined,
+  );
+  serialChains.set(key, tail);
+  // Drop the entry once this tail settles, unless a newer tail replaced it.
+  void tail.then(() => {
+    if (serialChains.get(key) === tail) {
+      serialChains.delete(key);
+    }
+  });
+  return current;
+}
+
+// Acquires two keys in lexicographic order to avoid deadlocks when two callers
+// request the same pair in opposite orders.
+export async function withSerialTwo<T>(
+  keyA: string,
+  keyB: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (keyA === keyB) return withSerial(keyA, fn);
+  const [first, second] = keyA < keyB ? [keyA, keyB] : [keyB, keyA];
+  return withSerial(first, () => withSerial(second, fn));
+}
