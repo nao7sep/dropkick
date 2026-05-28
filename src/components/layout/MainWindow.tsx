@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback, useMemo, Component } from "re
 import type { ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { showMessage } from "../../repositories";
+import { showMessage, drainAllSerial } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -180,6 +180,49 @@ export function MainWindow() {
       .catch((e) => console.warn("[window] Failed to set title:", e));
   }, [activeTab?.displayName, activeTab?.filePath, activeTab?.isUnifiedView]);
 
+  // Hold the window open until pending writes are on disk.
+  //
+  // Tauri would otherwise terminate the renderer the moment the OS sends the
+  // close request. That defeats the "writes happen immediately" promise for
+  // anything still in flight, and for anything committed only on blur (title /
+  // description inputs, inline rename) where the user hits Cmd+Q while still
+  // focused on the field. We intercept the close request, blur the active
+  // element so its commit fires synchronously, wait for every per-path serial
+  // chain to settle, and only then destroy the window.
+  //
+  // The mounted flag protects against the StrictMode mount → cleanup → mount
+  // sequence so the listener is never double-registered or leaked.
+  useEffect(() => {
+    let mounted = true;
+    let unlistenFn: (() => void) | null = null;
+
+    (async () => {
+      const window = getCurrentWindow();
+      const unlisten = await window.onCloseRequested(async (event) => {
+        event.preventDefault();
+        try {
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          await drainAllSerial();
+        } catch (e) {
+          console.error("[shutdown] Error draining before close:", e);
+        }
+        await window.destroy();
+      });
+      if (mounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      unlistenFn?.();
+    };
+  }, []);
+
   // Load the active tab's file when the active tab changes.
   useEffect(() => {
     (async () => {
@@ -229,6 +272,34 @@ export function MainWindow() {
       }
     })();
   }, [activeTab?.isUnifiedView, workspace.openTabs.length]);
+
+  // File-lifecycle unload. The set of file paths the workspace currently has
+  // open drives which files are kept in memory; anything that drops out gets
+  // unloaded. This effect runs after React's commit phase, so any blur events
+  // fired by inputs removed during unmount (e.g. a focused title input when
+  // the user hits Cmd+W) have already triggered their store mutations and
+  // queued their disk flushes. unloadFile then enters the per-path serial
+  // chain behind those flushes — the pending write lands on disk first, then
+  // the file's hash is forgotten.
+  const openFilePaths = useMemo(
+    () =>
+      new Set(
+        workspace.openTabs
+          .filter((t) => !t.isUnifiedView)
+          .map((t) => t.filePath),
+      ),
+    [workspace.openTabs],
+  );
+  const prevOpenFilePathsRef = useRef<Set<string>>(openFilePaths);
+  useEffect(() => {
+    const prev = prevOpenFilePathsRef.current;
+    for (const path of prev) {
+      if (!openFilePaths.has(path)) {
+        void useTaskListStore.getState().unloadFile(path);
+      }
+    }
+    prevOpenFilePathsRef.current = openFilePaths;
+  }, [openFilePaths]);
 
   // Compute selected tasks for the move modal.
   const selectedTasks = useMemo(() => {

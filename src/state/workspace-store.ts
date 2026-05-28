@@ -11,7 +11,12 @@ import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
 import type { LoadWorkspaceResult } from "../repositories";
 import { loadWorkspace, flushWorkspace } from "../repositories";
-import { useTaskListStore } from "./task-list-store";
+
+// File loading and unloading is owned by the React component tree (MainWindow's
+// file-lifecycle effect), so this store deliberately does NOT import or call
+// useTaskListStore. Keeping unload off the close-tab path lets unmount-fired
+// writes (like a blur on a focused title input) commit to disk before the
+// file's hash is forgotten.
 
 interface WorkspaceState {
   // Current workspace data.
@@ -122,10 +127,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     closeTab: async (index: number) => {
-      // Capture the tab being closed before the update so we can unload its
-      // file. zustand's `set` runs synchronously so this is race-free.
-      const closingTab = get().workspace.openTabs[index];
-
+      // Remove the tab from the workspace; file unload is handled by
+      // MainWindow's file-lifecycle effect after React commits the unmount.
       set((state) => {
         const newTabs = state.workspace.openTabs.filter((_, i) => i !== index);
         let newActive = state.workspace.activeTabIndex;
@@ -142,15 +145,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           },
         };
       });
-
-      // Unload cached file data so it doesn't leak into unified view. Awaited
-      // so the task-list's queued writes drain before the workspace flush
-      // declares the tab closed — closing a tab right after editing it must
-      // not drop the edit.
-      if (closingTab && !closingTab.isUnifiedView) {
-        await useTaskListStore.getState().unloadFile(closingTab.filePath);
-      }
-
       await flush();
     },
 

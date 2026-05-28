@@ -8,6 +8,7 @@ export {
   ensureDirectory,
   withSerial,
   withSerialTwo,
+  drainAllSerial,
 } from "./file-system";
 export type { JsonReadResult, JsonReadWithHashResult } from "./file-system";
 

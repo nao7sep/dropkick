@@ -138,3 +138,18 @@ export async function withSerialTwo<T>(
   const [first, second] = keyA < keyB ? [keyA, keyB] : [keyB, keyA];
   return withSerial(first, () => withSerial(second, fn));
 }
+
+// Awaits every per-key serial chain currently in flight. Used at window-close
+// time to make sure pending writes (including ones triggered by the blur of a
+// focused input during shutdown) land on disk before the renderer terminates.
+//
+// Loops because a chain that settles during the await may have had a new
+// callback enqueued behind it — typically the blur-fired commit we're trying
+// to catch. When no callbacks are outstanding the cleanup in withSerial has
+// removed the key, so the map's size collapses to zero and the loop exits.
+export async function drainAllSerial(): Promise<void> {
+  while (serialChains.size > 0) {
+    const tails = [...serialChains.values()];
+    await Promise.allSettled(tails);
+  }
+}
