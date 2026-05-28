@@ -1,5 +1,11 @@
 // Manages ~/.dropkick/app.json — the app-level configuration.
-// Handles first-launch setup and remembering workspace/preferences paths.
+//
+// initializeAppConfig handles first-launch setup (creating ~/.dropkick/ and
+// default preferences/workspace files). It runs exactly once at startup, so
+// it doesn't need serialization. All subsequent writes go through
+// flushAppConfig, which uses withSerial — the same pattern as the other
+// repositories. The actual data manipulation (register/unregister) lives in
+// useAppConfigStore; this module owns I/O only.
 
 import { homeDir } from "@tauri-apps/api/path";
 import type { AppConfigDto } from "../models";
@@ -8,7 +14,13 @@ import {
   createDefaultPreferences,
   createDefaultWorkspace,
 } from "../models";
-import { readJsonFileResult, writeJsonFile, ensureDirectory, fileExists } from "./file-system";
+import {
+  readJsonFileResult,
+  writeJsonFile,
+  ensureDirectory,
+  fileExists,
+  withSerial,
+} from "./file-system";
 
 const DROPKICK_DIR = ".dropkick";
 const APP_CONFIG_FILE = "app.json";
@@ -76,78 +88,15 @@ export async function initializeAppConfig(): Promise<{
   return { config, configPath };
 }
 
-// Saves the app config to disk.
-export async function saveAppConfig(config: AppConfigDto): Promise<void> {
-  const configPath = await getAppConfigPath();
-  await writeJsonFile(configPath, config);
-}
-
-// Adds a preferences path to the known list (if not already there) and saves.
-export async function registerPreferencesPath(
-  config: AppConfigDto,
-  path: string,
-): Promise<AppConfigDto> {
-  if (!config.knownPreferences.includes(path)) {
-    config = {
-      ...config,
-      knownPreferences: [...config.knownPreferences, path],
-    };
-  }
-  config = { ...config, lastPreferencesPath: path };
-  await saveAppConfig(config);
-  return config;
-}
-
-// Adds a workspace path to the known list (if not already there) and saves.
-export async function registerWorkspacePath(
-  config: AppConfigDto,
-  path: string,
-): Promise<AppConfigDto> {
-  if (!config.knownWorkspaces.includes(path)) {
-    config = {
-      ...config,
-      knownWorkspaces: [...config.knownWorkspaces, path],
-    };
-  }
-  config = { ...config, lastWorkspacePath: path };
-  await saveAppConfig(config);
-  return config;
-}
-
-// Removes a preferences path from the known list and saves.
-export async function unregisterPreferencesPath(
-  config: AppConfigDto,
-  path: string,
-): Promise<AppConfigDto> {
-  config = {
-    ...config,
-    knownPreferences: config.knownPreferences.filter((p) => p !== path),
-  };
-  if (config.lastPreferencesPath === path) {
-    config = {
-      ...config,
-      lastPreferencesPath: config.knownPreferences[0] ?? "",
-    };
-  }
-  await saveAppConfig(config);
-  return config;
-}
-
-// Removes a workspace path from the known list and saves.
-export async function unregisterWorkspacePath(
-  config: AppConfigDto,
-  path: string,
-): Promise<AppConfigDto> {
-  config = {
-    ...config,
-    knownWorkspaces: config.knownWorkspaces.filter((p) => p !== path),
-  };
-  if (config.lastWorkspacePath === path) {
-    config = {
-      ...config,
-      lastWorkspacePath: config.knownWorkspaces[0] ?? "",
-    };
-  }
-  await saveAppConfig(config);
-  return config;
+// Flushes the latest app config state to disk. Calls are serialized per path,
+// so overlapping flushes can never land out of order. `getConfig` is invoked
+// inside the serial slot so it sees the latest store state at the instant of
+// the write.
+export async function flushAppConfig(
+  filePath: string,
+  getConfig: () => AppConfigDto,
+): Promise<void> {
+  await withSerial(filePath, async () => {
+    await writeJsonFile(filePath, getConfig());
+  });
 }

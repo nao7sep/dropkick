@@ -1,8 +1,13 @@
 // Reads and writes preferences files.
+//
+// Saves are serialized per path. The store mutates synchronously and then
+// awaits a flush; if several flushes queue against the same path, each runs in
+// order and writes the latest store state at the moment its turn comes up.
+// Matches the pattern used by task-list and workspace stores.
 
 import type { PreferencesDto } from "../models";
 import { createDefaultPreferences } from "../models";
-import { readJsonFileResult, writeJsonFile } from "./file-system";
+import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
 import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
 
 export type LoadPreferencesResult =
@@ -36,17 +41,24 @@ export async function loadPreferences(
   };
 }
 
-// Saves preferences to disk.
-export async function savePreferences(
+// Flushes the latest preferences state to disk. Calls are serialized per
+// path, so overlapping flushes can never land out of order. `getPreferences`
+// is invoked inside the serial slot so it sees the latest store state at the
+// instant of the write. Returns the normalized preferences so the store can
+// re-apply timezone coercion to its in-memory copy.
+export async function flushPreferences(
   path: string,
-  preferences: PreferencesDto,
+  getPreferences: () => PreferencesDto,
 ): Promise<PreferencesDto> {
-  const normalized = {
-    ...preferences,
-    timezone: normalizeTimezoneOrThrow(preferences.timezone),
-  };
-  await writeJsonFile(path, normalized);
-  return normalized;
+  return withSerial(path, async () => {
+    const preferences = getPreferences();
+    const normalized = {
+      ...preferences,
+      timezone: normalizeTimezoneOrThrow(preferences.timezone),
+    };
+    await writeJsonFile(path, normalized);
+    return normalized;
+  });
 }
 
 // Creates a new preferences file with defaults at the given path.

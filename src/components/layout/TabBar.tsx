@@ -53,7 +53,10 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
 
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [showGearMenu, setShowGearMenu] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // Identify the tab being renamed by its filePath (stable across reorder /
+  // close / add). Unified view isn't renameable, so filePath uniquely
+  // identifies any candidate.
+  const [editingPath, setEditingPath] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -61,11 +64,11 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
 
   // Focus rename input when editing starts.
   useEffect(() => {
-    if (editingIndex !== null && editInputRef.current) {
+    if (editingPath !== null && editInputRef.current) {
       editInputRef.current.focus();
       editInputRef.current.select();
     }
-  }, [editingIndex]);
+  }, [editingPath]);
 
   // Close menus when clicking outside.
   useEffect(() => {
@@ -203,18 +206,18 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const handleDoubleClick = (index: number) => {
     const tab = workspace.openTabs[index];
     if (!tab || tab.isUnifiedView) return;
-    setEditingIndex(index);
+    setEditingPath(tab.filePath);
     setEditValue(tab.displayName);
   };
 
   const handleRenameSubmit = async () => {
-    if (editingIndex !== null) {
+    if (editingPath !== null) {
       const cleaned = sanitizeSingleLine(editValue);
       if (cleaned) {
-        await renameTab(editingIndex, cleaned);
+        await renameTab(editingPath, cleaned);
       }
     }
-    setEditingIndex(null);
+    setEditingPath(null);
   };
 
   const recentFiles = workspace.recentFiles.filter(
@@ -241,17 +244,19 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
               hasLoadError={!tab.isUnifiedView && fileLoadErrors[tab.filePath] !== undefined}
               index={index}
               isActive={index === activeTabIndex}
-              isEditing={editingIndex === index}
+              isEditing={!tab.isUnifiedView && editingPath === tab.filePath}
               editValue={editValue}
               editInputRef={
-                editingIndex === index ? editInputRef : undefined
+                !tab.isUnifiedView && editingPath === tab.filePath
+                  ? editInputRef
+                  : undefined
               }
               onActivate={() => setActiveTab(index)}
               onDoubleClick={() => handleDoubleClick(index)}
               onClose={(e) => handleCloseTab(e, index)}
               onEditChange={setEditValue}
               onEditSubmit={handleRenameSubmit}
-              onEditCancel={() => setEditingIndex(null)}
+              onEditCancel={() => setEditingPath(null)}
             />
           ))}
 

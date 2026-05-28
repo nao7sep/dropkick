@@ -9,6 +9,8 @@
 
 import { homeDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+import { withSerial } from "../repositories";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 
@@ -142,6 +144,11 @@ async function getBackupsDir(workspaceId: string): Promise<string> {
 }
 
 // Creates a backup zip of the given file paths.
+//
+// Each source file is read inside its per-path serial slot (withSerial) so the
+// read is ordered with any in-flight writes for that path. A backup captures
+// each file at one moment, never mid-write. The Rust side only zips bytes
+// we've already read — it does no filesystem reads of its own.
 async function createBackup(
   workspaceId: string,
   preferencesPath: string,
@@ -157,7 +164,16 @@ async function createBackup(
 
   const entries: [string, string][] = [];
   for (const [sourcePath, entryName] of nameMap) {
-    entries.push([sourcePath, entryName]);
+    try {
+      const content = await withSerial(sourcePath, () =>
+        readTextFile(sourcePath),
+      );
+      entries.push([entryName, content]);
+    } catch (e) {
+      // Skip files we can't read (deleted, permission denied, etc.). Matches
+      // the original best-effort behavior in the previous Rust loop.
+      console.error(`[backup] Skipping ${sourcePath}:`, e);
+    }
   }
 
   if (entries.length === 0) return;
@@ -166,7 +182,7 @@ async function createBackup(
   const outputPath = `${backupsDir}/backup-${backupTimestamp()}.zip`;
 
   try {
-    await invoke<string>("create_backup", { entries, outputPath });
+    await invoke<string>("create_backup_from_entries", { entries, outputPath });
     console.log("[backup] Created:", outputPath);
   } catch (e) {
     console.error("[backup] Failed to create backup:", e);

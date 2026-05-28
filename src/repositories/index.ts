@@ -24,16 +24,12 @@ export {
 
 export {
   initializeAppConfig,
-  saveAppConfig,
-  registerPreferencesPath,
-  registerWorkspacePath,
-  unregisterPreferencesPath,
-  unregisterWorkspacePath,
+  flushAppConfig,
 } from "./app-config-repository";
 
 export {
   loadPreferences,
-  savePreferences,
+  flushPreferences,
   createPreferencesFile,
 } from "./preferences-repository";
 export type { LoadPreferencesResult } from "./preferences-repository";

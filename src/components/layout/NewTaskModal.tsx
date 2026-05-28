@@ -44,6 +44,10 @@ export function NewTaskModal({
   const [priority, setPriority] = useState<TaskPriority>("Default");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [targetFile, setTargetFile] = useState(defaultTarget);
+  // submittingRef is the synchronous guard against rapid double-clicks;
+  // `submitting` (state) drives the disabled-button render. See MoveTasksModal
+  // for the same pattern.
+  const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [targetError, setTargetError] = useState(false);
 
@@ -76,7 +80,7 @@ export function NewTaskModal({
   };
 
   const handleCreate = async () => {
-    if (submitting) return;
+    if (submittingRef.current) return;
     if (!canCreate) {
       if (fileTabs.length > 0 && targetFile === "") {
         setTargetError(true);
@@ -85,6 +89,7 @@ export function NewTaskModal({
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const result = await addNewTask(targetFile, {
@@ -100,6 +105,7 @@ export function NewTaskModal({
         await showMessage("Create Task Failed", result.message);
       }
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

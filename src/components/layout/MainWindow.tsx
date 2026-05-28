@@ -110,10 +110,15 @@ export function MainWindow() {
       draggingRef.current = true;
       startXRef.current = e.clientX;
       startWidthRef.current = dragWidth;
+      // Track the latest width in the drag's own closure so onUp can persist
+      // it without putting a side effect inside a setState functional updater
+      // (React 19's concurrent mode is allowed to invoke those more than once).
+      let latestWidth = dragWidth;
 
       const onMove = (ev: MouseEvent) => {
         const delta = ev.clientX - startXRef.current;
         const clamped = Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, startWidthRef.current + delta));
+        latestWidth = clamped;
         setDragWidth(clamped);
       };
 
@@ -121,11 +126,7 @@ export function MainWindow() {
         draggingRef.current = false;
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        // Persist the final width.
-        setDragWidth((w) => {
-          updatePrefs({ sidebarWidth: w });
-          return w;
-        });
+        updatePrefs({ sidebarWidth: latestWidth });
       };
 
       document.addEventListener("mousemove", onMove);
@@ -205,10 +206,13 @@ export function MainWindow() {
             document.activeElement.blur();
           }
           await drainAllSerial();
+          await window.destroy();
         } catch (e) {
-          console.error("[shutdown] Error draining before close:", e);
+          // A rejection from destroy() leaves the window open. Better that
+          // than an unhandled rejection with preventDefault already called —
+          // the user can retry the close.
+          console.error("[shutdown] Error closing window:", e);
         }
-        await window.destroy();
       });
       if (mounted) {
         unlistenFn = unlisten;

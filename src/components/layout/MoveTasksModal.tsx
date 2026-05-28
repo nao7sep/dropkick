@@ -29,6 +29,12 @@ export function MoveTasksModal({
   const setSelection = useTaskListStore((s) => s.setSelection);
 
   const [moveTarget, setMoveTarget] = useState("");
+  // movingRef is the synchronous guard against rapid double-clicks — useState
+  // doesn't update its closure value before the next click's handler fires,
+  // so two clicks before re-render would both pass an `if (moving) return`
+  // check. The ref reflects the latest value immediately. `moving` (state)
+  // is kept only to drive the disabled-button render.
+  const movingRef = useRef(false);
   const [moving, setMoving] = useState(false);
   const [destError, setDestError] = useState(false);
   const destinationRef = useRef<HTMLSelectElement>(null);
@@ -44,12 +50,13 @@ export function MoveTasksModal({
   );
 
   const handleMove = async () => {
-    if (moving) return;
+    if (movingRef.current) return;
     if (!moveTarget) {
       setDestError(true);
       destinationRef.current?.focus();
       return;
     }
+    movingRef.current = true;
     setMoving(true);
 
     if (isUnifiedView) {
@@ -74,6 +81,7 @@ export function MoveTasksModal({
               ),
             ),
           );
+          movingRef.current = false;
           setMoving(false);
           const message = movedAny
             ? `Some selected tasks were moved before the operation stopped.\n\n${result.message}`
@@ -90,6 +98,7 @@ export function MoveTasksModal({
       const taskIds = new Set(selectedTasks.map((t) => t.id));
       const result = await moveTasks(sourceFilePath, moveTarget, taskIds);
       if (result.status === "error") {
+        movingRef.current = false;
         setMoving(false);
         await showMessage("Move Failed", result.message);
         return;

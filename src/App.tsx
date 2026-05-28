@@ -4,11 +4,11 @@
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import "./App.css";
-import type { AppConfigDto } from "./models";
 import type { LoadPreferencesResult, LoadWorkspaceResult } from "./repositories";
-import { initializeAppConfig, saveAppConfig, showMessage } from "./repositories";
+import { showMessage } from "./repositories";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
+import { useAppConfigStore } from "./state/app-config-store";
 import { startBackupSchedule } from "./services";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { MainWindow } from "./components/layout/MainWindow";
@@ -16,7 +16,7 @@ import { AppDialogHost } from "./components/shared/AppDialogHost";
 
 type AppPhase =
   | { kind: "loading" }
-  | { kind: "startup"; config: AppConfigDto }
+  | { kind: "startup" }
   | { kind: "error"; message: string }
   | { kind: "main" };
 
@@ -24,24 +24,22 @@ function App() {
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
   const loadPreferences = usePreferencesStore((s) => s.load);
   const loadWorkspace = useWorkspaceStore((s) => s.load);
+  const initializeAppConfig = useAppConfigStore((s) => s.initialize);
+  const setLastPaths = useAppConfigStore((s) => s.setLastPaths);
 
   // Initialize on mount.
   useEffect(() => {
     (async () => {
       try {
-        const { config } = await initializeAppConfig();
-        setPhase({ kind: "startup", config });
+        await initializeAppConfig();
+        setPhase({ kind: "startup" });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         console.error("Failed to initialize:", e);
         setPhase({ kind: "error", message });
       }
     })();
-  }, []);
-
-  const handleConfigChange = (config: AppConfigDto) => {
-    setPhase({ kind: "startup", config });
-  };
+  }, [initializeAppConfig]);
 
   const handleLaunch = async (
     preferencesPath: string,
@@ -69,12 +67,7 @@ function App() {
     }
 
     // Remember only a successfully loaded selection.
-    const updated = {
-      ...phase.config,
-      lastPreferencesPath: preferencesPath,
-      lastWorkspacePath: workspacePath,
-    };
-    await saveAppConfig(updated);
+    await setLastPaths(preferencesPath, workspacePath);
 
     // Start backup system: immediate backup + periodic backups every hour.
     // Does not block the main window from appearing.
@@ -109,13 +102,7 @@ function App() {
       break;
 
     case "startup":
-      content = (
-        <StartupPicker
-          appConfig={phase.config}
-          onConfigChange={handleConfigChange}
-          onLaunch={handleLaunch}
-        />
-      );
+      content = <StartupPicker onLaunch={handleLaunch} />;
       break;
 
     case "main":

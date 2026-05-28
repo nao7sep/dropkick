@@ -4,7 +4,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { FolderOpen, Plus, X } from "lucide-react";
-import type { AppConfigDto } from "../../models";
 import type { LoadPreferencesResult, LoadWorkspaceResult } from "../../repositories";
 import {
   createPreferencesFile,
@@ -12,25 +11,24 @@ import {
   loadPreferences,
   loadWorkspace,
   openJsonFileDialog,
-  registerPreferencesPath,
-  registerWorkspacePath,
   saveJsonFileDialog,
   showMessage,
-  unregisterPreferencesPath,
-  unregisterWorkspacePath,
 } from "../../repositories";
+import { useAppConfigStore } from "../../state/app-config-store";
 
 interface StartupPickerProps {
-  appConfig: AppConfigDto;
-  onConfigChange: (config: AppConfigDto) => void;
   onLaunch: (preferencesPath: string, workspacePath: string) => void;
 }
 
-export function StartupPicker({
-  appConfig,
-  onConfigChange,
-  onLaunch,
-}: StartupPickerProps) {
+export function StartupPicker({ onLaunch }: StartupPickerProps) {
+  const appConfig = useAppConfigStore((s) => s.config);
+  const registerPreferences = useAppConfigStore((s) => s.registerPreferences);
+  const registerWorkspace = useAppConfigStore((s) => s.registerWorkspace);
+  const unregisterPreferences = useAppConfigStore(
+    (s) => s.unregisterPreferences,
+  );
+  const unregisterWorkspace = useAppConfigStore((s) => s.unregisterWorkspace);
+
   const [selectedPrefs, setSelectedPrefs] = useState(
     appConfig.lastPreferencesPath,
   );
@@ -63,8 +61,7 @@ export function StartupPicker({
       );
       return;
     }
-    const updated = await registerPreferencesPath(appConfig, path);
-    onConfigChange(updated);
+    await registerPreferences(path);
     setSelectedPrefs(path);
   };
 
@@ -73,8 +70,7 @@ export function StartupPicker({
     if (!path) return;
     const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
     await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-    const updated = await registerPreferencesPath(appConfig, normalizedPath);
-    onConfigChange(updated);
+    await registerPreferences(normalizedPath);
     setSelectedPrefs(normalizedPath);
   };
 
@@ -89,8 +85,7 @@ export function StartupPicker({
       );
       return;
     }
-    const updated = await registerWorkspacePath(appConfig, path);
-    onConfigChange(updated);
+    await registerWorkspace(path);
     setSelectedWorkspace(path);
   };
 
@@ -99,24 +94,23 @@ export function StartupPicker({
     if (!path) return;
     const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
     await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-    const updated = await registerWorkspacePath(appConfig, normalizedPath);
-    onConfigChange(updated);
+    await registerWorkspace(normalizedPath);
     setSelectedWorkspace(normalizedPath);
   };
 
   const handleRemovePreferences = async (path: string) => {
-    const updated = await unregisterPreferencesPath(appConfig, path);
-    onConfigChange(updated);
+    await unregisterPreferences(path);
     if (selectedPrefs === path) {
-      setSelectedPrefs(updated.lastPreferencesPath);
+      setSelectedPrefs(useAppConfigStore.getState().config.lastPreferencesPath);
     }
   };
 
   const handleRemoveWorkspace = async (path: string) => {
-    const updated = await unregisterWorkspacePath(appConfig, path);
-    onConfigChange(updated);
+    await unregisterWorkspace(path);
     if (selectedWorkspace === path) {
-      setSelectedWorkspace(updated.lastWorkspacePath);
+      setSelectedWorkspace(
+        useAppConfigStore.getState().config.lastWorkspacePath,
+      );
     }
   };
 

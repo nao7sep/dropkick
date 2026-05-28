@@ -34,7 +34,7 @@ interface WorkspaceState {
   addUnifiedViewTab: () => Promise<void>;
   closeTab: (index: number) => Promise<void>;
   setActiveTab: (index: number) => Promise<void>;
-  renameTab: (index: number, displayName: string) => Promise<void>;
+  renameTab: (taskFilePath: string, displayName: string) => Promise<void>;
   reorderTabs: (fromIndex: number, toIndex: number) => Promise<void>;
   addRecentFile: (filePath: string) => Promise<void>;
 }
@@ -156,12 +156,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       });
     },
 
-    renameTab: async (index: number, displayName: string) => {
+    renameTab: async (taskFilePath: string, displayName: string) => {
+      // Identified by filePath, not index. Indices shift under reorder/close;
+      // filePath is stable. Unified view isn't renameable, so no special case.
       set((state) => ({
         workspace: {
           ...state.workspace,
-          openTabs: state.workspace.openTabs.map((tab, i) =>
-            i === index ? { ...tab, displayName } : tab,
+          openTabs: state.workspace.openTabs.map((tab) =>
+            !tab.isUnifiedView && tab.filePath === taskFilePath
+              ? { ...tab, displayName }
+              : tab,
           ),
         },
       }));

@@ -85,10 +85,16 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
     Ok(JsonFileWithHashResult::Success { data, hash })
 }
 
-// Creates a zip backup from a list of (source_path, zip_entry_name) pairs.
+// Creates a zip backup from a list of (zip_entry_name, content) pairs.
+// The frontend reads each source file inside its per-path serial slot (see
+// withSerial in file-system.ts) so the bytes here are guaranteed to be a
+// coherent snapshot of one file at one moment — never mid-write.
 // Returns the path to the created zip file.
 #[tauri::command]
-fn create_backup(entries: Vec<(String, String)>, output_path: String) -> Result<String, String> {
+fn create_backup_from_entries(
+    entries: Vec<(String, String)>,
+    output_path: String,
+) -> Result<String, String> {
     // Ensure parent directory exists.
     if let Some(parent) = std::path::Path::new(&output_path).parent() {
         std::fs::create_dir_all(parent)
@@ -100,19 +106,10 @@ fn create_backup(entries: Vec<(String, String)>, output_path: String) -> Result<
     let mut zip = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-    for (source_path, entry_name) in &entries {
-        let bytes = match std::fs::read(source_path) {
-            Ok(b) => b,
-            Err(e) => {
-                // Skip files that can't be read (e.g. deleted between check and backup).
-                eprintln!("[backup] Skipping {}: {}", source_path, e);
-                continue;
-            }
-        };
-
+    for (entry_name, content) in &entries {
         zip.start_file(entry_name, options)
             .map_err(|e| format!("Failed to add {} to zip: {}", entry_name, e))?;
-        std::io::Write::write_all(&mut zip, &bytes)
+        std::io::Write::write_all(&mut zip, content.as_bytes())
             .map_err(|e| format!("Failed to write {} to zip: {}", entry_name, e))?;
     }
 
@@ -158,7 +155,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             hash_file,
             read_json_file_with_hash,
-            create_backup,
+            create_backup_from_entries,
             list_directory,
             delete_file
         ])
