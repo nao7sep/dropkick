@@ -13,16 +13,18 @@ export default defineConfig(async () => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
+  // 2. tauri expects a fixed port, fail if that port is not available.
+  //    Bumped from the 1420/1421 scaffold default so it never collides with a
+  //    sibling Tauri app's launcher port-kill (quickdeck uses 1621).
   server: {
-    port: 1420,
+    port: 1521,
     strictPort: true,
     host: host || false,
     hmr: host
       ? {
           protocol: "ws",
           host,
-          port: 1421,
+          port: 1522,
         }
       : undefined,
     watch: {

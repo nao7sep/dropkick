@@ -64,7 +64,9 @@ try {
     Set-Location $repoDir
 
     Write-Step "Stopping stale development listeners"
-    Stop-Port 1420
+    # 1521 is this app's Vite dev port (bumped from the 1420/1421 Tauri scaffold
+    # default so it never collides with quickdeck's launcher port-kill on 1621).
+    Stop-Port 1521
 
     Write-Step "Installing dependencies required for launch"
     Invoke-Native -FilePath "npm" -ArgumentList @("install")
