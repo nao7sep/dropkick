@@ -1,0 +1,110 @@
+name: Release
+
+# Dropkick is developed and primarily used on macOS. Windows is a secondary
+# target that cannot be cross-compiled from a Mac, so both platforms are built
+# here in CI: macOS on a macos-latest runner, Windows on a windows-latest one.
+#
+# fail-fast is disabled so a Windows build failure never blocks the macOS one.
+#
+# Two ways to trigger:
+#   - Push a tag like v0.1.0  -> builds both platforms and attaches ONLY the two
+#     installers (macOS .dmg + Windows .exe) to a single DRAFT GitHub Release for
+#     that tag (test it, then publish the draft).
+#   - Run manually from the Actions tab ("Run workflow") -> builds both and
+#     uploads the installers as run artifacts, without creating a release.
+#
+# Tauri hardcodes its bundle filenames ({productName}_{version}_{arch}...), so we
+# rename the outputs to the minimal `dropkick-<version>[-setup].<ext>` pattern
+# before attaching them — matching QuickDeck's and ImageQueue's release naming.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# Needed for the gh CLI to create/upload the draft release.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            artifact-name: dropkick-macos
+          - platform: windows-latest
+            artifact-name: dropkick-windows
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Build only — no release here. We rename + attach the installers below so
+      # they follow the minimal naming pattern (tauri-action with no tagName just
+      # builds and skips releasing).
+      - name: Build app
+        uses: tauri-apps/tauri-action@v0
+
+      # Tauri names bundles {productName}_{version}_{arch}[-setup].{ext}; copy the
+      # one installer per platform to the minimal `dropkick-<version>` form.
+      - name: Rename installers to the minimal pattern
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p artifacts
+          shopt -s nullglob
+          for f in src-tauri/target/release/bundle/dmg/*.dmg; do
+            cp "$f" "artifacts/dropkick-${VERSION}.dmg"
+          done
+          for f in src-tauri/target/release/bundle/nsis/*.exe; do
+            cp "$f" "artifacts/dropkick-${VERSION}-setup.exe"
+          done
+          ls -la artifacts
+
+      # Tag pushes: attach this platform's installer to the shared draft release.
+      # The first matrix job to finish creates the draft; the other's create is a
+      # no-op (|| true). --clobber makes re-running the same tag idempotent.
+      - name: Attach installer to the draft release (tag pushes)
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          shopt -s nullglob
+          files=(artifacts/*.dmg artifacts/*-setup.exe)
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft \
+            --title "Dropkick $TAG" \
+            --notes "Dropkick $TAG — macOS (.dmg) and Windows (.exe) installers." \
+            2>/dev/null || true
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" "${files[@]}" --clobber
+
+      # Manual runs: no release, just the installers as downloadable artifacts.
+      - name: Upload installers as run artifacts (manual runs)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact-name }}
+          if-no-files-found: error
+          path: |
+            artifacts/*.dmg
+            artifacts/*-setup.exe
