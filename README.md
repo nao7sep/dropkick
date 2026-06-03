@@ -127,6 +127,17 @@ npm install
 npm run tauri dev
 ```
 
+### Testing
+
+```sh
+npm test                                  # frontend unit tests (Vitest)
+cargo test --lib --manifest-path src-tauri/Cargo.toml   # Rust command tests
+```
+
+Tests cover the pure logic (task grouping, the kick/reorder algorithms, date and
+timezone handling, backup rotation), the Zustand stores and file repositories
+(with Tauri mocked), and the Rust commands.
+
 ### Production Build
 
 ```sh

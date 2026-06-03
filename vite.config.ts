@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -31,5 +32,16 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+  },
+
+  // Unit tests run on Vitest, reusing this same Vite pipeline (TS, ESM,
+  // path resolution). Default environment is `node` since the bulk of the
+  // suite is pure logic in src/services and src/utils; specs that touch the
+  // DOM or read navigator.platform opt into happy-dom with a per-file
+  // `// @vitest-environment happy-dom` comment.
+  test: {
+    environment: "node",
+    setupFiles: ["./test/setup.ts"],
+    include: ["src/**/*.test.ts"],
   },
 }));

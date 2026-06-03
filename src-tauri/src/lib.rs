@@ -145,6 +145,153 @@ fn delete_file(path: String) -> Result<(), String> {
     std::fs::remove_file(&path).map_err(|e| format!("Failed to delete {}: {}", path, e))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Read;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    // Unique temp directory per call so parallel tests never collide.
+    fn unique_temp_dir(label: &str) -> std::path::PathBuf {
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "dropkick-test-{}-{}-{}",
+            label,
+            std::process::id(),
+            n
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn sha256_hex_matches_known_vectors() {
+        assert_eq!(
+            sha256_hex(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
+    fn hash_file_hashes_actual_bytes() {
+        let dir = unique_temp_dir("hash");
+        let path = dir.join("f.txt");
+        std::fs::write(&path, b"abc").unwrap();
+        let result = hash_file(path.to_str().unwrap()).unwrap();
+        assert_eq!(result, sha256_hex(b"abc"));
+    }
+
+    #[test]
+    fn read_json_returns_missing_for_absent_file() {
+        let dir = unique_temp_dir("read-missing");
+        let path = dir.join("nope.json");
+        let result = read_json_file_with_hash(path.to_str().unwrap()).unwrap();
+        assert!(matches!(result, JsonFileWithHashResult::Missing));
+    }
+
+    #[test]
+    fn read_json_returns_invalid_for_bad_json() {
+        let dir = unique_temp_dir("read-invalid");
+        let path = dir.join("bad.json");
+        std::fs::write(&path, b"{ not json").unwrap();
+        let result = read_json_file_with_hash(path.to_str().unwrap()).unwrap();
+        assert!(matches!(result, JsonFileWithHashResult::Invalid { .. }));
+    }
+
+    #[test]
+    fn read_json_returns_success_with_hash() {
+        let dir = unique_temp_dir("read-success");
+        let path = dir.join("good.json");
+        let json = br#"{"version":"1.0.0","tasks":[]}"#;
+        std::fs::write(&path, json).unwrap();
+        let result = read_json_file_with_hash(path.to_str().unwrap()).unwrap();
+        match result {
+            JsonFileWithHashResult::Success { data, hash } => {
+                assert_eq!(data.version, "1.0.0");
+                assert!(data.tasks.is_empty());
+                assert_eq!(hash, sha256_hex(json));
+            }
+            other => panic!("expected Success, got {:?}", serde_json::to_string(&other)),
+        }
+    }
+
+    #[test]
+    fn create_backup_writes_a_readable_zip() {
+        let dir = unique_temp_dir("backup");
+        let output = dir.join("nested").join("backup.zip");
+        let entries = vec![
+            ("tasks.json".to_string(), "hello".to_string()),
+            ("prefs.json".to_string(), "world".to_string()),
+        ];
+        let returned =
+            create_backup_from_entries(entries, output.to_str().unwrap().to_string()).unwrap();
+        assert_eq!(returned, output.to_str().unwrap());
+        // Parent directory was created and the file exists.
+        assert!(output.exists());
+
+        // Read the zip back and verify both entries and their contents.
+        let f = std::fs::File::open(&output).unwrap();
+        let mut archive = zip::ZipArchive::new(f).unwrap();
+        assert_eq!(archive.len(), 2);
+
+        let mut tasks = String::new();
+        archive
+            .by_name("tasks.json")
+            .unwrap()
+            .read_to_string(&mut tasks)
+            .unwrap();
+        assert_eq!(tasks, "hello");
+
+        let mut prefs = String::new();
+        archive
+            .by_name("prefs.json")
+            .unwrap()
+            .read_to_string(&mut prefs)
+            .unwrap();
+        assert_eq!(prefs, "world");
+    }
+
+    #[test]
+    fn list_directory_returns_empty_for_missing_dir() {
+        let dir = unique_temp_dir("list-missing");
+        let missing = dir.join("does-not-exist");
+        let result = list_directory(missing.to_str().unwrap().to_string()).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn list_directory_returns_sorted_names() {
+        let dir = unique_temp_dir("list");
+        std::fs::write(dir.join("c.txt"), b"").unwrap();
+        std::fs::write(dir.join("a.txt"), b"").unwrap();
+        std::fs::write(dir.join("b.txt"), b"").unwrap();
+        let result = list_directory(dir.to_str().unwrap().to_string()).unwrap();
+        assert_eq!(result, vec!["a.txt", "b.txt", "c.txt"]);
+    }
+
+    #[test]
+    fn delete_file_removes_the_file() {
+        let dir = unique_temp_dir("delete");
+        let path = dir.join("gone.txt");
+        std::fs::write(&path, b"x").unwrap();
+        assert!(path.exists());
+        delete_file(path.to_str().unwrap().to_string()).unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn delete_file_errors_for_missing_file() {
+        let dir = unique_temp_dir("delete-missing");
+        let path = dir.join("nope.txt");
+        assert!(delete_file(path.to_str().unwrap().to_string()).is_err());
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
