@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { canTransitionStatus } from "./validation";
-import { makeTask, makeNote } from "../../test/helpers/task";
+import { canTransitionStatus } from "../../src/services/validation";
+import { makeTask, makeNote } from "../helpers/task";
 
 describe("canTransitionStatus", () => {
   it("blocks completion when an actionable note remains", () => {

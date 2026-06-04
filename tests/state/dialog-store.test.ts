@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useDialogStore, showAppMessage, showAppConfirm } from "./dialog-store";
+import { useDialogStore, showAppMessage, showAppConfirm } from "../../src/state/dialog-store";
 
 // dialog-store is pure zustand (no Tauri). It models a single visible dialog
 // plus a FIFO queue, and resolves the awaiting promise when the user

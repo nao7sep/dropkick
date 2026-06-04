@@ -4,7 +4,7 @@ import {
   coerceTimezone,
   normalizeTimezoneOrThrow,
   INVALID_TIMEZONE_MESSAGE,
-} from "./timezone";
+} from "../../src/utils/timezone";
 
 describe("validateTimezone", () => {
   it("treats null/undefined as 'use system timezone'", () => {

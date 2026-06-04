@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeSingleLine } from "./sanitize";
+import { sanitizeSingleLine } from "../../src/utils/sanitize";
 
 describe("sanitizeSingleLine", () => {
   it("collapses newlines into single spaces", () => {

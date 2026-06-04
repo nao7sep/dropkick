@@ -7,7 +7,7 @@ import {
   formatDueDate,
   isOverdue,
   isDueInDayRange,
-} from "./dates";
+} from "../../src/utils/dates";
 
 // Pin "now" to a moment where UTC and Asia/Tokyo (UTC+9) fall on different
 // calendar dates, so timezone handling is actually exercised:

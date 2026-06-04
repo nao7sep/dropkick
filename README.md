@@ -138,6 +138,11 @@ Tests cover the pure logic (task grouping, the kick/reorder algorithms, date and
 timezone handling, backup rotation), the Zustand stores and file repositories
 (with Tauri mocked), and the Rust commands.
 
+Frontend tests live in `tests/`, mirroring `src/` (`tests/utils/`,
+`tests/services/`, `tests/state/`, `tests/repositories/`), with shared fixtures
+and setup in `tests/helpers/` and `tests/setup.ts`. Rust tests stay inline in
+`src-tauri` as Cargo `#[cfg(test)]` modules.
+
 ### Production Build
 
 ```sh

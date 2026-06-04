@@ -12,8 +12,8 @@ import {
   deleteTask,
   deleteNote,
   replaceTask,
-} from "./task-operations";
-import { makeTask, makeNote } from "../../test/helpers/task";
+} from "../../src/services/task-operations";
+import { makeTask, makeNote } from "../helpers/task";
 
 // The load-bearing contract here: an edit that changes nothing returns the SAME
 // object reference, and updatedAtUtc changes only when persisted data changes.

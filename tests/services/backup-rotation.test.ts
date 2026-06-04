@@ -8,7 +8,7 @@ import {
   backupTimestamp,
   parseBackupUtcMs,
   selectBackupsToPrune,
-} from "./backup-rotation";
+} from "../../src/services/backup-rotation";
 
 describe("sanitizeEntryName", () => {
   it("replaces Windows-invalid characters with underscores", () => {

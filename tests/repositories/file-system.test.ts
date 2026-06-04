@@ -11,7 +11,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-import { withSerial, withSerialTwo, drainAllSerial } from "./file-system";
+import { withSerial, withSerialTwo, drainAllSerial } from "../../src/repositories/file-system";
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void;

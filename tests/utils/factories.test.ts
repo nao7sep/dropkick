@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { createTask, createNote } from "./factories";
+import { createTask, createNote } from "../../src/utils/factories";
 
 const FIXED_NOW = "2026-06-04T12:00:00.000Z";
 

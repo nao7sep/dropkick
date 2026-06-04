@@ -16,7 +16,7 @@ const PLATFORM_STRINGS: Record<TestPlatform, string> = {
 
 // Stubs navigator.platform, resets the module cache, then runs the given loader
 // so the module's load-time platform detection sees the stubbed value. The
-// loader must contain the dynamic import() itself (e.g. () => import("./zoom"))
+// loader must contain the dynamic import() itself (e.g. () => import("../../src/utils/zoom"))
 // so the specifier resolves relative to the calling test file.
 export async function importWithPlatform<T>(
   platform: TestPlatform,

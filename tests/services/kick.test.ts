@@ -6,8 +6,8 @@ import {
   moveTasksUp,
   moveTasksDown,
   dropkickTasks,
-} from "./kick";
-import { makeTask, ids } from "../../test/helpers/task";
+} from "../../src/services/kick";
+import { makeTask, ids } from "../helpers/task";
 
 // All kick operations are slot-based: a group's tasks occupy fixed indices in the
 // flat array, and reordering only shuffles which task sits in which of *those*

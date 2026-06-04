@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { TaskListDto } from "../models";
+import type { TaskListDto } from "../../src/models";
 
 // Spies for the two mocked dependency modules. withSerial/withSerialTwo are
 // pass-throughs: the per-path serialization is not what these tests exercise.
@@ -10,7 +10,7 @@ const fileExists = vi.fn();
 const showFileConflictDialog = vi.fn();
 const showFileDeletedDialog = vi.fn();
 
-vi.mock("./file-system", () => ({
+vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileWithHash: (p: string) => readJsonFileWithHash(p),
   writeJsonFile: (p: string, d: unknown) => writeJsonFile(p, d),
   hashFile: (p: string) => hashFile(p),
@@ -19,13 +19,13 @@ vi.mock("./file-system", () => ({
   withSerialTwo: (_a: string, _b: string, fn: () => unknown) => fn(),
 }));
 
-vi.mock("./dialogs", () => ({
+vi.mock("../../src/repositories/dialogs", () => ({
   showFileConflictDialog: (p: string) => showFileConflictDialog(p),
   showFileDeletedDialog: (p: string) => showFileDeletedDialog(p),
 }));
 
 // Re-imported fresh per test so the module-level knownHashes map is isolated.
-let repo: typeof import("./task-list-repository");
+let repo: typeof import("../../src/repositories/task-list-repository");
 
 const data = (tasks: TaskListDto["tasks"] = []): TaskListDto => ({ version: "1.0.0", tasks });
 
@@ -34,7 +34,7 @@ beforeEach(async () => {
   writeJsonFile.mockResolvedValue(undefined);
   fileExists.mockResolvedValue(true);
   vi.resetModules();
-  repo = await import("./task-list-repository");
+  repo = await import("../../src/repositories/task-list-repository");
 });
 
 // Loads a file so its hash is registered as `hash`, the precondition for flushes.

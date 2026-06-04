@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { computeGroup, toTask, toDto } from "./domain-mapping";
-import { makeTask, makeNote } from "../../test/helpers/task";
+import { computeGroup, toTask, toDto } from "../../src/utils/domain-mapping";
+import { makeTask, makeNote } from "../helpers/task";
 
 // computeGroup and the date-based helpers it calls resolve "today" from the
 // system clock. Pin it so due-date boundaries are deterministic. Tests use a

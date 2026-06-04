@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { matchesShortcutKey } from "./shortcuts";
-import { importWithPlatform } from "../../test/helpers/platform";
+import { matchesShortcutKey } from "../../src/utils/shortcuts";
+import { importWithPlatform } from "../helpers/platform";
 
-type ShortcutsModule = typeof import("./shortcuts");
+type ShortcutsModule = typeof import("../../src/utils/shortcuts");
 
 describe("matchesShortcutKey", () => {
   it("matches single-character keys case-insensitively", () => {
@@ -26,13 +26,13 @@ describe("hasPrimaryShortcutModifier (platform-dependent)", () => {
   });
 
   it("uses metaKey (Cmd) on macOS", async () => {
-    const { hasPrimaryShortcutModifier } = await importWithPlatform<ShortcutsModule>("mac", () => import("./shortcuts"));
+    const { hasPrimaryShortcutModifier } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
     expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: false })).toBe(true);
     expect(hasPrimaryShortcutModifier({ metaKey: false, ctrlKey: true })).toBe(false);
   });
 
   it("uses ctrlKey on Windows", async () => {
-    const { hasPrimaryShortcutModifier } = await importWithPlatform<ShortcutsModule>("windows", () => import("./shortcuts"));
+    const { hasPrimaryShortcutModifier } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
     expect(hasPrimaryShortcutModifier({ metaKey: false, ctrlKey: true })).toBe(true);
     expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: false })).toBe(false);
   });

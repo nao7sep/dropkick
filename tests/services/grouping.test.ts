@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { groupTasksForList, groupTasksForUnifiedView } from "./grouping";
-import { makeTask } from "../../test/helpers/task";
-import type { Task, TaskGroup } from "../models";
+import { groupTasksForList, groupTasksForUnifiedView } from "../../src/services/grouping";
+import { makeTask } from "../helpers/task";
+import type { Task, TaskGroup } from "../../src/models";
 
 // grouping operates on Task (domain) objects, which carry a precomputed `group`.
 // These tests set `group` directly to isolate the grouping/sorting logic from

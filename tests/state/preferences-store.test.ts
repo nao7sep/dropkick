@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { PreferencesDto } from "../models";
+import type { PreferencesDto } from "../../src/models";
 
 const loadPreferences = vi.fn();
 const flushPreferences = vi.fn();
 
-vi.mock("../repositories", () => ({
+vi.mock("../../src/repositories", () => ({
   loadPreferences: (p: string) => loadPreferences(p),
   flushPreferences: (p: string, getPrefs: () => PreferencesDto) => flushPreferences(p, getPrefs),
 }));
 
-import { usePreferencesStore } from "./preferences-store";
-import { createDefaultPreferences } from "../models";
+import { usePreferencesStore } from "../../src/state/preferences-store";
+import { createDefaultPreferences } from "../../src/models";
 
 beforeEach(() => {
   loadPreferences.mockReset();

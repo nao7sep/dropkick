@@ -41,7 +41,7 @@ export default defineConfig(async () => ({
   // `// @vitest-environment happy-dom` comment.
   test: {
     environment: "node",
-    setupFiles: ["./test/setup.ts"],
-    include: ["src/**/*.test.ts"],
+    setupFiles: ["./tests/setup.ts"],
+    include: ["tests/**/*.test.ts"],
   },
 }));

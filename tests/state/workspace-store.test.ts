@@ -7,13 +7,13 @@ const flushWorkspace = vi.fn(async (_path: string, getWorkspace: () => unknown) 
 });
 const loadWorkspace = vi.fn();
 
-vi.mock("../repositories", () => ({
+vi.mock("../../src/repositories", () => ({
   flushWorkspace: (path: string, getWorkspace: () => unknown) => flushWorkspace(path, getWorkspace),
   loadWorkspace: (path: string) => loadWorkspace(path),
 }));
 
-import { useWorkspaceStore } from "./workspace-store";
-import { createDefaultWorkspace } from "../models";
+import { useWorkspaceStore } from "../../src/state/workspace-store";
+import { createDefaultWorkspace } from "../../src/models";
 
 function resetStore(filePath = "/ws.json") {
   useWorkspaceStore.setState({

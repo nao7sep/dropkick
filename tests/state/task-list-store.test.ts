@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { TaskListDto } from "../models";
+import type { TaskListDto } from "../../src/models";
 
 // --- Repository mock ---
 // The store's only side effects go through ../repositories. We mock the whole
@@ -12,7 +12,7 @@ const forceFlushTaskList = vi.fn();
 const flushMove = vi.fn();
 const forgetTaskList = vi.fn(async (_p: string) => {});
 
-vi.mock("../repositories", () => ({
+vi.mock("../../src/repositories", () => ({
   loadTaskList: (p: string) => loadTaskList(p),
   createTaskListFile: (p: string) => createTaskListFile(p),
   flushTaskList: (p: string, getData: () => TaskListDto) => flushTaskList(p, getData),
@@ -21,10 +21,10 @@ vi.mock("../repositories", () => ({
   forgetTaskList: (p: string) => forgetTaskList(p),
 }));
 
-import { useTaskListStore } from "./task-list-store";
-import { usePreferencesStore } from "./preferences-store";
-import { makeTask, makeNote } from "../../test/helpers/task";
-import { taskKey } from "../utils";
+import { useTaskListStore } from "../../src/state/task-list-store";
+import { usePreferencesStore } from "../../src/state/preferences-store";
+import { makeTask, makeNote } from "../helpers/task";
+import { taskKey } from "../../src/utils";
 
 const FILE = "/list.json";
 

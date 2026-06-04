@@ -6,8 +6,8 @@ import {
   ZOOM_MAX,
   stepZoomIn,
   stepZoomOut,
-} from "./zoom";
-import { importWithPlatform } from "../../test/helpers/platform";
+} from "../../src/utils/zoom";
+import { importWithPlatform } from "../helpers/platform";
 
 describe("zoom level stepping", () => {
   it("exposes sane constants", () => {
@@ -43,7 +43,7 @@ describe("zoom level stepping", () => {
 });
 
 // Type for the dynamically re-imported module under a stubbed platform.
-type ZoomModule = typeof import("./zoom");
+type ZoomModule = typeof import("../../src/utils/zoom");
 
 function keyEvent(init: Partial<KeyboardEvent>): KeyboardEvent {
   return init as KeyboardEvent;
@@ -55,7 +55,7 @@ describe("zoom keyboard shortcuts (platform-dependent)", () => {
   });
 
   it("on macOS, requires Cmd (metaKey) for zoom keys", async () => {
-    const { isZoomIn, isZoomOut, isZoomReset } = await importWithPlatform<ZoomModule>("mac", () => import("./zoom"));
+    const { isZoomIn, isZoomOut, isZoomReset } = await importWithPlatform<ZoomModule>("mac", () => import("../../src/utils/zoom"));
     expect(isZoomIn(keyEvent({ key: "=", metaKey: true }))).toBe(true);
     expect(isZoomIn(keyEvent({ key: "+", metaKey: true }))).toBe(true);
     expect(isZoomIn(keyEvent({ key: ";", metaKey: true }))).toBe(true);
@@ -66,7 +66,7 @@ describe("zoom keyboard shortcuts (platform-dependent)", () => {
   });
 
   it("on Windows, requires Ctrl for zoom keys", async () => {
-    const { isZoomIn, isZoomOut, isZoomReset } = await importWithPlatform<ZoomModule>("windows", () => import("./zoom"));
+    const { isZoomIn, isZoomOut, isZoomReset } = await importWithPlatform<ZoomModule>("windows", () => import("../../src/utils/zoom"));
     expect(isZoomIn(keyEvent({ key: "=", ctrlKey: true }))).toBe(true);
     expect(isZoomOut(keyEvent({ key: "-", ctrlKey: true }))).toBe(true);
     expect(isZoomReset(keyEvent({ key: "0", ctrlKey: true }))).toBe(true);
@@ -75,7 +75,7 @@ describe("zoom keyboard shortcuts (platform-dependent)", () => {
   });
 
   it("ignores zoom keys without the primary modifier", async () => {
-    const { isZoomIn } = await importWithPlatform<ZoomModule>("mac", () => import("./zoom"));
+    const { isZoomIn } = await importWithPlatform<ZoomModule>("mac", () => import("../../src/utils/zoom"));
     expect(isZoomIn(keyEvent({ key: "=" }))).toBe(false);
   });
 });

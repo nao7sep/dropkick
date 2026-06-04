@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { prepareMoveOperation } from "./move-operations";
-import { makeTask, ids } from "../../test/helpers/task";
+import { prepareMoveOperation } from "../../src/services/move-operations";
+import { makeTask, ids } from "../helpers/task";
 
 describe("prepareMoveOperation", () => {
   it("removes selected tasks from source and prepends them to destination", () => {
