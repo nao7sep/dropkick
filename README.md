@@ -20,7 +20,7 @@ Built with Tauri v2, React, and TypeScript.
 - **File integrity** — SHA-256 hash checks detect external modifications before overwriting; if a file changed outside Dropkick, you can overwrite or reload, and if it was deleted, you can recreate it or cancel the change
 - **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically)
 - **IME composition support** — Japanese/Chinese/Korean input works correctly in all text fields
-- **Configurable** — font family, dark mode, date/time format, timezone, kick distances, due soon window in Settings; zoom (50%–500%) via the gear menu or keyboard shortcuts
+- **Configurable** — font family, dark mode, date/time format, timezone, kick distances, due soon window, handled tasks page size in Settings; zoom (50%–500%) via the gear menu or keyboard shortcuts
 
 ## Data Storage
 
@@ -106,6 +106,7 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 | Close tab | Cmd+W |
 | Unified view | Cmd+U |
 | Rename tab | Double-click tab |
+| Toggle dark mode | Cmd+Shift+D |
 | Zoom in | Cmd+Equal / Cmd+Plus / Cmd+Semicolon |
 | Zoom out | Cmd+Minus |
 | Reset zoom | Cmd+0 |

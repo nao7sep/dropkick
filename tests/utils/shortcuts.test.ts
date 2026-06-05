@@ -37,3 +37,19 @@ describe("hasPrimaryShortcutModifier (platform-dependent)", () => {
     expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: false })).toBe(false);
   });
 });
+
+describe("primaryModifierLabel (platform-dependent)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is 'Cmd' on macOS", async () => {
+    const { primaryModifierLabel } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    expect(primaryModifierLabel).toBe("Cmd");
+  });
+
+  it("is 'Ctrl' on Windows", async () => {
+    const { primaryModifierLabel } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
+    expect(primaryModifierLabel).toBe("Ctrl");
+  });
+});

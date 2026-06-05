@@ -34,7 +34,9 @@ export function AboutModal({ onClose }: AboutModalProps) {
       <div className="mt-4 flex justify-center gap-4">
         <button
           onClick={() =>
-            openUrl("https://github.com/nao7sep/dropkick").catch(() => {})
+            openUrl("https://github.com/nao7sep/dropkick").catch((e) =>
+              console.warn("[about] Failed to open URL:", e),
+            )
           }
           className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
         >
@@ -43,8 +45,8 @@ export function AboutModal({ onClose }: AboutModalProps) {
         </button>
         <button
           onClick={() =>
-            openUrl("https://github.com/nao7sep/dropkick/issues").catch(
-              () => {},
+            openUrl("https://github.com/nao7sep/dropkick/issues").catch((e) =>
+              console.warn("[about] Failed to open URL:", e),
             )
           }
           className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
