@@ -50,9 +50,9 @@ class ErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div className="flex h-full items-center justify-center p-8">
-          <div className="max-w-md rounded-lg bg-red-50 p-6">
-            <h3 className="mb-2 font-bold text-red-700">Rendering Error</h3>
-            <p className="text-sm text-red-700">{this.state.error}</p>
+          <div className="max-w-md rounded-lg bg-danger-surface p-6">
+            <h3 className="mb-2 font-bold text-danger">Rendering Error</h3>
+            <p className="text-sm text-danger">{this.state.error}</p>
           </div>
         </div>
       );
@@ -366,7 +366,7 @@ export function MainWindow() {
 
   return (
     <div
-      className="flex h-screen flex-col bg-gray-50"
+      className="flex h-screen flex-col bg-background"
       style={{
         fontFamily: preferences.fontFamily,
       }}
@@ -385,7 +385,7 @@ export function MainWindow() {
         <div className="flex min-h-0 flex-1">
           {/* Left pane — task list */}
           <div
-            className="flex h-full shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white"
+            className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-surface"
             style={{ width: dragWidth }}
           >
             <ErrorBoundary>
@@ -401,11 +401,11 @@ export function MainWindow() {
           {/* Resize divider */}
           <div
             onMouseDown={handleDividerDown}
-            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-sky-300 active:bg-sky-400"
+            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong"
           />
 
           {/* Right pane — detail/summary/bulk */}
-          <div className="h-full min-w-0 flex-1 overflow-hidden bg-white">
+          <div className="h-full min-w-0 flex-1 overflow-hidden bg-surface">
             <ErrorBoundary>
               <TaskDetailPane
                 key={activePaneKey}
@@ -418,7 +418,7 @@ export function MainWindow() {
         </div>
       ) : (
         <div className="flex flex-1 items-center justify-center">
-          <div className="text-center text-gray-500">
+          <div className="text-center text-ink-muted">
             <p className="text-lg">Welcome to Dropkick</p>
             <p className="mt-2 text-sm">
               Click the + button to open or create a task list.

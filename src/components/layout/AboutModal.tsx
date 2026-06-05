@@ -15,19 +15,19 @@ export function AboutModal({ onClose }: AboutModalProps) {
       onClose={onClose}
       maxWidth={320}
       bodyClassName="px-6 py-5 text-center"
-      footerClassName="flex justify-end border-t border-gray-200 px-6 py-4"
+      footerClassName="flex justify-end border-t border-border px-6 py-4"
       footer={
           <button
             onClick={onClose}
-            className="rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
           >
             Close
           </button>
       }
     >
-      <p className="text-2xl font-bold text-gray-800">Dropkick</p>
-      <p className="mt-1 text-sm text-gray-500">Version 0.1.0</p>
-      <p className="mt-4 text-sm text-gray-600">
+      <p className="text-2xl font-bold text-ink-strong">Dropkick</p>
+      <p className="mt-1 text-sm text-ink-muted">Version 0.1.0</p>
+      <p className="mt-4 text-sm text-ink-soft">
         A local-first task manager for working with plain JSON task lists
         across multiple files. Your data stays on your machine.
       </p>
@@ -36,7 +36,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
           onClick={() =>
             openUrl("https://github.com/nao7sep/dropkick").catch(() => {})
           }
-          className="inline-flex items-center gap-1 text-sm text-sky-700 hover:text-sky-800 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
         >
           GitHub
           <ExternalLink size={12} />
@@ -47,16 +47,16 @@ export function AboutModal({ onClose }: AboutModalProps) {
               () => {},
             )
           }
-          className="inline-flex items-center gap-1 text-sm text-sky-700 hover:text-sky-800 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
         >
           Report Issue
           <ExternalLink size={12} />
         </button>
       </div>
-      <p className="mt-4 text-xs text-gray-500">
+      <p className="mt-4 text-xs text-ink-muted">
         &copy; 2026 Yoshinao Inoguchi
       </p>
-      <p className="mt-1 text-xs text-gray-500">MIT License</p>
+      <p className="mt-1 text-xs text-ink-muted">MIT License</p>
     </AppModal>
   );
 }

@@ -27,32 +27,32 @@ interface TaskListPaneProps {
 }
 
 const GROUP_COLORS: Record<TaskGroup, string> = {
-  PastDue: "text-red-700 border-red-200",
-  Critical: "text-violet-700 border-violet-200",
-  DueToday: "text-orange-700 border-orange-200",
-  Important: "text-blue-700 border-blue-200",
-  Urgent: "text-rose-700 border-rose-200",
-  DueSoon: "text-teal-700 border-teal-200",
-  Default: "text-gray-600 border-gray-200",
+  PastDue: "text-group-pastdue-fg border-group-pastdue-border",
+  Critical: "text-group-critical-fg border-group-critical-border",
+  DueToday: "text-group-duetoday-fg border-group-duetoday-border",
+  Important: "text-group-important-fg border-group-important-border",
+  Urgent: "text-group-urgent-fg border-group-urgent-border",
+  DueSoon: "text-group-duesoon-fg border-group-duesoon-border",
+  Default: "text-ink-soft border-border",
 };
 
 const GROUP_BORDERS: Record<TaskGroup, string> = {
-  PastDue: "border-l-red-500",
-  Critical: "border-l-violet-500",
-  DueToday: "border-l-orange-500",
-  Important: "border-l-blue-500",
-  Urgent: "border-l-rose-500",
-  DueSoon: "border-l-teal-500",
+  PastDue: "border-l-group-pastdue-accent",
+  Critical: "border-l-group-critical-accent",
+  DueToday: "border-l-group-duetoday-accent",
+  Important: "border-l-group-important-accent",
+  Urgent: "border-l-group-urgent-accent",
+  DueSoon: "border-l-group-duesoon-accent",
   Default: "border-l-transparent",
 };
 
 const GROUP_BGS: Record<TaskGroup, string> = {
-  PastDue: "bg-red-50/60",
-  Critical: "bg-violet-50/60",
-  DueToday: "bg-orange-50/60",
-  Important: "bg-blue-50/60",
-  Urgent: "bg-rose-50/60",
-  DueSoon: "bg-teal-50/60",
+  PastDue: "bg-group-pastdue-tint/60",
+  Critical: "bg-group-critical-tint/60",
+  DueToday: "bg-group-duetoday-tint/60",
+  Important: "bg-group-important-tint/60",
+  Urgent: "bg-group-urgent-tint/60",
+  DueSoon: "bg-group-duesoon-tint/60",
   Default: "",
 };
 
@@ -203,18 +203,18 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       {/* New task button */}
       <button
         onClick={onNewTask}
-        className="flex w-full items-center gap-1.5 border-b border-gray-200 px-3 py-2 text-xs font-medium text-sky-700 hover:bg-sky-50"
+        className="flex w-full items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium text-primary hover:bg-primary-surface"
       >
         <Plus size={14} />
         New Task
-        <span className="ml-auto text-sky-700">
+        <span className="ml-auto text-primary">
           Cmd+N
         </span>
       </button>
 
       {/* Active task groups */}
       {grouped.groups.length === 0 && grouped.handledTotal === 0 && (
-        <div className="flex flex-1 items-center justify-center p-8 text-sm text-gray-500">
+        <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
           No tasks yet.
         </div>
       )}
@@ -222,7 +222,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
         <div key={group}>
           <div
-            className={`sticky top-0 z-10 border-b bg-gray-50/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide backdrop-blur ${GROUP_COLORS[group]}`}
+            className={`sticky top-0 z-10 border-b bg-background/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide backdrop-blur ${GROUP_COLORS[group]}`}
           >
             {label}
           </div>
@@ -252,7 +252,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         <div className="mt-auto">
           <button
             onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
-            className="flex w-full items-center gap-2 border-y border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-100"
+            className="flex w-full items-center gap-2 border-y border-border bg-background px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-muted"
           >
             <span>{handledExpanded ? "▾" : "▸"}</span>
             <span>Handled ({grouped.handledTotal})</span>
@@ -281,7 +281,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               {handledVisible < grouped.handledTotal && (
                 <button
                   onClick={() => showMoreHandled(viewKey, pageSize)}
-                  className="w-full py-2 text-center text-xs text-sky-700 hover:bg-sky-50"
+                  className="w-full py-2 text-center text-xs text-primary hover:bg-primary-surface"
                 >
                   Show more ({grouped.handledTotal - handledVisible} remaining)
                 </button>
@@ -339,19 +339,19 @@ function TaskRow({
       ref={rowRef}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
-      className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-gray-100 px-3 py-2 transition-colors ${GROUP_BORDERS[group]} ${
+      className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-border-subtle px-3 py-2 transition-colors ${GROUP_BORDERS[group]} ${
         isSelected
-          ? "bg-sky-100"
-          : `${GROUP_BGS[group]} hover:bg-gray-50`
+          ? "bg-primary-surface-strong"
+          : `${GROUP_BGS[group]} hover:bg-background`
       }`}
     >
       {/* Status indicator */}
       <span className="shrink-0 text-xs">
         {task.status === "Completed" && (
-          <span className="text-green-700">✓</span>
+          <span className="text-success">✓</span>
         )}
         {task.status === "Dismissed" && (
-          <span className="text-gray-500">✗</span>
+          <span className="text-ink-muted">✗</span>
         )}
       </span>
 
@@ -374,13 +374,13 @@ function TaskRow({
             }
           }}
           {...composing.handlers}
-          className="min-w-0 flex-1 rounded border border-sky-400 bg-white px-1 py-0 text-sm outline-none"
+          className="min-w-0 flex-1 rounded border border-primary-ring bg-surface px-1 py-0 text-sm outline-none"
         />
       ) : (
         <span
           className={`min-w-0 flex-1 truncate text-sm ${
-            task.status === "Dismissed" ? "line-through text-gray-500" : ""
-          } ${task.status === "Completed" ? "text-gray-600" : ""}`}
+            task.status === "Dismissed" ? "line-through text-ink-muted" : ""
+          } ${task.status === "Completed" ? "text-ink-soft" : ""}`}
         >
           {task.title || "Untitled"}
         </span>
@@ -391,14 +391,14 @@ function TaskRow({
         <span title="Has actionable notes">
           <AlertCircle
             size={14}
-            className="shrink-0 text-orange-700"
+            className="shrink-0 text-attention"
           />
         </span>
       )}
 
       {/* Source file label (unified view only) */}
       {isUnifiedView && (
-        <span className="shrink-0 max-w-[30%] truncate text-xs text-gray-500">
+        <span className="shrink-0 max-w-[30%] truncate text-xs text-ink-muted">
           {tabDisplayName(task.sourceFile)}
         </span>
       )}
@@ -419,25 +419,25 @@ function LoadErrorPane({
 }) {
   return (
     <div className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-lg border border-red-200 bg-red-50 p-5 text-sm">
-        <div className="mb-3 flex items-center gap-2 font-semibold text-red-800">
+      <div className="w-full max-w-sm rounded-lg border border-danger-border bg-danger-surface p-5 text-sm">
+        <div className="mb-3 flex items-center gap-2 font-semibold text-danger-fg-strong">
           <AlertCircle size={16} />
           Task list could not be loaded
         </div>
-        <p className="whitespace-pre-wrap text-red-800">{message}</p>
-        <p className="mt-3 truncate text-xs text-red-700" title={filePath}>
+        <p className="whitespace-pre-wrap text-danger-fg-strong">{message}</p>
+        <p className="mt-3 truncate text-xs text-danger" title={filePath}>
           {filePath}
         </p>
         <div className="mt-4 flex gap-2">
           <button
             onClick={onRetry}
-            className="rounded-md bg-red-700 px-3 py-1.5 font-medium text-white hover:bg-red-800"
+            className="rounded-md bg-danger-solid px-3 py-1.5 font-medium text-ink-inverted hover:bg-danger-solid-hover"
           >
             Retry
           </button>
           <button
             onClick={onRemove}
-            className="rounded-md border border-red-300 bg-white px-3 py-1.5 font-medium text-red-700 hover:bg-red-100"
+            className="rounded-md border border-danger-border-strong bg-surface px-3 py-1.5 font-medium text-danger hover:bg-danger-surface-strong"
           >
             Remove tab
           </button>

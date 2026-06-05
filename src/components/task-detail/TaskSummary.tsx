@@ -22,58 +22,58 @@ export function TaskSummary({ tasks }: TaskSummaryProps) {
   );
 
   return (
-    <div className="flex h-full flex-col items-center justify-center p-8 text-gray-500">
-      <h3 className="mb-6 text-lg font-medium text-gray-700">Task List Summary</h3>
+    <div className="flex h-full flex-col items-center justify-center p-8 text-ink-muted">
+      <h3 className="mb-6 text-lg font-medium text-ink">Task List Summary</h3>
 
       <div className="w-full max-w-xs space-y-3">
         <div className="flex justify-between">
           <span>Total tasks</span>
-          <span className="font-medium text-gray-700">{tasks.length}</span>
+          <span className="font-medium text-ink">{tasks.length}</span>
         </div>
 
-        <div className="border-t border-gray-100 pt-3">
+        <div className="border-t border-border-subtle pt-3">
           <div className="flex justify-between">
             <span>Pending</span>
             <span className="font-medium">{pending}</span>
           </div>
           <div className="flex justify-between">
             <span>Completed</span>
-            <span className="font-medium text-green-700">{completed}</span>
+            <span className="font-medium text-success">{completed}</span>
           </div>
           <div className="flex justify-between">
             <span>Dismissed</span>
-            <span className="font-medium text-gray-500">{dismissed}</span>
+            <span className="font-medium text-ink-muted">{dismissed}</span>
           </div>
         </div>
 
         {pending > 0 && (
-          <div className="border-t border-gray-100 pt-3">
+          <div className="border-t border-border-subtle pt-3">
             {critical > 0 && (
               <div className="flex justify-between">
-                <span className="text-violet-700">Critical</span>
-                <span className="font-medium text-violet-700">{critical}</span>
+                <span className="text-group-critical-fg">Critical</span>
+                <span className="font-medium text-group-critical-fg">{critical}</span>
               </div>
             )}
             {important > 0 && (
               <div className="flex justify-between">
-                <span className="text-blue-700">Important</span>
-                <span className="font-medium text-blue-700">{important}</span>
+                <span className="text-group-important-fg">Important</span>
+                <span className="font-medium text-group-important-fg">{important}</span>
               </div>
             )}
             {urgent > 0 && (
               <div className="flex justify-between">
-                <span className="text-rose-700">Urgent</span>
-                <span className="font-medium text-rose-700">{urgent}</span>
+                <span className="text-group-urgent-fg">Urgent</span>
+                <span className="font-medium text-group-urgent-fg">{urgent}</span>
               </div>
             )}
           </div>
         )}
 
         {actionableNotes > 0 && (
-          <div className="border-t border-gray-100 pt-3">
+          <div className="border-t border-border-subtle pt-3">
             <div className="flex justify-between">
-              <span className="text-orange-700">Actionable notes</span>
-              <span className="font-medium text-orange-700">{actionableNotes}</span>
+              <span className="text-attention">Actionable notes</span>
+              <span className="font-medium text-attention">{actionableNotes}</span>
             </div>
           </div>
         )}

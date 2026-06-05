@@ -1,5 +1,188 @@
 @import "tailwindcss";
 
+/* ── Semantic color tokens ────────────────────────────────────────────────
+   Single source of truth for every color in the app. The light values below
+   alias Tailwind's default palette, so the UI is unchanged by the move to
+   tokens. Dark-mode support adds a `.dark { … }` block that overrides these
+   same variables — components never reference raw palette shades again.
+
+   Utilities are generated from these via `@theme inline`:
+     --color-surface    -> bg-surface / text-surface / border-surface
+     --color-ink-muted  -> text-ink-muted
+     --color-danger     -> text-danger / bg-danger / border-danger
+   `inline` makes the generated utilities reference var(--…) directly, so the
+   `.dark` overrides take effect at runtime. */
+:root {
+  color-scheme: light;
+
+  /* Neutral chrome — surfaces & borders */
+  --background: var(--color-gray-50); /* app canvas */
+  --surface: var(--color-white); /* panels, inputs, cards */
+  --surface-muted: var(--color-gray-100); /* hover / raised fills */
+  --border: var(--color-gray-200);
+  --border-subtle: var(--color-gray-100);
+  --border-strong: var(--color-gray-300);
+
+  /* Neutral chrome — text ("ink") scale, strongest → faintest */
+  --ink-strong: var(--color-gray-800);
+  --ink: var(--color-gray-700);
+  --ink-soft: var(--color-gray-600);
+  --ink-muted: var(--color-gray-500);
+  --ink-faint: var(--color-gray-400);
+  --ink-inverted: var(--color-white); /* text on solid accent fills */
+
+  /* Primary — actions, focus, selection */
+  --primary: var(--color-sky-700);
+  --primary-hover: var(--color-sky-800);
+  --primary-ring: var(--color-sky-400); /* focus border */
+  --primary-surface: var(--color-sky-50); /* subtle hover bg */
+  --primary-surface-strong: var(--color-sky-100); /* selected row */
+  --primary-accent: var(--color-sky-300); /* divider hover */
+  --primary-accent-strong: var(--color-sky-400); /* divider active */
+
+  /* Status — danger / info / success / warning */
+  --danger: var(--color-red-700);
+  --danger-fg-strong: var(--color-red-800);
+  --danger-solid: var(--color-red-700); /* destructive button fill */
+  --danger-solid-hover: var(--color-red-800);
+  --danger-surface: var(--color-red-50);
+  --danger-surface-strong: var(--color-red-100);
+  --danger-border: var(--color-red-200);
+  --danger-border-strong: var(--color-red-300);
+
+  /* Attention — note actionability & "needs action" markers. Distinct from
+     the DueToday group despite sharing orange, so the two tune separately. */
+  --attention: var(--color-orange-700);
+  --attention-border: var(--color-orange-400);
+  --attention-surface: var(--color-orange-50);
+
+  --success: var(--color-green-700);
+  --success-surface: var(--color-green-50);
+  --success-border: var(--color-green-300);
+
+  --warning: var(--color-amber-800);
+  --warning-strong: var(--color-amber-900);
+  --warning-surface: var(--color-amber-100);
+  --warning-solid: var(--color-amber-800);
+  --warning-solid-strong: var(--color-amber-900);
+
+  /* Task group / urgency palette — keyed to TaskGroup. Kept separate from the
+     status family above so urgency hues can be tuned for dark mode on their
+     own. fg = header/badge text, accent = left stripe, tint = row wash. */
+  --group-pastdue-fg: var(--color-red-700);
+  --group-pastdue-accent: var(--color-red-500);
+  --group-pastdue-border: var(--color-red-200);
+  --group-pastdue-tint: var(--color-red-50);
+
+  --group-critical-fg: var(--color-violet-700);
+  --group-critical-accent: var(--color-violet-500);
+  --group-critical-border: var(--color-violet-200);
+  --group-critical-border-strong: var(--color-violet-300);
+  --group-critical-tint: var(--color-violet-50);
+
+  --group-duetoday-fg: var(--color-orange-700);
+  --group-duetoday-accent: var(--color-orange-500);
+  --group-duetoday-border: var(--color-orange-200);
+  --group-duetoday-tint: var(--color-orange-50);
+
+  --group-important-fg: var(--color-blue-700);
+  --group-important-accent: var(--color-blue-500);
+  --group-important-border: var(--color-blue-200);
+  --group-important-border-strong: var(--color-blue-300);
+  --group-important-tint: var(--color-blue-50);
+
+  --group-urgent-fg: var(--color-rose-700);
+  --group-urgent-accent: var(--color-rose-500);
+  --group-urgent-border: var(--color-rose-200);
+  --group-urgent-border-strong: var(--color-rose-300);
+  --group-urgent-tint: var(--color-rose-50);
+
+  --group-duesoon-fg: var(--color-teal-700);
+  --group-duesoon-accent: var(--color-teal-500);
+  --group-duesoon-border: var(--color-teal-200);
+  --group-duesoon-tint: var(--color-teal-50);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-ink-strong: var(--ink-strong);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-ink-inverted: var(--ink-inverted);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-ring: var(--primary-ring);
+  --color-primary-surface: var(--primary-surface);
+  --color-primary-surface-strong: var(--primary-surface-strong);
+  --color-primary-accent: var(--primary-accent);
+  --color-primary-accent-strong: var(--primary-accent-strong);
+
+  --color-danger: var(--danger);
+  --color-danger-fg-strong: var(--danger-fg-strong);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-solid-hover: var(--danger-solid-hover);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-surface-strong: var(--danger-surface-strong);
+  --color-danger-border: var(--danger-border);
+  --color-danger-border-strong: var(--danger-border-strong);
+
+  --color-attention: var(--attention);
+  --color-attention-border: var(--attention-border);
+  --color-attention-surface: var(--attention-surface);
+
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-success-border: var(--success-border);
+
+  --color-warning: var(--warning);
+  --color-warning-strong: var(--warning-strong);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-solid: var(--warning-solid);
+  --color-warning-solid-strong: var(--warning-solid-strong);
+
+  --color-group-pastdue-fg: var(--group-pastdue-fg);
+  --color-group-pastdue-accent: var(--group-pastdue-accent);
+  --color-group-pastdue-border: var(--group-pastdue-border);
+  --color-group-pastdue-tint: var(--group-pastdue-tint);
+
+  --color-group-critical-fg: var(--group-critical-fg);
+  --color-group-critical-accent: var(--group-critical-accent);
+  --color-group-critical-border: var(--group-critical-border);
+  --color-group-critical-border-strong: var(--group-critical-border-strong);
+  --color-group-critical-tint: var(--group-critical-tint);
+
+  --color-group-duetoday-fg: var(--group-duetoday-fg);
+  --color-group-duetoday-accent: var(--group-duetoday-accent);
+  --color-group-duetoday-border: var(--group-duetoday-border);
+  --color-group-duetoday-tint: var(--group-duetoday-tint);
+
+  --color-group-important-fg: var(--group-important-fg);
+  --color-group-important-accent: var(--group-important-accent);
+  --color-group-important-border: var(--group-important-border);
+  --color-group-important-border-strong: var(--group-important-border-strong);
+  --color-group-important-tint: var(--group-important-tint);
+
+  --color-group-urgent-fg: var(--group-urgent-fg);
+  --color-group-urgent-accent: var(--group-urgent-accent);
+  --color-group-urgent-border: var(--group-urgent-border);
+  --color-group-urgent-border-strong: var(--group-urgent-border-strong);
+  --color-group-urgent-tint: var(--group-urgent-tint);
+
+  --color-group-duesoon-fg: var(--group-duesoon-fg);
+  --color-group-duesoon-accent: var(--group-duesoon-accent);
+  --color-group-duesoon-border: var(--group-duesoon-border);
+  --color-group-duesoon-tint: var(--group-duesoon-tint);
+}
+
 :root {
   font-family: system-ui, -apple-system, sans-serif;
   font-synthesis: none;

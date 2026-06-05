@@ -234,7 +234,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
         items={tabIds}
         strategy={horizontalListSortingStrategy}
       >
-        <div className="flex min-h-10 flex-wrap items-center border-b border-gray-200 bg-white">
+        <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
           {/* Tabs */}
           {workspace.openTabs.map((tab, index) => (
             <SortableTab
@@ -268,29 +268,29 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
           >
             <button
               onClick={() => setShowNewMenu(!showNewMenu)}
-              className="flex h-10 w-10 items-center justify-center text-sky-700 transition-colors hover:bg-sky-50"
+              className="flex h-10 w-10 items-center justify-center text-primary transition-colors hover:bg-primary-surface"
             >
               <Plus size={16} />
             </button>
 
             {showNewMenu && (
-              <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+              <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-border bg-surface py-1 shadow-lg">
                 <button
                   onClick={handleNewTaskList}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  className="w-full px-4 py-2 text-left text-sm text-ink hover:bg-background"
                 >
                   New task list...
                 </button>
                 <button
                   onClick={handleOpenExisting}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  className="w-full px-4 py-2 text-left text-sm text-ink hover:bg-background"
                 >
                   Open existing file...
                 </button>
                 {!workspace.openTabs.some((t) => t.isUnifiedView) && (
                   <button
                     onClick={handleUnifiedView}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                    className="w-full px-4 py-2 text-left text-sm text-ink hover:bg-background"
                   >
                     Unified view
                   </button>
@@ -298,20 +298,20 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
 
                 {recentFiles.length > 0 && (
                   <>
-                    <div className="my-1 border-t border-gray-100" />
-                    <div className="px-4 py-1 text-xs font-medium text-gray-500">
+                    <div className="my-1 border-t border-border-subtle" />
+                    <div className="px-4 py-1 text-xs font-medium text-ink-muted">
                       Recent
                     </div>
                     {recentFiles.slice(0, 10).map((r) => (
                       <button
                         key={r.filePath}
                         onClick={() => handleOpenRecent(r.filePath)}
-                        className="w-full px-4 py-1.5 text-left text-sm text-gray-600 hover:bg-gray-50"
+                        className="w-full px-4 py-1.5 text-left text-sm text-ink-soft hover:bg-background"
                       >
                         <span className="block truncate" title={r.filePath}>
                           {fileNameWithoutExt(r.filePath)}
                         </span>
-                        <span className="block truncate text-xs text-gray-500">
+                        <span className="block truncate text-xs text-ink-muted">
                           {r.filePath}
                         </span>
                       </button>
@@ -333,22 +333,22 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
           >
             <button
               onClick={() => setShowGearMenu(!showGearMenu)}
-              className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              className="flex h-10 w-10 items-center justify-center text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
               title="Menu"
             >
               <Menu size={15} />
             </button>
 
             {showGearMenu && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-md border border-border bg-surface py-1 shadow-lg">
                 <button
                   onClick={() => {
                     setShowGearMenu(false);
                     onGearMenuSelect("settings");
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-ink hover:bg-background"
                 >
-                  <Settings size={14} className="text-gray-500" />
+                  <Settings size={14} className="text-ink-muted" />
                   Settings
                 </button>
                 <button
@@ -356,23 +356,23 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                     setShowGearMenu(false);
                     onGearMenuSelect("shortcuts");
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-ink hover:bg-background"
                 >
-                  <Keyboard size={14} className="text-gray-500" />
+                  <Keyboard size={14} className="text-ink-muted" />
                   Keyboard Shortcuts
                 </button>
                 {/* Zoom controls — clicking +/− stays in the menu */}
-                <div className="my-1 border-t border-gray-100" />
+                <div className="my-1 border-t border-border-subtle" />
                 <div className="flex items-center justify-center gap-3 px-3 py-1.5">
-                  <span className="text-sm text-gray-600">Zoom</span>
-                  <div className="flex items-center overflow-hidden rounded border border-gray-200">
+                  <span className="text-sm text-ink-soft">Zoom</span>
+                  <div className="flex items-center overflow-hidden rounded border border-border">
                     <button
                       onClick={() => {
                         const next = stepZoomOut(preferences.zoomLevel);
                         if (next !== preferences.zoomLevel) updatePrefs({ zoomLevel: next });
                       }}
                       disabled={stepZoomOut(preferences.zoomLevel) === preferences.zoomLevel}
-                      className="flex h-6 w-6 items-center justify-center bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                      className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-30"
                       title="Zoom out"
                     >
                       <Minus size={12} />
@@ -380,13 +380,13 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                     {preferences.zoomLevel !== ZOOM_DEFAULT ? (
                       <button
                         onClick={() => updatePrefs({ zoomLevel: ZOOM_DEFAULT })}
-                        className="w-10 border-x border-gray-200 bg-white text-center text-xs tabular-nums text-sky-600 hover:text-sky-800 leading-6"
+                        className="w-10 border-x border-border bg-surface text-center text-xs tabular-nums text-primary hover:text-primary-hover leading-6"
                         title="Reset to 100%"
                       >
                         {Math.round(preferences.zoomLevel * 100)}%
                       </button>
                     ) : (
-                      <span className="w-10 border-x border-gray-200 bg-white text-center text-xs tabular-nums text-gray-700 leading-6">
+                      <span className="w-10 border-x border-border bg-surface text-center text-xs tabular-nums text-ink leading-6">
                         {Math.round(preferences.zoomLevel * 100)}%
                       </span>
                     )}
@@ -396,22 +396,22 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                         if (next !== preferences.zoomLevel) updatePrefs({ zoomLevel: next });
                       }}
                       disabled={stepZoomIn(preferences.zoomLevel) === preferences.zoomLevel}
-                      className="flex h-6 w-6 items-center justify-center bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                      className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-30"
                       title="Zoom in"
                     >
                       <Plus size={12} />
                     </button>
                   </div>
                 </div>
-                <div className="my-1 border-t border-gray-100" />
+                <div className="my-1 border-t border-border-subtle" />
                 <button
                   onClick={() => {
                     setShowGearMenu(false);
                     onGearMenuSelect("about");
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-ink hover:bg-background"
                 >
-                  <Info size={14} className="text-gray-500" />
+                  <Info size={14} className="text-ink-muted" />
                   About Dropkick
                 </button>
               </div>
@@ -483,14 +483,14 @@ function SortableTab({
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
       title={hasLoadError ? `Load failed: ${tab.filePath}` : undefined}
-      className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-r border-gray-200 px-3 py-2 text-sm transition-colors ${
+      className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-3 py-2 text-sm transition-colors ${
         isActive
-          ? "bg-sky-50 text-sky-800"
-          : "text-gray-700 hover:bg-gray-50"
+          ? "bg-primary-surface text-primary-hover"
+          : "text-ink hover:bg-background"
       }`}
     >
       {hasLoadError ? (
-        <AlertCircle size={14} className="shrink-0 text-red-600" />
+        <AlertCircle size={14} className="shrink-0 text-danger" />
       ) : tab.isUnifiedView ? (
         <Layout size={14} className="shrink-0" />
       ) : (
@@ -511,7 +511,7 @@ function SortableTab({
             if (e.key === "Escape") onEditCancel();
           }}
           {...composing.handlers}
-          className="w-24 rounded border border-sky-400 px-1 text-sm outline-none"
+          className="w-24 rounded border border-primary-ring px-1 text-sm outline-none"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
@@ -520,7 +520,7 @@ function SortableTab({
 
       <button
         onClick={onClose}
-        className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-gray-200 group-hover:opacity-100"
+        className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-surface-muted group-hover:opacity-100"
       >
         <X size={12} />
       </button>

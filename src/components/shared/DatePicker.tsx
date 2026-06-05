@@ -57,12 +57,12 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
       <span {...interactiveLayerProps}>
         <Popover.Trigger asChild>
           <button
-            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors hover:bg-gray-50 ${
+            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors hover:bg-background ${
               isOverdue
-                ? "border-red-300 text-red-700"
+                ? "border-danger-border-strong text-danger"
                 : value
-                  ? "border-gray-200 text-gray-700"
-                  : "border-gray-200 text-gray-500"
+                  ? "border-border text-ink"
+                  : "border-border text-ink-muted"
             }`}
           >
             <Calendar size={14} />
@@ -78,7 +78,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
           align="start"
           sideOffset={4}
           collisionPadding={8}
-          className="z-50 rounded-lg border border-gray-200 bg-white p-2 shadow-lg"
+          className="z-50 rounded-lg border border-border bg-surface p-2 shadow-lg"
         >
           <DayPicker
             mode="single"
@@ -87,10 +87,10 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
             defaultMonth={selected}
           />
           {value && (
-            <div className="border-t border-gray-100 pt-2">
+            <div className="border-t border-border-subtle pt-2">
               <button
                 onClick={handleClear}
-                className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-700"
+                className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs text-ink-soft hover:bg-background hover:text-ink"
               >
                 <X size={12} />
                 Clear due date

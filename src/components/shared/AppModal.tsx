@@ -32,7 +32,7 @@ export function AppModal({
   footer,
   maxWidth = 448,
   bodyClassName = "overflow-y-auto px-6 py-5",
-  footerClassName = "flex justify-end gap-2 border-t border-gray-200 px-6 py-4",
+  footerClassName = "flex justify-end gap-2 border-t border-border px-6 py-4",
   contentClassName = "",
   contentProps,
 }: AppModalProps) {
@@ -72,7 +72,7 @@ export function AppModal({
           ref={contentRef}
           aria-describedby={undefined}
           data-dropkick-interactive-layer=""
-          className={`fixed left-1/2 top-1/2 z-[51] flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-white shadow-xl focus:outline-none ${contentClassName}`}
+          className={`fixed left-1/2 top-1/2 z-[51] flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface shadow-xl focus:outline-none ${contentClassName}`}
           style={{ maxWidth }}
           tabIndex={-1}
           onOpenAutoFocus={(e) => {
@@ -84,8 +84,8 @@ export function AppModal({
           {...escapeAndOutsideHandlers}
           {...restContentProps}
         >
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-            <Dialog.Title className="text-lg font-semibold text-gray-800">
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <Dialog.Title className="text-lg font-semibold text-ink-strong">
               {title}
             </Dialog.Title>
             {onRequestClose ? (
@@ -93,7 +93,7 @@ export function AppModal({
                 type="button"
                 aria-label={`Close ${title}`}
                 onClick={onRequestClose}
-                className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                className="rounded p-1 text-ink-muted hover:bg-surface-muted hover:text-ink"
               >
                 <X size={18} />
               </button>
@@ -102,7 +102,7 @@ export function AppModal({
                 <button
                   type="button"
                   aria-label={`Close ${title}`}
-                  className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  className="rounded p-1 text-ink-muted hover:bg-surface-muted hover:text-ink"
                 >
                   <X size={18} />
                 </button>

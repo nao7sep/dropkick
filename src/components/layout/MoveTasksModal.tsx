@@ -126,14 +126,14 @@ export function MoveTasksModal({
         <>
           <button
             onClick={onClose}
-            className="rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
           >
             Cancel
           </button>
           <button
             onClick={handleMove}
             disabled={!moveTarget || moving}
-            className="rounded-md bg-sky-700 px-4 py-2 text-sm text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
+            className="rounded-md bg-primary px-4 py-2 text-sm text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
           >
             Move
           </button>
@@ -149,7 +149,7 @@ export function MoveTasksModal({
       }}
     >
       {/* Task list */}
-      <div className="mb-4 max-h-32 space-y-1 overflow-y-auto text-sm text-gray-500">
+      <div className="mb-4 max-h-32 space-y-1 overflow-y-auto text-sm text-ink-muted">
         {selectedTasks.map((t) => (
           <div key={taskSelectionKey(t)} className="truncate">
             • {t.title || "Untitled"}
@@ -158,12 +158,12 @@ export function MoveTasksModal({
       </div>
 
       {destinations.length === 0 ? (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-ink-muted">
           No other lists are open. Open another list tab first.
         </p>
       ) : (
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-xs font-medium text-ink-muted">
             Destination
           </label>
           <select
@@ -173,7 +173,7 @@ export function MoveTasksModal({
               setMoveTarget(e.target.value);
               setDestError(false);
             }}
-            className={`w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 outline-none focus:border-sky-400 ${destError ? "bg-red-50" : ""}`}
+            className={`w-full rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft outline-none focus:border-primary-ring ${destError ? "bg-danger-surface" : ""}`}
           >
             <option value="">Select destination...</option>
             {destinations.map((t) => (

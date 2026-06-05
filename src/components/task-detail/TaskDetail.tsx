@@ -244,18 +244,18 @@ export function TaskDetail({
         {...titleComposing.handlers}
         placeholder="Task title..."
         rows={1}
-        className="mb-4 w-full shrink-0 resize-none text-lg font-semibold text-gray-800 outline-none placeholder:text-gray-500"
+        className="mb-4 w-full shrink-0 resize-none text-lg font-semibold text-ink-strong outline-none placeholder:text-ink-muted"
       />
 
       {/* Status, Priority, Due Date row */}
       <div className="mb-4 flex flex-wrap gap-3">
         {/* Status */}
         <div>
-          <label className="mb-1 block text-xs text-gray-500">Status</label>
+          <label className="mb-1 block text-xs text-ink-muted">Status</label>
           <select
             value={task.status}
             onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
-            className="rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700"
+            className="rounded-md border border-border px-2 py-1 text-sm text-ink"
           >
             <option value="Pending">Pending</option>
             <option value="Completed" disabled={!task.canComplete}>
@@ -267,7 +267,7 @@ export function TaskDetail({
 
         {/* Priority */}
         <div>
-          <label className="mb-1 block text-xs text-gray-500">Priority</label>
+          <label className="mb-1 block text-xs text-ink-muted">Priority</label>
           <select
             value={task.priority}
             onChange={(e) => handlePriorityChange(e.target.value as TaskPriority)}
@@ -282,7 +282,7 @@ export function TaskDetail({
 
         {/* Due Date */}
         <div>
-          <label className="mb-1 block text-xs text-gray-500">Due</label>
+          <label className="mb-1 block text-xs text-ink-muted">Due</label>
           <DatePicker
             value={task.dueDate}
             onChange={(v) => handleDueDateChange(v ?? "")}
@@ -300,7 +300,7 @@ export function TaskDetail({
                 const result = await sendToFirst(filePath);
                 await showWriteFailure("Task Reorder Failed", result);
               }}
-              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
               Tackle
             </button>
@@ -311,7 +311,7 @@ export function TaskDetail({
                   const result = await kick(filePath, d);
                   await showWriteFailure("Task Reorder Failed", result);
                 }}
-                className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
               >
                 +{d}
               </button>
@@ -321,7 +321,7 @@ export function TaskDetail({
                 const result = await sendToLast(filePath);
                 await showWriteFailure("Task Reorder Failed", result);
               }}
-              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
               Kick
             </button>
@@ -330,16 +330,16 @@ export function TaskDetail({
                 const result = await dropkick(filePath);
                 await showWriteFailure("Task Reorder Failed", result);
               }}
-              className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+              className="rounded border border-danger-border px-2 py-1 text-xs text-danger hover:bg-danger-surface"
             >
               Dropkick
             </button>
-            <span className="mx-1 text-gray-200">|</span>
+            <span className="mx-1 text-border">|</span>
           </>
         )}
         <button
           onClick={handleDeleteTask}
-          className="flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:border-red-200 hover:text-red-700"
+          className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-ink-soft hover:border-danger-border hover:text-danger"
         >
           <Trash2 size={12} />
           Delete
@@ -349,11 +349,11 @@ export function TaskDetail({
       {/* Move to another list */}
       {moveDestinations.length > 0 && (
         <div className="mb-4 flex items-center gap-2">
-          <label className="text-xs text-gray-500">Move to</label>
+          <label className="text-xs text-ink-muted">Move to</label>
           <select
             value={moveTarget}
             onChange={(e) => setMoveTarget(e.target.value)}
-            className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-600"
+            className="flex-1 rounded-md border border-border px-2 py-1 text-sm text-ink-soft"
           >
             <option value="">Select destination...</option>
             {moveDestinations.map((t) => (
@@ -365,7 +365,7 @@ export function TaskDetail({
           <button
             onClick={handleMoveTask}
             disabled={!moveTarget}
-            className="rounded-md bg-sky-700 px-3 py-1 text-xs text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
+            className="rounded-md bg-primary px-3 py-1 text-xs text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
           >
             Move
           </button>
@@ -374,7 +374,7 @@ export function TaskDetail({
 
       {/* Description */}
       <div className="mb-4">
-        <label className="mb-1 block text-xs text-gray-500">Description</label>
+        <label className="mb-1 block text-xs text-ink-muted">Description</label>
         <textarea
           ref={descRef}
           value={descDraft}
@@ -385,12 +385,12 @@ export function TaskDetail({
           onBlur={handleDescBlur}
           rows={2}
           placeholder="Add a description..."
-          className="w-full resize-none rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-sky-400"
+          className="w-full resize-none rounded-md border border-border p-2 text-sm text-ink outline-none focus:border-primary-ring"
         />
       </div>
 
       {/* Timestamps */}
-      <div className="mb-4 space-y-0.5 text-xs text-gray-500">
+      <div className="mb-4 space-y-0.5 text-xs text-ink-muted">
         <div>
           Created:{" "}
           {formatTimestamp(
@@ -428,8 +428,8 @@ export function TaskDetail({
       </div>
 
       {/* Notes section */}
-      <div className="border-t border-gray-200 pt-4">
-        <h4 className="mb-3 text-sm font-medium text-gray-600">Notes</h4>
+      <div className="border-t border-border pt-4">
+        <h4 className="mb-3 text-sm font-medium text-ink-soft">Notes</h4>
 
         {/* Add note */}
         <div className="mb-3">
@@ -450,13 +450,13 @@ export function TaskDetail({
             {...noteComposing.handlers}
             placeholder="Add a note... (Cmd+Enter to save, Cmd+Shift+Enter actionable)"
             rows={2}
-            className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
+            className="w-full resize-none rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           />
           <div className="mt-1 flex justify-end">
             <button
               onClick={() => handleAddNote()}
               disabled={!newNoteContent.trim()}
-              className="rounded-md bg-sky-700 px-3 py-1 text-xs text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
+              className="rounded-md bg-primary px-3 py-1 text-xs text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
             >
               Add Note
             </button>
@@ -465,7 +465,7 @@ export function TaskDetail({
 
         {/* Notes list */}
         {task.notes.length === 0 ? (
-          <div className="py-4 text-center text-sm text-gray-500">
+          <div className="py-4 text-center text-sm text-ink-muted">
             No notes yet
           </div>
         ) : (
@@ -553,18 +553,18 @@ function NoteItem({
 
   const borderColor =
     note.actionability === "Actionable"
-      ? "border-orange-400 bg-orange-50"
+      ? "border-attention-border bg-attention-surface"
       : note.actionability === "Resolved"
-        ? "border-green-300 bg-green-50/50"
-        : "border-gray-200";
+        ? "border-success-border bg-success-surface/50"
+        : "border-border";
 
   const icon =
     note.actionability === "Actionable" ? (
-      <AlertCircle size={14} className="text-orange-700" />
+      <AlertCircle size={14} className="text-attention" />
     ) : note.actionability === "Resolved" ? (
-      <CheckCircle size={14} className="text-green-700" />
+      <CheckCircle size={14} className="text-success" />
     ) : (
-      <Info size={14} className="text-gray-500" />
+      <Info size={14} className="text-ink-muted" />
     );
 
   return (
@@ -576,14 +576,14 @@ function NoteItem({
           onChange={(e) =>
             handleActionabilityChange(e.target.value as NoteActionability)
           }
-          className="rounded border border-gray-200 px-1 py-0.5 text-xs text-gray-500"
+          className="rounded border border-border px-1 py-0.5 text-xs text-ink-muted"
         >
           <option value="Informational">Informational</option>
           <option value="Actionable">Actionable</option>
           <option value="Resolved">Resolved</option>
         </select>
 
-        <span className="ml-auto text-xs text-gray-500">
+        <span className="ml-auto text-xs text-ink-muted">
           {formatTimestamp(
             note.createdAtUtc,
             preferences.dateFormat,
@@ -593,7 +593,7 @@ function NoteItem({
         </span>
         <button
           onClick={handleDeleteNote}
-          className="rounded p-0.5 text-gray-500 hover:text-red-700"
+          className="rounded p-0.5 text-ink-muted hover:text-danger"
           title="Delete note"
         >
           <X size={14} />
@@ -618,14 +618,14 @@ function NoteItem({
             }}
             {...composing.handlers}
             rows={2}
-            className="w-full resize-none rounded border border-gray-200 p-2 text-sm outline-none focus:border-sky-400"
+            className="w-full resize-none rounded border border-border p-2 text-sm outline-none focus:border-primary-ring"
             autoFocus
           />
           <div className="mt-1 flex gap-2">
             <button
               onClick={handleSave}
               disabled={!draft.trim()}
-              className="rounded bg-sky-700 px-3 py-1 text-xs text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
+              className="rounded bg-primary px-3 py-1 text-xs text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
             >
               Save
             </button>
@@ -634,7 +634,7 @@ function NoteItem({
                 setEditing(false);
                 setDraft(note.content);
               }}
-              className="rounded border border-gray-200 px-3 py-1 text-xs text-gray-500 hover:bg-gray-50"
+              className="rounded border border-border px-3 py-1 text-xs text-ink-muted hover:bg-background"
             >
               Cancel
             </button>
@@ -643,7 +643,7 @@ function NoteItem({
       ) : (
         <div
           onClick={() => setEditing(true)}
-          className="cursor-pointer text-sm text-gray-700"
+          className="cursor-pointer text-sm text-ink"
         >
           <p className="whitespace-pre-wrap break-words">{note.content}</p>
         </div>
@@ -655,12 +655,12 @@ function NoteItem({
 function prioritySelectStyle(priority: string): string {
   switch (priority) {
     case "Critical":
-      return "border-violet-300 text-violet-700";
+      return "border-group-critical-border-strong text-group-critical-fg";
     case "Urgent":
-      return "border-rose-300 text-rose-700";
+      return "border-group-urgent-border-strong text-group-urgent-fg";
     case "Important":
-      return "border-blue-300 text-blue-700";
+      return "border-group-important-border-strong text-group-important-fg";
     default:
-      return "border-gray-200 text-gray-600";
+      return "border-border text-ink-soft";
   }
 }

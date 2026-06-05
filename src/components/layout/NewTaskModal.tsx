@@ -179,14 +179,14 @@ export function NewTaskModal({
         <>
           <button
             onClick={handleRequestClose}
-            className="rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={!canCreate || submitting}
-            className="rounded-md bg-sky-700 px-4 py-2 text-sm text-white hover:bg-sky-800 disabled:bg-gray-50 disabled:text-gray-500"
+            className="rounded-md bg-primary px-4 py-2 text-sm text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
           >
             Create
           </button>
@@ -203,7 +203,7 @@ export function NewTaskModal({
       {/* Target list */}
       {fileTabs.length > 0 && (
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-xs font-medium text-ink-muted">
             Add to list
           </label>
           <select
@@ -213,7 +213,7 @@ export function NewTaskModal({
               setTargetFile(e.target.value);
               setTargetError(false);
             }}
-            className={`w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400 ${targetError ? "bg-red-50" : ""}`}
+            className={`w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring ${targetError ? "bg-danger-surface" : ""}`}
           >
             {!targetFile && (
               <option value="" disabled>
@@ -230,14 +230,14 @@ export function NewTaskModal({
       )}
 
       {fileTabs.length === 0 && (
-        <p className="text-xs text-red-700">
+        <p className="text-xs text-danger">
           No task lists open. Open or create a task list first.
         </p>
       )}
 
       {/* Title */}
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-500">
+        <label className="mb-1 block text-xs font-medium text-ink-muted">
           Title
         </label>
         <textarea
@@ -257,13 +257,13 @@ export function NewTaskModal({
           {...composing.handlers}
           placeholder="Task title (optional)"
           rows={1}
-          className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
+          className="w-full resize-none rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
       </div>
 
       {/* Description */}
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-500">
+        <label className="mb-1 block text-xs font-medium text-ink-muted">
           Description
         </label>
         <textarea
@@ -275,20 +275,20 @@ export function NewTaskModal({
           }}
           placeholder="Optional details..."
           rows={2}
-          className="w-full resize-none rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
+          className="w-full resize-none rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
       </div>
 
       {/* Priority and Due date — side by side */}
       <div className="flex items-start gap-4">
         <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-xs font-medium text-ink-muted">
             Priority
           </label>
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value as TaskPriority)}
-            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
+            className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           >
             <option value="Default">Default</option>
             <option value="Urgent">Urgent</option>
@@ -298,7 +298,7 @@ export function NewTaskModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-xs font-medium text-ink-muted">
             Due date
           </label>
           <DatePicker value={dueDate} onChange={setDueDate} popoverPosition="top" />

@@ -117,9 +117,9 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   const canLaunch = selectedPrefs !== "" && selectedWorkspace !== "";
 
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-lg rounded-lg bg-white p-8 shadow-lg">
-        <h1 className="mb-8 text-center text-2xl font-bold text-gray-800">
+    <div className="flex h-screen items-center justify-center bg-background">
+      <div className="w-full max-w-lg rounded-lg bg-surface p-8 shadow-lg">
+        <h1 className="mb-8 text-center text-2xl font-bold text-ink-strong">
           Dropkick
         </h1>
 
@@ -148,12 +148,12 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
         />
 
         {/* Launch action */}
-        <div className="mt-6 flex justify-end border-t border-gray-200 pt-4">
+        <div className="mt-6 flex justify-end border-t border-border pt-4">
           <button
             ref={launchRef}
             onClick={() => onLaunch(selectedPrefs, selectedWorkspace)}
             disabled={!canLaunch}
-            className="min-w-28 rounded-md bg-sky-700 px-4 py-2 font-medium text-white transition-colors hover:bg-sky-800 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+            className="min-w-28 rounded-md bg-primary px-4 py-2 font-medium text-ink-inverted transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-background disabled:text-ink-muted"
           >
             Launch
           </button>
@@ -185,13 +185,13 @@ function Section({
 }) {
   return (
     <div className="mb-6">
-      <label className="mb-2 block text-sm font-medium text-gray-700">
+      <label className="mb-2 block text-sm font-medium text-ink">
         {label}
       </label>
 
-      <div className="max-h-36 overflow-y-auto rounded-md border border-gray-200">
+      <div className="max-h-36 overflow-y-auto rounded-md border border-border">
         {items.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-gray-500">
+          <div className="px-3 py-2 text-sm text-ink-muted">
             No {label.toLowerCase()} files configured
           </div>
         ) : (
@@ -199,17 +199,17 @@ function Section({
             <div
               key={path}
               onClick={() => onSelect(path)}
-              className={`flex cursor-pointer items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${
+              className={`flex cursor-pointer items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-background ${
                 selected === path
-                  ? "bg-sky-50 text-sky-800"
-                  : "text-gray-600"
+                  ? "bg-primary-surface text-primary-hover"
+                  : "text-ink-soft"
               }`}
             >
               <span className="mr-2 min-w-0 truncate" title={path}>
                 {path}
               </span>
               {selected === path && (
-                <span className="shrink-0 text-xs text-sky-700">←</span>
+                <span className="shrink-0 text-xs text-primary">←</span>
               )}
             </div>
           ))
@@ -220,14 +220,14 @@ function Section({
         <button
           ref={openButtonRef}
           onClick={onOpen}
-          className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+          className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-background"
         >
           <FolderOpen size={14} />
           Open
         </button>
         <button
           onClick={onNew}
-          className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+          className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-background"
         >
           <Plus size={14} />
           New
@@ -235,7 +235,7 @@ function Section({
         {selected && (
           <button
             onClick={() => onRemove(selected)}
-            className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-red-700 transition-colors hover:bg-red-50"
+            className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-danger transition-colors hover:bg-danger-surface"
           >
             <X size={14} />
             Remove
