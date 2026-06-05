@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 import type { LoadPreferencesResult, LoadWorkspaceResult } from "./repositories";
 import { showMessage } from "./repositories";
@@ -26,6 +27,21 @@ function App() {
   const loadWorkspace = useWorkspaceStore((s) => s.load);
   const initializeAppConfig = useAppConfigStore((s) => s.initialize);
   const setLastPaths = useAppConfigStore((s) => s.setLastPaths);
+  const darkMode = usePreferencesStore((s) => s.preferences.darkMode);
+
+  // Apply the theme to <html> so it covers the startup picker, main window, and
+  // every Radix modal (those portal to <body>, outside the React tree). The
+  // `.dark` class flips the token overrides defined in App.css. Defaults to
+  // light until a preferences file loads.
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+    // Also sync the native window theme. The OS paints the window backing with
+    // this theme's color during a resize, before the webview repaints — so a
+    // dark window theme prevents the white flash when enlarging in dark mode.
+    getCurrentWindow()
+      .setTheme(darkMode ? "dark" : "light")
+      .catch((e) => console.warn("[theme] Failed to set window theme:", e));
+  }, [darkMode]);
 
   // Initialize on mount.
   useEffect(() => {

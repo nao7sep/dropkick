@@ -19,6 +19,8 @@ import {
   stepZoomIn,
   stepZoomOut,
   ZOOM_DEFAULT,
+  hasPrimaryShortcutModifier,
+  matchesShortcutKey,
 } from "../../utils";
 import {
   groupTasksForList,
@@ -167,6 +169,18 @@ export function MainWindow() {
       } else if (isZoomReset(e)) {
         e.preventDefault();
         updatePrefs({ zoomLevel: ZOOM_DEFAULT });
+      } else if (
+        hasPrimaryShortcutModifier(e) &&
+        e.shiftKey &&
+        matchesShortcutKey(e, "d")
+      ) {
+        // Quick dark-mode toggle. Like zoom, this lives outside
+        // useKeyboardShortcuts so it stays available even when a menu/modal is
+        // open. Read the latest value from the store to avoid a stale closure.
+        e.preventDefault();
+        updatePrefs({
+          darkMode: !usePreferencesStore.getState().preferences.darkMode,
+        });
       }
     };
     document.addEventListener("keydown", handler);

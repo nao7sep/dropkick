@@ -12,6 +12,7 @@ import {
   toTask,
   sanitizeSingleLine,
   hasPrimaryShortcutModifier,
+  primaryModifierLabel,
   taskSelectionKey,
 } from "../../utils";
 import {
@@ -199,97 +200,101 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto scroll-pt-[25px]">
-      {/* New task button */}
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* New task button — fixed header; stays visible while the list scrolls. */}
       <button
         onClick={onNewTask}
-        className="flex w-full items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium text-primary hover:bg-primary-surface"
+        className="flex w-full shrink-0 items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium text-primary hover:bg-primary-surface"
       >
         <Plus size={14} />
         New Task
         <span className="ml-auto text-primary">
-          Cmd+N
+          {`${primaryModifierLabel}+N`}
         </span>
       </button>
 
-      {/* Active task groups */}
-      {grouped.groups.length === 0 && grouped.handledTotal === 0 && (
-        <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
-          No tasks yet.
-        </div>
-      )}
-
-      {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
-        <div key={group}>
-          <div
-            className={`sticky top-0 z-10 border-b bg-background/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide backdrop-blur ${GROUP_COLORS[group]}`}
-          >
-            {label}
+      {/* Scrollable list — group headers stick to the top of this area, just
+          below the fixed New Task button. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[25px]">
+        {/* Active task groups */}
+        {grouped.groups.length === 0 && grouped.handledTotal === 0 && (
+          <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
+            No tasks yet.
           </div>
-          {groupTasks.map((task) => {
-            const selectionKey = taskSelectionKey(task);
-            return (
-              <TaskRow
-                key={selectionKey}
-                rowRef={registerRowRef(selectionKey)}
-                task={task}
-                group={group}
-                isSelected={selectedKeys.has(selectionKey)}
-                isEditing={editingTaskKey === selectionKey}
-                isUnifiedView={isUnifiedView}
-                onClick={(e) => handleTaskClick(task, e)}
-                onDoubleClick={() => setEditingTaskKey(selectionKey)}
-                onRename={(title) => handleRename(task, title)}
-                onCancelRename={() => setEditingTaskKey(null)}
-              />
-            );
-          })}
-        </div>
-      ))}
+        )}
 
-      {/* Handled section */}
-      {grouped.handledTotal > 0 && (
-        <div className="mt-auto">
-          <button
-            onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
-            className="flex w-full items-center gap-2 border-y border-border bg-background px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-muted"
-          >
-            <span>{handledExpanded ? "▾" : "▸"}</span>
-            <span>Handled ({grouped.handledTotal})</span>
-          </button>
+        {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
+          <div key={group}>
+            <div
+              className={`sticky top-0 z-10 border-b bg-surface-sunken/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide backdrop-blur ${GROUP_COLORS[group]}`}
+            >
+              {label}
+            </div>
+            {groupTasks.map((task) => {
+              const selectionKey = taskSelectionKey(task);
+              return (
+                <TaskRow
+                  key={selectionKey}
+                  rowRef={registerRowRef(selectionKey)}
+                  task={task}
+                  group={group}
+                  isSelected={selectedKeys.has(selectionKey)}
+                  isEditing={editingTaskKey === selectionKey}
+                  isUnifiedView={isUnifiedView}
+                  onClick={(e) => handleTaskClick(task, e)}
+                  onDoubleClick={() => setEditingTaskKey(selectionKey)}
+                  onRename={(title) => handleRename(task, title)}
+                  onCancelRename={() => setEditingTaskKey(null)}
+                />
+              );
+            })}
+          </div>
+        ))}
 
-          {handledExpanded && (
-            <>
-              {visibleHandled.map((task) => {
-                const selectionKey = taskSelectionKey(task);
-                return (
-                  <TaskRow
-                    key={selectionKey}
-                    rowRef={registerRowRef(selectionKey)}
-                    task={task}
-                    group="Default"
-                    isSelected={selectedKeys.has(selectionKey)}
-                    isEditing={editingTaskKey === selectionKey}
-                    isUnifiedView={isUnifiedView}
-                    onClick={(e) => handleTaskClick(task, e)}
-                    onDoubleClick={() => setEditingTaskKey(selectionKey)}
-                    onRename={(title) => handleRename(task, title)}
-                    onCancelRename={() => setEditingTaskKey(null)}
-                  />
-                );
-              })}
-              {handledVisible < grouped.handledTotal && (
-                <button
-                  onClick={() => showMoreHandled(viewKey, pageSize)}
-                  className="w-full py-2 text-center text-xs text-primary hover:bg-primary-surface"
-                >
-                  Show more ({grouped.handledTotal - handledVisible} remaining)
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
+        {/* Handled section */}
+        {grouped.handledTotal > 0 && (
+          <div className="mt-auto">
+            <button
+              onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
+              className="flex w-full items-center gap-2 border-y border-border bg-background px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-muted"
+            >
+              <span>{handledExpanded ? "▾" : "▸"}</span>
+              <span>Handled ({grouped.handledTotal})</span>
+            </button>
+
+            {handledExpanded && (
+              <>
+                {visibleHandled.map((task) => {
+                  const selectionKey = taskSelectionKey(task);
+                  return (
+                    <TaskRow
+                      key={selectionKey}
+                      rowRef={registerRowRef(selectionKey)}
+                      task={task}
+                      group="Default"
+                      isSelected={selectedKeys.has(selectionKey)}
+                      isEditing={editingTaskKey === selectionKey}
+                      isUnifiedView={isUnifiedView}
+                      onClick={(e) => handleTaskClick(task, e)}
+                      onDoubleClick={() => setEditingTaskKey(selectionKey)}
+                      onRename={(title) => handleRename(task, title)}
+                      onCancelRename={() => setEditingTaskKey(null)}
+                    />
+                  );
+                })}
+                {handledVisible < grouped.handledTotal && (
+                  <button
+                    onClick={() => showMoreHandled(viewKey, pageSize)}
+                    className="w-full py-2 text-center text-xs text-primary hover:bg-primary-surface"
+                  >
+                    Show more ({grouped.handledTotal - handledVisible} remaining)
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

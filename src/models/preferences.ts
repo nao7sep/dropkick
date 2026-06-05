@@ -5,6 +5,7 @@ export interface PreferencesDto {
   version: string;
   name: string;
   fontFamily: string;
+  darkMode: boolean; // false = light theme (default), true = dark theme
   zoomLevel: number; // 0.5–5.0 (1.0 = 100%)
   sidebarWidth: number; // pixels (160–1280)
   dateFormat: string;
@@ -21,6 +22,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     version: "1.0.0",
     name,
     fontFamily: "system-ui",
+    darkMode: false,
     zoomLevel: 1.0,
     sidebarWidth: 320,
     dateFormat: "YYYY-MM-DD",

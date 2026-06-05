@@ -72,19 +72,35 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
       </span>
 
       <Popover.Portal>
+        {/* z-[60] sits above AppModal content (z-[51]) — this picker opens from
+            inside the New Task modal — but below the alert dialogs (z-[100]+),
+            which can interrupt any layer. Portaled to body, so it shares the
+            modal's stacking context and these z-indexes compare directly. */}
         <Popover.Content
           data-dropkick-interactive-layer=""
           side={popoverPosition}
           align="start"
           sideOffset={4}
           collisionPadding={8}
-          className="z-50 rounded-lg border border-border bg-surface p-2 shadow-lg"
+          className="z-[60] rounded-lg border border-border bg-surface p-2 text-ink shadow-lg"
         >
+          {/* react-day-picker ships its own blue accent and inherits text color
+              from the page (black) — both fail in dark mode. Map its accent vars
+              to our primary token (chevrons, today, selected border) and let day
+              numbers inherit the popover's text-ink. Inline vars reference the
+              bare runtime tokens since @theme inline doesn't emit --color-*. */}
           <DayPicker
             mode="single"
             selected={selected}
             onSelect={handleSelect}
             defaultMonth={selected}
+            style={
+              {
+                "--rdp-accent-color": "var(--primary)",
+                "--rdp-accent-background-color": "var(--primary-surface)",
+                "--rdp-today-color": "var(--primary)",
+              } as React.CSSProperties
+            }
           />
           {value && (
             <div className="border-t border-border-subtle pt-2">

@@ -186,7 +186,7 @@ export function NewTaskModal({
           <button
             onClick={handleCreate}
             disabled={!canCreate || submitting}
-            className="rounded-md bg-primary px-4 py-2 text-sm text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
+            className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
           >
             Create
           </button>

@@ -14,6 +14,11 @@ const platformString =
 
 const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(platformString);
 
+// Display label for the primary modifier key, for use in shortcut hints. The
+// actual binding (hasPrimaryShortcutModifier) keys off metaKey on Apple and
+// ctrlKey elsewhere; this keeps the on-screen text in sync with that.
+export const primaryModifierLabel = isApplePlatform ? "Cmd" : "Ctrl";
+
 export function hasPrimaryShortcutModifier(
   event: ShortcutModifierState,
 ): boolean {

@@ -19,6 +19,7 @@
   --background: var(--color-gray-50); /* app canvas */
   --surface: var(--color-white); /* panels, inputs, cards */
   --surface-muted: var(--color-gray-100); /* hover / raised fills */
+  --surface-sunken: #f5f6f8; /* recessed surface (sticky group headers) — ~1.07:1 vs surface */
   --border: var(--color-gray-200);
   --border-subtle: var(--color-gray-100);
   --border-strong: var(--color-gray-300);
@@ -31,9 +32,15 @@
   --ink-faint: var(--color-gray-400);
   --ink-inverted: var(--color-white); /* text on solid accent fills */
 
-  /* Primary — actions, focus, selection */
+  /* Primary — actions, focus, selection.
+     `primary`/`primary-hover` are the ACCENT (text, icons, links, active tab);
+     `primary-solid`/`primary-solid-hover` are the BUTTON FILL behind inverted
+     text. They share a value in light mode but diverge in dark, mirroring how
+     danger/warning already separate text from solid fill. */
   --primary: var(--color-sky-700);
   --primary-hover: var(--color-sky-800);
+  --primary-solid: var(--color-sky-700);
+  --primary-solid-hover: var(--color-sky-800);
   --primary-ring: var(--color-sky-400); /* focus border */
   --primary-surface: var(--color-sky-50); /* subtle hover bg */
   --primary-surface-strong: var(--color-sky-100); /* selected row */
@@ -103,10 +110,104 @@
   --group-duesoon-tint: var(--color-teal-50);
 }
 
+/* Dark theme — overrides the same tokens with values tuned for dark surfaces.
+   Activated by the `.dark` class on <html> (set from the darkMode preference).
+   Accent text uses bright shades for contrast on dark; solid button fills use
+   darker shades so inverted (near-white) text stays legible. Group tints are
+   dark washes applied at the same /60–/90 opacities as light mode. */
+.dark {
+  color-scheme: dark;
+
+  /* Neutral grays (Tailwind `neutral`), not slate — the chrome stays hueless so
+     it never competes with the blue "Important" group tint or the sky accents,
+     mirroring how light mode's gray-50 canvas reads as near-white. */
+  --background: #171717; /* neutral-900 */
+  --surface: #262626; /* neutral-800 */
+  --surface-muted: #404040; /* neutral-700 */
+  --surface-sunken: #202020; /* recessed surface — tuned to the same ~1.07:1 vs surface as light */
+  --border: #404040; /* neutral-700 */
+  --border-subtle: #2e2e2e; /* faint, just above surface */
+  --border-strong: #525252; /* neutral-600 */
+
+  --ink-strong: #f5f5f5; /* neutral-100 */
+  --ink: #e5e5e5; /* neutral-200 */
+  --ink-soft: #d4d4d4; /* neutral-300 */
+  --ink-muted: #a3a3a3; /* neutral-400 */
+  --ink-faint: #737373; /* neutral-500 */
+  --ink-inverted: #fafafa; /* text on solid accent fills */
+
+  --primary: #38bdf8; /* sky-400 — accent text */
+  --primary-hover: #7dd3fc; /* sky-300 */
+  --primary-solid: #0284c7; /* sky-600 — button fill */
+  --primary-solid-hover: #0369a1; /* sky-700 — darker on hover keeps white text legible */
+  --primary-ring: #0ea5e9; /* sky-500 */
+  --primary-surface: #0c2435; /* subtle dark-blue hover */
+  --primary-surface-strong: #103049; /* selected row */
+  --primary-accent: #0ea5e9; /* sky-500 — divider hover */
+  --primary-accent-strong: #38bdf8; /* sky-400 — divider active */
+
+  --danger: #f87171; /* red-400 — text */
+  --danger-fg-strong: #fca5a5; /* red-300 */
+  --danger-solid: #dc2626; /* red-600 — fill */
+  --danger-solid-hover: #b91c1c; /* red-700 */
+  --danger-surface: #2a1416; /* dark red wash */
+  --danger-surface-strong: #3b1a1d;
+  --danger-border: #7f1d1d; /* red-900 */
+  --danger-border-strong: #991b1b; /* red-800 */
+
+  --attention: #fb923c; /* orange-400 */
+  --attention-border: #c2410c; /* orange-700 */
+  --attention-surface: #2a1a0a; /* dark orange wash */
+
+  --success: #4ade80; /* green-400 */
+  --success-surface: #0f2417; /* dark green wash */
+  --success-border: #166534; /* green-800 */
+
+  --warning: #fbbf24; /* amber-400 — text */
+  --warning-strong: #fcd34d; /* amber-300 */
+  --warning-surface: #2a2008; /* dark amber wash */
+  --warning-solid: #b45309; /* amber-700 — fill */
+  --warning-solid-strong: #92400e; /* amber-800 */
+
+  --group-pastdue-fg: #f87171; /* red-400 */
+  --group-pastdue-accent: #ef4444; /* red-500 */
+  --group-pastdue-border: #7f1d1d; /* red-900 */
+  --group-pastdue-tint: #3b1d1d;
+
+  --group-critical-fg: #a78bfa; /* violet-400 */
+  --group-critical-accent: #8b5cf6; /* violet-500 */
+  --group-critical-border: #5b21b6; /* violet-800 */
+  --group-critical-border-strong: #6d28d9; /* violet-700 */
+  --group-critical-tint: #2a1f47;
+
+  --group-duetoday-fg: #fb923c; /* orange-400 */
+  --group-duetoday-accent: #f97316; /* orange-500 */
+  --group-duetoday-border: #7c2d12; /* orange-900 */
+  --group-duetoday-tint: #3a2410;
+
+  --group-important-fg: #60a5fa; /* blue-400 */
+  --group-important-accent: #3b82f6; /* blue-500 */
+  --group-important-border: #1e3a8a; /* blue-900 */
+  --group-important-border-strong: #1d4ed8; /* blue-700 */
+  --group-important-tint: #18233f;
+
+  --group-urgent-fg: #fb7185; /* rose-400 */
+  --group-urgent-accent: #f43f5e; /* rose-500 */
+  --group-urgent-border: #881337; /* rose-900 */
+  --group-urgent-border-strong: #9f1239; /* rose-800 */
+  --group-urgent-tint: #3a1622;
+
+  --group-duesoon-fg: #2dd4bf; /* teal-400 */
+  --group-duesoon-accent: #14b8a6; /* teal-500 */
+  --group-duesoon-border: #115e59; /* teal-800 */
+  --group-duesoon-tint: #0f2e2c;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
   --color-border: var(--border);
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
@@ -120,6 +221,8 @@
 
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
+  --color-primary-solid: var(--primary-solid);
+  --color-primary-solid-hover: var(--primary-solid-hover);
   --color-primary-ring: var(--primary-ring);
   --color-primary-surface: var(--primary-surface);
   --color-primary-surface-strong: var(--primary-surface-strong);

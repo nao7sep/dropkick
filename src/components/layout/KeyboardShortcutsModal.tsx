@@ -1,10 +1,18 @@
 // Keyboard shortcuts reference — lists all global shortcuts in a modal overlay.
 
 import { AppModal } from "../shared/AppModal";
+import { primaryModifierLabel } from "../../utils";
 
 interface KeyboardShortcutsModalProps {
   onClose: () => void;
 }
+
+// Primary modifier label for the running platform ("Cmd" on macOS, "Ctrl"
+// elsewhere). Shortcut keys are built with this so the displayed text matches
+// the actual bindings without any post-hoc string substitution. Bindings that
+// are genuinely Ctrl on every platform (tab cycling — macOS reserves Cmd+Tab)
+// keep a literal "Ctrl".
+const mod = primaryModifierLabel;
 
 const shortcutSections: {
   title: string;
@@ -14,11 +22,11 @@ const shortcutSections: {
     title: "Task List",
     shortcuts: [
       { kind: "heading", label: "Create and move" },
-      { label: "New task", keys: "Cmd+N" },
-      { label: "Move selected tasks", keys: "Cmd+M" },
-      { label: "Focus new note field", keys: "Cmd+Shift+N" },
-      { label: "Save note", keys: "Cmd+Enter" },
-      { label: "Save note as actionable", keys: "Cmd+Shift+Enter" },
+      { label: "New task", keys: `${mod}+N` },
+      { label: "Move selected tasks", keys: `${mod}+M` },
+      { label: "Focus new note field", keys: `${mod}+Shift+N` },
+      { label: "Save note", keys: `${mod}+Enter` },
+      { label: "Save note as actionable", keys: `${mod}+Shift+Enter` },
       { kind: "heading", label: "Status" },
       { label: "Set status to Pending", keys: "P" },
       { label: "Set status to Completed", keys: "C" },
@@ -39,26 +47,26 @@ const shortcutSections: {
       { label: "Extend selection", keys: "Shift+Up / Shift+Down" },
       { label: "Clear selection", keys: "Esc" },
       { kind: "heading", label: "Reorder" },
-      { label: "Move task up", keys: "Cmd+Up" },
-      { label: "Move task down", keys: "Cmd+Down" },
-      { label: "Send to first in group", keys: "Cmd+Home" },
-      { label: "Send to last in group", keys: "Cmd+End" },
+      { label: "Move task up", keys: `${mod}+Up` },
+      { label: "Move task down", keys: `${mod}+Down` },
+      { label: "Send to first in group", keys: `${mod}+Home` },
+      { label: "Send to last in group", keys: `${mod}+End` },
     ],
   },
   {
     title: "Dialogs",
     shortcuts: [
       { kind: "heading", label: "New Task" },
-      { label: "Create task", keys: "Cmd+Enter" },
-      { label: "Set priority to Default", keys: "Cmd+0" },
-      { label: "Set priority to Urgent", keys: "Cmd+1" },
-      { label: "Set priority to Important", keys: "Cmd+2" },
-      { label: "Set priority to Critical", keys: "Cmd+3" },
-      { label: "Set due date to today", keys: "Cmd+T" },
-      { label: "Set due date to tomorrow", keys: "Cmd+Y" },
-      { label: "Clear due date", keys: "Cmd+N" },
+      { label: "Create task", keys: `${mod}+Enter` },
+      { label: "Set priority to Default", keys: `${mod}+0` },
+      { label: "Set priority to Urgent", keys: `${mod}+1` },
+      { label: "Set priority to Important", keys: `${mod}+2` },
+      { label: "Set priority to Critical", keys: `${mod}+3` },
+      { label: "Set due date to today", keys: `${mod}+T` },
+      { label: "Set due date to tomorrow", keys: `${mod}+Y` },
+      { label: "Clear due date", keys: `${mod}+N` },
       { kind: "heading", label: "Other dialogs" },
-      { label: "Submit settings / move", keys: "Cmd+Enter" },
+      { label: "Submit settings / move", keys: `${mod}+Enter` },
       { label: "Close active dialog", keys: "Esc" },
     ],
   },
@@ -68,13 +76,14 @@ const shortcutSections: {
       { kind: "heading", label: "Tabs" },
       { label: "Next tab (Windows/Linux)", keys: "Ctrl+Tab" },
       { label: "Previous tab (Windows/Linux)", keys: "Ctrl+Shift+Tab" },
-      { label: "Close tab", keys: "Cmd+W" },
-      { label: "Unified view", keys: "Cmd+U" },
+      { label: "Close tab", keys: `${mod}+W` },
+      { label: "Unified view", keys: `${mod}+U` },
       { label: "Rename tab", keys: "Double-click tab" },
       { kind: "heading", label: "Display" },
-      { label: "Zoom in", keys: "Cmd+Equal / Cmd+Plus / Cmd+Semicolon" },
-      { label: "Zoom out", keys: "Cmd+Minus" },
-      { label: "Reset zoom", keys: "Cmd+0" },
+      { label: "Toggle dark mode", keys: `${mod}+Shift+D` },
+      { label: "Zoom in", keys: `${mod}+Equal / ${mod}+Plus / ${mod}+Semicolon` },
+      { label: "Zoom out", keys: `${mod}+Minus` },
+      { label: "Reset zoom", keys: `${mod}+0` },
     ],
   },
 ];
@@ -99,7 +108,6 @@ export function KeyboardShortcutsModal({
       }
     >
       <div className="mb-3 shrink-0 space-y-1 text-xs leading-5 text-ink-muted">
-        <p>Shortcuts are shown with Cmd. On Windows, use Ctrl instead.</p>
         <p>Shortcuts can change meaning by context; modal shortcuts apply only inside that modal.</p>
         <p>On macOS, Cmd+Tab is reserved by the system for app switching.</p>
       </div>

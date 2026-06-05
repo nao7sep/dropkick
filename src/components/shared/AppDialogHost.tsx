@@ -87,7 +87,7 @@ export function AppDialogHost() {
                 ref={confirmRef}
                 onClick={confirmCurrent}
                 className={`rounded-md px-4 py-2 text-sm text-ink-inverted ${
-                  isWarning ? "bg-warning-solid hover:bg-warning-solid-strong" : "bg-primary hover:bg-primary-hover"
+                  isWarning ? "bg-warning-solid hover:bg-warning-solid-strong" : "bg-primary-solid hover:bg-primary-solid-hover"
                 }`}
               >
                 {current.confirmLabel}

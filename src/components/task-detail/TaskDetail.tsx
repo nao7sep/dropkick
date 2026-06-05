@@ -20,6 +20,7 @@ import {
   formatDueDate,
   sanitizeSingleLine,
   hasPrimaryShortcutModifier,
+  primaryModifierLabel,
   taskKey,
   taskSelectionKey,
 } from "../../utils";
@@ -365,7 +366,7 @@ export function TaskDetail({
           <button
             onClick={handleMoveTask}
             disabled={!moveTarget}
-            className="rounded-md bg-primary px-3 py-1 text-xs text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
+            className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
           >
             Move
           </button>
@@ -448,7 +449,7 @@ export function TaskDetail({
               }
             }}
             {...noteComposing.handlers}
-            placeholder="Add a note... (Cmd+Enter to save, Cmd+Shift+Enter actionable)"
+            placeholder={`Add a note... (${primaryModifierLabel}+Enter to save, ${primaryModifierLabel}+Shift+Enter actionable)`}
             rows={2}
             className="w-full resize-none rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           />
@@ -456,7 +457,7 @@ export function TaskDetail({
             <button
               onClick={() => handleAddNote()}
               disabled={!newNoteContent.trim()}
-              className="rounded-md bg-primary px-3 py-1 text-xs text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
+              className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
             >
               Add Note
             </button>
@@ -625,7 +626,7 @@ function NoteItem({
             <button
               onClick={handleSave}
               disabled={!draft.trim()}
-              className="rounded bg-primary px-3 py-1 text-xs text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
+              className="rounded bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
             >
               Save
             </button>

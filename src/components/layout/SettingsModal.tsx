@@ -97,7 +97,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <button
             onClick={handleSave}
             disabled={!timezoneValidation.valid}
-            className="rounded-md bg-primary px-4 py-2 text-sm text-ink-inverted hover:bg-primary-hover disabled:bg-background disabled:text-ink-muted"
+            className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
           >
             Save
           </button>
@@ -120,6 +120,19 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         ...composing.handlers,
       }}
     >
+      {/* Theme */}
+      <Field label="Theme">
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={draft.darkMode}
+            onChange={(e) => setField("darkMode", e.target.checked)}
+            className="rounded border-border-strong"
+          />
+          Dark mode
+        </label>
+      </Field>
+
       {/* Font family */}
       <Field label="Font family">
         <input

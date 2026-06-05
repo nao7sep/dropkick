@@ -19,6 +19,7 @@ export { sanitizeSingleLine } from "./sanitize";
 export {
   hasPrimaryShortcutModifier,
   matchesShortcutKey,
+  primaryModifierLabel,
 } from "./shortcuts";
 
 export {
