@@ -160,6 +160,10 @@ export function MainWindow() {
   useEffect(() => { zoomLevelRef.current = preferences.zoomLevel; }, [preferences.zoomLevel]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // If a focused layer (e.g. the New Task modal, which uses Cmd+0 for
+      // priority) already handled this key, don't also zoom. Zoom stays
+      // globally available otherwise, even with a menu or modal open.
+      if (e.defaultPrevented) return;
       if (isZoomIn(e)) {
         e.preventDefault();
         updatePrefs({ zoomLevel: stepZoomIn(zoomLevelRef.current) });

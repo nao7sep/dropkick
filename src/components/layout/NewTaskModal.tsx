@@ -145,13 +145,14 @@ export function NewTaskModal({
       return;
     }
 
-    if (matchesShortcutKey(e, "t")) {
+    // D = toDay, T = Tomorrow, matching the list-review keys (with the modifier).
+    if (matchesShortcutKey(e, "d")) {
       e.preventDefault();
       setDueDate(todayInTimezone(timezone));
       return;
     }
 
-    if (matchesShortcutKey(e, "y")) {
+    if (matchesShortcutKey(e, "t")) {
       e.preventDefault();
       setDueDate(tomorrowInTimezone(timezone));
       return;

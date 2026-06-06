@@ -62,7 +62,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
                 ? "border-danger-border-strong text-danger"
                 : value
                   ? "border-border text-ink"
-                  : "border-border text-ink-muted"
+                  : "border-border text-ink-soft"
             }`}
           >
             <Calendar size={14} />

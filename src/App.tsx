@@ -14,6 +14,7 @@ import { startBackupSchedule } from "./services";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { MainWindow } from "./components/layout/MainWindow";
 import { AppDialogHost } from "./components/shared/AppDialogHost";
+import { ToastHost } from "./components/shared/ToastHost";
 
 type AppPhase =
   | { kind: "loading" }
@@ -130,6 +131,7 @@ function App() {
     <>
       {content}
       <AppDialogHost />
+      <ToastHost />
     </>
   );
 }

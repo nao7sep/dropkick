@@ -293,3 +293,15 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Toast (ToastHost): fade in, hold, fade out across one duration that matches
+   the host's dismiss timeout, so the timed unmount lands on the fade-out. */
+@keyframes dropkick-toast {
+  0% { opacity: 0; transform: translateY(8px); }
+  6% { opacity: 1; transform: translateY(0); }
+  88% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(4px); }
+}
+.dropkick-toast {
+  animation: dropkick-toast 2500ms ease forwards;
+}

@@ -6,6 +6,7 @@ import { useEffect, useCallback, useMemo } from "react";
 import { useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 import { usePreferencesStore } from "../state/preferences-store";
+import { useToastStore } from "../state/toast-store";
 import { showConfirm, showMessage } from "../repositories";
 import { groupTasksForList, groupTasksForUnifiedView } from "../services";
 import type { Task, TaskPriority, TaskStatus } from "../models";
@@ -16,7 +17,19 @@ import {
   todayInTimezone,
   tomorrowInTimezone,
 } from "../utils";
-import { hasPrimaryShortcutModifier, matchesShortcutKey } from "../utils";
+import {
+  hasPrimaryShortcutModifier,
+  matchesShortcutKey,
+  consumesSpace,
+} from "../utils";
+
+// Toast messages for actions that are silently disabled in unified view. They
+// lead with the view because that is the part users forget — an empty selection
+// is visible on screen, but "I'm in unified view" is not.
+const UNIFIED_DROPKICK_MSG =
+  "You're in unified view — Dropkick works in a single list.";
+const UNIFIED_REORDER_MSG =
+  "You're in unified view — reordering works in a single list.";
 
 function isTyping(e: KeyboardEvent): boolean {
   const tag = (e.target as HTMLElement)?.tagName;
@@ -51,6 +64,7 @@ export function useKeyboardShortcuts(
   const moveDown = useTaskListStore((s) => s.moveDown);
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
   const sendToLast = useTaskListStore((s) => s.sendToLast);
+  const dropkick = useTaskListStore((s) => s.dropkick);
 
   const workspace = useWorkspaceStore((s) => s.workspace);
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
@@ -200,6 +214,9 @@ export function useKeyboardShortcuts(
 
   const handler = useCallback(
     async (e: KeyboardEvent) => {
+      // Defer to any handler (a modal/menu, or the zoom handler) that already
+      // consumed this key, and never act on keys originating inside an overlay.
+      if (e.defaultPrevented) return;
       if (isInsideInteractiveLayer(e)) return;
 
       const mod = hasPrimaryShortcutModifier(e);
@@ -301,7 +318,8 @@ export function useKeyboardShortcuts(
           return;
         }
 
-        if (matchesShortcutKey(e, "t")) {
+        // D = toDay, T = Tomorrow. Dropkick takes Space alone (see below).
+        if (matchesShortcutKey(e, "d")) {
           e.preventDefault();
           const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyDueDateToSelection(todayInTimezone(timezone))) {
@@ -310,7 +328,7 @@ export function useKeyboardShortcuts(
           return;
         }
 
-        if (matchesShortcutKey(e, "y")) {
+        if (matchesShortcutKey(e, "t")) {
           e.preventDefault();
           const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
           if (await applyDueDateToSelection(tomorrowInTimezone(timezone))) {
@@ -327,6 +345,39 @@ export function useKeyboardShortcuts(
           }
           return;
         }
+      }
+
+      // --- Space: Dropkick the selection (the app's primary action) ---
+      // Space is the Dropkick key, so it must never page-scroll the list. Block
+      // its default whenever it isn't typing or activating a focused control;
+      // then, in a single-list view with a selection, dropkick. It stays a
+      // no-op in unified view (Dropkick is a single-file reorder, like the
+      // Reorder buttons) and when nothing is selected — but the scroll is still
+      // swallowed in both cases.
+      if (
+        e.key === " " &&
+        !e.repeat &&
+        !hasNonShiftModifier &&
+        !e.shiftKey &&
+        !consumesSpace(e.target as HTMLElement | null)
+      ) {
+        e.preventDefault();
+        if (isUnifiedView) {
+          useToastStore.getState().showToast(UNIFIED_DROPKICK_MSG);
+          return;
+        }
+        if (selectedTasks.length === 0) return;
+        const willChange = selectedTasks.some((task) => task.status === "Pending");
+        const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
+        const result = await dropkick(filePath);
+        if (result.status === "error") {
+          await showMessage("Task Reorder Failed", result.message);
+          return;
+        }
+        if (willChange) {
+          setSelection(nextKey ? new Set([nextKey]) : new Set());
+        }
+        return;
       }
 
       // --- Delete/Backspace: Dismiss selected tasks ---
@@ -357,9 +408,12 @@ export function useKeyboardShortcuts(
 
       // --- Primary modifier + Up: Move selection up one position ---
       if (mod && !e.shiftKey && e.key === "ArrowUp") {
-        if (isTyping(e)) return;
-        if (isUnifiedView || selectedKeys.size === 0) return;
+        if (isTyping(e) || selectedKeys.size === 0) return;
         e.preventDefault();
+        if (isUnifiedView) {
+          useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
+          return;
+        }
         const result = await moveUp(filePath);
         if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
@@ -369,9 +423,12 @@ export function useKeyboardShortcuts(
 
       // --- Primary modifier + Down: Move selection down one position ---
       if (mod && !e.shiftKey && e.key === "ArrowDown") {
-        if (isTyping(e)) return;
-        if (isUnifiedView || selectedKeys.size === 0) return;
+        if (isTyping(e) || selectedKeys.size === 0) return;
         e.preventDefault();
+        if (isUnifiedView) {
+          useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
+          return;
+        }
         const result = await moveDown(filePath);
         if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
@@ -381,9 +438,12 @@ export function useKeyboardShortcuts(
 
       // --- Primary modifier + Home: Send to first in group (Tackle) ---
       if (mod && e.key === "Home") {
-        if (isTyping(e)) return;
-        if (isUnifiedView || selectedKeys.size === 0) return;
+        if (isTyping(e) || selectedKeys.size === 0) return;
         e.preventDefault();
+        if (isUnifiedView) {
+          useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
+          return;
+        }
         const result = await sendToFirst(filePath);
         if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
@@ -393,9 +453,12 @@ export function useKeyboardShortcuts(
 
       // --- Primary modifier + End: Send to last in group (Kick) ---
       if (mod && e.key === "End") {
-        if (isTyping(e)) return;
-        if (isUnifiedView || selectedKeys.size === 0) return;
+        if (isTyping(e) || selectedKeys.size === 0) return;
         e.preventDefault();
+        if (isUnifiedView) {
+          useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
+          return;
+        }
         const result = await sendToLast(filePath);
         if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
@@ -505,6 +568,7 @@ export function useKeyboardShortcuts(
       moveDown,
       sendToFirst,
       sendToLast,
+      dropkick,
       setSelection,
       setActiveTab,
       closeTab,

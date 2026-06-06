@@ -47,10 +47,12 @@ Shortcuts are shown with `Cmd`. On Windows, use `Ctrl` instead. Shortcuts can ch
 
 Dropkick treats review actions and focused edits as two different flows:
 
-- **List review flow** — when you use task-list shortcuts for status, priority, or due date, Dropkick assumes you are reviewing the list from top to bottom. After a successful change, selection advances to the next active task in visual order, crossing group boundaries when needed. If there is no next active task, selection clears instead of following the task into Handled.
+- **List review flow** — when you use task-list shortcuts for status, priority, due date, or Dropkick, Dropkick assumes you are reviewing the list from top to bottom. After a successful change, selection advances to the next active task in visual order, crossing group boundaries when needed. If there is no next active task, selection clears instead of following the task into Handled.
 - **Focused edit flow** — when you change priority, due date, or order from the task detail pane, Dropkick keeps the same task selected so you can continue editing its title, description, and notes.
 
 Task-list reorder shortcuts also keep the same task selection, so repeated `Cmd+Up` / `Cmd+Down` presses continue moving the tasks you just moved.
+
+Reordering and Dropkick operate within a single list, so they do nothing in unified view; pressing them there shows a brief on-screen reminder rather than failing silently.
 
 Detail-pane status changes, task deletion, and moves out of the current non-unified list leave the current task behind, so they use the list review flow and select the next active task. In unified view, moving a task to another list keeps it selected because the task remains visible.
 
@@ -58,6 +60,7 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 
 | Action | Shortcut |
 |---|---|
+| Dropkick selected tasks | Space |
 | New task | Cmd+N |
 | Move selected tasks | Cmd+M |
 | Focus new note field | Cmd+Shift+N |
@@ -71,8 +74,8 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 | Set priority to Urgent | 1 |
 | Set priority to Important | 2 |
 | Set priority to Critical | 3 |
-| Set due date to today | T |
-| Set due date to tomorrow | Y |
+| Set due date to today | D |
+| Set due date to tomorrow | T |
 | Clear due date | N |
 | Navigate selection | Up / Down |
 | Extend selection | Shift+Up / Shift+Down |
@@ -91,8 +94,8 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 | Set draft priority to Urgent | Cmd+1 |
 | Set draft priority to Important | Cmd+2 |
 | Set draft priority to Critical | Cmd+3 |
-| Set draft due date to today | Cmd+T |
-| Set draft due date to tomorrow | Cmd+Y |
+| Set draft due date to today | Cmd+D |
+| Set draft due date to tomorrow | Cmd+T |
 | Clear draft due date | Cmd+N |
 | Submit settings / move dialog | Cmd+Enter |
 | Close active dialog | Esc |

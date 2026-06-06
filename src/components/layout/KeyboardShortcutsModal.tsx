@@ -19,14 +19,10 @@ const shortcutSections: {
   shortcuts: ({ kind: "heading"; label: string } | { label: string; keys: string })[];
 }[] = [
   {
-    title: "Task List",
+    title: "Task keys",
     shortcuts: [
-      { kind: "heading", label: "Create and move" },
-      { label: "New task", keys: `${mod}+N` },
-      { label: "Move selected tasks", keys: `${mod}+M` },
-      { label: "Focus new note field", keys: `${mod}+Shift+N` },
-      { label: "Save note", keys: `${mod}+Enter` },
-      { label: "Save note as actionable", keys: `${mod}+Shift+Enter` },
+      { kind: "heading", label: "Dropkick" },
+      { label: "Dropkick selected tasks", keys: "Space" },
       { kind: "heading", label: "Status" },
       { label: "Set status to Pending", keys: "P" },
       { label: "Set status to Completed", keys: "C" },
@@ -38,9 +34,14 @@ const shortcutSections: {
       { label: "Set priority to Important", keys: "2" },
       { label: "Set priority to Critical", keys: "3" },
       { kind: "heading", label: "Due date" },
-      { label: "Set due date to today", keys: "T" },
-      { label: "Set due date to tomorrow", keys: "Y" },
+      { label: "Set due date to today", keys: "D" },
+      { label: "Set due date to tomorrow", keys: "T" },
       { label: "Clear due date", keys: "N" },
+    ],
+  },
+  {
+    title: "View & navigate",
+    shortcuts: [
       { kind: "heading", label: "Selection" },
       { label: "Navigate selection up", keys: "Up" },
       { label: "Navigate selection down", keys: "Down" },
@@ -51,6 +52,28 @@ const shortcutSections: {
       { label: "Move task down", keys: `${mod}+Down` },
       { label: "Send to first in group", keys: `${mod}+Home` },
       { label: "Send to last in group", keys: `${mod}+End` },
+      { kind: "heading", label: "Display" },
+      { label: "Toggle dark mode", keys: `${mod}+Shift+D` },
+      { label: "Zoom in", keys: `${mod}+Equal / ${mod}+Plus / ${mod}+Semicolon` },
+      { label: "Zoom out", keys: `${mod}+Minus` },
+      { label: "Reset zoom", keys: `${mod}+0` },
+    ],
+  },
+  {
+    title: "Create & tabs",
+    shortcuts: [
+      { kind: "heading", label: "Create and move" },
+      { label: "New task", keys: `${mod}+N` },
+      { label: "Move selected tasks", keys: `${mod}+M` },
+      { label: "Focus new note field", keys: `${mod}+Shift+N` },
+      { label: "Save note", keys: `${mod}+Enter` },
+      { label: "Save note as actionable", keys: `${mod}+Shift+Enter` },
+      { kind: "heading", label: "Tabs" },
+      { label: "Next tab (Windows/Linux)", keys: "Ctrl+Tab" },
+      { label: "Previous tab (Windows/Linux)", keys: "Ctrl+Shift+Tab" },
+      { label: "Close tab", keys: `${mod}+W` },
+      { label: "Unified view", keys: `${mod}+U` },
+      { label: "Rename tab", keys: "Double-click tab" },
     ],
   },
   {
@@ -62,28 +85,12 @@ const shortcutSections: {
       { label: "Set priority to Urgent", keys: `${mod}+1` },
       { label: "Set priority to Important", keys: `${mod}+2` },
       { label: "Set priority to Critical", keys: `${mod}+3` },
-      { label: "Set due date to today", keys: `${mod}+T` },
-      { label: "Set due date to tomorrow", keys: `${mod}+Y` },
+      { label: "Set due date to today", keys: `${mod}+D` },
+      { label: "Set due date to tomorrow", keys: `${mod}+T` },
       { label: "Clear due date", keys: `${mod}+N` },
       { kind: "heading", label: "Other dialogs" },
       { label: "Submit settings / move", keys: `${mod}+Enter` },
       { label: "Close active dialog", keys: "Esc" },
-    ],
-  },
-  {
-    title: "Tabs And App",
-    shortcuts: [
-      { kind: "heading", label: "Tabs" },
-      { label: "Next tab (Windows/Linux)", keys: "Ctrl+Tab" },
-      { label: "Previous tab (Windows/Linux)", keys: "Ctrl+Shift+Tab" },
-      { label: "Close tab", keys: `${mod}+W` },
-      { label: "Unified view", keys: `${mod}+U` },
-      { label: "Rename tab", keys: "Double-click tab" },
-      { kind: "heading", label: "Display" },
-      { label: "Toggle dark mode", keys: `${mod}+Shift+D` },
-      { label: "Zoom in", keys: `${mod}+Equal / ${mod}+Plus / ${mod}+Semicolon` },
-      { label: "Zoom out", keys: `${mod}+Minus` },
-      { label: "Reset zoom", keys: `${mod}+0` },
     ],
   },
 ];
@@ -95,7 +102,7 @@ export function KeyboardShortcutsModal({
     <AppModal
       title="Keyboard Shortcuts"
       onClose={onClose}
-      maxWidth={920}
+      maxWidth={1160}
       bodyClassName="flex max-h-[70vh] min-h-0 flex-col overflow-hidden px-6 py-4"
       footerClassName="flex justify-end border-t border-border px-6 py-4"
       footer={
@@ -111,7 +118,7 @@ export function KeyboardShortcutsModal({
         <p>Shortcuts can change meaning by context; modal shortcuts apply only inside that modal.</p>
         <p>On macOS, Cmd+Tab is reserved by the system for app switching.</p>
       </div>
-      <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {shortcutSections.map((section) => (
           <section
             key={section.title}

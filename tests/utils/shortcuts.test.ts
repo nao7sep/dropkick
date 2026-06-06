@@ -1,8 +1,59 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { matchesShortcutKey } from "../../src/utils/shortcuts";
+import { matchesShortcutKey, consumesSpace } from "../../src/utils/shortcuts";
 import { importWithPlatform } from "../helpers/platform";
 
 type ShortcutsModule = typeof import("../../src/utils/shortcuts");
+
+// Build a fake event target. `role` becomes what getAttribute("role") returns.
+function target(opts: {
+  tagName?: string;
+  isContentEditable?: boolean;
+  role?: string | null;
+}) {
+  return {
+    tagName: opts.tagName,
+    isContentEditable: opts.isContentEditable,
+    getAttribute: (name: string) =>
+      name === "role" ? (opts.role ?? null) : null,
+  };
+}
+
+describe("consumesSpace", () => {
+  it("is false for a null target (Space is free to act)", () => {
+    expect(consumesSpace(null)).toBe(false);
+    expect(consumesSpace(undefined)).toBe(false);
+  });
+
+  it("is false for non-interactive elements", () => {
+    expect(consumesSpace(target({ tagName: "DIV" }))).toBe(false);
+    expect(consumesSpace(target({ tagName: "SPAN" }))).toBe(false);
+    expect(consumesSpace(target({ tagName: "BODY" }))).toBe(false);
+  });
+
+  it("is true for native space-consuming controls", () => {
+    for (const tagName of ["BUTTON", "A", "INPUT", "TEXTAREA", "SELECT"]) {
+      expect(consumesSpace(target({ tagName }))).toBe(true);
+    }
+  });
+
+  it("is true for contenteditable elements", () => {
+    expect(consumesSpace(target({ tagName: "DIV", isContentEditable: true }))).toBe(
+      true,
+    );
+  });
+
+  it("is true for elements with a space-consuming ARIA role", () => {
+    for (const role of ["button", "checkbox", "switch", "menuitem", "tab", "option"]) {
+      expect(consumesSpace(target({ tagName: "DIV", role }))).toBe(true);
+    }
+  });
+
+  it("is false for a non-consuming role", () => {
+    expect(consumesSpace(target({ tagName: "DIV", role: "presentation" }))).toBe(
+      false,
+    );
+  });
+});
 
 describe("matchesShortcutKey", () => {
   it("matches single-character keys case-insensitively", () => {

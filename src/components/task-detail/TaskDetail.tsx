@@ -577,7 +577,7 @@ function NoteItem({
           onChange={(e) =>
             handleActionabilityChange(e.target.value as NoteActionability)
           }
-          className="rounded border border-border px-1 py-0.5 text-xs text-ink-muted"
+          className="rounded border border-border px-1 py-0.5 text-xs text-ink"
         >
           <option value="Informational">Informational</option>
           <option value="Actionable">Actionable</option>
@@ -662,6 +662,6 @@ function prioritySelectStyle(priority: string): string {
     case "Important":
       return "border-group-important-border-strong text-group-important-fg";
     default:
-      return "border-border text-ink-soft";
+      return "border-border text-ink";
   }
 }
