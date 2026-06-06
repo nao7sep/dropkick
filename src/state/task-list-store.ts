@@ -91,6 +91,14 @@ interface TaskListState {
   // Expanded/collapsed handled section state for the current app session.
   handledExpanded: Record<string, boolean>;
 
+  // Bumped by reorder actions (kick/tackle/move up/down) when they change task
+  // order while keeping the selection. The task list watches this to re-scroll
+  // the still-selected task into view as it moves. Mutations that *advance* the
+  // selection (status/priority/due/dropkick) deliberately do NOT bump it — they
+  // scroll via the selection change instead, which avoids chasing the stale
+  // pre-advance selection during the intermediate render.
+  reorderTick: number;
+
   // Actions: file management.
   loadFile: (filePath: string) => Promise<LoadFileResult>;
   createFile: (filePath: string) => Promise<void>;
@@ -246,6 +254,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     selectedKeys: new Set(),
     handledVisible: {},
     handledExpanded: {},
+    reorderTick: 0,
 
     // --- File management ---
 
@@ -655,6 +664,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             ...state.files,
             [filePath]: { data: { ...f.data, tasks: next } },
           },
+          reorderTick: state.reorderTick + 1,
         };
       });
       return flush(filePath);
@@ -693,6 +703,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             ...state.files,
             [filePath]: { data: { ...f.data, tasks: next } },
           },
+          reorderTick: state.reorderTick + 1,
         };
       });
       return flush(filePath);
@@ -731,6 +742,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             ...state.files,
             [filePath]: { data: { ...f.data, tasks: next } },
           },
+          reorderTick: state.reorderTick + 1,
         };
       });
       return flush(filePath);
@@ -769,6 +781,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             ...state.files,
             [filePath]: { data: { ...f.data, tasks: next } },
           },
+          reorderTick: state.reorderTick + 1,
         };
       });
       return flush(filePath);
@@ -807,6 +820,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             ...state.files,
             [filePath]: { data: { ...f.data, tasks: next } },
           },
+          reorderTick: state.reorderTick + 1,
         };
       });
       return flush(filePath);

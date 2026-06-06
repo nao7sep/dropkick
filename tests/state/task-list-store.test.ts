@@ -213,6 +213,45 @@ describe("reorder operations use the current selection", () => {
   });
 });
 
+// reorderTick signals the task list to re-scroll the still-selected task into
+// view after a reorder. Mutations that advance the selection instead
+// (dropkick/status/priority/due) must NOT bump it — otherwise the list would
+// chase the stale pre-advance selection and jump.
+describe("reorderTick scroll-follow signal", () => {
+  it("increments when a reorder changes task order", async () => {
+    seedFile([makeTask({ id: "a" }), makeTask({ id: "b" }), makeTask({ id: "c" })]);
+    useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
+    const before = useTaskListStore.getState().reorderTick;
+    await useTaskListStore.getState().sendToLast(FILE);
+    expect(useTaskListStore.getState().reorderTick).toBe(before + 1);
+  });
+
+  it("does not increment when a reorder makes no change", async () => {
+    seedFile([makeTask({ id: "a" })]);
+    useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
+    const before = useTaskListStore.getState().reorderTick;
+    await useTaskListStore.getState().kick(FILE, 5); // single task: no movement
+    expect(useTaskListStore.getState().reorderTick).toBe(before);
+  });
+
+  it("does not increment for dropkick, even though it reorders", async () => {
+    seedFile([makeTask({ id: "a" }), makeTask({ id: "b" })]);
+    useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
+    const before = useTaskListStore.getState().reorderTick;
+    const result = await useTaskListStore.getState().dropkick(FILE);
+    expect(result).toEqual({ status: "success" });
+    expect(tasksOf().map((t) => t.id)).toEqual(["b", "a"]); // a sent to bottom
+    expect(useTaskListStore.getState().reorderTick).toBe(before);
+  });
+
+  it("does not increment for status changes", async () => {
+    seedFile([makeTask({ id: "a" }), makeTask({ id: "b" })]);
+    const before = useTaskListStore.getState().reorderTick;
+    await useTaskListStore.getState().setStatus(FILE, "a", "Completed");
+    expect(useTaskListStore.getState().reorderTick).toBe(before);
+  });
+});
+
 describe("flush conflict reload", () => {
   it("applies reloaded disk data and reports an error when the file changed externally", async () => {
     seedFile([makeTask({ id: "a", title: "local" })]);

@@ -63,6 +63,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
+  const reorderTick = useTaskListStore((s) => s.reorderTick);
   const updateTitle = useTaskListStore((s) => s.updateTitle);
   const showMoreHandled = useTaskListStore((s) => s.showMoreHandled);
   const setHandledExpanded = useTaskListStore((s) => s.setHandledExpanded);
@@ -114,12 +115,19 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     return keys.length > 0 ? keys[keys.length - 1] : null;
   }, [selectedKeys]);
 
+  // Scroll the dominant selected row into view when the selection changes, or
+  // when a reorder (kick/tackle/move up/down) shifts the still-selected task
+  // (signalled by reorderTick). Deliberately NOT keyed on `tasks`: doing so
+  // would also fire during the intermediate render of an advance action
+  // (status/priority/due/dropkick), where tasks have already changed but the
+  // selection hasn't advanced yet — scrolling to the stale, about-to-leave row
+  // and causing a visible jump.
   useEffect(() => {
     if (!dominantSelectedKey) return;
     const row = rowRefs.current.get(dominantSelectedKey);
     if (!row) return;
     row.scrollIntoView({ block: "nearest" });
-  }, [dominantSelectedKey, tasks]);
+  }, [dominantSelectedKey, reorderTick]);
 
   const registerRowRef = (selectionKey: string) => (node: HTMLDivElement | null) => {
     if (node) {
