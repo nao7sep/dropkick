@@ -2,9 +2,11 @@
 // The [+] button opens a menu to create/open task list files.
 // The gear icon opens a menu with Settings, Keyboard Shortcuts, and About.
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
 import { sanitizeSingleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
+import { computeListUrgency } from "../../services";
+import type { ListUrgency } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import {
   DndContext,
@@ -50,6 +52,17 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const loadFile = useTaskListStore((s) => s.loadFile);
   const createFile = useTaskListStore((s) => s.createFile);
   const fileLoadErrors = useTaskListStore((s) => s.fileLoadErrors);
+  const files = useTaskListStore((s) => s.files);
+
+  // Deadline urgency per loaded list, recomputed when task data or the timezone
+  // changes. Drives the dot on each list tab.
+  const urgencyByPath = useMemo(() => {
+    const map: Record<string, ListUrgency> = {};
+    for (const [path, state] of Object.entries(files)) {
+      map[path] = computeListUrgency(state.data.tasks, preferences.timezone);
+    }
+    return map;
+  }, [files, preferences.timezone]);
 
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [showGearMenu, setShowGearMenu] = useState(false);
@@ -236,29 +249,41 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       >
         <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
           {/* Tabs */}
-          {workspace.openTabs.map((tab, index) => (
-            <SortableTab
-              key={tab.isUnifiedView ? "__unified__" : tab.filePath}
-              id={tab.isUnifiedView ? "__unified__" : tab.filePath}
-              tab={tab}
-              hasLoadError={!tab.isUnifiedView && fileLoadErrors[tab.filePath] !== undefined}
-              index={index}
-              isActive={index === activeTabIndex}
-              isEditing={!tab.isUnifiedView && editingPath === tab.filePath}
-              editValue={editValue}
-              editInputRef={
-                !tab.isUnifiedView && editingPath === tab.filePath
-                  ? editInputRef
-                  : undefined
-              }
-              onActivate={() => setActiveTab(index)}
-              onDoubleClick={() => handleDoubleClick(index)}
-              onClose={(e) => handleCloseTab(e, index)}
-              onEditChange={setEditValue}
-              onEditSubmit={handleRenameSubmit}
-              onEditCancel={() => setEditingPath(null)}
-            />
-          ))}
+          {workspace.openTabs.map((tab, index) => {
+            const hasLoadError =
+              !tab.isUnifiedView && fileLoadErrors[tab.filePath] !== undefined;
+            // Unified view shows every list's tasks inline, so a roll-up dot on
+            // its own tab would point nowhere new. A failed load already shows
+            // its own red icon, and its tasks aren't loaded anyway.
+            const urgency: ListUrgency =
+              tab.isUnifiedView || hasLoadError
+                ? null
+                : urgencyByPath[tab.filePath] ?? null;
+            return (
+              <SortableTab
+                key={tab.isUnifiedView ? "__unified__" : tab.filePath}
+                id={tab.isUnifiedView ? "__unified__" : tab.filePath}
+                tab={tab}
+                hasLoadError={hasLoadError}
+                urgency={urgency}
+                index={index}
+                isActive={index === activeTabIndex}
+                isEditing={!tab.isUnifiedView && editingPath === tab.filePath}
+                editValue={editValue}
+                editInputRef={
+                  !tab.isUnifiedView && editingPath === tab.filePath
+                    ? editInputRef
+                    : undefined
+                }
+                onActivate={() => setActiveTab(index)}
+                onDoubleClick={() => handleDoubleClick(index)}
+                onClose={(e) => handleCloseTab(e, index)}
+                onEditChange={setEditValue}
+                onEditSubmit={handleRenameSubmit}
+                onEditCancel={() => setEditingPath(null)}
+              />
+            );
+          })}
 
           {/* New tab button */}
           <div
@@ -425,10 +450,23 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
 
 // --- Sortable tab item ---
 
+// Deadline dot shown on a tab: red when the list holds an overdue task, orange
+// when it holds one due today. Colors track the Past Due / Due Today groups.
+const URGENCY_DOT_COLOR: Record<NonNullable<ListUrgency>, string> = {
+  PastDue: "bg-group-pastdue-accent",
+  DueToday: "bg-group-duetoday-accent",
+};
+
+const URGENCY_LABEL: Record<NonNullable<ListUrgency>, string> = {
+  PastDue: "Has past-due tasks",
+  DueToday: "Has tasks due today",
+};
+
 interface SortableTabProps {
   id: string;
   tab: { isUnifiedView: boolean; displayName: string; filePath: string };
   hasLoadError: boolean;
+  urgency: ListUrgency;
   index: number;
   isActive: boolean;
   isEditing: boolean;
@@ -446,6 +484,7 @@ function SortableTab({
   id,
   tab,
   hasLoadError,
+  urgency,
   isActive,
   isEditing,
   editValue,
@@ -489,6 +528,13 @@ function SortableTab({
           : "text-ink hover:bg-background"
       }`}
     >
+      {urgency && (
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${URGENCY_DOT_COLOR[urgency]}`}
+          title={URGENCY_LABEL[urgency]}
+        />
+      )}
+
       {hasLoadError ? (
         <AlertCircle size={14} className="shrink-0 text-danger" />
       ) : tab.isUnifiedView ? (

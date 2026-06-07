@@ -10,9 +10,10 @@ Built with Tauri v2, React, and TypeScript.
 
 - **Local JSON files** — task lists, workspaces, and preferences are portable JSON files at paths you choose
 - **Kick mechanism** — push tasks down the list by configurable distances (+5, +25, or to the end) instead of endlessly re-prioritizing
-- **Priority groups** — tasks are auto-grouped and displayed in this order: Past Due → Critical → Due Today → Important → Urgent → Due Soon → Tasks. Due Today and Due Soon are date-based: they elevate tasks regardless of their priority setting. Important ranks above Urgent by design — urgent-but-unimportant work is a common productivity trap.
+- **Priority groups** — tasks are auto-grouped and displayed in this order: Past Due → Critical → Due Today → Important → Urgent → Due Soon → Tasks. Past Due and Due Today are date-based: Past Due tops everything (even Critical), and Due Today lifts a task above Important and Urgent. Due Soon is gentler — it only elevates tasks that would otherwise be plain Tasks. Important ranks above Urgent by design — urgent-but-unimportant work is a common productivity trap.
 - **Multiple task lists** — open several task list files as tabs, reorder tabs with drag and drop
 - **Unified view** — see all open task lists merged into one view
+- **Deadline dots on tabs** — each task list tab shows a colored dot when it holds pending tasks due by their date: red for past due, orange for due today — so a looming deadline is visible without opening the tab
 - **Move tasks between lists** — move tasks to another open list via `Cmd+M`, the task detail dropdown, or bulk actions
 - **Notes with actionability** — attach notes to tasks, mark them as Informational, Actionable, or Resolved; tasks with actionable notes can't be completed until resolved
 - **Keyboard-first workflow** — selection shortcuts can change status, priority, and due dates; dialogs close with `Esc`
