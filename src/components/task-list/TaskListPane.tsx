@@ -18,6 +18,7 @@ import {
 import {
   groupTasksForList,
   groupTasksForUnifiedView,
+  summarizeUnifiedLoadState,
 } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 
@@ -111,14 +112,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   );
 
   // In unified view, the merged list silently omits any open list whose file
-  // failed to load. Collect those lists' display names so the pane can warn that
-  // the roll-up is incomplete rather than passing it off as the whole picture.
-  const unifiedMissingLists = useMemo(() => {
-    if (!isUnifiedView) return [] as string[];
-    return openTabs
-      .filter((t) => !t.isUnifiedView && fileLoadErrors[t.filePath] !== undefined)
-      .map((t) => t.displayName);
-  }, [isUnifiedView, openTabs, fileLoadErrors]);
+  // isn't loaded — whether it failed or is still loading. Summarize both so the
+  // pane can show the roll-up is incomplete rather than passing a partial merge
+  // off as the whole picture. Cheap and skipped entirely outside unified view.
+  const unifiedLoad = useMemo(() => {
+    if (!isUnifiedView) return { failedNames: [], loadingCount: 0 };
+    return summarizeUnifiedLoadState(
+      openTabs,
+      new Set(Object.keys(files)),
+      new Set(Object.keys(fileLoadErrors)),
+    );
+  }, [isUnifiedView, openTabs, files, fileLoadErrors]);
   const visibleHandled = grouped.handled.slice(0, handledVisible);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
   const dominantSelectedKey = useMemo(() => {
@@ -236,13 +240,25 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           file failed to load, so an incomplete merge is never presented as the
           whole picture. Each affected list's own tab also shows a red icon and a
           retry pane when opened. */}
-      {isUnifiedView && unifiedMissingLists.length > 0 && (
+      {isUnifiedView && unifiedLoad.failedNames.length > 0 && (
         <div className="flex shrink-0 items-start gap-2 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong">
           <AlertCircle size={14} className="mt-0.5 shrink-0 text-danger" />
           <span>
-            {unifiedMissingLists.length === 1
-              ? `"${unifiedMissingLists[0]}" could not be loaded and is not included here. Open its tab to retry.`
-              : `${unifiedMissingLists.length} lists could not be loaded and are not included here: ${unifiedMissingLists.join(", ")}. Open the affected tabs to retry.`}
+            {unifiedLoad.failedNames.length === 1
+              ? `"${unifiedLoad.failedNames[0]}" could not be loaded and is not included here. Open its tab to retry.`
+              : `${unifiedLoad.failedNames.length} lists could not be loaded and are not included here: ${unifiedLoad.failedNames.join(", ")}. Open the affected tabs to retry.`}
+          </span>
+        </div>
+      )}
+
+      {/* Unified view: a neutral notice while constituent lists are still
+          loading, so the merge isn't briefly read as complete during the
+          initial eager load. Disappears once every list is loaded or errored. */}
+      {isUnifiedView && unifiedLoad.loadingCount > 0 && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 text-xs text-ink-muted">
+          <span>
+            Loading {unifiedLoad.loadingCount}{" "}
+            {unifiedLoad.loadingCount === 1 ? "list" : "lists"}…
           </span>
         </div>
       )}
