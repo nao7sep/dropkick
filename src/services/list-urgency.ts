@@ -29,3 +29,31 @@ export function computeListUrgency(
   }
   return dueToday ? "DueToday" : null;
 }
+
+// Resolves the deadline-dot urgency for every tab, keyed by file path. Unified
+// view is omitted (it lists every task inline, so a roll-up dot points nowhere
+// new). A tab whose file failed to load, or is not loaded yet, resolves to null
+// (no dot) — a load failure is signalled separately by the tab's own icon.
+//
+// Callers must load every open list's file for this to be complete; otherwise a
+// not-yet-loaded list reads as null (no dot), which is indistinguishable from
+// "nothing due". `loadErrorPaths` is the set of file paths whose load failed.
+// The `files` shape is declared structurally (only what's read) so this service
+// stays decoupled from the store's file-state type.
+export function computeTabUrgencies(
+  openTabs: readonly { isUnifiedView: boolean; filePath: string }[],
+  files: Readonly<Record<string, { data: { tasks: readonly TaskDto[] } }>>,
+  loadErrorPaths: ReadonlySet<string>,
+  timezone: string | null,
+): Record<string, ListUrgency> {
+  const result: Record<string, ListUrgency> = {};
+  for (const tab of openTabs) {
+    if (tab.isUnifiedView) continue;
+    const file = files[tab.filePath];
+    result[tab.filePath] =
+      file && !loadErrorPaths.has(tab.filePath)
+        ? computeListUrgency(file.data.tasks, timezone)
+        : null;
+  }
+  return result;
+}

@@ -188,6 +188,18 @@ function loadResultToStoreResult(result: LoadTaskListResult): LoadFileResult {
   return result;
 }
 
+// loadTaskList returns explicit results for known failures, but the underlying
+// backend read can also reject outright (IPC / serialization error). Convert a
+// throw into an error result so callers always record it in fileLoadErrors and
+// surface it inline — load actions never reject.
+async function safeLoadTaskList(filePath: string): Promise<LoadTaskListResult> {
+  try {
+    return await loadTaskList(filePath);
+  } catch (e) {
+    return { status: "error", message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 function selectedTaskIdsForFile(
   selectedKeys: Set<string>,
   filePath: string,
@@ -211,6 +223,13 @@ function removeRecordKey<T>(
 }
 
 export const useTaskListStore = create<TaskListState>((set, get) => {
+  // In-flight loads keyed by path. The active-tab effect and the eager
+  // background-load effect (MainWindow) can both call loadFile for the same path
+  // across a tab switch; without this, each would pass the not-yet-loaded guard
+  // and issue a duplicate read, and a retry could race a re-fired effect. Sharing
+  // one promise per path collapses concurrent loads into a single read.
+  const inFlightLoads = new Map<string, Promise<LoadFileResult>>();
+
   // Helper: replace one file's data via a synchronous state transition. Reads
   // the latest store state so concurrent transitions never overwrite each
   // other's in-memory updates.
@@ -261,25 +280,37 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     loadFile: async (filePath: string) => {
       if (get().files[filePath]) return { status: "success" };
 
-      const loaded = await loadTaskList(filePath);
-      if (loaded.status !== "success") {
-        set((state) => ({
-          fileLoadErrors: {
-            ...state.fileLoadErrors,
-            [filePath]: loaded,
-          },
-        }));
-        return loadResultToStoreResult(loaded);
-      }
+      const existing = inFlightLoads.get(filePath);
+      if (existing) return existing;
 
-      set((state) => ({
-        files: {
-          ...state.files,
-          [filePath]: { data: loaded.taskList.data },
-        },
-        fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
-      }));
-      return { status: "success" };
+      const load = (async (): Promise<LoadFileResult> => {
+        const loaded = await safeLoadTaskList(filePath);
+        if (loaded.status !== "success") {
+          set((state) => ({
+            fileLoadErrors: {
+              ...state.fileLoadErrors,
+              [filePath]: loaded,
+            },
+          }));
+          return loadResultToStoreResult(loaded);
+        }
+
+        set((state) => ({
+          files: {
+            ...state.files,
+            [filePath]: { data: loaded.taskList.data },
+          },
+          fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
+        }));
+        return { status: "success" };
+      })();
+
+      inFlightLoads.set(filePath, load);
+      try {
+        return await load;
+      } finally {
+        inFlightLoads.delete(filePath);
+      }
     },
 
     createFile: async (filePath: string) => {
@@ -931,7 +962,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     },
 
     reloadFile: async (filePath: string) => {
-      const loaded = await loadTaskList(filePath);
+      const loaded = await safeLoadTaskList(filePath);
       if (loaded.status !== "success") {
         set((state) => ({
           fileLoadErrors: {

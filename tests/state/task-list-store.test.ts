@@ -95,6 +95,76 @@ describe("loadFile", () => {
     expect(result).toEqual({ status: "missing" });
     expect(useTaskListStore.getState().fileLoadErrors[FILE]).toEqual({ status: "missing" });
   });
+
+  it("records an error instead of rejecting when the read throws", async () => {
+    // The backend read can reject outright (IPC failure), not just return an
+    // error result. loadFile must still record it and resolve, so the failure
+    // surfaces inline rather than vanishing into an unhandled rejection.
+    loadTaskList.mockRejectedValue(new Error("backend boom"));
+    const result = await useTaskListStore.getState().loadFile(FILE);
+    expect(result).toEqual({ status: "error", message: "backend boom" });
+    expect(useTaskListStore.getState().fileLoadErrors[FILE]).toEqual({
+      status: "error",
+      message: "backend boom",
+    });
+  });
+
+  it("collapses concurrent loads of the same path into a single read", async () => {
+    // Hold the read open so both calls overlap before either resolves.
+    let resolveRead!: (value: unknown) => void;
+    loadTaskList.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRead = resolve;
+      }),
+    );
+
+    const first = useTaskListStore.getState().loadFile(FILE);
+    const second = useTaskListStore.getState().loadFile(FILE);
+    // Second call joins the in-flight load instead of issuing its own read.
+    expect(loadTaskList).toHaveBeenCalledTimes(1);
+
+    resolveRead({
+      status: "success",
+      taskList: { filePath: FILE, data: { version: "1.0.0", tasks: [makeTask({ id: "z" })] } },
+    });
+    const [r1, r2] = await Promise.all([first, second]);
+    expect(r1).toEqual({ status: "success" });
+    expect(r2).toEqual({ status: "success" });
+    expect(loadTaskList).toHaveBeenCalledTimes(1);
+    expect(tasksOf().map((t) => t.id)).toEqual(["z"]);
+  });
+
+  it("retries a previously errored path on a later load (in-flight entry cleared)", async () => {
+    loadTaskList.mockResolvedValueOnce({ status: "missing" });
+    const first = await useTaskListStore.getState().loadFile(FILE);
+    expect(first).toEqual({ status: "missing" });
+
+    // The file becomes available; because the settled load was removed from the
+    // in-flight map, a later load actually re-reads rather than returning a stale
+    // missing result.
+    loadTaskList.mockResolvedValueOnce({
+      status: "success",
+      taskList: { filePath: FILE, data: { version: "1.0.0", tasks: [makeTask({ id: "ok" })] } },
+    });
+    const second = await useTaskListStore.getState().loadFile(FILE);
+    expect(second).toEqual({ status: "success" });
+    expect(loadTaskList).toHaveBeenCalledTimes(2);
+    expect(tasksOf().map((t) => t.id)).toEqual(["ok"]);
+  });
+});
+
+describe("reloadFile", () => {
+  it("records an error (keeping existing data) instead of rejecting when the read throws", async () => {
+    seedFile([makeTask({ id: "old" })]);
+    loadTaskList.mockRejectedValue(new Error("gone"));
+    await useTaskListStore.getState().reloadFile(FILE);
+    expect(useTaskListStore.getState().fileLoadErrors[FILE]).toEqual({
+      status: "error",
+      message: "gone",
+    });
+    // The previously loaded data is retained so the user doesn't lose the view.
+    expect(tasksOf().map((t) => t.id)).toEqual(["old"]);
+  });
 });
 
 describe("addNewTask", () => {

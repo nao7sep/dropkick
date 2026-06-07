@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { computeListUrgency } from "../../src/services/list-urgency";
+import { computeListUrgency, computeTabUrgencies } from "../../src/services/list-urgency";
 import { makeTask } from "../helpers/task";
 
 // computeListUrgency resolves "today" from the system clock via the date
@@ -75,5 +75,55 @@ describe("computeListUrgency", () => {
     // deadline must still light up the tab.
     const tasks = [makeTask({ priority: "Critical", dueDate: TODAY })];
     expect(computeListUrgency(tasks, TZ)).toBe("DueToday");
+  });
+
+  it("honors the timezone when resolving the deadline boundary", () => {
+    // Pin the instant locally so the assertion can't silently rest on the
+    // suite-wide clock: at 12:00Z the UTC date is 2026-06-04, but Kiritimati
+    // (UTC+14) has already rolled to 2026-06-05, so a task due 2026-06-04 is due
+    // today in UTC yet overdue there. This proves the timezone argument is
+    // actually applied rather than the system/UTC date.
+    vi.setSystemTime(new Date("2026-06-04T12:00:00.000Z"));
+    const tasks = [makeTask({ dueDate: "2026-06-04" })];
+    expect(computeListUrgency(tasks, "UTC")).toBe("DueToday");
+    expect(computeListUrgency(tasks, "Pacific/Kiritimati")).toBe("PastDue");
+  });
+});
+
+describe("computeTabUrgencies", () => {
+  it("omits the unified-view tab — it never shows a dot", () => {
+    const tabs = [{ isUnifiedView: true, filePath: "" }];
+    expect(computeTabUrgencies(tabs, {}, new Set(), TZ)).toEqual({});
+  });
+
+  it("resolves a not-yet-loaded tab to null (no file entry)", () => {
+    const tabs = [{ isUnifiedView: false, filePath: "/a.json" }];
+    expect(computeTabUrgencies(tabs, {}, new Set(), TZ)["/a.json"]).toBeNull();
+  });
+
+  it("resolves a load-errored tab to null even if a stale file entry exists", () => {
+    const tabs = [{ isUnifiedView: false, filePath: "/a.json" }];
+    const files = { "/a.json": { data: { tasks: [makeTask({ dueDate: YESTERDAY })] } } };
+    const errors = new Set(["/a.json"]);
+    expect(computeTabUrgencies(tabs, files, errors, TZ)["/a.json"]).toBeNull();
+  });
+
+  it("computes per-tab urgency from each loaded file and skips unified view", () => {
+    const tabs = [
+      { isUnifiedView: false, filePath: "/past.json" },
+      { isUnifiedView: false, filePath: "/today.json" },
+      { isUnifiedView: false, filePath: "/clear.json" },
+      { isUnifiedView: true, filePath: "" },
+    ];
+    const files = {
+      "/past.json": { data: { tasks: [makeTask({ dueDate: YESTERDAY })] } },
+      "/today.json": { data: { tasks: [makeTask({ dueDate: TODAY })] } },
+      "/clear.json": { data: { tasks: [makeTask({ dueDate: TOMORROW })] } },
+    };
+    expect(computeTabUrgencies(tabs, files, new Set(), TZ)).toEqual({
+      "/past.json": "PastDue",
+      "/today.json": "DueToday",
+      "/clear.json": null,
+    });
   });
 });

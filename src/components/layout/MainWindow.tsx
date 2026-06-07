@@ -269,31 +269,35 @@ export function MainWindow() {
     })();
   }, [activeTab?.filePath, activeTab?.isUnifiedView]);
 
-  // For unified view, load all tab files.
+  // The set of open list file paths, order-independent, as a stable key. The
+  // eager-load effect keys off this rather than `workspace.openTabs` so it only
+  // re-runs when a list is actually opened or closed — not on a rename or a
+  // drag-reorder, which rebuild the openTabs array without changing the set. NUL
+  // is the separator because it cannot occur in a file path on any OS.
+  const openListPathsKey = useMemo(
+    () =>
+      workspace.openTabs
+        .filter((t) => !t.isUnifiedView)
+        .map((t) => t.filePath)
+        .sort()
+        .join("\0"),
+    [workspace.openTabs],
+  );
+
+  // Eagerly load every open list file — not just the active tab — so each tab's
+  // deadline dot reflects its own list, and so unified view has every file's
+  // tasks. The active tab is loaded by the effect above (which also shows a
+  // dialog on failure), so it's skipped here to avoid a duplicate read.
+  // loadFile records any failure in fileLoadErrors and never rejects, so a
+  // background tab's failure surfaces inline (its alert icon and, in unified
+  // view, the missing-lists notice in the task list pane).
   useEffect(() => {
-    if (!activeTab?.isUnifiedView) return;
-    (async () => {
-      try {
-        for (const tab of workspace.openTabs) {
-          if (!tab.isUnifiedView) {
-            const result = await loadFile(tab.filePath);
-            if (result.status !== "success") {
-              await showMessage(
-                "Open Task List Failed",
-                loadFileErrorMessage(tab.filePath, result),
-              );
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load files for unified view:", e);
-        await showMessage(
-          "Open Unified View Failed",
-          `One or more task list files could not be opened:\n\n${errorMessage(e)}`,
-        );
-      }
-    })();
-  }, [activeTab?.isUnifiedView, workspace.openTabs.length]);
+    const paths = openListPathsKey ? openListPathsKey.split("\0") : [];
+    for (const path of paths) {
+      if (!activeTab?.isUnifiedView && path === activeTab?.filePath) continue;
+      void loadFile(path);
+    }
+  }, [openListPathsKey, activeTab?.filePath, activeTab?.isUnifiedView, loadFile]);
 
   // File-lifecycle unload. The set of file paths the workspace currently has
   // open drives which files are kept in memory; anything that drops out gets

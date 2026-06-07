@@ -2,7 +2,7 @@ export type { GroupedTasks } from "./grouping";
 export { groupTasksForList, groupTasksForUnifiedView } from "./grouping";
 
 export type { ListUrgency } from "./list-urgency";
-export { computeListUrgency } from "./list-urgency";
+export { computeListUrgency, computeTabUrgencies } from "./list-urgency";
 
 export type { ValidationResult } from "./validation";
 export { canTransitionStatus } from "./validation";

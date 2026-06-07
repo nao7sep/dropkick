@@ -1,6 +1,17 @@
 import { addDays, format, parseISO, isValid } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { coerceTimezone } from "./timezone";
+import type { DateFormat } from "../models/date-format";
+
+// Maps each supported display format (models/date-format.ts) to its date-fns
+// pattern. Typed as Record<DateFormat, …>, so the set is exhaustive: every
+// stored value has a defined, valid pattern and date-fns never sees an
+// unrecognized token. Adding a format without its pattern is a compile error.
+const DATE_FNS_PATTERN: Record<DateFormat, string> = {
+  "YYYY-MM-DD": "yyyy-MM-dd",
+  "MM/DD/YYYY": "MM/dd/yyyy",
+  "DD/MM/YYYY": "dd/MM/yyyy",
+};
 
 // Returns the current time as an ISO 8601 UTC string.
 export function nowUtc(): string {
@@ -28,7 +39,7 @@ export function tomorrowInTimezone(timezone: string | null): string {
 // If timezone is null, uses the system timezone.
 export function formatTimestamp(
   isoUtc: string,
-  dateFormat: string,
+  dateFormat: DateFormat,
   timeFormat: "24h" | "12h",
   timezone: string | null,
 ): string {
@@ -39,29 +50,19 @@ export function formatTimestamp(
   const zoned = safeTimezone ? toZonedTime(date, safeTimezone) : date;
   const timePart = timeFormat === "24h" ? "HH:mm" : "hh:mm a";
 
-  // Convert user-facing date format tokens to date-fns tokens.
-  // Users configure "YYYY-MM-DD" style, date-fns uses "yyyy-MM-dd".
-  const normalizedDateFormat = dateFormat
-    .replace(/YYYY/g, "yyyy")
-    .replace(/DD/g, "dd");
-
-  return format(zoned, `${normalizedDateFormat} ${timePart}`);
+  return format(zoned, `${DATE_FNS_PATTERN[dateFormat]} ${timePart}`);
 }
 
 // Formats a date-only string ("YYYY-MM-DD") for display using the user's date format.
 // No timezone conversion — due dates are calendar dates, not instants.
 export function formatDueDate(
   dateStr: string,
-  dateFormat: string,
+  dateFormat: DateFormat,
 ): string {
   const date = parseISO(dateStr);
   if (!isValid(date)) return dateStr;
 
-  const normalizedDateFormat = dateFormat
-    .replace(/YYYY/g, "yyyy")
-    .replace(/DD/g, "dd");
-
-  return format(date, normalizedDateFormat);
+  return format(date, DATE_FNS_PATTERN[dateFormat]);
 }
 
 // Checks if a due date (YYYY-MM-DD) is in the past relative to today in the given timezone.

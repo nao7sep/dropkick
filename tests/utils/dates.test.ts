@@ -88,11 +88,9 @@ describe("isDueInDayRange", () => {
 });
 
 describe("formatDueDate", () => {
-  it("formats a date-only string using user tokens (YYYY-MM-DD)", () => {
+  it("formats every supported date format without throwing", () => {
     expect(formatDueDate("2026-06-04", "YYYY-MM-DD")).toBe("2026-06-04");
-  });
-
-  it("honors a custom date format", () => {
+    expect(formatDueDate("2026-06-04", "MM/DD/YYYY")).toBe("06/04/2026");
     expect(formatDueDate("2026-06-04", "DD/MM/YYYY")).toBe("04/06/2026");
   });
 
@@ -110,6 +108,15 @@ describe("formatTimestamp", () => {
   it("formats 12h time with an AM/PM marker", () => {
     const result = formatTimestamp(FIXED_NOW, "YYYY-MM-DD", "12h", "Asia/Tokyo");
     expect(result).toBe("2026-06-05 05:00 AM");
+  });
+
+  it("applies the chosen date format to the date portion", () => {
+    expect(formatTimestamp(FIXED_NOW, "MM/DD/YYYY", "24h", "Asia/Tokyo")).toBe(
+      "06/05/2026 05:00",
+    );
+    expect(formatTimestamp(FIXED_NOW, "DD/MM/YYYY", "24h", "Asia/Tokyo")).toBe(
+      "05/06/2026 05:00",
+    );
   });
 
   it("passes through an invalid timestamp unchanged", () => {

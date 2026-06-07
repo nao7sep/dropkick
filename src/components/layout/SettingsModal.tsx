@@ -4,6 +4,7 @@
 import { useRef, useMemo, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import type { PreferencesDto } from "../../models";
+import { DATE_FORMATS, isDateFormat } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { validateTimezone } from "../../utils/timezone";
 import { AppModal } from "../shared/AppModal";
@@ -147,12 +148,21 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       <Field label="Date format">
         <select
           value={draft.dateFormat}
-          onChange={(e) => setField("dateFormat", e.target.value)}
+          onChange={(e) => {
+            // The options are generated from DATE_FORMATS, so this is always
+            // true — but validating (instead of casting) keeps an out-of-set
+            // value from ever entering preferences and narrows the type.
+            if (isDateFormat(e.target.value)) {
+              setField("dateFormat", e.target.value);
+            }
+          }}
           className="rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         >
-          <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-          <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-          <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+          {DATE_FORMATS.map((fmt) => (
+            <option key={fmt} value={fmt}>
+              {fmt}
+            </option>
+          ))}
         </select>
       </Field>
 

@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
 import { sanitizeSingleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
-import { computeListUrgency } from "../../services";
+import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import {
@@ -54,15 +54,19 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const fileLoadErrors = useTaskListStore((s) => s.fileLoadErrors);
   const files = useTaskListStore((s) => s.files);
 
-  // Deadline urgency per loaded list, recomputed when task data or the timezone
-  // changes. Drives the dot on each list tab.
-  const urgencyByPath = useMemo(() => {
-    const map: Record<string, ListUrgency> = {};
-    for (const [path, state] of Object.entries(files)) {
-      map[path] = computeListUrgency(state.data.tasks, preferences.timezone);
-    }
-    return map;
-  }, [files, preferences.timezone]);
+  // Deadline urgency per open list tab, keyed by file path. Recomputed when the
+  // open tabs, task data, load errors, or timezone change. MainWindow eagerly
+  // loads every open list, so this reflects all tabs — not just the active one.
+  const urgencyByTab = useMemo(
+    () =>
+      computeTabUrgencies(
+        workspace.openTabs,
+        files,
+        new Set(Object.keys(fileLoadErrors)),
+        preferences.timezone,
+      ),
+    [workspace.openTabs, files, fileLoadErrors, preferences.timezone],
+  );
 
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [showGearMenu, setShowGearMenu] = useState(false);
@@ -252,13 +256,13 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
           {workspace.openTabs.map((tab, index) => {
             const hasLoadError =
               !tab.isUnifiedView && fileLoadErrors[tab.filePath] !== undefined;
-            // Unified view shows every list's tasks inline, so a roll-up dot on
-            // its own tab would point nowhere new. A failed load already shows
-            // its own red icon, and its tasks aren't loaded anyway.
-            const urgency: ListUrgency =
-              tab.isUnifiedView || hasLoadError
-                ? null
-                : urgencyByPath[tab.filePath] ?? null;
+            // Unified view never gets a dot; computeTabUrgencies returns an
+            // entry (possibly null) for every other open tab — load-errored and
+            // not-yet-loaded ones resolve to null there. The `?? null` keeps the
+            // type honest if a tab is ever rendered before the memo covers it.
+            const urgency: ListUrgency = tab.isUnifiedView
+              ? null
+              : urgencyByTab[tab.filePath] ?? null;
             return (
               <SortableTab
                 key={tab.isUnifiedView ? "__unified__" : tab.filePath}
