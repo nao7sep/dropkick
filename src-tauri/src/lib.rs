@@ -1,4 +1,3 @@
-use hex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use zip::write::SimpleFileOptions;
@@ -128,11 +127,9 @@ fn list_directory(path: String) -> Result<Vec<String>, String> {
     };
 
     let mut names: Vec<String> = Vec::new();
-    for entry in dir {
-        if let Ok(entry) = entry {
-            if let Some(name) = entry.file_name().to_str() {
-                names.push(name.to_string());
-            }
+    for entry in dir.flatten() {
+        if let Some(name) = entry.file_name().to_str() {
+            names.push(name.to_string());
         }
     }
     names.sort();
