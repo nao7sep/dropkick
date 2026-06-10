@@ -29,6 +29,8 @@ import {
   openJsonFileDialog,
   saveJsonFileDialog,
   showMessage,
+  log,
+  toErrorFields,
 } from "../../repositories";
 
 type GearMenuItem = "settings" | "shortcuts" | "about";
@@ -130,7 +132,12 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
     const toIndex = tabIds.indexOf(over.id as string);
     if (fromIndex === -1 || toIndex === -1) return;
 
-    await reorderTabs(fromIndex, toIndex);
+    log.info("reorder tabs", { fromIndex, toIndex });
+    try {
+      await reorderTabs(fromIndex, toIndex);
+    } catch (e) {
+      log.error("reorder tabs failed", { fromIndex, toIndex, ...toErrorFields(e) });
+    }
   };
 
   // --- Tab actions ---
@@ -141,12 +148,13 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       const path = await saveJsonFileDialog("tasks.json");
       if (!path) return;
       const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
+      log.info("create task list", { path: normalizedPath });
       await createFile(normalizedPath);
       const name = fileNameWithoutExt(normalizedPath);
       await addTab(normalizedPath, name);
       await addRecentFile(normalizedPath);
     } catch (e) {
-      console.error("Failed to create task list:", e);
+      log.error("create task list failed", toErrorFields(e));
       await showMessage(
         "Create Task List Failed",
         `The task list file could not be created:\n\n${errorMessage(e)}`,
@@ -159,8 +167,11 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
     try {
       const path = await openJsonFileDialog();
       if (!path) return;
+      log.info("open task list", { path });
       const loaded = await loadFile(path);
       if (loaded.status !== "success") {
+        // The load-failure warning is emitted once by the task-list store
+        // (covers this path and background loads); here we only show the dialog.
         await showMessage(
           "Open Task List Failed",
           loadFileErrorMessage(path, loaded),
@@ -171,7 +182,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       await addTab(path, name);
       await addRecentFile(path);
     } catch (e) {
-      console.error("Failed to open task list:", e);
+      log.error("open task list threw", toErrorFields(e));
       await showMessage(
         "Open Task List Failed",
         `The task list file could not be opened:\n\n${errorMessage(e)}`,
@@ -182,8 +193,10 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const handleOpenRecent = async (path: string) => {
     setShowNewMenu(false);
     try {
+      log.info("open recent task list", { path });
       const loaded = await loadFile(path);
       if (loaded.status !== "success") {
+        // Load-failure warning is emitted once by the task-list store.
         await showMessage(
           "Open Task List Failed",
           loadFileErrorMessage(path, loaded),
@@ -194,7 +207,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       await addTab(path, name);
       await addRecentFile(path);
     } catch (e) {
-      console.error("Failed to open recent file:", e);
+      log.error("open recent task list threw", { path, ...toErrorFields(e) });
       await showMessage(
         "Open Recent File Failed",
         `The recent task list file could not be opened:\n\n${errorMessage(e)}`,
@@ -205,9 +218,10 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const handleUnifiedView = async () => {
     setShowNewMenu(false);
     try {
+      log.info("open unified view", {});
       await addUnifiedViewTab();
     } catch (e) {
-      console.error("Failed to open unified view:", e);
+      log.error("open unified view failed", toErrorFields(e));
       await showMessage(
         "Open Unified View Failed",
         `The unified view could not be opened:\n\n${errorMessage(e)}`,
@@ -217,7 +231,16 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
 
   const handleCloseTab = async (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
-    await closeTab(index);
+    const tab = workspace.openTabs[index];
+    log.info("close tab", {
+      index,
+      ...(tab ? { unifiedView: tab.isUnifiedView, path: tab.filePath } : {}),
+    });
+    try {
+      await closeTab(index);
+    } catch (err) {
+      log.error("close tab failed", { index, ...toErrorFields(err) });
+    }
   };
 
   const handleDoubleClick = (index: number) => {
@@ -231,7 +254,12 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
     if (editingPath !== null) {
       const cleaned = sanitizeSingleLine(editValue);
       if (cleaned) {
-        await renameTab(editingPath, cleaned);
+        log.info("rename tab", { path: editingPath, displayName: cleaned });
+        try {
+          await renameTab(editingPath, cleaned);
+        } catch (e) {
+          log.error("rename tab failed", { path: editingPath, ...toErrorFields(e) });
+        }
       }
     }
     setEditingPath(null);

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback, useMemo, Component } from "re
 import type { ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { showMessage, drainAllSerial } from "../../repositories";
+import { showMessage, drainAllSerial, log, toErrorFields } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -152,7 +152,12 @@ export function MainWindow() {
   useEffect(() => {
     getCurrentWebview()
       .setZoom(preferences.zoomLevel)
-      .catch((e) => console.warn("[zoom] Failed to set zoom:", e));
+      .catch((e) =>
+        log.warn("webview setZoom failed", {
+          zoomLevel: preferences.zoomLevel,
+          ...toErrorFields(e),
+        }),
+      );
   }, [preferences.zoomLevel]);
 
   // Zoom keyboard shortcuts — separate effect so they work even when the gear menu
@@ -198,7 +203,7 @@ export function MainWindow() {
     document.title = title;
     getCurrentWindow()
       .setTitle(title)
-      .catch((e) => console.warn("[window] Failed to set title:", e));
+      .catch((e) => log.warn("window setTitle failed", { title, ...toErrorFields(e) }));
   }, [activeTab?.displayName, activeTab?.filePath, activeTab?.isUnifiedView]);
 
   // Hold the window open until pending writes are on disk.
@@ -221,6 +226,7 @@ export function MainWindow() {
       const window = getCurrentWindow();
       const unlisten = await window.onCloseRequested(async (event) => {
         event.preventDefault();
+        log.info("window close requested", {});
         try {
           if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
@@ -231,7 +237,7 @@ export function MainWindow() {
           // A rejection from destroy() leaves the window open. Better that
           // than an unhandled rejection with preventDefault already called —
           // the user can retry the close.
-          console.error("[shutdown] Error closing window:", e);
+          log.error("window close failed", toErrorFields(e));
         }
       });
       if (mounted) {
@@ -254,6 +260,7 @@ export function MainWindow() {
         if (activeTab && !activeTab.isUnifiedView) {
           const result = await loadFile(activeTab.filePath);
           if (result.status !== "success") {
+            // The task-list store emits the load-failure warning; show the dialog.
             await showMessage(
               "Open Task List Failed",
               loadFileErrorMessage(activeTab.filePath, result),
@@ -262,7 +269,10 @@ export function MainWindow() {
         }
         clearSelection();
       } catch (e) {
-        console.error("Failed to load tab:", e);
+        log.error("active tab open threw", {
+          path: activeTab?.filePath,
+          ...toErrorFields(e),
+        });
         await showMessage(
           "Open Task List Failed",
           `The task list file could not be opened:\n\n${errorMessage(e)}`,

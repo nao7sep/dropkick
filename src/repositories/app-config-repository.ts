@@ -21,6 +21,7 @@ import {
   fileExists,
   withSerial,
 } from "./file-system";
+import { log } from "./logging";
 
 const DROPKICK_DIR = ".dropkick";
 const APP_CONFIG_FILE = "app.json";
@@ -59,6 +60,7 @@ export async function initializeAppConfig(): Promise<{
   // Create or read app config.
   const configResult = await readJsonFileResult<AppConfigDto>(configPath);
   let config: AppConfigDto;
+  const created = configResult.status === "missing";
   if (configResult.status === "missing") {
     // Create default preferences if missing.
     if (!(await fileExists(prefsPath))) {
@@ -85,6 +87,7 @@ export async function initializeAppConfig(): Promise<{
     throw new Error(`Failed to load app config: ${configResult.message}`);
   }
 
+  log.info("app config initialized", { configPath, created });
   return { config, configPath };
 }
 

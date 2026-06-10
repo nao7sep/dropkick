@@ -1,7 +1,83 @@
+use std::time::Instant;
+
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use tauri::Manager;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
+
+mod logging;
+
+// --- Command boundary logging ---
+//
+// Each command logs its start and result at `debug` (the low-level IPC/FS
+// firehose, silent in release) and any failure at `error`. The human-readable
+// `info` record for each logical operation lives one layer up, on the frontend
+// repository/service that issued the call — so a single operation is never
+// double-counted at `info`.
+
+fn merge_command(command: &str, started: Option<Instant>, fields: Value) -> Value {
+    let mut map = match fields {
+        Value::Object(map) => map,
+        _ => serde_json::Map::new(),
+    };
+    map.insert("command".to_string(), Value::String(command.to_string()));
+    if let Some(started) = started {
+        map.insert("ms".to_string(), json!(started.elapsed().as_millis() as u64));
+    }
+    Value::Object(map)
+}
+
+fn log_cmd_start(command: &str, fields: Value) -> Instant {
+    logging::debug("command start", merge_command(command, None, fields));
+    Instant::now()
+}
+
+fn log_cmd_ok(command: &str, started: Instant, fields: Value) {
+    logging::debug("command ok", merge_command(command, Some(started), fields));
+}
+
+fn log_cmd_err(command: &str, started: Instant, message: impl Into<String>) {
+    let mut value = merge_command(command, Some(started), Value::Null);
+    if let Value::Object(map) = &mut value {
+        map.insert("error".to_string(), json!({ "message": message.into() }));
+    }
+    logging::error("command error", value);
+}
+
+// Records the panic payload, location, and (when RUST_BACKTRACE is set) the
+// backtrace, flushes, then defers to the previous hook so the process still
+// aborts and prints as usual.
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            (*s).to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "non-string panic payload".to_string()
+        };
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()));
+        let backtrace = std::backtrace::Backtrace::capture();
+        logging::error(
+            "panic",
+            json!({
+                "error": {
+                    "message": payload,
+                    "location": location,
+                    "backtrace": format!("{backtrace}"),
+                }
+            }),
+        );
+        // The error line is already on disk (the logger is unbuffered); defer to
+        // the previous hook so the process still aborts and prints as usual.
+        default_hook(info);
+    }));
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,20 +128,45 @@ fn sha256_hex(bytes: &[u8]) -> String {
 // Called from TypeScript before every write to detect external modifications.
 #[tauri::command]
 fn hash_file(path: &str) -> Result<String, String> {
-    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    Ok(sha256_hex(&bytes))
+    let started = log_cmd_start("hash_file", json!({ "path": path }));
+    match std::fs::read(path) {
+        Ok(bytes) => {
+            let hash = sha256_hex(&bytes);
+            log_cmd_ok(
+                "hash_file",
+                started,
+                json!({ "path": path, "bytes": bytes.len() }),
+            );
+            Ok(hash)
+        }
+        Err(e) => {
+            log_cmd_err("hash_file", started, e.to_string());
+            Err(e.to_string())
+        }
+    }
 }
 
 // Reads a JSON file once, parses it, and returns an explicit result with a
 // hash of the exact bytes that were read.
 #[tauri::command]
 fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String> {
+    let started = log_cmd_start("read_json_file_with_hash", json!({ "path": path }));
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            log_cmd_ok(
+                "read_json_file_with_hash",
+                started,
+                json!({ "path": path, "outcome": "missing" }),
+            );
             return Ok(JsonFileWithHashResult::Missing);
         }
         Err(err) => {
+            log_cmd_ok(
+                "read_json_file_with_hash",
+                started,
+                json!({ "path": path, "outcome": "error", "message": err.to_string() }),
+            );
             return Ok(JsonFileWithHashResult::Error {
                 message: err.to_string(),
             });
@@ -75,12 +176,23 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
     let data = match serde_json::from_slice::<TaskListDto>(&bytes) {
         Ok(data) => data,
         Err(err) => {
+            log_cmd_ok(
+                "read_json_file_with_hash",
+                started,
+                json!({ "path": path, "bytes": bytes.len(), "outcome": "invalid", "message": err.to_string() }),
+            );
             return Ok(JsonFileWithHashResult::Invalid {
                 message: err.to_string(),
             });
         }
     };
+    let tasks = data.tasks.len();
     let hash = sha256_hex(&bytes);
+    log_cmd_ok(
+        "read_json_file_with_hash",
+        started,
+        json!({ "path": path, "bytes": bytes.len(), "tasks": tasks, "outcome": "success" }),
+    );
     Ok(JsonFileWithHashResult::Success { data, hash })
 }
 
@@ -94,36 +206,64 @@ fn create_backup_from_entries(
     entries: Vec<(String, String)>,
     output_path: String,
 ) -> Result<String, String> {
-    // Ensure parent directory exists.
-    if let Some(parent) = std::path::Path::new(&output_path).parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create backup directory: {}", e))?;
+    let total_bytes: usize = entries.iter().map(|(_, content)| content.len()).sum();
+    let started = log_cmd_start(
+        "create_backup_from_entries",
+        json!({ "outputPath": output_path, "entries": entries.len(), "bytes": total_bytes }),
+    );
+
+    let result = (|| -> Result<String, String> {
+        // Ensure parent directory exists.
+        if let Some(parent) = std::path::Path::new(&output_path).parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create backup directory: {}", e))?;
+        }
+
+        let file = std::fs::File::create(&output_path)
+            .map_err(|e| format!("Failed to create backup file: {}", e))?;
+        let mut zip = ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        for (entry_name, content) in &entries {
+            zip.start_file(entry_name, options)
+                .map_err(|e| format!("Failed to add {} to zip: {}", entry_name, e))?;
+            std::io::Write::write_all(&mut zip, content.as_bytes())
+                .map_err(|e| format!("Failed to write {} to zip: {}", entry_name, e))?;
+        }
+
+        zip.finish()
+            .map_err(|e| format!("Failed to finalize zip: {}", e))?;
+        Ok(output_path.clone())
+    })();
+
+    match &result {
+        Ok(path) => log_cmd_ok(
+            "create_backup_from_entries",
+            started,
+            json!({ "outputPath": path, "entries": entries.len(), "bytes": total_bytes }),
+        ),
+        Err(message) => log_cmd_err("create_backup_from_entries", started, message.clone()),
     }
-
-    let file = std::fs::File::create(&output_path)
-        .map_err(|e| format!("Failed to create backup file: {}", e))?;
-    let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-
-    for (entry_name, content) in &entries {
-        zip.start_file(entry_name, options)
-            .map_err(|e| format!("Failed to add {} to zip: {}", entry_name, e))?;
-        std::io::Write::write_all(&mut zip, content.as_bytes())
-            .map_err(|e| format!("Failed to write {} to zip: {}", entry_name, e))?;
-    }
-
-    zip.finish()
-        .map_err(|e| format!("Failed to finalize zip: {}", e))?;
-    Ok(output_path)
+    result
 }
 
 // Lists files in a directory, returning their names.
 // Used by the frontend to enumerate existing backups for pruning.
 #[tauri::command]
 fn list_directory(path: String) -> Result<Vec<String>, String> {
+    let started = log_cmd_start("list_directory", json!({ "path": path }));
     let dir = match std::fs::read_dir(&path) {
         Ok(d) => d,
-        Err(_) => return Ok(vec![]), // Directory doesn't exist yet — that's fine.
+        Err(_) => {
+            // Directory doesn't exist yet — that's fine.
+            log_cmd_ok(
+                "list_directory",
+                started,
+                json!({ "path": path, "count": 0, "outcome": "missing" }),
+            );
+            return Ok(vec![]);
+        }
     };
 
     let mut names: Vec<String> = Vec::new();
@@ -133,13 +273,43 @@ fn list_directory(path: String) -> Result<Vec<String>, String> {
         }
     }
     names.sort();
+    log_cmd_ok(
+        "list_directory",
+        started,
+        json!({ "path": path, "count": names.len() }),
+    );
     Ok(names)
 }
 
 // Deletes a file. Used to prune old backups.
 #[tauri::command]
 fn delete_file(path: String) -> Result<(), String> {
-    std::fs::remove_file(&path).map_err(|e| format!("Failed to delete {}: {}", path, e))
+    let started = log_cmd_start("delete_file", json!({ "path": path }));
+    match std::fs::remove_file(&path) {
+        Ok(()) => {
+            log_cmd_ok("delete_file", started, json!({ "path": path }));
+            Ok(())
+        }
+        Err(e) => {
+            let message = format!("Failed to delete {}: {}", path, e);
+            log_cmd_err("delete_file", started, message.clone());
+            Err(message)
+        }
+    }
+}
+
+// Receives a structured log object from the webview frontend and writes it to
+// the session file (the frontend has no filesystem access of its own).
+#[tauri::command]
+fn log_event(entry: Value) {
+    logging::emit_forwarded(entry);
+}
+
+// Reports whether developer-only `debug` logging is on, so the frontend can
+// gate its own debug events identically (a dev build, or DROPKICK_DEBUG=1).
+#[tauri::command]
+fn logging_debug_enabled() -> bool {
+    logging::debug_enabled()
 }
 
 #[cfg(test)]
@@ -291,18 +461,60 @@ mod tests {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    // Developer-only `debug` logging: on for a dev build, or when explicitly
+    // requested via DROPKICK_DEBUG=1. Off (and compiled-quiet) in release.
+    let debug_enabled = cfg!(debug_assertions)
+        || std::env::var("DROPKICK_DEBUG")
+            .map(|v| v == "1")
+            .unwrap_or(false);
+
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .setup(move |app| {
+            // Open the per-session log file under the app's own data dir. The Rust
+            // core has filesystem access even though the webview is sandboxed.
+            let home = app
+                .path()
+                .home_dir()
+                .map_err(|e| format!("could not resolve home directory: {e}"))?;
+            let log_path = home
+                .join(".dropkick")
+                .join("logs")
+                .join(logging::session_filename());
+            logging::init(&log_path, debug_enabled);
+            install_panic_hook();
+
+            logging::info(
+                "app startup",
+                json!({
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "build": if cfg!(debug_assertions) { "debug" } else { "release" },
+                    "debugLogging": debug_enabled,
+                    "logPath": log_path.to_string_lossy(),
+                    "os": std::env::consts::OS,
+                    "arch": std::env::consts::ARCH,
+                }),
+            );
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             hash_file,
             read_json_file_with_hash,
             create_backup_from_entries,
             list_directory,
-            delete_file
+            delete_file,
+            log_event,
+            logging_debug_enabled
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            logging::info("app shutdown", json!({ "reason": "exit" }));
+        }
+    });
 }

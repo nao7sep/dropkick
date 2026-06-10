@@ -13,6 +13,7 @@ import type { LoadPreferencesResult } from "../repositories";
 import {
   loadPreferences,
   flushPreferences,
+  log,
 } from "../repositories";
 
 interface PreferencesState {
@@ -44,6 +45,11 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   },
 
   update: async (changes: Partial<PreferencesDto>) => {
+    // The single funnel for every preference change (Settings save, zoom,
+    // dark-mode toggle, sidebar drag): log which keys changed, not the values,
+    // to keep the line stable and free of any future setting's content.
+    log.info("preferences updated", { changed: Object.keys(changes) });
+
     // Sync state transition first — reads the latest store, applies changes
     // atomically. Concurrent updates queue their own sync transitions and
     // each sees the prior one's result.

@@ -1,3 +1,6 @@
+export { log, toErrorFields, loadFailureFields, initLogging } from "./logging";
+export type { LogFields } from "./logging";
+
 export {
   readJsonFile,
   readJsonFileResult,

@@ -10,7 +10,7 @@ import { create } from "zustand";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
 import type { LoadWorkspaceResult } from "../repositories";
-import { loadWorkspace, flushWorkspace } from "../repositories";
+import { loadWorkspace, flushWorkspace, log } from "../repositories";
 
 // File loading and unloading is owned by the React component tree (MainWindow's
 // file-lifecycle effect), so this store deliberately does NOT import or call
@@ -149,7 +149,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     setActiveTab: async (index: number) => {
-      // Runtime-only; not persisted.
+      // Runtime-only; not persisted. Tab navigation is frequent, so it stays at
+      // debug (developer-only) rather than info. The other tab actions log at
+      // info from their TabBar handlers.
+      log.debug("set active tab", { index });
       set((state) => {
         if (index === state.workspace.activeTabIndex) return state;
         return { workspace: { ...state.workspace, activeTabIndex: index } };

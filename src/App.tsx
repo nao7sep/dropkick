@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 import type { LoadPreferencesResult, LoadWorkspaceResult } from "./repositories";
-import { showMessage } from "./repositories";
+import { showMessage, log, toErrorFields, loadFailureFields } from "./repositories";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppConfigStore } from "./state/app-config-store";
@@ -41,7 +41,7 @@ function App() {
     // dark window theme prevents the white flash when enlarging in dark mode.
     getCurrentWindow()
       .setTheme(darkMode ? "dark" : "light")
-      .catch((e) => console.warn("[theme] Failed to set window theme:", e));
+      .catch((e) => log.warn("window setTheme failed", { darkMode, ...toErrorFields(e) }));
   }, [darkMode]);
 
   // Initialize on mount.
@@ -52,7 +52,7 @@ function App() {
         setPhase({ kind: "startup" });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        console.error("Failed to initialize:", e);
+        log.error("app initialization failed", toErrorFields(e));
         setPhase({ kind: "error", message });
       }
     })();
@@ -64,9 +64,15 @@ function App() {
   ) => {
     if (phase.kind !== "startup") return;
 
+    log.info("user launch", { preferencesPath, workspacePath });
+
     // Load preferences and workspace into stores.
     const preferencesResult = await loadPreferences(preferencesPath);
     if (preferencesResult.status !== "success") {
+      log.warn(
+        "preferences load failed",
+        loadFailureFields(preferencesPath, preferencesResult),
+      );
       await showMessage(
         "Preferences Load Failed",
         preferencesLoadErrorMessage(preferencesPath, preferencesResult),
@@ -76,6 +82,10 @@ function App() {
 
     const workspaceResult = await loadWorkspace(workspacePath);
     if (workspaceResult.status !== "success") {
+      log.warn(
+        "workspace load failed",
+        loadFailureFields(workspacePath, workspaceResult),
+      );
       await showMessage(
         "Workspace Load Failed",
         workspaceLoadErrorMessage(workspacePath, workspaceResult),
@@ -90,6 +100,18 @@ function App() {
     // Does not block the main window from appearing.
     const workspace = useWorkspaceStore.getState().workspace;
     startBackupSchedule(workspace.id, preferencesPath, workspacePath);
+
+    // Record the effective configuration once the session is live: the
+    // preferences object (no secret-bearing fields) and a workspace summary.
+    const preferences = preferencesResult.preferences;
+    log.info("session ready", {
+      preferences,
+      workspace: {
+        id: workspace.id,
+        openTabs: workspace.openTabs.length,
+        recentFiles: workspace.recentFiles.length,
+      },
+    });
 
     setPhase({ kind: "main" });
   };

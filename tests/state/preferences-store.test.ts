@@ -7,6 +7,7 @@ const flushPreferences = vi.fn();
 vi.mock("../../src/repositories", () => ({
   loadPreferences: (p: string) => loadPreferences(p),
   flushPreferences: (p: string, getPrefs: () => PreferencesDto) => flushPreferences(p, getPrefs),
+  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 import { usePreferencesStore } from "../../src/state/preferences-store";

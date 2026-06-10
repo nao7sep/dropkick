@@ -18,7 +18,7 @@ import type {
   TaskStatus,
   TaskPriority,
 } from "../models";
-import type { LoadTaskListResult, WriteResult, MoveInputs } from "../repositories";
+import type { LoadTaskListResult, WriteResult, MoveInputs, LogFields } from "../repositories";
 import {
   loadTaskList,
   createTaskListFile,
@@ -26,6 +26,8 @@ import {
   forceFlushTaskList,
   flushMove,
   forgetTaskList,
+  log,
+  loadFailureFields,
 } from "../repositories";
 import { createTask, createNote, parseTaskKey, taskKey } from "../utils";
 import type { CreateTaskOptions } from "../utils";
@@ -249,7 +251,15 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   // WriteResult into an ActionResult. If the disk was modified outside
   // Dropkick and the user chose Reload, the reloaded data is applied to the
   // store here so the UI reflects the disk state.
-  async function flush(filePath: string): Promise<ActionResult> {
+  async function flush(
+    filePath: string,
+    action: string,
+    fields: LogFields = {},
+  ): Promise<ActionResult> {
+    // One info line per user-initiated mutation, logged here because every
+    // mutating action funnels through this flush. No-op actions return before
+    // reaching this point, so unchanged edits are not logged.
+    log.info(action, { file: filePath, ...fields });
     const result = await flushTaskList(filePath, () => {
       const f = get().files[filePath];
       if (!f) {
@@ -286,6 +296,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       const load = (async (): Promise<LoadFileResult> => {
         const loaded = await safeLoadTaskList(filePath);
         if (loaded.status !== "success") {
+          // Single source for load-boundary failures — covers the active tab,
+          // every eagerly background-loaded tab, and opens from the tab menu.
+          log.warn("task list load failed", loadFailureFields(filePath, loaded));
           set((state) => ({
             fileLoadErrors: {
               ...state.fileLoadErrors,
@@ -295,6 +308,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           return loadResultToStoreResult(loaded);
         }
 
+        log.info("task list loaded", {
+          path: filePath,
+          tasks: loaded.taskList.data.tasks.length,
+        });
         set((state) => ({
           files: {
             ...state.files,
@@ -315,6 +332,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
 
     createFile: async (filePath: string) => {
       const loaded = await createTaskListFile(filePath);
+      log.info("task list created", { path: filePath });
       set((state) => ({
         files: {
           ...state.files,
@@ -329,6 +347,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       // memory. forgetTaskList runs inside the path's serial chain, so any
       // queued flush completes (using the still-present in-memory data) before
       // the hash is dropped.
+      log.debug("task list unloaded", { path: filePath });
       await forgetTaskList(filePath);
       set((state) => {
         const { [filePath]: _, ...rest } = state.files;
@@ -395,7 +414,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "add task", { taskId: task.id });
     },
 
     removeTask: async (filePath, taskId) => {
@@ -414,7 +433,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           ),
         };
       });
-      return flush(filePath);
+      return flush(filePath, "delete task", { taskId });
     },
 
     updateTitle: async (filePath, taskId, title) => {
@@ -440,7 +459,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "update task title", { taskId });
     },
 
     updateDescription: async (filePath, taskId, description) => {
@@ -466,7 +485,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "update task description", { taskId });
     },
 
     setStatus: async (filePath, taskId, status) => {
@@ -495,7 +514,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "set task status", { taskId, status });
     },
 
     setPriority: async (filePath, taskId, priority) => {
@@ -521,7 +540,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "set task priority", { taskId, priority });
     },
 
     setDueDate: async (filePath, taskId, dueDate) => {
@@ -547,7 +566,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "set task due date", { taskId, dueDate });
     },
 
     addNewNote: async (filePath, taskId, content, actionability = "Informational") => {
@@ -574,7 +593,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "add note", { taskId, noteId: note.id });
     },
 
     removeNote: async (filePath, taskId, noteId) => {
@@ -600,7 +619,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "delete note", { taskId, noteId });
     },
 
     updateNote: async (filePath, taskId, noteId, content) => {
@@ -629,7 +648,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "update note", { taskId, noteId });
     },
 
     setNoteActionability: async (filePath, taskId, noteId, actionability) => {
@@ -655,7 +674,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "set note actionability", {
+        taskId,
+        noteId,
+        actionability,
+      });
     },
 
     // --- Reorder operations (use the current selection) ---
@@ -698,7 +721,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           reorderTick: state.reorderTick + 1,
         };
       });
-      return flush(filePath);
+      return flush(filePath, "kick tasks", {
+        selected: selectedTaskIds.size,
+        distance,
+      });
     },
 
     sendToFirst: async (filePath) => {
@@ -737,7 +763,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           reorderTick: state.reorderTick + 1,
         };
       });
-      return flush(filePath);
+      return flush(filePath, "send tasks to first", {
+        selected: selectedTaskIds.size,
+      });
     },
 
     sendToLast: async (filePath) => {
@@ -776,7 +804,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           reorderTick: state.reorderTick + 1,
         };
       });
-      return flush(filePath);
+      return flush(filePath, "send tasks to last", {
+        selected: selectedTaskIds.size,
+      });
     },
 
     moveUp: async (filePath) => {
@@ -815,7 +845,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           reorderTick: state.reorderTick + 1,
         };
       });
-      return flush(filePath);
+      return flush(filePath, "move tasks up", {
+        selected: selectedTaskIds.size,
+      });
     },
 
     moveDown: async (filePath) => {
@@ -854,7 +886,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           reorderTick: state.reorderTick + 1,
         };
       });
-      return flush(filePath);
+      return flush(filePath, "move tasks down", {
+        selected: selectedTaskIds.size,
+      });
     },
 
     dropkick: async (filePath) => {
@@ -892,7 +926,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath);
+      return flush(filePath, "dropkick tasks", {
+        selected: selectedTaskIds.size,
+      });
     },
 
     // --- Two-file move ---
@@ -909,6 +945,12 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           message: "Source and destination must be different",
         };
       }
+
+      log.info("move tasks between files", {
+        source: sourceFilePath,
+        dest: destFilePath,
+        count: taskIds.size,
+      });
 
       const result = await flushMove(sourceFilePath, destFilePath, (): MoveInputs | null => {
         const sourceState = get().files[sourceFilePath];
@@ -950,6 +992,12 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
                 ? "The source file no longer exists. The destination was restored, so no tasks were moved."
                 : result.message;
 
+      log.warn("move tasks failed", {
+        source: sourceFilePath,
+        dest: destFilePath,
+        status: result.status,
+        message,
+      });
       return { status: "error", message };
     },
 
@@ -958,12 +1006,15 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     forceWrite: async (filePath: string) => {
       const fileState = get().files[filePath];
       if (!fileState) return;
+      log.info("force write task list", { path: filePath });
       await forceFlushTaskList(filePath, fileState.data);
     },
 
     reloadFile: async (filePath: string) => {
+      log.info("reload task list", { path: filePath });
       const loaded = await safeLoadTaskList(filePath);
       if (loaded.status !== "success") {
+        log.warn("task list reload failed", loadFailureFields(filePath, loaded));
         set((state) => ({
           fileLoadErrors: {
             ...state.fileLoadErrors,

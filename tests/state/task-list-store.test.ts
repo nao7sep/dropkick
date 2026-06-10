@@ -19,6 +19,12 @@ vi.mock("../../src/repositories", () => ({
   forceFlushTaskList: (p: string, data: TaskListDto) => forceFlushTaskList(p, data),
   flushMove: (s: string, d: string, getInputs: () => unknown) => flushMove(s, d, getInputs),
   forgetTaskList: (p: string) => forgetTaskList(p),
+  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  loadFailureFields: (path: string, result: { status: string; message?: string }) => ({
+    path,
+    status: result.status,
+    ...(result.message !== undefined ? { message: result.message } : {}),
+  }),
 }));
 
 import { useTaskListStore } from "../../src/state/task-list-store";

@@ -10,7 +10,7 @@
 import { homeDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import { readTextFile } from "@tauri-apps/plugin-fs";
-import { withSerial } from "../repositories";
+import { withSerial, log, toErrorFields } from "../repositories";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 import {
@@ -49,11 +49,14 @@ async function createBackup(
   const prefs = usePreferencesStore.getState().preferences;
   if (!prefs.backupEnabled) return;
 
+  const startedAt = Date.now();
   const allPaths = [preferencesPath, workspacePath, ...taskListPaths];
-  const nameMap = resolveEntryNames(allPaths);
+  const sources = [...resolveEntryNames(allPaths)];
+  log.info("backup start", { workspaceId, files: sources.length });
 
   const entries: [string, string][] = [];
-  for (const [sourcePath, entryName] of nameMap) {
+  let failed = 0;
+  for (const [sourcePath, entryName] of sources) {
     try {
       const content = await withSerial(sourcePath, () =>
         readTextFile(sourcePath),
@@ -61,23 +64,36 @@ async function createBackup(
       entries.push([entryName, content]);
     } catch (e) {
       // Skip files we can't read (deleted, permission denied, etc.). Matches
-      // the original best-effort behavior in the previous Rust loop.
-      console.error(`[backup] Skipping ${sourcePath}:`, e);
+      // the original best-effort behavior in the previous Rust loop. Each
+      // failure is enumerated; the backup still captures whatever it could read.
+      failed++;
+      log.warn("backup skipped unreadable file", {
+        sourcePath,
+        ...toErrorFields(e),
+      });
     }
   }
 
-  if (entries.length === 0) return;
+  if (entries.length === 0) {
+    log.warn("backup produced no entries", { workspaceId, failed });
+    return;
+  }
 
   const backupsDir = await getBackupsDir(workspaceId);
   const outputPath = `${backupsDir}/backup-${backupTimestamp(new Date())}.zip`;
 
   try {
     await invoke<string>("create_backup_from_entries", { entries, outputPath });
-    console.log("[backup] Created:", outputPath);
   } catch (e) {
-    console.error("[backup] Failed to create backup:", e);
+    log.error("backup create failed", { outputPath, ...toErrorFields(e) });
     return;
   }
+  log.info("backup created", {
+    outputPath,
+    entries: entries.length,
+    failed,
+    ms: Date.now() - startedAt,
+  });
 
   await pruneBackups(backupsDir);
 }
@@ -100,10 +116,11 @@ async function pruneBackups(backupsDir: string): Promise<void> {
       await invoke("delete_file", {
         path: `${backupsDir}${sep}${name}`,
       });
-      console.log("[backup] Pruned:", name);
+      log.debug("backup pruned file", { name });
     }
+    log.info("backups pruned", { deleted: deleteList.length });
   } catch (e) {
-    console.error("[backup] Failed to prune backups:", e);
+    log.error("backup prune failed", { backupsDir, ...toErrorFields(e) });
   }
 }
 
@@ -124,7 +141,7 @@ export function startBackupSchedule(
 ): void {
   // Immediate backup on startup.
   createBackup(workspaceId, preferencesPath, workspacePath, currentTaskListPaths()).catch((e) =>
-    console.error("[backup] Startup backup failed:", e),
+    log.error("startup backup failed", toErrorFields(e)),
   );
 
   // Periodic backups — reads current open tabs each time so new files are included.
@@ -133,7 +150,7 @@ export function startBackupSchedule(
   }
   backupTimer = setInterval(() => {
     createBackup(workspaceId, preferencesPath, workspacePath, currentTaskListPaths()).catch((e) =>
-      console.error("[backup] Periodic backup failed:", e),
+      log.error("periodic backup failed", toErrorFields(e)),
     );
   }, MS_HOUR);
 }

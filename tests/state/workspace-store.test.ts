@@ -10,6 +10,7 @@ const loadWorkspace = vi.fn();
 vi.mock("../../src/repositories", () => ({
   flushWorkspace: (path: string, getWorkspace: () => unknown) => flushWorkspace(path, getWorkspace),
   loadWorkspace: (path: string) => loadWorkspace(path),
+  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 import { useWorkspaceStore } from "../../src/state/workspace-store";

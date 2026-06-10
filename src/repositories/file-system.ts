@@ -3,6 +3,7 @@
 
 import { readTextFile, writeTextFile, exists, mkdir } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
+import { log, toErrorFields } from "./logging";
 
 export type JsonReadResult<T> =
   | { status: "success"; data: T }
@@ -60,10 +61,19 @@ export async function readJsonFileWithHash<T>(
   });
 }
 
-// Writes an object to disk as formatted JSON.
+// Writes an object to disk as formatted JSON. This is the single write boundary
+// for every JSON file (preferences, workspace, app config, task lists), so it
+// logs the write (debug) and surfaces any failure (error) with its path before
+// re-propagating it.
 export async function writeJsonFile<T>(path: string, data: T): Promise<void> {
   const text = JSON.stringify(data, null, 2);
-  await writeTextFile(path, text);
+  try {
+    await writeTextFile(path, text);
+    log.debug("file write", { path, chars: text.length });
+  } catch (e) {
+    log.error("file write failed", { path, ...toErrorFields(e) });
+    throw e;
+  }
 }
 
 // Computes SHA-256 hash of a file via the Rust backend.

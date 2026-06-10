@@ -22,6 +22,7 @@ import {
   showFileConflictDialog,
   showFileDeletedDialog,
 } from "./dialogs";
+import { log } from "./logging";
 
 // Represents a loaded task list.
 export interface LoadedTaskList {
@@ -230,6 +231,12 @@ export async function flushTaskList(
     const data = getData();
     const attempt = await writeIfHashMatches(filePath, data);
     if (attempt.status === "success") return { status: "success" };
+    // The on-disk file drifted from what we last wrote — recoverable but
+    // unexpected, so it is a warning. The user resolves it via the dialog.
+    log.warn("task list modified externally", {
+      path: filePath,
+      kind: attempt.status,
+    });
     if (attempt.status === "deleted") return resolveDeleted(filePath, data);
     return resolveConflict(filePath, data);
   });

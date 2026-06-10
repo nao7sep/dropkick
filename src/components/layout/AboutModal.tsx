@@ -3,6 +3,7 @@
 import { ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { AppModal } from "../shared/AppModal";
+import { log, toErrorFields } from "../../repositories";
 
 interface AboutModalProps {
   onClose: () => void;
@@ -35,7 +36,10 @@ export function AboutModal({ onClose }: AboutModalProps) {
         <button
           onClick={() =>
             openUrl("https://github.com/nao7sep/dropkick").catch((e) =>
-              console.warn("[about] Failed to open URL:", e),
+              log.warn("open url failed", {
+                url: "https://github.com/nao7sep/dropkick",
+                ...toErrorFields(e),
+              }),
             )
           }
           className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
@@ -46,7 +50,10 @@ export function AboutModal({ onClose }: AboutModalProps) {
         <button
           onClick={() =>
             openUrl("https://github.com/nao7sep/dropkick/issues").catch((e) =>
-              console.warn("[about] Failed to open URL:", e),
+              log.warn("open url failed", {
+                url: "https://github.com/nao7sep/dropkick/issues",
+                ...toErrorFields(e),
+              }),
             )
           }
           className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
