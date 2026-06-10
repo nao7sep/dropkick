@@ -126,8 +126,6 @@ describe("isPreferencesDraftDirty", () => {
   it("detects changes in each staged field", () => {
     const c = committed();
     const cases: Partial<PreferencesDto>[] = [
-      { dateFormat: c.dateFormat === "YYYY-MM-DD" ? "MM/DD/YYYY" : "YYYY-MM-DD" },
-      { timeFormat: c.timeFormat === "24h" ? "12h" : "24h" },
       { timezone: "Asia/Tokyo" },
       { dueSoonDays: c.dueSoonDays + 1 },
       { handledTasksPageSize: c.handledTasksPageSize + 10 },

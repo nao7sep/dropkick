@@ -8,7 +8,6 @@
 import type { PreferencesDto } from "../models";
 import {
   createDefaultPreferences,
-  coerceDateFormat,
   normalizeKickDistances,
 } from "../models";
 import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
@@ -41,7 +40,6 @@ export async function loadPreferences(
     preferences: {
       ...merged,
       timezone: coerceTimezone(data.timezone),
-      dateFormat: coerceDateFormat(data.dateFormat),
       kickDistances: normalizeKickDistances(data.kickDistances),
     },
   };
@@ -61,7 +59,6 @@ export async function flushPreferences(
     const normalized = {
       ...preferences,
       timezone: normalizeTimezoneOrThrow(preferences.timezone),
-      dateFormat: coerceDateFormat(preferences.dateFormat),
       kickDistances: normalizeKickDistances(preferences.kickDistances),
     };
     await writeJsonFile(path, normalized);

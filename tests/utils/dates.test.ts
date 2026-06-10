@@ -88,38 +88,38 @@ describe("isDueInDayRange", () => {
 });
 
 describe("formatDueDate", () => {
-  it("formats every supported date format without throwing", () => {
-    expect(formatDueDate("2026-06-04", "YYYY-MM-DD")).toBe("2026-06-04");
-    expect(formatDueDate("2026-06-04", "MM/DD/YYYY")).toBe("06/04/2026");
-    expect(formatDueDate("2026-06-04", "DD/MM/YYYY")).toBe("04/06/2026");
+  it("formats a date-only string as yyyy-mm-dd", () => {
+    expect(formatDueDate("2026-06-04")).toBe("2026-06-04");
+  });
+
+  it("zero-pads single-digit month and day", () => {
+    expect(formatDueDate("2026-01-02")).toBe("2026-01-02");
   });
 
   it("passes through an unparseable string unchanged", () => {
-    expect(formatDueDate("not-a-date", "YYYY-MM-DD")).toBe("not-a-date");
+    expect(formatDueDate("not-a-date")).toBe("not-a-date");
   });
 });
 
 describe("formatTimestamp", () => {
-  it("converts an instant into the target timezone and 24h time", () => {
+  it("converts an instant into the target timezone as local yyyy-mm-dd HH:mm (24h)", () => {
     // 2026-06-04T20:00Z is 2026-06-05 05:00 in Tokyo.
-    expect(formatTimestamp(FIXED_NOW, "YYYY-MM-DD", "24h", "Asia/Tokyo")).toBe("2026-06-05 05:00");
+    expect(formatTimestamp(FIXED_NOW, "Asia/Tokyo")).toBe("2026-06-05 05:00");
   });
 
-  it("formats 12h time with an AM/PM marker", () => {
-    const result = formatTimestamp(FIXED_NOW, "YYYY-MM-DD", "12h", "Asia/Tokyo");
-    expect(result).toBe("2026-06-05 05:00 AM");
+  it("renders the instant unchanged when the zone is UTC", () => {
+    expect(formatTimestamp(FIXED_NOW, "UTC")).toBe("2026-06-04 20:00");
   });
 
-  it("applies the chosen date format to the date portion", () => {
-    expect(formatTimestamp(FIXED_NOW, "MM/DD/YYYY", "24h", "Asia/Tokyo")).toBe(
-      "06/05/2026 05:00",
-    );
-    expect(formatTimestamp(FIXED_NOW, "DD/MM/YYYY", "24h", "Asia/Tokyo")).toBe(
-      "05/06/2026 05:00",
-    );
+  it("zero-pads single-digit month, day, hour, and minute", () => {
+    expect(formatTimestamp("2026-01-02T03:04:00.000Z", "UTC")).toBe("2026-01-02 03:04");
+  });
+
+  it("falls back to the system timezone for an invalid zone (no throw)", () => {
+    expect(formatTimestamp(FIXED_NOW, "Not/AZone")).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   });
 
   it("passes through an invalid timestamp unchanged", () => {
-    expect(formatTimestamp("nonsense", "YYYY-MM-DD", "24h", "UTC")).toBe("nonsense");
+    expect(formatTimestamp("nonsense", "UTC")).toBe("nonsense");
   });
 });

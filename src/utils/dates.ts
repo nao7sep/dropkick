@@ -1,17 +1,6 @@
 import { addDays, format, parseISO, isValid } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { coerceTimezone } from "./timezone";
-import type { DateFormat } from "../models/date-format";
-
-// Maps each supported display format (models/date-format.ts) to its date-fns
-// pattern. Typed as Record<DateFormat, …>, so the set is exhaustive: every
-// stored value has a defined, valid pattern and date-fns never sees an
-// unrecognized token. Adding a format without its pattern is a compile error.
-const DATE_FNS_PATTERN: Record<DateFormat, string> = {
-  "YYYY-MM-DD": "yyyy-MM-dd",
-  "MM/DD/YYYY": "MM/dd/yyyy",
-  "DD/MM/YYYY": "dd/MM/yyyy",
-};
 
 // Returns the current time as an ISO 8601 UTC string.
 export function nowUtc(): string {
@@ -35,12 +24,11 @@ export function tomorrowInTimezone(timezone: string | null): string {
   return format(addDays(today, 1), "yyyy-MM-dd");
 }
 
-// Formats an ISO 8601 UTC timestamp for display, converted to the user's timezone.
-// If timezone is null, uses the system timezone.
+// Formats an ISO 8601 UTC timestamp for display in the user's timezone, as
+// "yyyy-MM-dd HH:mm" (local, 24-hour, no localization). If timezone is null,
+// uses the system timezone.
 export function formatTimestamp(
   isoUtc: string,
-  dateFormat: DateFormat,
-  timeFormat: "24h" | "12h",
   timezone: string | null,
 ): string {
   const date = parseISO(isoUtc);
@@ -48,21 +36,17 @@ export function formatTimestamp(
 
   const safeTimezone = coerceTimezone(timezone);
   const zoned = safeTimezone ? toZonedTime(date, safeTimezone) : date;
-  const timePart = timeFormat === "24h" ? "HH:mm" : "hh:mm a";
 
-  return format(zoned, `${DATE_FNS_PATTERN[dateFormat]} ${timePart}`);
+  return format(zoned, "yyyy-MM-dd HH:mm");
 }
 
-// Formats a date-only string ("YYYY-MM-DD") for display using the user's date format.
+// Formats a date-only string ("YYYY-MM-DD") for display as "yyyy-MM-dd".
 // No timezone conversion — due dates are calendar dates, not instants.
-export function formatDueDate(
-  dateStr: string,
-  dateFormat: DateFormat,
-): string {
+export function formatDueDate(dateStr: string): string {
   const date = parseISO(dateStr);
   if (!isValid(date)) return dateStr;
 
-  return format(date, DATE_FNS_PATTERN[dateFormat]);
+  return format(date, "yyyy-MM-dd");
 }
 
 // Checks if a due date (YYYY-MM-DD) is in the past relative to today in the given timezone.

@@ -61,46 +61,6 @@ describe("loadPreferences — merge with defaults", () => {
   });
 });
 
-describe("loadPreferences — dateFormat coercion", () => {
-  it("keeps a supported stored dateFormat", async () => {
-    readJsonFileResult.mockResolvedValue({
-      status: "success",
-      data: { version: "1.0.0", name: "US", dateFormat: "MM/DD/YYYY" },
-    });
-
-    const result = await loadPreferences("/prefs.json");
-    expect(result.status).toBe("success");
-    if (result.status !== "success") return;
-    expect(result.preferences.dateFormat).toBe("MM/DD/YYYY");
-  });
-
-  it("coerces an unsupported stored dateFormat to the default", async () => {
-    // A hand-edited file (the app advertises portable, user-editable JSON) or
-    // one written by another tool using moment-style tokens date-fns throws on.
-    readJsonFileResult.mockResolvedValue({
-      status: "success",
-      data: { version: "1.0.0", name: "Custom", dateFormat: "MMM D, YYYY" },
-    });
-
-    const result = await loadPreferences("/prefs.json");
-    expect(result.status).toBe("success");
-    if (result.status !== "success") return;
-    expect(result.preferences.dateFormat).toBe("YYYY-MM-DD");
-  });
-
-  it("fills the default dateFormat when the field is absent", async () => {
-    readJsonFileResult.mockResolvedValue({
-      status: "success",
-      data: { version: "1.0.0", name: "Legacy" },
-    });
-
-    const result = await loadPreferences("/prefs.json");
-    expect(result.status).toBe("success");
-    if (result.status !== "success") return;
-    expect(result.preferences.dateFormat).toBe("YYYY-MM-DD");
-  });
-});
-
 describe("loadPreferences — kickDistances normalization", () => {
   it("de-duplicates and clamps a malformed stored kickDistances array", async () => {
     // A hand-edited / legacy file with duplicates and an over-large value: must
@@ -142,30 +102,5 @@ describe("flushPreferences — normalization on write", () => {
       "/prefs.json",
       expect.objectContaining({ kickDistances: [10, 999] }),
     );
-  });
-
-  it("coerces an out-of-set dateFormat to the default before writing", async () => {
-    // Simulate corrupted in-memory state slipping past the typed dropdown: the
-    // write path must coerce, symmetric with the load path, so disk never holds
-    // (and the formatter never sees) a value date-fns would throw on.
-    const bad = createDefaultPreferences("Test");
-    (bad as { dateFormat: string }).dateFormat = "MMM D, YYYY";
-
-    const normalized = await flushPreferences("/prefs.json", () => bad);
-
-    expect(normalized.dateFormat).toBe("YYYY-MM-DD");
-    expect(writeJsonFile).toHaveBeenCalledWith(
-      "/prefs.json",
-      expect.objectContaining({ dateFormat: "YYYY-MM-DD" }),
-    );
-  });
-
-  it("preserves a supported dateFormat on write", async () => {
-    const prefs = createDefaultPreferences("Test");
-    prefs.dateFormat = "DD/MM/YYYY";
-
-    const normalized = await flushPreferences("/prefs.json", () => prefs);
-
-    expect(normalized.dateFormat).toBe("DD/MM/YYYY");
   });
 });

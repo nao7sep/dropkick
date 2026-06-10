@@ -394,36 +394,21 @@ export function TaskDetail({
       <div className="mb-4 space-y-0.5 text-xs text-ink-muted">
         <div>
           Created:{" "}
-          {formatTimestamp(
-            task.createdAtUtc,
-            preferences.dateFormat,
-            preferences.timeFormat,
-            preferences.timezone,
-          )}
+          {formatTimestamp(task.createdAtUtc, preferences.timezone)}
         </div>
         <div>
           Updated:{" "}
-          {formatTimestamp(
-            task.updatedAtUtc,
-            preferences.dateFormat,
-            preferences.timeFormat,
-            preferences.timezone,
-          )}
+          {formatTimestamp(task.updatedAtUtc, preferences.timezone)}
         </div>
         {task.completedAtUtc && (
           <div>
             Handled:{" "}
-            {formatTimestamp(
-              task.completedAtUtc,
-              preferences.dateFormat,
-              preferences.timeFormat,
-              preferences.timezone,
-            )}
+            {formatTimestamp(task.completedAtUtc, preferences.timezone)}
           </div>
         )}
         {task.dueDate && (
           <div>
-            Due: {formatDueDate(task.dueDate, preferences.dateFormat)}
+            Due: {formatDueDate(task.dueDate)}
           </div>
         )}
       </div>
@@ -585,12 +570,7 @@ function NoteItem({
         </select>
 
         <span className="ml-auto text-xs text-ink-muted">
-          {formatTimestamp(
-            note.createdAtUtc,
-            preferences.dateFormat,
-            preferences.timeFormat,
-            preferences.timezone,
-          )}
+          {formatTimestamp(note.createdAtUtc, preferences.timezone)}
         </span>
         <button
           onClick={handleDeleteNote}

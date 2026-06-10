@@ -1,10 +1,9 @@
-// Settings modal — edits preferences (font, date/time format, timezone, kick distances, etc.).
+// Settings modal — edits preferences (font, timezone, kick distances, etc.).
 // Opens from a gear icon in the tab bar. Changes are staged locally and saved only on "Save".
 
 import { useMemo, useRef, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import type { PreferencesDto } from "../../models";
-import { DATE_FORMATS, isDateFormat } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { validateTimezone } from "../../utils/timezone";
@@ -140,42 +139,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           onChange={(e) => setField("fontFamily", e.target.value)}
           className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
-      </Field>
-
-      {/* Date format */}
-      <Field label="Date format">
-        <select
-          value={draft.dateFormat}
-          onChange={(e) => {
-            // The options are generated from DATE_FORMATS, so this is always
-            // true — but validating (instead of casting) keeps an out-of-set
-            // value from ever entering preferences and narrows the type.
-            if (isDateFormat(e.target.value)) {
-              setField("dateFormat", e.target.value);
-            }
-          }}
-          className="rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
-        >
-          {DATE_FORMATS.map((fmt) => (
-            <option key={fmt} value={fmt}>
-              {fmt}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      {/* Time format */}
-      <Field label="Time format">
-        <select
-          value={draft.timeFormat}
-          onChange={(e) =>
-            setField("timeFormat", e.target.value as "24h" | "12h")
-          }
-          className="rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
-        >
-          <option value="24h">24-hour</option>
-          <option value="12h">12-hour</option>
-        </select>
       </Field>
 
       {/* Timezone */}
