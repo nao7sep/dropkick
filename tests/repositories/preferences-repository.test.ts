@@ -61,6 +61,52 @@ describe("loadPreferences — merge with defaults", () => {
   });
 });
 
+describe("loadPreferences — drops keys removed from the shape", () => {
+  it("does not carry through stored fields that are no longer part of PreferencesDto", async () => {
+    // A file written by an older version still carries the retired date/time
+    // format settings (plus a hypothetical unknown key). None must survive the
+    // load, otherwise the next flush re-emits them on disk forever.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: {
+        version: "1.0.0",
+        name: "Legacy",
+        darkMode: true,
+        dateFormat: "YYYY-MM-DD",
+        timeFormat: "24h",
+        somethingUnknown: 42,
+      },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    const prefs = result.preferences as unknown as Record<string, unknown>;
+    expect("dateFormat" in prefs).toBe(false);
+    expect("timeFormat" in prefs).toBe(false);
+    expect("somethingUnknown" in prefs).toBe(false);
+    // Known fields still load correctly through the projection.
+    expect(result.preferences.name).toBe("Legacy");
+    expect(result.preferences.darkMode).toBe(true);
+  });
+
+  it("heals a null-corrupted scalar field to its default", async () => {
+    // A hand-edited file stores null where a non-null default is expected; the
+    // load boundary must fall back to the default rather than carry null into
+    // the DTO.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Nulls", darkMode: null, zoomLevel: null },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.preferences.darkMode).toBe(false);
+    expect(result.preferences.zoomLevel).toBe(1.0);
+  });
+});
+
 describe("loadPreferences — kickDistances normalization", () => {
   it("de-duplicates and clamps a malformed stored kickDistances array", async () => {
     // A hand-edited / legacy file with duplicates and an over-large value: must

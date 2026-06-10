@@ -12,6 +12,7 @@ import {
 } from "../models";
 import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
 import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
+import { mergeWithDefaults } from "../utils/merge-defaults";
 
 export type LoadPreferencesResult =
   | { status: "success"; preferences: PreferencesDto }
@@ -31,10 +32,12 @@ export async function loadPreferences(
   if (result.status !== "success") {
     return result;
   }
-  // Merge with defaults so newly added fields are always present.
+  // Merge with defaults so newly added fields are always present, and drop any
+  // stored keys no longer part of PreferencesDto — a retired field is not copied
+  // through the load, so the next flush never re-emits it.
   const data = result.data;
   const defaults = createDefaultPreferences(data.name ?? "Default");
-  const merged = { ...defaults, ...data };
+  const merged = mergeWithDefaults(defaults, data);
   return {
     status: "success",
     preferences: {

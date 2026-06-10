@@ -12,6 +12,7 @@ import {
   writeJsonFile,
   withSerial,
 } from "./file-system";
+import { mergeWithDefaults } from "../utils/merge-defaults";
 
 export type LoadWorkspaceResult =
   | { status: "success"; workspace: WorkspaceDto }
@@ -21,8 +22,11 @@ export type LoadWorkspaceResult =
 
 // Loads a workspace file. Missing and invalid files are reported explicitly so
 // selected files do not silently become default workspaces.
-// Merges with defaults so newly added fields (like id) are always present.
-// activeTabIndex is runtime-only and is re-injected after parsing.
+// Merges with defaults so newly added fields (like id) are always present, and
+// drops stored keys no longer part of the shape so a retired field is never
+// re-emitted on the next save. Required list fields are coerced to arrays so a
+// corrupted file cannot crash startup, and activeTabIndex is runtime-only and is
+// re-injected after parsing.
 export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> {
   const result = await readJsonFileResult<
     Partial<PersistedWorkspaceDto> & { activeTabIndex?: number }
@@ -36,11 +40,18 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
 
   const data = result.data;
   const defaults = createDefaultWorkspace(data.name ?? "Default");
+  const merged = mergeWithDefaults(defaults, data);
   return {
     status: "success",
     workspace: {
-      ...defaults,
-      ...data,
+      ...merged,
+      // openTabs/recentFiles are required arrays that the startup path iterates
+      // immediately (startupTabIndex, recent-file rendering). A hand-edited or
+      // corrupted file holding a non-array — or null — would otherwise crash the
+      // launch, so coerce to an empty list, mirroring normalizeKickDistances on
+      // the preferences side.
+      openTabs: Array.isArray(data.openTabs) ? data.openTabs : [],
+      recentFiles: Array.isArray(data.recentFiles) ? data.recentFiles : [],
       activeTabIndex: defaults.activeTabIndex,
     },
   };

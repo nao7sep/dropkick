@@ -21,6 +21,7 @@ import {
   fileExists,
   withSerial,
 } from "./file-system";
+import { mergeWithDefaults } from "../utils/merge-defaults";
 import { log } from "./logging";
 
 const DROPKICK_DIR = ".dropkick";
@@ -82,7 +83,10 @@ export async function initializeAppConfig(): Promise<{
     config.knownWorkspaces = [workspacePath];
     await writeJsonFile(configPath, config);
   } else if (configResult.status === "success") {
-    config = configResult.data;
+    // Fill any newly added fields from defaults and drop keys no longer part of
+    // AppConfigDto, so a retired field is never re-emitted — the same
+    // load-boundary contract as the preferences and workspace repositories.
+    config = mergeWithDefaults(createDefaultAppConfig(), configResult.data);
   } else {
     throw new Error(`Failed to load app config: ${configResult.message}`);
   }
