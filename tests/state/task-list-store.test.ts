@@ -23,7 +23,7 @@ vi.mock("../../src/repositories", () => ({
   loadFailureFields: (path: string, result: { status: string; message?: string }) => ({
     path,
     status: result.status,
-    ...(result.message !== undefined ? { message: result.message } : {}),
+    ...(result.message !== undefined ? { error: { message: result.message } } : {}),
   }),
 }));
 

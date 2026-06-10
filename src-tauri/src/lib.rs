@@ -24,7 +24,10 @@ fn merge_command(command: &str, started: Option<Instant>, fields: Value) -> Valu
     };
     map.insert("command".to_string(), Value::String(command.to_string()));
     if let Some(started) = started {
-        map.insert("ms".to_string(), json!(started.elapsed().as_millis() as u64));
+        map.insert(
+            "ms".to_string(),
+            json!(started.elapsed().as_millis() as u64),
+        );
     }
     Value::Object(map)
 }
@@ -165,7 +168,7 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
             log_cmd_ok(
                 "read_json_file_with_hash",
                 started,
-                json!({ "path": path, "outcome": "error", "message": err.to_string() }),
+                json!({ "path": path, "outcome": "error", "error": { "message": err.to_string() } }),
             );
             return Ok(JsonFileWithHashResult::Error {
                 message: err.to_string(),
@@ -179,7 +182,7 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
             log_cmd_ok(
                 "read_json_file_with_hash",
                 started,
-                json!({ "path": path, "bytes": bytes.len(), "outcome": "invalid", "message": err.to_string() }),
+                json!({ "path": path, "bytes": bytes.len(), "outcome": "invalid", "error": { "message": err.to_string() } }),
             );
             return Ok(JsonFileWithHashResult::Invalid {
                 message: err.to_string(),

@@ -34,15 +34,15 @@ All data lives on your filesystem:
 | Workspace | Any path (default: `~/.dropkick/default-workspace.json`) | Open tabs and recent files |
 | Task lists | Any path | Your tasks |
 | Backups | `~/.dropkick/backups/<workspace-id>/` | Automatic zip backups |
-| Logs | `~/.dropkick/logs/<yyyymmdd-hhmmss-utc>.log` | One JSON-Lines log per launch |
+| Logs | `~/.dropkick/logs/<yyyymmdd-hhmmss-SSS-utc-p<pid>.log>` | One JSON-Lines log per launch |
 
 Each launch writes one session log under `~/.dropkick/logs/`, named by its UTC
-start time. Every line is a single JSON object (`time`, `level`, `message`, plus
-event-specific fields) recording startup, shutdown, your actions, and every file
-operation and its outcome — enough to reconstruct a session when debugging.
-Developer-only `debug` detail is written only in a development build or when
-`DROPKICK_DEBUG=1` is set, so an end user's log stays small. Logs are never
-auto-deleted; remove `~/.dropkick/logs/` yourself if you want to reclaim space.
+start time and process ID. Every line is a single JSON object (`time`, `level`,
+`message`, plus event-specific fields) recording startup, shutdown, user-level
+actions, warnings, and errors. Developer-only `debug` detail adds low-level file
+and command operation outcomes in a development build or when `DROPKICK_DEBUG=1`
+is set, so an end user's log stays small. Logs are never auto-deleted; remove
+`~/.dropkick/logs/` yourself if you want to reclaim space.
 
 Task changes are written to disk immediately. Settings dialog changes require an explicit **Save**, except for the live-applied display settings — dark mode, zoom level, and sidebar width — which save immediately when changed (the Settings dark-mode checkbox, `Cmd+Shift+D`, the zoom shortcuts or gear menu, and the divider drag all apply at once and are not undone by closing Settings with **Cancel**).
 At startup, Dropkick reopens unified view if it is among the open tabs; otherwise it opens the first task list tab. The current active tab is runtime-only and is not written to `workspace.json`.

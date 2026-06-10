@@ -4,7 +4,8 @@
 // reference logger for our Tauri apps — keep it self-contained and dependency-free.
 //
 // Design (mirrors ~/code/company/conventions/...-logging-conventions.md):
-//   - One file per process launch: ~/.dropkick/logs/<yyyymmdd-hhmmss-utc>.log.
+//   - One file per process launch:
+//     ~/.dropkick/logs/<yyyymmdd-hhmmss-SSS-utc-p<pid>.log>.
 //   - One JSON object per line: { time, level, message, ...fields }.
 //   - `time` is UTC ISO 8601 with milliseconds and `Z`, generated here without a
 //     date crate (no new heavy deps) via a hand-rolled civil-time conversion.
@@ -105,13 +106,17 @@ fn iso_millis(ms: i64) -> String {
 }
 
 fn filename_stamp(ms: i64) -> String {
-    let (y, mo, d, h, mi, s, _) = parts_from_millis(ms);
-    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-utc")
+    let (y, mo, d, h, mi, s, ms3) = parts_from_millis(ms);
+    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{ms3:03}-utc")
 }
 
-// `<yyyymmdd-hhmmss-utc>.log` for the current launch.
+// `<yyyymmdd-hhmmss-SSS-utc-p<pid>.log` for the current launch.
 pub fn session_filename() -> String {
-    format!("{}.log", filename_stamp(now_unix_millis()))
+    format!(
+        "{}-p{}.log",
+        filename_stamp(now_unix_millis()),
+        std::process::id()
+    )
 }
 
 // --- Redaction: non-destructive, key-name based, recursive, total ---
@@ -246,8 +251,14 @@ impl Logger {
             return;
         }
         let mut obj = Map::new();
-        obj.insert("time".to_string(), Value::String(iso_millis(now_unix_millis())));
-        obj.insert("level".to_string(), Value::String(level.as_str().to_string()));
+        obj.insert(
+            "time".to_string(),
+            Value::String(iso_millis(now_unix_millis())),
+        );
+        obj.insert(
+            "level".to_string(),
+            Value::String(level.as_str().to_string()),
+        );
         obj.insert("message".to_string(), Value::String(message.to_string()));
         if let Value::Object(extra) = fields {
             for (key, val) in extra {
@@ -377,7 +388,16 @@ mod tests {
 
     #[test]
     fn filename_stamp_matches_known_vector() {
-        assert_eq!(filename_stamp(1_700_000_000_000), "20231114-221320-utc");
+        assert_eq!(filename_stamp(1_700_000_000_123), "20231114-221320-123-utc");
+    }
+
+    #[test]
+    fn session_filename_includes_process_id() {
+        let filename = session_filename();
+        assert!(
+            filename.ends_with(&format!("-p{}.log", std::process::id())),
+            "filename {filename} should include the process id"
+        );
     }
 
     #[test]
@@ -468,10 +488,27 @@ mod tests {
     #[test]
     fn redaction_applies_to_the_written_line() {
         let (logger, path) = temp_logger(false);
-        logger.emit(Level::Info, "creds", json!({ "apiKey": "sk-secret", "count": 1 }));
+        logger.emit(
+            Level::Info,
+            "creds",
+            json!({ "apiKey": "sk-secret", "count": 1 }),
+        );
         let lines = read_lines(&path);
         assert_eq!(lines[0]["apiKey"], json!("[redacted]"));
         assert_eq!(lines[0]["count"], json!(1));
+    }
+
+    #[test]
+    fn nested_error_message_is_preserved_as_a_field() {
+        let (logger, path) = temp_logger(false);
+        logger.emit(
+            Level::Warn,
+            "read failed",
+            json!({ "path": "/x.json", "error": { "message": "bad json" } }),
+        );
+        let lines = read_lines(&path);
+        assert_eq!(lines[0]["message"], json!("read failed"));
+        assert_eq!(lines[0]["error"], json!({ "message": "bad json" }));
     }
 
     #[test]

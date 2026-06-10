@@ -67,6 +67,19 @@ describe("envelope", () => {
     expect(entry.level).toBe("info");
     expect(entry.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
+
+  it("preserves load failure detail outside the reserved envelope message", async () => {
+    log.warn(
+      "task list load failed",
+      loadFailureFields("/x.json", { status: "invalid", message: "bad json" }),
+    );
+    await flush();
+
+    const entry = lastForwardedEntry();
+    expect(entry.message).toBe("task list load failed");
+    expect(entry.status).toBe("invalid");
+    expect(entry.error).toEqual({ message: "bad json" });
+  });
 });
 
 describe("redaction backstop", () => {
@@ -176,13 +189,17 @@ describe("toErrorFields", () => {
 });
 
 describe("loadFailureFields", () => {
-  it("includes the message when the failure result carries one", () => {
+  it("includes the error message when the failure result carries one", () => {
     expect(
       loadFailureFields("/x.json", { status: "invalid", message: "bad json" }),
-    ).toEqual({ path: "/x.json", status: "invalid", message: "bad json" });
+    ).toEqual({
+      path: "/x.json",
+      status: "invalid",
+      error: { message: "bad json" },
+    });
   });
 
-  it("omits message for a result that has none (e.g. missing)", () => {
+  it("omits error for a result that has none (e.g. missing)", () => {
     expect(loadFailureFields("/x.json", { status: "missing" })).toEqual({
       path: "/x.json",
       status: "missing",

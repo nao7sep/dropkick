@@ -123,13 +123,14 @@ export function toErrorFields(error: unknown): LogFields {
 
 // Standard fields for a failed load/parse result (the missing/invalid/error
 // arms of the repositories' discriminated unions). Centralizes the `path` +
-// `status` + optional `message` shape so every load-failure log line is uniform.
+// `status` + optional `error.message` shape so every load-failure log line is
+// uniform while preserving the envelope's reserved `message` key.
 export function loadFailureFields(
   path: string,
   result: { status: string; message?: string },
 ): LogFields {
   return result.message !== undefined
-    ? { path, status: result.status, message: result.message }
+    ? { path, status: result.status, error: { message: result.message } }
     : { path, status: result.status };
 }
 

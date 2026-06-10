@@ -996,7 +996,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         source: sourceFilePath,
         dest: destFilePath,
         status: result.status,
-        message,
+        reason: message,
       });
       return { status: "error", message };
     },
