@@ -36,16 +36,9 @@ All data lives on your filesystem:
 | Backups | `~/.dropkick/backups/<workspace-id>/` | Automatic zip backups |
 | Logs | `~/.dropkick/logs/<yyyymmdd-hhmmss-utc.log>` | One JSON-Lines log per launch |
 
-Each launch writes one session log under `~/.dropkick/logs/`, named by its UTC
-start time. Every line is a single JSON object (`time`, `level`,
-`message`, plus event-specific fields) recording startup, shutdown, user-level
-actions, warnings, and errors. Developer-only `debug` detail adds low-level file
-and command operation outcomes in a development build or when `DROPKICK_DEBUG=1`
-is set, so an end user's log stays small. Logs are never auto-deleted; remove
-`~/.dropkick/logs/` yourself if you want to reclaim space.
+Each launch writes one session log under `~/.dropkick/logs/`, named by its UTC start time. Every line is a single JSON object (`time`, `level`, `message`, plus event-specific fields) recording startup, shutdown, user-level actions, warnings, and errors. Developer-only `debug` detail adds low-level file and command operation outcomes in a development build or when `DROPKICK_DEBUG=1` is set, so an end user's log stays small. Logs are never auto-deleted; remove `~/.dropkick/logs/` yourself if you want to reclaim space.
 
-Task changes are written to disk immediately. Settings dialog changes require an explicit **Save**, except for the live-applied display settings — dark mode, zoom level, and sidebar width — which save immediately when changed (the Settings dark-mode checkbox, `Cmd+Shift+D`, the zoom shortcuts or gear menu, and the divider drag all apply at once and are not undone by closing Settings with **Cancel**).
-At startup, Dropkick reopens unified view if it is among the open tabs; otherwise it opens the first task list tab. The current active tab is runtime-only and is not written to `workspace.json`.
+Task changes are written to disk immediately. Settings dialog changes require an explicit **Save**, except for the live-applied display settings — dark mode, zoom level, and sidebar width — which save immediately when changed (the Settings dark-mode checkbox, `Cmd+Shift+D`, the zoom shortcuts or gear menu, and the divider drag all apply at once and are not undone by closing Settings with **Cancel**). At startup, Dropkick reopens unified view if it is among the open tabs; otherwise it opens the first task list tab. The current active tab is runtime-only and is not written to `workspace.json`.
 
 If a saved task-list tab or recent file cannot be loaded because the file is missing or temporarily unavailable, Dropkick keeps the workspace reference instead of removing it automatically. The affected tab shows a load-error pane with **Retry** and **Remove tab** actions so you can reconnect the file or remove the tab manually. In unified view, a notice at the top of the list names any open lists that could not be loaded and indicates when lists are still loading, so the merged view is never silently incomplete.
 
@@ -150,16 +143,9 @@ npm test                                  # frontend unit tests (Vitest)
 cargo test --lib --manifest-path src-tauri/Cargo.toml   # Rust command tests
 ```
 
-Tests cover the pure logic (task grouping, the kick/reorder algorithms, date and
-timezone handling, backup rotation), the Zustand stores and file repositories
-(with Tauri mocked), the frontend logger (envelope, redaction backstop, error
-fidelity, console fallback), and the Rust commands and logger (UTC time
-formatting and the redactor).
+Tests cover the pure logic (task grouping, the kick/reorder algorithms, date and timezone handling, backup rotation), the Zustand stores and file repositories (with Tauri mocked), the frontend logger (envelope, redaction backstop, error fidelity, console fallback), and the Rust commands and logger (UTC time formatting and the redactor).
 
-Frontend tests live in `tests/`, mirroring `src/` (`tests/utils/`,
-`tests/services/`, `tests/state/`, `tests/repositories/`), with shared fixtures
-and setup in `tests/helpers/` and `tests/setup.ts`. Rust tests stay inline in
-`src-tauri` as Cargo `#[cfg(test)]` modules.
+Frontend tests live in `tests/`, mirroring `src/` (`tests/utils/`, `tests/services/`, `tests/state/`, `tests/repositories/`), with shared fixtures and setup in `tests/helpers/` and `tests/setup.ts`. Rust tests stay inline in `src-tauri` as Cargo `#[cfg(test)]` modules.
 
 ### Production Build
 
