@@ -1,3 +1,14 @@
+# Dependencies
+node_modules
+
+# Build outputs and caches
+dist
+dist-ssr
+*.tsbuildinfo
+
+# Local environment overrides
+*.local
+
 # Logs
 logs
 *.log
@@ -7,18 +18,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# Editor and IDE files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# OS files
+.DS_Store
