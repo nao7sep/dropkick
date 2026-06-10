@@ -144,6 +144,8 @@ export function MainWindow() {
     () => setShowNewTask(true),
     () => setShowMoveTasks(true),
     () => setFocusNewNoteSignal((value) => value + 1),
+    () => setShowSettings(true),
+    () => setShowShortcuts(true),
   );
 
   // Apply saved zoom level on startup and when changed.

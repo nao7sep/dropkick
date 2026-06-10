@@ -21,6 +21,8 @@ export {
   matchesShortcutKey,
   consumesSpace,
   primaryModifierLabel,
+  isOpenSettingsShortcut,
+  isOpenShortcutsHelpShortcut,
 } from "./shortcuts";
 
 export {

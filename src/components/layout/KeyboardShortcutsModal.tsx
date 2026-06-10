@@ -89,6 +89,8 @@ const shortcutSections: {
       { label: "Set due date to tomorrow", keys: `${mod}+T` },
       { label: "Clear due date", keys: `${mod}+N` },
       { kind: "heading", label: "Other dialogs" },
+      { label: "Open settings", keys: `${mod}+,` },
+      { label: "Open this shortcuts help", keys: `${mod}+/ or ?` },
       { label: "Submit settings / move", keys: `${mod}+Enter` },
       { label: "Close active dialog", keys: "Esc" },
     ],

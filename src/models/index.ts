@@ -6,7 +6,11 @@ export { createDefaultAppConfig } from "./app-config";
 export type {
   PreferencesDto,
 } from "./preferences";
-export { createDefaultPreferences } from "./preferences";
+export {
+  createDefaultPreferences,
+  normalizeKickDistances,
+  DEFAULT_KICK_DISTANCES,
+} from "./preferences";
 
 export type { DateFormat } from "./date-format";
 export {

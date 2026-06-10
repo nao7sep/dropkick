@@ -7,6 +7,13 @@ interface ShortcutKeyState {
   key: string;
 }
 
+// Full key+modifier shape for the utility-dialog shortcut predicates below,
+// composed from the minimal shapes above. KeyboardEvent satisfies it structurally.
+interface UtilityShortcutEvent extends ShortcutModifierState, ShortcutKeyState {
+  altKey: boolean;
+  shiftKey: boolean;
+}
+
 // Minimal shape of an event target, so consumesSpace stays DOM-free and unit
 // testable. HTMLElement satisfies it structurally.
 interface SpaceTargetState {
@@ -64,6 +71,40 @@ export function matchesShortcutKey(
     expectedKey.length === 1 ? expectedKey.toLowerCase() : expectedKey;
 
   return eventKey === expected;
+}
+
+// Cmd/Ctrl+, opens Settings — the platform-conventional settings shortcut.
+export function isOpenSettingsShortcut(event: UtilityShortcutEvent): boolean {
+  return (
+    hasPrimaryShortcutModifier(event) &&
+    !event.shiftKey &&
+    !event.altKey &&
+    event.key === ","
+  );
+}
+
+// Cmd/Ctrl+/ or a bare "?" opens the keyboard-shortcuts help. "?" is a
+// printable character, so callers must ignore it while the user is typing; the
+// Cmd/Ctrl+/ form carries a modifier and may fire anywhere, like Cmd+N.
+//
+// Shift is intentionally NOT excluded on the "/" branch: on layouts where "/"
+// is a shifted glyph (e.g. German QWERTZ Shift+7), the chord arrives as
+// key === "/" with shiftKey === true. On US-style layouts Shift+"/" instead
+// produces key === "?", which never reaches this branch, so allowing Shift here
+// only rescues the shifted-slash layouts and cannot cause a false match.
+export function isOpenShortcutsHelpShortcut(
+  event: UtilityShortcutEvent,
+): boolean {
+  if (
+    hasPrimaryShortcutModifier(event) &&
+    !event.altKey &&
+    event.key === "/"
+  ) {
+    return true;
+  }
+  return (
+    !event.metaKey && !event.ctrlKey && !event.altKey && event.key === "?"
+  );
 }
 
 // True when the focused element should keep Space for itself. Everywhere else

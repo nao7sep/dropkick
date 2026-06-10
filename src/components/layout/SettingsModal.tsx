@@ -1,15 +1,20 @@
 // Settings modal — edits preferences (font, date/time format, timezone, kick distances, etc.).
 // Opens from a gear icon in the tab bar. Changes are staged locally and saved only on "Save".
 
-import { useRef, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import type { PreferencesDto } from "../../models";
 import { DATE_FORMATS, isDateFormat } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
+import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { validateTimezone } from "../../utils/timezone";
 import { AppModal } from "../shared/AppModal";
-import { hasPrimaryShortcutModifier } from "../../utils";
-import { showUnsavedChangesConfirm } from "../../repositories";
+import { hasPrimaryShortcutModifier, primaryModifierLabel } from "../../utils";
+import {
+  isPreferencesDraftDirty,
+  liveAppliedPreferences,
+  parseKickDistances,
+} from "../../services";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -32,46 +37,34 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     ? null
     : "Invalid IANA timezone";
 
-  const isDirty = useMemo(() => {
-    if (kickInput !== preferences.kickDistances.join(", ")) return true;
-    // Exclude zoomLevel and sidebarWidth — they are controlled outside this modal
-    // (keyboard shortcuts / drag divider) and must not be compared against the draft.
-    const keys = (Object.keys(preferences) as (keyof PreferencesDto)[])
-      .filter((k) => k !== "zoomLevel" && k !== "sidebarWidth");
-    return keys.some((k) => draft[k] !== preferences[k]);
-  }, [draft, kickInput, preferences]);
+  // Live-applied keys (darkMode, zoomLevel, sidebarWidth) are excluded from the
+  // dirty check — they are owned outside this draft and closing never discards
+  // them. See services/preferences-draft.
+  const isDirty = useMemo(
+    () => isPreferencesDraftDirty(draft, preferences, kickInput),
+    [draft, preferences, kickInput],
+  );
 
   const handleSave = async () => {
-    if (!timezoneValidation.valid) return;
-
-    // Parse kick distances from comma-separated string.
-    const parsed = kickInput
-      .split(",")
-      .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n) && n > 0)
-      .map((n) => Math.min(n, 999));
-    const deduplicated = [...new Set(parsed)];
-    const kickDistances = deduplicated.length > 0 ? deduplicated : [5, 25];
+    // Mirror the Save button's disabled state: an explicit commit requires both
+    // dirty and valid, so Cmd+Enter is a no-op when there is nothing to save.
+    if (!isDirty || !timezoneValidation.valid) return;
 
     await update({
       ...draft,
-      // Use live values — these are controlled outside this modal.
-      zoomLevel: preferences.zoomLevel,
-      sidebarWidth: preferences.sidebarWidth,
+      // Re-affirm the live-applied settings from the current store so a stale
+      // draft copy can't revert a dark-mode / zoom / divider change made while
+      // this modal was open. Derived from LIVE_APPLIED_PREFERENCE_KEYS so it
+      // stays in lockstep with the dirty-check exclusion.
+      ...liveAppliedPreferences(preferences),
       timezone: timezoneValidation.value,
-      kickDistances,
+      kickDistances: parseKickDistances(kickInput),
     });
     onClose();
   };
 
-  const handleRequestClose = async () => {
-    if (!isDirty) {
-      onClose();
-      return;
-    }
-    const discard = await showUnsavedChangesConfirm();
-    if (discard) onClose();
-  };
+  // Single close guard for every close path (X, Cancel, Escape, backdrop).
+  const handleRequestClose = useDirtyClose(isDirty, onClose);
 
   const setField = <K extends keyof PreferencesDto>(
     key: K,
@@ -90,14 +83,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       footer={
         <>
           <button
-            onClick={onClose}
+            onClick={handleRequestClose}
             className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            disabled={!timezoneValidation.valid}
+            disabled={!isDirty || !timezoneValidation.valid}
             className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
           >
             Save
@@ -121,17 +114,22 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         ...composing.handlers,
       }}
     >
-      {/* Theme */}
+      {/* Theme — applied live (like zoom), so it reads and writes the store
+          directly rather than the draft, and stays in sync with the global
+          {mod}+Shift+D toggle. */}
       <Field label="Theme">
         <label className="flex items-center gap-2 text-sm text-ink">
           <input
             type="checkbox"
-            checked={draft.darkMode}
-            onChange={(e) => setField("darkMode", e.target.checked)}
+            checked={preferences.darkMode}
+            onChange={(e) => update({ darkMode: e.target.checked })}
             className="rounded border-border-strong"
           />
           Dark mode
         </label>
+        <p className="mt-1 text-xs text-ink-muted">
+          Applied immediately. Also toggles with {primaryModifierLabel}+Shift+D.
+        </p>
       </Field>
 
       {/* Font family */}

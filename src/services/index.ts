@@ -37,4 +37,11 @@ export {
 export type { MoveResult } from "./move-operations";
 export { prepareMoveOperation } from "./move-operations";
 
+export {
+  LIVE_APPLIED_PREFERENCE_KEYS,
+  liveAppliedPreferences,
+  parseKickDistances,
+  isPreferencesDraftDirty,
+} from "./preferences-draft";
+
 export { startBackupSchedule } from "./backup";

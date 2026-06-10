@@ -104,3 +104,89 @@ describe("primaryModifierLabel (platform-dependent)", () => {
     expect(primaryModifierLabel).toBe("Ctrl");
   });
 });
+
+// Build a full key+modifier event; unspecified modifiers default to false.
+function keyEvent(opts: {
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+  key: string;
+}) {
+  return {
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    ...opts,
+  };
+}
+
+describe("isOpenSettingsShortcut (platform-dependent)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("matches the primary modifier + comma on macOS (Cmd)", async () => {
+    const { isOpenSettingsShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, key: "," }))).toBe(true);
+    // On macOS the primary modifier is Cmd, so Ctrl+comma must not match.
+    expect(isOpenSettingsShortcut(keyEvent({ ctrlKey: true, key: "," }))).toBe(false);
+  });
+
+  it("matches the primary modifier + comma on Windows (Ctrl)", async () => {
+    const { isOpenSettingsShortcut } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
+    expect(isOpenSettingsShortcut(keyEvent({ ctrlKey: true, key: "," }))).toBe(true);
+    expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, key: "," }))).toBe(false);
+  });
+
+  it("requires the modifier and rejects extra modifiers / other keys", async () => {
+    const { isOpenSettingsShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    expect(isOpenSettingsShortcut(keyEvent({ key: "," }))).toBe(false); // bare comma
+    expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, shiftKey: true, key: "," }))).toBe(false);
+    expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, altKey: true, key: "," }))).toBe(false);
+    expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, key: "." }))).toBe(false);
+  });
+});
+
+describe("isOpenShortcutsHelpShortcut (platform-dependent)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("matches the primary modifier + slash on macOS (Cmd)", async () => {
+    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, key: "/" }))).toBe(true);
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, key: "/" }))).toBe(false);
+  });
+
+  it("matches the primary modifier + slash on Windows (Ctrl)", async () => {
+    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, key: "/" }))).toBe(true);
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, key: "/" }))).toBe(false);
+  });
+
+  it("matches a bare '?' regardless of platform (Shift produces it)", async () => {
+    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ key: "?" }))).toBe(true);
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ shiftKey: true, key: "?" }))).toBe(true);
+  });
+
+  it("matches Cmd+/ even when Shift is held (shifted-slash layouts, e.g. German QWERTZ)", async () => {
+    // On layouts where "/" is Shift+<key>, the chord arrives as key "/" with
+    // shiftKey true; allowing it here keeps Cmd+/ working there.
+    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, shiftKey: true, key: "/" }))).toBe(true);
+  });
+
+  it("rejects a primary-modified '?' and a bare slash", async () => {
+    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    // Cmd+? is not a binding (the slash form is), so a modified "?" must miss.
+    // On US layouts Cmd+Shift+/ reports key "?", not "/", so it lands here.
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, key: "?" }))).toBe(false);
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, shiftKey: true, key: "?" }))).toBe(false);
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ key: "/" }))).toBe(false); // bare slash
+    // Alt/AltGr is still excluded on the slash branch.
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, altKey: true, key: "/" }))).toBe(false);
+  });
+});

@@ -16,7 +16,8 @@ import { DatePicker } from "../shared/DatePicker";
 import { AppModal } from "../shared/AppModal";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
-import { showMessage, showUnsavedChangesConfirm } from "../../repositories";
+import { useDirtyClose } from "../../hooks/useDirtyClose";
+import { showMessage } from "../../repositories";
 
 interface NewTaskModalProps {
   currentFilePath: string;
@@ -70,14 +71,8 @@ export function NewTaskModal({
     [title, description, priority, dueDate, targetFile, defaultTarget],
   );
 
-  const handleRequestClose = async () => {
-    if (!isDirty) {
-      onClose();
-      return;
-    }
-    const discard = await showUnsavedChangesConfirm();
-    if (discard) onClose();
-  };
+  // Single close guard for every close path (X, Cancel, Escape, backdrop).
+  const handleRequestClose = useDirtyClose(isDirty, onClose);
 
   const handleCreate = async () => {
     if (submittingRef.current) return;

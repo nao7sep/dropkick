@@ -35,7 +35,7 @@ All data lives on your filesystem:
 | Task lists | Any path | Your tasks |
 | Backups | `~/.dropkick/backups/<workspace-id>/` | Automatic zip backups |
 
-Task changes are written to disk immediately. Settings dialog changes require an explicit **Save**; zoom level and sidebar width are saved immediately when changed from the gear menu, keyboard shortcuts, or divider drag.
+Task changes are written to disk immediately. Settings dialog changes require an explicit **Save**, except for the live-applied display settings — dark mode, zoom level, and sidebar width — which save immediately when changed (the Settings dark-mode checkbox, `Cmd+Shift+D`, the zoom shortcuts or gear menu, and the divider drag all apply at once and are not undone by closing Settings with **Cancel**).
 At startup, Dropkick reopens unified view if it is among the open tabs; otherwise it opens the first task list tab. The current active tab is runtime-only and is not written to `workspace.json`.
 
 If a saved task-list tab or recent file cannot be loaded because the file is missing or temporarily unavailable, Dropkick keeps the workspace reference instead of removing it automatically. The affected tab shows a load-error pane with **Retry** and **Remove tab** actions so you can reconnect the file or remove the tab manually. In unified view, a notice at the top of the list names any open lists that could not be loaded and indicates when lists are still loading, so the merged view is never silently incomplete.
@@ -110,6 +110,8 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 | Close tab | Cmd+W |
 | Unified view | Cmd+U |
 | Rename tab | Double-click tab |
+| Open settings | Cmd+, |
+| Open keyboard shortcuts | Cmd+/ or ? |
 | Toggle dark mode | Cmd+Shift+D |
 | Zoom in | Cmd+Equal / Cmd+Plus / Cmd+Semicolon |
 | Zoom out | Cmd+Minus |

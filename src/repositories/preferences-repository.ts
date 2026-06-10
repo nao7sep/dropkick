@@ -6,7 +6,11 @@
 // Matches the pattern used by task-list and workspace stores.
 
 import type { PreferencesDto } from "../models";
-import { createDefaultPreferences, coerceDateFormat } from "../models";
+import {
+  createDefaultPreferences,
+  coerceDateFormat,
+  normalizeKickDistances,
+} from "../models";
 import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
 import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
 
@@ -38,6 +42,7 @@ export async function loadPreferences(
       ...merged,
       timezone: coerceTimezone(data.timezone),
       dateFormat: coerceDateFormat(data.dateFormat),
+      kickDistances: normalizeKickDistances(data.kickDistances),
     },
   };
 }
@@ -57,6 +62,7 @@ export async function flushPreferences(
       ...preferences,
       timezone: normalizeTimezoneOrThrow(preferences.timezone),
       dateFormat: coerceDateFormat(preferences.dateFormat),
+      kickDistances: normalizeKickDistances(preferences.kickDistances),
     };
     await writeJsonFile(path, normalized);
     return normalized;

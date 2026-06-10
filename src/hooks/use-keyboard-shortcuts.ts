@@ -21,6 +21,8 @@ import {
   hasPrimaryShortcutModifier,
   matchesShortcutKey,
   consumesSpace,
+  isOpenSettingsShortcut,
+  isOpenShortcutsHelpShortcut,
 } from "../utils";
 
 // Toast messages for actions that are silently disabled in unified view. They
@@ -52,6 +54,8 @@ export function useKeyboardShortcuts(
   onNewTask: () => void,
   onMoveTasks: () => void,
   onFocusNewNote: () => void,
+  onOpenSettings: () => void,
+  onOpenShortcutsHelp: () => void,
 ) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const files = useTaskListStore((s) => s.files);
@@ -244,6 +248,23 @@ export function useKeyboardShortcuts(
         if (selectedKeys.size !== 1) return;
         e.preventDefault();
         onFocusNewNote();
+        return;
+      }
+
+      // --- Primary modifier + , : Open Settings ---
+      if (isOpenSettingsShortcut(e)) {
+        e.preventDefault();
+        onOpenSettings();
+        return;
+      }
+
+      // --- Primary modifier + / (or a bare ?): Open keyboard-shortcuts help ---
+      if (isOpenShortcutsHelpShortcut(e)) {
+        // A bare "?" is printable, so don't hijack it while typing in a field.
+        // The Cmd+/ form carries a modifier and may fire anywhere, like Cmd+N.
+        if (e.key === "?" && isTyping(e)) return;
+        e.preventDefault();
+        onOpenShortcutsHelp();
         return;
       }
 
@@ -561,6 +582,8 @@ export function useKeyboardShortcuts(
       onNewTask,
       onMoveTasks,
       onFocusNewNote,
+      onOpenSettings,
+      onOpenShortcutsHelp,
       setStatus,
       setPriority,
       setDueDate,

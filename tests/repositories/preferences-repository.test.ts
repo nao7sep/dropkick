@@ -101,7 +101,49 @@ describe("loadPreferences — dateFormat coercion", () => {
   });
 });
 
+describe("loadPreferences — kickDistances normalization", () => {
+  it("de-duplicates and clamps a malformed stored kickDistances array", async () => {
+    // A hand-edited / legacy file with duplicates and an over-large value: must
+    // be normalized on load so the "+N" buttons never render duplicate React
+    // keys or an unclamped distance (the Settings Save path no longer repairs it).
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Messy", kickDistances: [5, 5, 1000, 0, -3] },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.preferences.kickDistances).toEqual([5, 999]);
+  });
+
+  it("falls back to the default pair when stored kickDistances is not a usable array", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Broken", kickDistances: "nope" },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.preferences.kickDistances).toEqual([5, 25]);
+  });
+});
+
 describe("flushPreferences — normalization on write", () => {
+  it("normalizes a malformed in-memory kickDistances before writing", async () => {
+    const bad = createDefaultPreferences("Test");
+    bad.kickDistances = [10, 10, 2000];
+
+    const normalized = await flushPreferences("/prefs.json", () => bad);
+
+    expect(normalized.kickDistances).toEqual([10, 999]);
+    expect(writeJsonFile).toHaveBeenCalledWith(
+      "/prefs.json",
+      expect.objectContaining({ kickDistances: [10, 999] }),
+    );
+  });
+
   it("coerces an out-of-set dateFormat to the default before writing", async () => {
     // Simulate corrupted in-memory state slipping past the typed dropdown: the
     // write path must coerce, symmetric with the load path, so disk never holds
