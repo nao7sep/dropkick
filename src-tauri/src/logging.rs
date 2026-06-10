@@ -4,8 +4,9 @@
 // reference logger for our Tauri apps — keep it self-contained and dependency-free.
 //
 // Design (mirrors ~/code/company/conventions/...-logging-conventions.md):
-//   - One file per process launch:
-//     ~/.dropkick/logs/<yyyymmdd-hhmmss-SSS-utc-p<pid>.log>.
+//   - One file per process launch: ~/.dropkick/logs/<yyyymmdd-hhmmss-utc.log>.
+//     Strictly that stamp — no millisecond, pid, or id suffix. Two launches in
+//     the same UTC second collide on the name, which is accepted, not avoided.
 //   - One JSON object per line: { time, level, message, ...fields }.
 //   - `time` is UTC ISO 8601 with milliseconds and `Z`, generated here without a
 //     date crate (no new heavy deps) via a hand-rolled civil-time conversion.
@@ -106,17 +107,14 @@ fn iso_millis(ms: i64) -> String {
 }
 
 fn filename_stamp(ms: i64) -> String {
-    let (y, mo, d, h, mi, s, ms3) = parts_from_millis(ms);
-    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{ms3:03}-utc")
+    let (y, mo, d, h, mi, s, _ms3) = parts_from_millis(ms);
+    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-utc")
 }
 
-// `<yyyymmdd-hhmmss-SSS-utc-p<pid>.log` for the current launch.
+// `<yyyymmdd-hhmmss-utc.log>` for the current launch — the plain UTC stamp with
+// no suffix; a same-second collision is accepted rather than engineered around.
 pub fn session_filename() -> String {
-    format!(
-        "{}-p{}.log",
-        filename_stamp(now_unix_millis()),
-        std::process::id()
-    )
+    format!("{}.log", filename_stamp(now_unix_millis()))
 }
 
 // --- Redaction: non-destructive, key-name based, recursive, total ---
@@ -388,15 +386,16 @@ mod tests {
 
     #[test]
     fn filename_stamp_matches_known_vector() {
-        assert_eq!(filename_stamp(1_700_000_000_123), "20231114-221320-123-utc");
+        assert_eq!(filename_stamp(1_700_000_000_123), "20231114-221320-utc");
     }
 
     #[test]
-    fn session_filename_includes_process_id() {
+    fn session_filename_is_the_plain_utc_stamp() {
         let filename = session_filename();
+        // Strictly yyyymmdd-hhmmss-utc.log — no millisecond, pid, or id suffix.
         assert!(
-            filename.ends_with(&format!("-p{}.log", std::process::id())),
-            "filename {filename} should include the process id"
+            filename.ends_with("-utc.log") && !filename.contains("-p"),
+            "filename {filename} must be the plain yyyymmdd-hhmmss-utc.log form"
         );
     }
 

@@ -34,10 +34,10 @@ All data lives on your filesystem:
 | Workspace | Any path (default: `~/.dropkick/default-workspace.json`) | Open tabs and recent files |
 | Task lists | Any path | Your tasks |
 | Backups | `~/.dropkick/backups/<workspace-id>/` | Automatic zip backups |
-| Logs | `~/.dropkick/logs/<yyyymmdd-hhmmss-SSS-utc-p<pid>.log>` | One JSON-Lines log per launch |
+| Logs | `~/.dropkick/logs/<yyyymmdd-hhmmss-utc.log>` | One JSON-Lines log per launch |
 
 Each launch writes one session log under `~/.dropkick/logs/`, named by its UTC
-start time and process ID. Every line is a single JSON object (`time`, `level`,
+start time. Every line is a single JSON object (`time`, `level`,
 `message`, plus event-specific fields) recording startup, shutdown, user-level
 actions, warnings, and errors. Developer-only `debug` detail adds low-level file
 and command operation outcomes in a development build or when `DROPKICK_DEBUG=1`
