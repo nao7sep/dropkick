@@ -14,6 +14,10 @@ import {
   hasPrimaryShortcutModifier,
   primaryModifierLabel,
   taskSelectionKey,
+  rowDomId,
+  stepIndex,
+  pageStepIndex,
+  rangeKeysBetween,
 } from "../../utils";
 import {
   groupTasksForList,
@@ -47,6 +51,10 @@ const GROUP_BORDERS: Record<TaskGroup, string> = {
   DueSoon: "border-l-group-duesoon-accent",
   Default: "border-l-transparent",
 };
+
+// Rows moved per PageUp/PageDown press. A fixed step rather than a measured
+// viewport — predictable, and the list rarely needs pixel-accurate paging.
+const LIST_PAGE = 10;
 
 const GROUP_BGS: Record<TaskGroup, string> = {
   PastDue: "bg-group-pastdue-tint/60",
@@ -125,10 +133,27 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   }, [isUnifiedView, openTabs, files, fileLoadErrors]);
   const visibleHandled = grouped.handled.slice(0, handledVisible);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
+  // The listbox container is the single tab stop; DOM focus lives here while the
+  // list is active, so a row unmounting (e.g. a completed task collapsing into
+  // Handled) never drops focus to <body>. anchorRef pins one end of a keyboard
+  // range selection.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const anchorRef = useRef<string | null>(null);
   const dominantSelectedKey = useMemo(() => {
     const keys = [...selectedKeys];
     return keys.length > 0 ? keys[keys.length - 1] : null;
   }, [selectedKeys]);
+
+  // Active task keys in visual (grouped) order — the navigation domain for the
+  // arrow/Home/End/PageUp-Down keys. Handled tasks are excluded, matching the
+  // app's existing keyboard navigation scope.
+  const visualKeys = useMemo(
+    () => grouped.groups.flatMap((g) => g.tasks).map(taskSelectionKey),
+    [grouped],
+  );
+  const activeDescendantId = dominantSelectedKey
+    ? rowDomId(dominantSelectedKey)
+    : undefined;
 
   // Scroll the dominant selected row into view when the selection changes, or
   // when a reorder (kick/tackle/move up/down) shifts the still-selected task
@@ -184,15 +209,98 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       } else {
         next.add(clickedKey);
       }
+      anchorRef.current = clickedKey;
       setSelection(next);
       return;
     }
 
     // Simple click — select only this one.
+    anchorRef.current = clickedKey;
     setSelection(new Set([clickedKey]));
   };
 
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
+
+  // Keyboard-first: focus the list on tab load so arrows work without a click,
+  // but only when nothing else holds focus — never steal from an input or a tab
+  // the user is already on.
+  useEffect(() => {
+    if (document.activeElement === document.body) {
+      listRef.current?.focus();
+    }
+  }, []);
+
+  const focusList = () => {
+    requestAnimationFrame(() => listRef.current?.focus());
+  };
+
+  // Listbox navigation — active only while the list has focus. Command keys
+  // (status/priority/due/dropkick/dismiss/reorder) are intentionally NOT handled
+  // here: they fall through to the global command layer, which skips whatever
+  // this handler consumes via preventDefault.
+  const handleListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented || editingTaskKey !== null) return;
+    // Cmd/Ctrl/Alt combos (reorder, tackle/kick, tab switch) are the global
+    // command layer's; let them bubble untouched.
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    const len = visualKeys.length;
+    if (len === 0) return;
+    const currentIdx = dominantSelectedKey
+      ? visualKeys.indexOf(dominantSelectedKey)
+      : -1;
+
+    const selectSingle = (idx: number) => {
+      const key = visualKeys[idx];
+      anchorRef.current = key;
+      setSelection(new Set([key]));
+    };
+    const extendTo = (idx: number) => {
+      let anchorIdx = anchorRef.current
+        ? visualKeys.indexOf(anchorRef.current)
+        : currentIdx;
+      if (anchorIdx < 0) anchorIdx = idx;
+      setSelection(new Set(rangeKeysBetween(visualKeys, anchorIdx, idx)));
+    };
+
+    let targetIdx: number;
+    switch (e.key) {
+      case "ArrowDown":
+      case "ArrowUp": {
+        const dir = e.key === "ArrowDown" ? 1 : -1;
+        targetIdx =
+          currentIdx === -1
+            ? dir === 1
+              ? 0
+              : len - 1
+            : stepIndex(currentIdx, dir, len);
+        break;
+      }
+      case "Home":
+        targetIdx = 0;
+        break;
+      case "End":
+        targetIdx = len - 1;
+        break;
+      case "PageDown":
+      case "PageUp": {
+        const dir = e.key === "PageDown" ? 1 : -1;
+        targetIdx =
+          currentIdx === -1
+            ? dir === 1
+              ? 0
+              : len - 1
+            : pageStepIndex(currentIdx, dir, LIST_PAGE, len);
+        break;
+      }
+      default:
+        return;
+    }
+
+    e.preventDefault();
+    if (e.shiftKey) extendTo(targetIdx);
+    else selectSingle(targetIdx);
+  };
 
   if (!isUnifiedView && fileLoadError) {
     return (
@@ -210,6 +318,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     if (!cleaned) {
       // Don't allow empty titles — just cancel the rename.
       setEditingTaskKey(null);
+      focusList();
       return;
     }
     if (cleaned !== task.title) {
@@ -220,6 +329,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       }
     }
     setEditingTaskKey(null);
+    focusList();
   };
 
   return (
@@ -263,45 +373,69 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         </div>
       )}
 
-      {/* Scrollable list — group headers stick to the top of this area, just
+      {/* Scrollable region — holds the active-task listbox and the Handled
+          archive below it. Group headers stick to the top of this area, just
           below the fixed New Task button. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[25px]">
-        {/* Active task groups */}
+        {/* Empty state — only when there are no active and no handled tasks. */}
         {grouped.groups.length === 0 && grouped.handledTotal === 0 && (
           <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
             No tasks yet.
           </div>
         )}
 
-        {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
-          <div key={group}>
-            <div
-              className={`sticky top-0 z-10 border-b bg-surface-sunken/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide backdrop-blur ${GROUP_COLORS[group]}`}
-            >
-              {label}
+        {/* The composite listbox: the arrow-navigable active tasks. One tab stop;
+            navigation is handled here and fires only while the list has focus.
+            Rendered even with no active tasks so it stays Tab-reachable. The
+            Handled archive and its buttons live OUTSIDE the listbox so the list
+            stays a single tab stop containing only options. */}
+        <div
+          ref={listRef}
+          role="listbox"
+          aria-multiselectable={true}
+          aria-label="Task list"
+          aria-activedescendant={activeDescendantId}
+          tabIndex={0}
+          onKeyDown={handleListKeyDown}
+          className="group flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
+        >
+          {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
+            <div key={group}>
+              <div
+                className={`sticky top-0 z-10 border-b bg-surface-sunken/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide backdrop-blur ${GROUP_COLORS[group]}`}
+              >
+                {label}
+              </div>
+              {groupTasks.map((task) => {
+                const selectionKey = taskSelectionKey(task);
+                return (
+                  <TaskRow
+                    key={selectionKey}
+                    rowRef={registerRowRef(selectionKey)}
+                    asOption
+                    domId={rowDomId(selectionKey)}
+                    task={task}
+                    group={group}
+                    isSelected={selectedKeys.has(selectionKey)}
+                    isActive={selectionKey === dominantSelectedKey}
+                    isEditing={editingTaskKey === selectionKey}
+                    isUnifiedView={isUnifiedView}
+                    onClick={(e) => handleTaskClick(task, e)}
+                    onDoubleClick={() => setEditingTaskKey(selectionKey)}
+                    onRename={(title) => handleRename(task, title)}
+                    onCancelRename={() => {
+                      setEditingTaskKey(null);
+                      focusList();
+                    }}
+                  />
+                );
+              })}
             </div>
-            {groupTasks.map((task) => {
-              const selectionKey = taskSelectionKey(task);
-              return (
-                <TaskRow
-                  key={selectionKey}
-                  rowRef={registerRowRef(selectionKey)}
-                  task={task}
-                  group={group}
-                  isSelected={selectedKeys.has(selectionKey)}
-                  isEditing={editingTaskKey === selectionKey}
-                  isUnifiedView={isUnifiedView}
-                  onClick={(e) => handleTaskClick(task, e)}
-                  onDoubleClick={() => setEditingTaskKey(selectionKey)}
-                  onRename={(title) => handleRename(task, title)}
-                  onCancelRename={() => setEditingTaskKey(null)}
-                />
-              );
-            })}
-          </div>
-        ))}
+          ))}
+        </div>
 
-        {/* Handled section */}
+        {/* Handled section — a collapsible archive below the listbox, not part of
+            it. Its rows are clickable but not listbox options or arrow-navigable. */}
         {grouped.handledTotal > 0 && (
           <div className="mt-auto">
             <button
@@ -328,7 +462,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                       onClick={(e) => handleTaskClick(task, e)}
                       onDoubleClick={() => setEditingTaskKey(selectionKey)}
                       onRename={(title) => handleRename(task, title)}
-                      onCancelRename={() => setEditingTaskKey(null)}
+                      onCancelRename={() => {
+                        setEditingTaskKey(null);
+                        focusList();
+                      }}
                     />
                   );
                 })}
@@ -352,9 +489,12 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 // Individual task row in the list.
 function TaskRow({
   rowRef,
+  asOption = false,
+  domId,
   task,
   group,
   isSelected,
+  isActive = false,
   isEditing,
   isUnifiedView,
   onClick,
@@ -363,9 +503,14 @@ function TaskRow({
   onCancelRename,
 }: {
   rowRef?: (node: HTMLDivElement | null) => void;
+  // When true, the row is a listbox option (active tasks). Handled archive rows
+  // render without option semantics — they are clickable but not navigable.
+  asOption?: boolean;
+  domId?: string;
   task: Task;
   group: TaskGroup;
   isSelected: boolean;
+  isActive?: boolean;
   isEditing: boolean;
   isUnifiedView: boolean;
   onClick: (e: React.MouseEvent) => void;
@@ -392,12 +537,19 @@ function TaskRow({
   return (
     <div
       ref={rowRef}
+      id={asOption ? domId : undefined}
+      role={asOption ? "option" : undefined}
+      aria-selected={asOption ? isSelected : undefined}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
       className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-border-subtle px-3 py-2 transition-colors ${GROUP_BORDERS[group]} ${
         isSelected
           ? "bg-primary-surface-strong"
           : `${GROUP_BGS[group]} hover:bg-background`
+      } ${
+        asOption && isActive
+          ? "group-focus-within:ring-1 group-focus-within:ring-inset group-focus-within:ring-primary-accent"
+          : ""
       }`}
     >
       {/* Status indicator */}

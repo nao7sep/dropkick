@@ -51,3 +51,57 @@ export function pickNextActiveKey(
 
   return nextTask ? taskSelectionKey(nextTask) : null;
 }
+
+// DOM id for a task row's listbox option element. Stable per selection key and
+// safe as an HTML id (encoding strips whitespace and the NUL separator) so the
+// listbox container can point at the active row via aria-activedescendant.
+export function rowDomId(selectionKey: string): string {
+  return `task-option-${encodeURIComponent(selectionKey)}`;
+}
+
+// Move an index by one step, stopping at the ends (no wrap — the list default).
+// Returns the same index at a boundary; -1 for an empty list.
+export function stepIndex(
+  currentIndex: number,
+  direction: 1 | -1,
+  length: number,
+): number {
+  if (length === 0) return -1;
+  const next = currentIndex + direction;
+  if (next < 0 || next >= length) return currentIndex;
+  return next;
+}
+
+// Move an index by a page, clamped to the list bounds. -1 for an empty list.
+export function pageStepIndex(
+  currentIndex: number,
+  direction: 1 | -1,
+  page: number,
+  length: number,
+): number {
+  if (length === 0) return -1;
+  const next = currentIndex + direction * page;
+  return Math.min(length - 1, Math.max(0, next));
+}
+
+// Keys spanning anchor→target inclusive, ordered so the target is last. Used for
+// keyboard range extension, where the target becomes the new dominant (last in
+// the selection set) item.
+export function rangeKeysBetween(
+  visualKeys: string[],
+  anchorIndex: number,
+  targetIndex: number,
+): string[] {
+  if (anchorIndex < 0 || targetIndex < 0) return [];
+  const step = targetIndex >= anchorIndex ? 1 : -1;
+  const keys: string[] = [];
+  for (
+    let i = anchorIndex;
+    step === 1 ? i <= targetIndex : i >= targetIndex;
+    i += step
+  ) {
+    const key = visualKeys[i];
+    if (key !== undefined) keys.push(key);
+  }
+  return keys;
+}

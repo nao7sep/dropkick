@@ -30,6 +30,10 @@ export {
   pickNextActiveKey,
   taskKey,
   taskSelectionKey,
+  rowDomId,
+  stepIndex,
+  pageStepIndex,
+  rangeKeysBetween,
 } from "./selection";
 
 export { isZoomIn, isZoomOut, isZoomReset, stepZoomIn, stepZoomOut, ZOOM_LEVELS, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX } from "./zoom";

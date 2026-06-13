@@ -487,45 +487,10 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- ↑/↓: Move selection (visual order) ---
-      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-        if (isTyping(e) || mod) return;
-        if (visualTasks.length === 0) return;
-        e.preventDefault();
-
-        const direction = e.key === "ArrowDown" ? 1 : -1;
-
-        if (selectedKeys.size === 0) {
-          const task =
-            direction === 1
-              ? visualTasks[0]
-              : visualTasks[visualTasks.length - 1];
-          setSelection(new Set([taskSelectionKey(task)]));
-          return;
-        }
-
-        // Find the anchor — last item in the selection set.
-        const lastKey = [...selectedKeys].pop()!;
-        const currentIdx = visualTasks.findIndex(
-          (t) => taskSelectionKey(t) === lastKey,
-        );
-        if (currentIdx === -1) {
-          setSelection(new Set([taskSelectionKey(visualTasks[0])]));
-          return;
-        }
-
-        const nextIdx = currentIdx + direction;
-        if (nextIdx < 0 || nextIdx >= visualTasks.length) return;
-
-        if (e.shiftKey) {
-          const next = new Set(selectedKeys);
-          next.add(taskSelectionKey(visualTasks[nextIdx]));
-          setSelection(next);
-        } else {
-          setSelection(new Set([taskSelectionKey(visualTasks[nextIdx])]));
-        }
-        return;
-      }
+      // Plain ArrowUp/ArrowDown navigation lives in the task list itself
+      // (TaskListPane's listbox onKeyDown), so it fires only when the list has
+      // focus — never while focus is in the detail pane. Cmd+Arrow (reorder) is
+      // still handled above as a global command.
 
       // --- Primary modifier + Tab / Primary modifier + Shift + Tab: Switch tabs ---
       if (mod && e.key === "Tab") {
