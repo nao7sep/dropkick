@@ -18,6 +18,8 @@ import {
   stepIndex,
   pageStepIndex,
   rangeKeysBetween,
+  planListArrowDown,
+  type ListArrowDownPlan,
 } from "../../utils";
 import {
   groupTasksForList,
@@ -144,13 +146,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     return keys.length > 0 ? keys[keys.length - 1] : null;
   }, [selectedKeys]);
 
-  // Active task keys in visual (grouped) order — the navigation domain for the
-  // arrow/Home/End/PageUp-Down keys. Handled tasks are excluded, matching the
-  // app's existing keyboard navigation scope.
-  const visualKeys = useMemo(
-    () => grouped.groups.flatMap((g) => g.tasks).map(taskSelectionKey),
-    [grouped],
-  );
+  // The keyboard navigation domain in visual order: active tasks, plus the
+  // visible handled tasks when the Handled archive is expanded, so arrowing
+  // flows continuously from the active list into Handled and back.
+  const visualKeys = useMemo(() => {
+    const active = grouped.groups.flatMap((g) => g.tasks).map(taskSelectionKey);
+    if (!handledExpanded) return active;
+    const handled = grouped.handled
+      .slice(0, handledVisible)
+      .map(taskSelectionKey);
+    return [...active, ...handled];
+  }, [grouped, handledExpanded, handledVisible]);
   const activeDescendantId = dominantSelectedKey
     ? rowDomId(dominantSelectedKey)
     : undefined;
@@ -237,7 +243,11 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   // Listbox navigation — active only while the list has focus. Command keys
   // (status/priority/due/dropkick/dismiss/reorder) are intentionally NOT handled
   // here: they fall through to the global command layer, which skips whatever
-  // this handler consumes via preventDefault.
+  // this handler consumes via preventDefault. Arrowing down past the last visible
+  // item reaches into the Handled archive: it expands on first entry and loads the
+  // next page as the cursor reaches the end, so Up/Down flow continuously through
+  // active tasks and Handled without the disclosure or "show more" ever being a
+  // focusable tab stop.
   const handleListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.defaultPrevented || editingTaskKey !== null) return;
     // Cmd/Ctrl/Alt combos (reorder, tackle/kick, tab switch) are the global
@@ -245,16 +255,15 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
     const len = visualKeys.length;
-    if (len === 0) return;
     const currentIdx = dominantSelectedKey
       ? visualKeys.indexOf(dominantSelectedKey)
       : -1;
 
-    const selectSingle = (idx: number) => {
-      const key = visualKeys[idx];
+    const selectKey = (key: string) => {
       anchorRef.current = key;
       setSelection(new Set([key]));
     };
+    const selectIdx = (idx: number) => selectKey(visualKeys[idx]);
     const extendTo = (idx: number) => {
       let anchorIdx = anchorRef.current
         ? visualKeys.indexOf(anchorRef.current)
@@ -262,44 +271,87 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       if (anchorIdx < 0) anchorIdx = idx;
       setSelection(new Set(rangeKeysBetween(visualKeys, anchorIdx, idx)));
     };
-
-    let targetIdx: number;
-    switch (e.key) {
-      case "ArrowDown":
-      case "ArrowUp": {
-        const dir = e.key === "ArrowDown" ? 1 : -1;
-        targetIdx =
-          currentIdx === -1
-            ? dir === 1
-              ? 0
-              : len - 1
-            : stepIndex(currentIdx, dir, len);
-        break;
+    // Execute an ArrowDown plan (move within the range, or cross the boundary
+    // into the Handled archive). Shared by ArrowDown and the empty-list End case.
+    const applyDownPlan = (plan: ListArrowDownPlan) => {
+      switch (plan.kind) {
+        case "select":
+          if (e.shiftKey) extendTo(plan.index);
+          else selectIdx(plan.index);
+          break;
+        case "expandHandled": {
+          setHandledExpanded(viewKey, true);
+          const first = grouped.handled[0];
+          if (first) selectKey(taskSelectionKey(first));
+          break;
+        }
+        case "showMoreHandled":
+          showMoreHandled(viewKey, pageSize);
+          break;
+        case "none":
+          break;
       }
-      case "Home":
-        targetIdx = 0;
-        break;
-      case "End":
-        targetIdx = len - 1;
-        break;
+    };
+    const downPlan = (cursor: number): ListArrowDownPlan =>
+      planListArrowDown({
+        currentIndex: cursor,
+        length: len,
+        handledExpanded,
+        handledTotal: grouped.handledTotal,
+        handledVisible,
+      });
+
+    switch (e.key) {
+      case "ArrowDown": {
+        e.preventDefault();
+        applyDownPlan(downPlan(currentIdx));
+        return;
+      }
+      case "ArrowUp": {
+        e.preventDefault();
+        if (len === 0) return;
+        const target =
+          currentIdx === -1 ? len - 1 : stepIndex(currentIdx, -1, len);
+        if (e.shiftKey) extendTo(target);
+        else selectIdx(target);
+        return;
+      }
+      case "Home": {
+        e.preventDefault();
+        if (len === 0) return;
+        if (e.shiftKey) extendTo(0);
+        else selectIdx(0);
+        return;
+      }
+      case "End": {
+        e.preventDefault();
+        if (len === 0) {
+          applyDownPlan(downPlan(-1));
+          return;
+        }
+        const last = len - 1;
+        if (e.shiftKey) extendTo(last);
+        else selectIdx(last);
+        return;
+      }
       case "PageDown":
       case "PageUp": {
+        e.preventDefault();
+        if (len === 0) return;
         const dir = e.key === "PageDown" ? 1 : -1;
-        targetIdx =
+        const target =
           currentIdx === -1
             ? dir === 1
               ? 0
               : len - 1
             : pageStepIndex(currentIdx, dir, LIST_PAGE, len);
-        break;
+        if (e.shiftKey) extendTo(target);
+        else selectIdx(target);
+        return;
       }
       default:
         return;
     }
-
-    e.preventDefault();
-    if (e.shiftKey) extendTo(targetIdx);
-    else selectSingle(targetIdx);
   };
 
   if (!isUnifiedView && fileLoadError) {
@@ -373,22 +425,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         </div>
       )}
 
-      {/* Scrollable region — holds the active-task listbox and the Handled
-          archive below it. Group headers stick to the top of this area, just
-          below the fixed New Task button. */}
+      {/* Scrollable region holding the one composite listbox. Group headers and
+          the Handled disclosure stick to the top of this area as the list scrolls,
+          just below the fixed New Task button. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[25px]">
-        {/* Empty state — only when there are no active and no handled tasks. */}
-        {grouped.groups.length === 0 && grouped.handledTotal === 0 && (
-          <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
-            No tasks yet.
-          </div>
-        )}
-
-        {/* The composite listbox: the arrow-navigable active tasks. One tab stop;
-            navigation is handled here and fires only while the list has focus.
-            Rendered even with no active tasks so it stays Tab-reachable. The
-            Handled archive and its buttons live OUTSIDE the listbox so the list
-            stays a single tab stop containing only options. */}
+        {/* The composite listbox: one tab stop spanning the active tasks and the
+            Handled archive. Navigation is handled here and fires only while the
+            list has focus. The Handled disclosure and "show more" are inside it as
+            non-focusable click targets — never tab stops — and the keyboard reaches
+            Handled by arrowing past the last active task (see handleListKeyDown).
+            Flex-1 so the Handled archive's mt-auto sits at the bottom and the empty
+            state centers. */}
         <div
           ref={listRef}
           role="listbox"
@@ -397,8 +444,15 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           aria-activedescendant={activeDescendantId}
           tabIndex={0}
           onKeyDown={handleListKeyDown}
-          className="group flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
+          className="group flex flex-1 flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
         >
+          {/* Empty state — only when there are no active and no handled tasks. */}
+          {grouped.groups.length === 0 && grouped.handledTotal === 0 && (
+            <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
+              No tasks yet.
+            </div>
+          )}
+
           {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
             <div key={group}>
               <div
@@ -432,55 +486,60 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               })}
             </div>
           ))}
+
+          {/* Handled archive — part of the listbox so arrow navigation flows into
+              it. The disclosure and "show more" are non-focusable click targets
+              (mouse toggles/loads; keyboard reaches Handled by arrowing in), so the
+              listbox stays a single tab stop. */}
+          {grouped.handledTotal > 0 && (
+            <div className="mt-auto">
+              <div
+                onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
+                className="flex w-full cursor-pointer select-none items-center gap-2 border-y border-border bg-background px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-muted"
+              >
+                <span>{handledExpanded ? "▾" : "▸"}</span>
+                <span>Handled ({grouped.handledTotal})</span>
+              </div>
+
+              {handledExpanded && (
+                <>
+                  {visibleHandled.map((task) => {
+                    const selectionKey = taskSelectionKey(task);
+                    return (
+                      <TaskRow
+                        key={selectionKey}
+                        rowRef={registerRowRef(selectionKey)}
+                        asOption
+                        domId={rowDomId(selectionKey)}
+                        task={task}
+                        group="Default"
+                        isSelected={selectedKeys.has(selectionKey)}
+                        isActive={selectionKey === dominantSelectedKey}
+                        isEditing={editingTaskKey === selectionKey}
+                        isUnifiedView={isUnifiedView}
+                        onClick={(e) => handleTaskClick(task, e)}
+                        onDoubleClick={() => setEditingTaskKey(selectionKey)}
+                        onRename={(title) => handleRename(task, title)}
+                        onCancelRename={() => {
+                          setEditingTaskKey(null);
+                          focusList();
+                        }}
+                      />
+                    );
+                  })}
+                  {handledVisible < grouped.handledTotal && (
+                    <div
+                      onClick={() => showMoreHandled(viewKey, pageSize)}
+                      className="w-full cursor-pointer select-none py-2 text-center text-xs text-primary hover:bg-primary-surface"
+                    >
+                      Show more ({grouped.handledTotal - handledVisible} remaining)
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
-
-        {/* Handled section — a collapsible archive below the listbox, not part of
-            it. Its rows are clickable but not listbox options or arrow-navigable. */}
-        {grouped.handledTotal > 0 && (
-          <div className="mt-auto">
-            <button
-              onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
-              className="flex w-full items-center gap-2 border-y border-border bg-background px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-muted"
-            >
-              <span>{handledExpanded ? "▾" : "▸"}</span>
-              <span>Handled ({grouped.handledTotal})</span>
-            </button>
-
-            {handledExpanded && (
-              <>
-                {visibleHandled.map((task) => {
-                  const selectionKey = taskSelectionKey(task);
-                  return (
-                    <TaskRow
-                      key={selectionKey}
-                      rowRef={registerRowRef(selectionKey)}
-                      task={task}
-                      group="Default"
-                      isSelected={selectedKeys.has(selectionKey)}
-                      isEditing={editingTaskKey === selectionKey}
-                      isUnifiedView={isUnifiedView}
-                      onClick={(e) => handleTaskClick(task, e)}
-                      onDoubleClick={() => setEditingTaskKey(selectionKey)}
-                      onRename={(title) => handleRename(task, title)}
-                      onCancelRename={() => {
-                        setEditingTaskKey(null);
-                        focusList();
-                      }}
-                    />
-                  );
-                })}
-                {handledVisible < grouped.handledTotal && (
-                  <button
-                    onClick={() => showMoreHandled(viewKey, pageSize)}
-                    className="w-full py-2 text-center text-xs text-primary hover:bg-primary-surface"
-                  >
-                    Show more ({grouped.handledTotal - handledVisible} remaining)
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
@@ -34,6 +35,13 @@ import {
 } from "../../repositories";
 
 type GearMenuItem = "settings" | "shortcuts" | "about";
+
+// Shared styling for menu items. `data-[highlighted]` is Radix's active-item
+// state (keyboard arrow focus and pointer hover both set it).
+const MENU_ITEM_CLASS =
+  "cursor-pointer px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
+const MENU_ITEM_ICON_CLASS =
+  "flex cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
 
 interface TabBarProps {
   onGearMenuSelect: (item: GearMenuItem) => void;
@@ -70,16 +78,13 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
     [workspace.openTabs, files, fileLoadErrors, preferences.timezone],
   );
 
-  const [showNewMenu, setShowNewMenu] = useState(false);
-  const [showGearMenu, setShowGearMenu] = useState(false);
   // Identify the tab being renamed by its filePath (stable across reorder /
   // close / add). Unified view isn't renameable, so filePath uniquely
   // identifies any candidate.
   const [editingPath, setEditingPath] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const gearMenuRef = useRef<HTMLDivElement>(null);
+  const tablistRef = useRef<HTMLDivElement>(null);
 
   // Focus rename input when editing starts.
   useEffect(() => {
@@ -88,29 +93,6 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       editInputRef.current.select();
     }
   }, [editingPath]);
-
-  // Close menus when clicking outside.
-  useEffect(() => {
-    if (!showNewMenu && !showGearMenu) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        showNewMenu &&
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node)
-      ) {
-        setShowNewMenu(false);
-      }
-      if (
-        showGearMenu &&
-        gearMenuRef.current &&
-        !gearMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowGearMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showNewMenu, showGearMenu]);
 
   // --- Drag-and-drop ---
 
@@ -143,7 +125,6 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   // --- Tab actions ---
 
   const handleNewTaskList = async () => {
-    setShowNewMenu(false);
     try {
       const path = await saveJsonFileDialog("tasks.json");
       if (!path) return;
@@ -163,7 +144,6 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   };
 
   const handleOpenExisting = async () => {
-    setShowNewMenu(false);
     try {
       const path = await openJsonFileDialog();
       if (!path) return;
@@ -191,7 +171,6 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   };
 
   const handleOpenRecent = async (path: string) => {
-    setShowNewMenu(false);
     try {
       log.info("open recent task list", { path });
       const loaded = await loadFile(path);
@@ -216,7 +195,6 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
   };
 
   const handleUnifiedView = async () => {
-    setShowNewMenu(false);
     try {
       log.info("open unified view", {});
       await addUnifiedViewTab();
@@ -229,8 +207,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
     }
   };
 
-  const handleCloseTab = async (e: React.MouseEvent, index: number) => {
-    e.stopPropagation();
+  const closeTabAt = async (index: number) => {
     const tab = workspace.openTabs[index];
     log.info("close tab", {
       index,
@@ -240,6 +217,67 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
       await closeTab(index);
     } catch (err) {
       log.error("close tab failed", { index, ...toErrorFields(err) });
+    }
+  };
+
+  const handleCloseTab = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    void closeTabAt(index);
+  };
+
+  // Focus the tab at a given index by its stable data attribute, so arrow
+  // navigation and post-close recovery move DOM focus to the right tab.
+  const focusTabAt = (index: number) => {
+    (
+      tablistRef.current?.querySelector(
+        `[data-tab-index="${index}"]`,
+      ) as HTMLElement | null
+    )?.focus();
+  };
+
+  // The tab bar is a tablist: one tab stop (the active tab), Left/Right move and
+  // activate immediately (automatic activation — switching is cheap), Home/End
+  // jump to the ends, Delete/Backspace closes the focused tab. The close glyph is
+  // pointer-only and never its own tab stop.
+  const handleTablistKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented) return;
+    if ((e.target as HTMLElement).tagName === "INPUT") return; // inline rename
+    const count = workspace.openTabs.length;
+    if (count === 0) return;
+    const current = workspace.activeTabIndex;
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowLeft": {
+        e.preventDefault();
+        const next = current + (e.key === "ArrowRight" ? 1 : -1);
+        if (next < 0 || next >= count) return; // stop at the ends
+        void setActiveTab(next);
+        focusTabAt(next);
+        return;
+      }
+      case "Home": {
+        e.preventDefault();
+        void setActiveTab(0);
+        focusTabAt(0);
+        return;
+      }
+      case "End": {
+        e.preventDefault();
+        void setActiveTab(count - 1);
+        focusTabAt(count - 1);
+        return;
+      }
+      case "Delete":
+      case "Backspace": {
+        e.preventDefault();
+        void closeTabAt(current);
+        requestAnimationFrame(() => {
+          focusTabAt(useWorkspaceStore.getState().workspace.activeTabIndex);
+        });
+        return;
+      }
+      default:
+        return;
     }
   };
 
@@ -280,8 +318,15 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
         strategy={horizontalListSortingStrategy}
       >
         <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
-          {/* Tabs */}
-          {workspace.openTabs.map((tab, index) => {
+          {/* Tabs — one tablist; the active tab is the single tab stop. */}
+          <div
+            ref={tablistRef}
+            role="tablist"
+            aria-label="Open task lists"
+            onKeyDown={handleTablistKeyDown}
+            className="flex flex-wrap items-center"
+          >
+            {workspace.openTabs.map((tab, index) => {
             const hasLoadError =
               !tab.isUnifiedView && fileLoadErrors[tab.filePath] !== undefined;
             // Unified view never gets a dot; computeTabUrgencies returns an
@@ -315,55 +360,58 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                 onEditCancel={() => setEditingPath(null)}
               />
             );
-          })}
+            })}
+          </div>
 
-          {/* New tab button */}
-          <div
-            className="relative shrink-0"
-            data-dropkick-interactive-layer={showNewMenu ? "" : undefined}
-            ref={menuRef}
-          >
-            <button
-              onClick={() => setShowNewMenu(!showNewMenu)}
-              className="flex h-10 w-10 items-center justify-center text-primary transition-colors hover:bg-primary-surface"
-            >
-              <Plus size={16} />
-            </button>
-
-            {showNewMenu && (
-              <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-border bg-surface py-1 shadow-lg">
-                <button
-                  onClick={handleNewTaskList}
-                  className="w-full px-4 py-2 text-left text-sm text-ink hover:bg-background"
+          {/* New-list menu */}
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                aria-label="New or open task list"
+                className="flex h-10 w-10 shrink-0 items-center justify-center text-primary transition-colors hover:bg-primary-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
+              >
+                <Plus size={16} />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                data-dropkick-interactive-layer=""
+                align="start"
+                sideOffset={4}
+                className="z-50 w-64 rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
+              >
+                <DropdownMenu.Item
+                  onSelect={handleNewTaskList}
+                  className={MENU_ITEM_CLASS}
                 >
                   New task list...
-                </button>
-                <button
-                  onClick={handleOpenExisting}
-                  className="w-full px-4 py-2 text-left text-sm text-ink hover:bg-background"
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  onSelect={handleOpenExisting}
+                  className={MENU_ITEM_CLASS}
                 >
                   Open existing file...
-                </button>
+                </DropdownMenu.Item>
                 {!workspace.openTabs.some((t) => t.isUnifiedView) && (
-                  <button
-                    onClick={handleUnifiedView}
-                    className="w-full px-4 py-2 text-left text-sm text-ink hover:bg-background"
+                  <DropdownMenu.Item
+                    onSelect={handleUnifiedView}
+                    className={MENU_ITEM_CLASS}
                   >
                     Unified view
-                  </button>
+                  </DropdownMenu.Item>
                 )}
 
                 {recentFiles.length > 0 && (
                   <>
-                    <div className="my-1 border-t border-border-subtle" />
-                    <div className="px-4 py-1 text-xs font-medium text-ink-muted">
+                    <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
+                    <DropdownMenu.Label className="px-4 py-1 text-xs font-medium text-ink-muted">
                       Recent
-                    </div>
+                    </DropdownMenu.Label>
                     {recentFiles.slice(0, 10).map((r) => (
-                      <button
+                      <DropdownMenu.Item
                         key={r.filePath}
-                        onClick={() => handleOpenRecent(r.filePath)}
-                        className="w-full px-4 py-1.5 text-left text-sm text-ink-soft hover:bg-background"
+                        onSelect={() => handleOpenRecent(r.filePath)}
+                        className="cursor-pointer px-4 py-1.5 text-left text-sm text-ink-soft outline-none data-[highlighted]:bg-background"
                       >
                         <span className="block truncate" title={r.filePath}>
                           {fileNameWithoutExt(r.filePath)}
@@ -371,55 +419,54 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                         <span className="block truncate text-xs text-ink-muted">
                           {r.filePath}
                         </span>
-                      </button>
+                      </DropdownMenu.Item>
                     ))}
                   </>
                 )}
-              </div>
-            )}
-          </div>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
 
           {/* Spacer */}
           <div className="flex-1" />
 
           {/* Gear menu */}
-          <div
-            className="relative shrink-0"
-            data-dropkick-interactive-layer={showGearMenu ? "" : undefined}
-            ref={gearMenuRef}
-          >
-            <button
-              onClick={() => setShowGearMenu(!showGearMenu)}
-              className="flex h-10 w-10 items-center justify-center text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
-              title="Menu"
-            >
-              <Menu size={15} />
-            </button>
-
-            {showGearMenu && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-md border border-border bg-surface py-1 shadow-lg">
-                <button
-                  onClick={() => {
-                    setShowGearMenu(false);
-                    onGearMenuSelect("settings");
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-ink hover:bg-background"
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                aria-label="Menu"
+                title="Menu"
+                className="flex h-10 w-10 shrink-0 items-center justify-center text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
+              >
+                <Menu size={15} />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                data-dropkick-interactive-layer=""
+                align="end"
+                sideOffset={4}
+                className="z-50 w-52 rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
+              >
+                <DropdownMenu.Item
+                  onSelect={() => onGearMenuSelect("settings")}
+                  className={MENU_ITEM_ICON_CLASS}
                 >
                   <Settings size={14} className="text-ink-muted" />
                   Settings
-                </button>
-                <button
-                  onClick={() => {
-                    setShowGearMenu(false);
-                    onGearMenuSelect("shortcuts");
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-ink hover:bg-background"
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  onSelect={() => onGearMenuSelect("shortcuts")}
+                  className={MENU_ITEM_ICON_CLASS}
                 >
                   <Keyboard size={14} className="text-ink-muted" />
                   Keyboard Shortcuts
-                </button>
-                {/* Zoom controls — clicking +/− stays in the menu */}
-                <div className="my-1 border-t border-border-subtle" />
+                </DropdownMenu.Item>
+
+                {/* Zoom — a non-menuitem control embedded in the menu: arrow
+                    navigation skips it, and it is driven by pointer and by the
+                    global zoom shortcuts. Left exactly as the standalone control. */}
+                <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
                 <div className="flex items-center justify-center gap-3 px-3 py-1.5">
                   <span className="text-sm text-ink-soft">Zoom</span>
                   <div className="flex items-center overflow-hidden rounded border border-border">
@@ -460,20 +507,18 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                     </button>
                   </div>
                 </div>
-                <div className="my-1 border-t border-border-subtle" />
-                <button
-                  onClick={() => {
-                    setShowGearMenu(false);
-                    onGearMenuSelect("about");
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-ink hover:bg-background"
+                <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
+
+                <DropdownMenu.Item
+                  onSelect={() => onGearMenuSelect("about")}
+                  className={MENU_ITEM_ICON_CLASS}
                 >
                   <Info size={14} className="text-ink-muted" />
                   About Dropkick
-                </button>
-              </div>
-            )}
-          </div>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
       </SortableContext>
     </DndContext>
@@ -517,6 +562,7 @@ function SortableTab({
   tab,
   hasLoadError,
   urgency,
+  index,
   isActive,
   isEditing,
   editValue,
@@ -528,14 +574,12 @@ function SortableTab({
   onEditSubmit,
   onEditCancel,
 }: SortableTabProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
+  // Spread dnd-kit's `listeners` (pointer drag) but NOT its `attributes`: those
+  // set role="button" and a tab index that would fight the tab semantics and the
+  // tablist's roving tabindex. Keyboard reorder isn't enabled (PointerSensor
+  // only), so dropping the keyboard-drag a11y attributes costs nothing.
+  const { listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
   const composing = useComposing();
 
   const style = {
@@ -549,12 +593,15 @@ function SortableTab({
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
       {...listeners}
+      role="tab"
+      aria-selected={isActive}
+      tabIndex={isActive ? 0 : -1}
+      data-tab-index={index}
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
       title={hasLoadError ? `Load failed: ${tab.filePath}` : undefined}
-      className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-3 py-2 text-sm transition-colors ${
+      className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring ${
         isActive
           ? "bg-primary-surface text-primary-hover"
           : "text-ink hover:bg-background"
@@ -598,6 +645,8 @@ function SortableTab({
 
       <button
         onClick={onClose}
+        tabIndex={-1}
+        aria-label="Close tab"
         className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-surface-muted group-hover:opacity-100"
       >
         <X size={12} />

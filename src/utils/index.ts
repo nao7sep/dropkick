@@ -34,6 +34,8 @@ export {
   stepIndex,
   pageStepIndex,
   rangeKeysBetween,
+  planListArrowDown,
 } from "./selection";
+export type { ListArrowDownPlan } from "./selection";
 
 export { isZoomIn, isZoomOut, isZoomReset, stepZoomIn, stepZoomOut, ZOOM_LEVELS, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX } from "./zoom";

@@ -59,6 +59,8 @@ Reordering and Dropkick operate within a single list, so they do nothing in unif
 
 Detail-pane status changes, task deletion, and moves out of the current non-unified list leave the current task behind, so they use the list review flow and select the next active task. In unified view, moving a task to another list keeps it selected because the task remains visible.
 
+The task list is a single keyboard control: `Tab` moves focus into it and back out as a whole, and the arrow keys navigate within it. `Up` / `Down` move the selection one task at a time and flow continuously from the active groups into the Handled archive — arrowing down past the last active task expands Handled and steps into it, and reveals further pages as you reach the end — so Handled is fully keyboard-reachable. `Home` / `End` jump to the first / last task and `PageUp` / `PageDown` move by a screenful.
+
 ### Task List
 
 | Action | Shortcut |
@@ -81,6 +83,8 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 | Set due date to tomorrow | T |
 | Clear due date | N |
 | Navigate selection | Up / Down |
+| Jump to first / last task | Home / End |
+| Move selection by a page | PageUp / PageDown |
 | Extend selection | Shift+Up / Shift+Down |
 | Clear selection | Esc |
 | Move task up | Cmd+Up |
@@ -109,6 +113,9 @@ Detail-pane status changes, task deletion, and moves out of the current non-unif
 |---|---|
 | Next tab (Windows/Linux) | Ctrl+Tab |
 | Previous tab (Windows/Linux) | Ctrl+Shift+Tab |
+| Switch tabs (when the tab bar is focused) | Left / Right |
+| First / last tab (when the tab bar is focused) | Home / End |
+| Close the focused tab | Delete / Backspace |
 | Close tab | Cmd+W |
 | Unified view | Cmd+U |
 | Rename tab | Double-click tab |

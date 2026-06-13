@@ -105,3 +105,38 @@ export function rangeKeysBetween(
   }
   return keys;
 }
+
+// What ArrowDown should do in the task listbox, given the cursor position in the
+// navigable range and the Handled archive's state. Kept pure so the continuous
+// active→Handled navigation (move within range, expand into Handled on entry,
+// page in more handled tasks, or stop at the true end) is unit-testable apart
+// from the DOM.
+export type ListArrowDownPlan =
+  | { kind: "select"; index: number }
+  | { kind: "expandHandled" }
+  | { kind: "showMoreHandled" }
+  | { kind: "none" };
+
+export function planListArrowDown(params: {
+  currentIndex: number;
+  length: number;
+  handledExpanded: boolean;
+  handledTotal: number;
+  handledVisible: number;
+}): ListArrowDownPlan {
+  const { currentIndex, length, handledExpanded, handledTotal, handledVisible } =
+    params;
+  if (currentIndex !== -1 && currentIndex < length - 1) {
+    return { kind: "select", index: currentIndex + 1 };
+  }
+  if (currentIndex === -1 && length > 0) {
+    return { kind: "select", index: 0 };
+  }
+  if (!handledExpanded && handledTotal > 0) {
+    return { kind: "expandHandled" };
+  }
+  if (handledExpanded && handledVisible < handledTotal) {
+    return { kind: "showMoreHandled" };
+  }
+  return { kind: "none" };
+}
