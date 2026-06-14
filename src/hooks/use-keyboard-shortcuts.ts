@@ -23,6 +23,7 @@ import {
   consumesSpace,
   isOpenSettingsShortcut,
   isOpenShortcutsHelpShortcut,
+  tabCycleDirection,
 } from "../utils";
 
 // Toast messages for actions that are silently disabled in unified view. They
@@ -492,14 +493,15 @@ export function useKeyboardShortcuts(
       // focus — never while focus is in the detail pane. Cmd+Arrow (reorder) is
       // still handled above as a global command.
 
-      // --- Primary modifier + Tab / Primary modifier + Shift + Tab: Switch tabs ---
-      if (mod && e.key === "Tab") {
+      // --- Ctrl+Tab / Ctrl+Shift+Tab: Cycle tabs (literal Ctrl on every
+      // platform — see tabCycleDirection; macOS reserves Cmd+Tab) ---
+      const cycle = tabCycleDirection(e);
+      if (cycle !== null) {
         e.preventDefault();
         const tabs = workspace.openTabs;
         if (tabs.length <= 1) return;
         const current = workspace.activeTabIndex;
-        const direction = e.shiftKey ? -1 : 1;
-        const next = (current + direction + tabs.length) % tabs.length;
+        const next = (current + cycle + tabs.length) % tabs.length;
         await setActiveTab(next);
         return;
       }

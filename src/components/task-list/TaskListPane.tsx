@@ -146,17 +146,24 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     return keys.length > 0 ? keys[keys.length - 1] : null;
   }, [selectedKeys]);
 
+  // Active-task keys and visible-handled keys in visual order, kept separate so
+  // the "expand into Handled" path can build the post-expand domain before the
+  // expansion has re-rendered.
+  const activeKeys = useMemo(
+    () => grouped.groups.flatMap((g) => g.tasks).map(taskSelectionKey),
+    [grouped],
+  );
+  const handledKeys = useMemo(
+    () => grouped.handled.slice(0, handledVisible).map(taskSelectionKey),
+    [grouped, handledVisible],
+  );
   // The keyboard navigation domain in visual order: active tasks, plus the
   // visible handled tasks when the Handled archive is expanded, so arrowing
   // flows continuously from the active list into Handled and back.
-  const visualKeys = useMemo(() => {
-    const active = grouped.groups.flatMap((g) => g.tasks).map(taskSelectionKey);
-    if (!handledExpanded) return active;
-    const handled = grouped.handled
-      .slice(0, handledVisible)
-      .map(taskSelectionKey);
-    return [...active, ...handled];
-  }, [grouped, handledExpanded, handledVisible]);
+  const visualKeys = useMemo(
+    () => (handledExpanded ? [...activeKeys, ...handledKeys] : activeKeys),
+    [activeKeys, handledKeys, handledExpanded],
+  );
   const activeDescendantId = dominantSelectedKey
     ? rowDomId(dominantSelectedKey)
     : undefined;
@@ -187,21 +194,14 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     const clickedKey = taskSelectionKey(task);
 
     if (e.shiftKey && selectedKeys.size > 0) {
-      // Range select: find all tasks between last selected and clicked.
-      const allActive = grouped.groups.flatMap((g) => g.tasks);
+      // Range select over the same domain the keyboard uses (active tasks, plus
+      // Handled when the archive is expanded), so Shift+click into Handled
+      // behaves like Shift+Arrow rather than collapsing to one task.
       const lastSelectedKey = [...selectedKeys].pop()!;
-      const lastIdx = allActive.findIndex(
-        (t) => taskSelectionKey(t) === lastSelectedKey,
-      );
-      const clickIdx = allActive.findIndex((t) => taskSelectionKey(t) === clickedKey);
+      const lastIdx = visualKeys.indexOf(lastSelectedKey);
+      const clickIdx = visualKeys.indexOf(clickedKey);
       if (lastIdx !== -1 && clickIdx !== -1) {
-        const [start, end] = [
-          Math.min(lastIdx, clickIdx),
-          Math.max(lastIdx, clickIdx),
-        ];
-        const rangeKeys = allActive
-          .slice(start, end + 1)
-          .map((t) => taskSelectionKey(t));
+        const rangeKeys = rangeKeysBetween(visualKeys, lastIdx, clickIdx);
         setSelection(new Set([...selectedKeys, ...rangeKeys]));
         return;
       }
@@ -282,7 +282,24 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         case "expandHandled": {
           setHandledExpanded(viewKey, true);
           const first = grouped.handled[0];
-          if (first) selectKey(taskSelectionKey(first));
+          if (!first) break;
+          const firstKey = taskSelectionKey(first);
+          // Shift+Down across the boundary must extend the range into Handled,
+          // not collapse the selection to one task. visualKeys hasn't picked up
+          // the just-toggled expansion yet, so range over the explicit
+          // post-expand domain.
+          if (e.shiftKey) {
+            const postExpand = [...activeKeys, ...handledKeys];
+            const anchorIdx = anchorRef.current
+              ? postExpand.indexOf(anchorRef.current)
+              : -1;
+            const targetIdx = postExpand.indexOf(firstKey);
+            if (anchorIdx >= 0 && targetIdx >= 0) {
+              setSelection(new Set(rangeKeysBetween(postExpand, anchorIdx, targetIdx)));
+              break;
+            }
+          }
+          selectKey(firstKey);
           break;
         }
         case "showMoreHandled":

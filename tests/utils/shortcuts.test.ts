@@ -1,8 +1,49 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { matchesShortcutKey, consumesSpace } from "../../src/utils/shortcuts";
+import {
+  matchesShortcutKey,
+  consumesSpace,
+  tabCycleDirection,
+} from "../../src/utils/shortcuts";
 import { importWithPlatform } from "../helpers/platform";
 
 type ShortcutsModule = typeof import("../../src/utils/shortcuts");
+
+function tabEvent(opts: {
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+  key?: string;
+}) {
+  return {
+    ctrlKey: opts.ctrlKey ?? false,
+    metaKey: opts.metaKey ?? false,
+    altKey: opts.altKey ?? false,
+    shiftKey: opts.shiftKey ?? false,
+    key: opts.key ?? "Tab",
+  };
+}
+
+describe("tabCycleDirection", () => {
+  it("cycles forward on Ctrl+Tab and backward on Ctrl+Shift+Tab", () => {
+    expect(tabCycleDirection(tabEvent({ ctrlKey: true }))).toBe(1);
+    expect(tabCycleDirection(tabEvent({ ctrlKey: true, shiftKey: true }))).toBe(-1);
+  });
+
+  it("requires literal Ctrl — Cmd+Tab does not cycle (macOS reserves it)", () => {
+    // The whole point of the literal-Ctrl rule: Cmd+Tab is the OS app switcher,
+    // so it must not be treated as a tab-cycle even though Cmd is the primary
+    // modifier on macOS.
+    expect(tabCycleDirection(tabEvent({ metaKey: true }))).toBeNull();
+    expect(tabCycleDirection(tabEvent({ ctrlKey: true, metaKey: true }))).toBeNull();
+  });
+
+  it("ignores Alt and non-Tab keys", () => {
+    expect(tabCycleDirection(tabEvent({ ctrlKey: true, altKey: true }))).toBeNull();
+    expect(tabCycleDirection(tabEvent({ ctrlKey: true, key: "w" }))).toBeNull();
+    expect(tabCycleDirection(tabEvent({ key: "Tab" }))).toBeNull();
+  });
+});
 
 // Build a fake event target. `role` becomes what getAttribute("role") returns.
 function target(opts: {

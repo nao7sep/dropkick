@@ -23,6 +23,7 @@ export {
   primaryModifierLabel,
   isOpenSettingsShortcut,
   isOpenShortcutsHelpShortcut,
+  tabCycleDirection,
 } from "./shortcuts";
 
 export {

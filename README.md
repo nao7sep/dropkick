@@ -19,7 +19,7 @@ Built with Tauri v2, React, and TypeScript.
 - **Keyboard-first workflow** — selection shortcuts can change status, priority, and due dates; dialogs close with `Esc`
 - **Resizable sidebar** — drag the divider between the task list and detail pane
 - **File integrity** — SHA-256 hash checks detect external modifications before overwriting; if a file changed outside Dropkick, you can overwrite or reload, and if it was deleted, you can recreate it or cancel the change
-- **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically)
+- **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically); can be turned off in Settings
 - **IME composition support** — Japanese/Chinese/Korean input works correctly in all text fields
 - **Configurable** — font family, dark mode, timezone, kick distances, due soon window, handled tasks page size in Settings; zoom (50%–500%) via the gear menu or keyboard shortcuts
 
@@ -111,8 +111,8 @@ The task list is a single keyboard control: `Tab` moves focus into it and back o
 
 | Action | Shortcut |
 |---|---|
-| Next tab (Windows/Linux) | Ctrl+Tab |
-| Previous tab (Windows/Linux) | Ctrl+Shift+Tab |
+| Next tab | Ctrl+Tab |
+| Previous tab | Ctrl+Shift+Tab |
 | Switch tabs (when the tab bar is focused) | Left / Right |
 | First / last tab (when the tab bar is focused) | Home / End |
 | Close the focused tab | Delete / Backspace |

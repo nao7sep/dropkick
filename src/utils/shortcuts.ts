@@ -107,6 +107,20 @@ export function isOpenShortcutsHelpShortcut(
   );
 }
 
+// Ctrl+Tab cycles to the next tab and Ctrl+Shift+Tab to the previous — a
+// LITERAL Ctrl on every platform, macOS included. The tab-cycle deliberately
+// does NOT use the platform primary modifier: on macOS Cmd+Tab is reserved by
+// the OS for app switching (so it would never reach the app), while Ctrl+Tab is
+// free there and is the cross-platform browser convention. Returns the cycle
+// direction (+1 next, -1 previous), or null when the event isn't a tab-cycle
+// chord.
+export function tabCycleDirection(event: UtilityShortcutEvent): 1 | -1 | null {
+  if (!event.ctrlKey || event.metaKey || event.altKey || event.key !== "Tab") {
+    return null;
+  }
+  return event.shiftKey ? -1 : 1;
+}
+
 // True when the focused element should keep Space for itself. Everywhere else
 // Space is free to act as the Dropkick key and must be stopped from scrolling
 // the list.

@@ -1,7 +1,7 @@
 // App root — orchestrates the startup picker and main window.
 // On launch: initialize app config → show startup picker → load preferences & workspace → show main window.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
@@ -29,6 +29,9 @@ function App() {
   const initializeAppConfig = useAppConfigStore((s) => s.initialize);
   const setLastPaths = useAppConfigStore((s) => s.setLastPaths);
   const darkMode = usePreferencesStore((s) => s.preferences.darkMode);
+  // Guards against a double Launch: phase stays "startup" until the awaited
+  // loads finish, so two quick clicks would otherwise both run the sequence.
+  const launchingRef = useRef(false);
 
   // Apply the theme to <html> so it covers the startup picker, main window, and
   // every Radix modal (those portal to <body>, outside the React tree). The
@@ -62,58 +65,63 @@ function App() {
     preferencesPath: string,
     workspacePath: string,
   ) => {
-    if (phase.kind !== "startup") return;
+    if (phase.kind !== "startup" || launchingRef.current) return;
+    launchingRef.current = true;
+    try {
+      log.info("user launch", { preferencesPath, workspacePath });
 
-    log.info("user launch", { preferencesPath, workspacePath });
+      // Load preferences and workspace into stores.
+      const preferencesResult = await loadPreferences(preferencesPath);
+      if (preferencesResult.status !== "success") {
+        log.warn(
+          "preferences load failed",
+          loadFailureFields(preferencesPath, preferencesResult),
+        );
+        await showMessage(
+          "Preferences Load Failed",
+          preferencesLoadErrorMessage(preferencesPath, preferencesResult),
+        );
+        return;
+      }
 
-    // Load preferences and workspace into stores.
-    const preferencesResult = await loadPreferences(preferencesPath);
-    if (preferencesResult.status !== "success") {
-      log.warn(
-        "preferences load failed",
-        loadFailureFields(preferencesPath, preferencesResult),
-      );
-      await showMessage(
-        "Preferences Load Failed",
-        preferencesLoadErrorMessage(preferencesPath, preferencesResult),
-      );
-      return;
+      const workspaceResult = await loadWorkspace(workspacePath);
+      if (workspaceResult.status !== "success") {
+        log.warn(
+          "workspace load failed",
+          loadFailureFields(workspacePath, workspaceResult),
+        );
+        await showMessage(
+          "Workspace Load Failed",
+          workspaceLoadErrorMessage(workspacePath, workspaceResult),
+        );
+        return;
+      }
+
+      // Remember only a successfully loaded selection.
+      await setLastPaths(preferencesPath, workspacePath);
+
+      // Start backup system: immediate backup + periodic backups every hour.
+      // Does not block the main window from appearing.
+      const workspace = useWorkspaceStore.getState().workspace;
+      startBackupSchedule(workspace.id, preferencesPath, workspacePath);
+
+      // Record the effective configuration once the session is live: the
+      // preferences object (no secret-bearing fields) and a workspace summary.
+      const preferences = preferencesResult.preferences;
+      log.info("session ready", {
+        preferences,
+        workspace: {
+          id: workspace.id,
+          openTabs: workspace.openTabs.length,
+          recentFiles: workspace.recentFiles.length,
+        },
+      });
+
+      setPhase({ kind: "main" });
+    } finally {
+      // On failure, allow a retry; on success the picker unmounts so this is moot.
+      launchingRef.current = false;
     }
-
-    const workspaceResult = await loadWorkspace(workspacePath);
-    if (workspaceResult.status !== "success") {
-      log.warn(
-        "workspace load failed",
-        loadFailureFields(workspacePath, workspaceResult),
-      );
-      await showMessage(
-        "Workspace Load Failed",
-        workspaceLoadErrorMessage(workspacePath, workspaceResult),
-      );
-      return;
-    }
-
-    // Remember only a successfully loaded selection.
-    await setLastPaths(preferencesPath, workspacePath);
-
-    // Start backup system: immediate backup + periodic backups every hour.
-    // Does not block the main window from appearing.
-    const workspace = useWorkspaceStore.getState().workspace;
-    startBackupSchedule(workspace.id, preferencesPath, workspacePath);
-
-    // Record the effective configuration once the session is live: the
-    // preferences object (no secret-bearing fields) and a workspace summary.
-    const preferences = preferencesResult.preferences;
-    log.info("session ready", {
-      preferences,
-      workspace: {
-        id: workspace.id,
-        openTabs: workspace.openTabs.length,
-        recentFiles: workspace.recentFiles.length,
-      },
-    });
-
-    setPhase({ kind: "main" });
   };
 
   let content: ReactNode;

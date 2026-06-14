@@ -169,7 +169,12 @@ export function TaskDetail({
       return;
     }
 
-    setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
+    // Advance only when the change moves the task out of the active list
+    // (Completed/Dismissed), matching the bulk action. Re-opening to Pending
+    // keeps the task visible, so keep it selected for continued editing.
+    if (status === "Completed" || status === "Dismissed") {
+      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
+    }
   };
 
   const handlePriorityChange = async (priority: TaskPriority) => {
