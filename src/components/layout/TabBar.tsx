@@ -633,7 +633,10 @@ function SortableTab({
               if (isComposingKeyboardEvent(composing.composingRef, e)) return;
               onEditSubmit();
             }
-            if (e.key === "Escape") onEditCancel();
+            if (e.key === "Escape") {
+              if (isComposingKeyboardEvent(composing.composingRef, e)) return;
+              onEditCancel();
+            }
           }}
           {...composing.handlers}
           className="w-24 rounded border border-primary-ring px-1 text-sm outline-none"

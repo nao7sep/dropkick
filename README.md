@@ -59,7 +59,7 @@ Reordering and Dropkick operate within a single list, so they do nothing in unif
 
 Detail-pane status changes, task deletion, and moves out of the current non-unified list leave the current task behind, so they use the list review flow and select the next active task. In unified view, moving a task to another list keeps it selected because the task remains visible.
 
-The task list is a single keyboard control: `Tab` moves focus into it and back out as a whole, and the arrow keys navigate within it. `Up` / `Down` move the selection one task at a time and flow continuously from the active groups into the Handled archive — arrowing down past the last active task expands Handled and steps into it, and reveals further pages as you reach the end — so Handled is fully keyboard-reachable. `Home` / `End` jump to the first / last task and `PageUp` / `PageDown` move by a screenful.
+The task list is a single keyboard control: `Tab` moves focus into it and back out as a whole, and the arrow keys navigate within it. `Up` / `Down` move the selection one task at a time. Arrowing `Down` past the last active task expands the Handled archive and steps into it, revealing further pages as you reach the end, so Handled is fully keyboard-reachable; `Up` then walks back up through the list, including out of Handled. `Home` / `End` jump to the first / last task and `PageUp` / `PageDown` move by a screenful.
 
 ### Task List
 

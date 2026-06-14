@@ -635,6 +635,7 @@ function TaskRow({
               onRename(draft);
             }
             if (e.key === "Escape") {
+              if (isComposingKeyboardEvent(composing.composingRef, e)) return;
               e.preventDefault();
               onCancelRename();
             }
