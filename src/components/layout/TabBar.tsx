@@ -318,13 +318,18 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
         strategy={horizontalListSortingStrategy}
       >
         <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
-          {/* Tabs — one tablist; the active tab is the single tab stop. */}
+          {/* The tablist wrapper is display:contents (creates no box), so the
+              tabs flow directly in this flex-wrap row alongside the new-list +
+              button: when tabs overflow they wrap onto additional rows and + stays
+              right after the last tab, instead of the tablist becoming a
+              full-width block that pushes + onto its own row. The wrapper still
+              carries the tablist role + keyboard navigation. */}
           <div
             ref={tablistRef}
             role="tablist"
             aria-label="Open task lists"
             onKeyDown={handleTablistKeyDown}
-            className="flex flex-wrap items-center"
+            className="contents"
           >
             {workspace.openTabs.map((tab, index) => {
             const hasLoadError =
@@ -427,7 +432,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
 
-          {/* Spacer */}
+          {/* Spacer pushes the gear menu to the right edge. */}
           <div className="flex-1" />
 
           {/* Gear menu */}

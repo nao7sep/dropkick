@@ -315,9 +315,20 @@ describe("reorderTick scroll-follow signal", () => {
     useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
     const before = useTaskListStore.getState().reorderTick;
     const result = await useTaskListStore.getState().dropkick(FILE);
-    expect(result).toEqual({ status: "success" });
+    // Reports a real reorder so the keyboard handler advances selection only
+    // when something actually moved.
+    expect(result).toEqual({ status: "success", changed: true });
     expect(tasksOf().map((t) => t.id)).toEqual(["b", "a"]); // a sent to bottom
     expect(useTaskListStore.getState().reorderTick).toBe(before);
+  });
+
+  it("reports changed:false for a dropkick that moves nothing", async () => {
+    // A single Default/Pending task with no due date is already at the bottom,
+    // so dropkick is a no-op — the keyboard handler must not advance selection.
+    seedFile([makeTask({ id: "a" })]);
+    useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
+    const result = await useTaskListStore.getState().dropkick(FILE);
+    expect(result).toEqual({ status: "success", changed: false });
   });
 
   it("does not increment for status changes", async () => {

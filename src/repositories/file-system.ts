@@ -1,9 +1,17 @@
-// Low-level file system operations via Tauri plugins.
-// All file I/O goes through this module — no other code touches Tauri fs directly.
+// Low-level file system operations, all via the Rust core (Tauri commands).
+// The webview has NO direct filesystem access — no fs plugin, no `$HOME/**`
+// scope — so a compromised renderer cannot read or write arbitrary files; the
+// Rust core reaches only the specific paths these commands are handed. All file
+// I/O goes through this module.
 
-import { readTextFile, writeTextFile, exists, mkdir } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { log, toErrorFields } from "./logging";
+
+// Mirror of the Rust TextReadResult union (read_text_file command).
+type TextReadResult =
+  | { status: "success"; text: string }
+  | { status: "missing" }
+  | { status: "error"; message: string };
 
 export type JsonReadResult<T> =
   | { status: "success"; data: T }
@@ -30,25 +38,34 @@ export async function readJsonFile<T>(path: string): Promise<T | null> {
 export async function readJsonFileResult<T>(
   path: string,
 ): Promise<JsonReadResult<T>> {
+  let result: TextReadResult;
   try {
-    const fileExists = await exists(path);
-    if (!fileExists) return { status: "missing" };
-
-    const text = await readTextFile(path);
-    try {
-      return { status: "success", data: JSON.parse(text) as T };
-    } catch (e) {
-      return {
-        status: "invalid",
-        message: e instanceof Error ? e.message : String(e),
-      };
-    }
+    result = await invoke<TextReadResult>("read_text_file", { path });
   } catch (e) {
     return {
       status: "error",
       message: e instanceof Error ? e.message : String(e),
     };
   }
+  if (result.status === "missing") return { status: "missing" };
+  if (result.status === "error") return { status: "error", message: result.message };
+  try {
+    return { status: "success", data: JSON.parse(result.text) as T };
+  } catch (e) {
+    return {
+      status: "invalid",
+      message: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+// Reads a file's raw text content, throwing if it is missing or unreadable.
+// Backup relies on the throw to skip files it cannot read.
+export async function readTextFileContent(path: string): Promise<string> {
+  const result = await invoke<TextReadResult>("read_text_file", { path });
+  if (result.status === "success") return result.text;
+  if (result.status === "missing") throw new Error(`File not found: ${path}`);
+  throw new Error(result.message);
 }
 
 // Reads a JSON file once via the backend and returns the parsed data plus a
@@ -68,7 +85,9 @@ export async function readJsonFileWithHash<T>(
 export async function writeJsonFile<T>(path: string, data: T): Promise<void> {
   const text = JSON.stringify(data, null, 2);
   try {
-    await writeTextFile(path, text);
+    // Atomic on the Rust side (temp + fsync + rename), so a crash mid-write
+    // never leaves a half-written file.
+    await invoke("write_text_file_atomic", { path, contents: text });
     log.debug("file write", { path, chars: text.length });
   } catch (e) {
     log.error("file write failed", { path, ...toErrorFields(e) });
@@ -79,23 +98,18 @@ export async function writeJsonFile<T>(path: string, data: T): Promise<void> {
 // Computes SHA-256 hash of a file via the Rust backend.
 // Returns null if the file does not exist.
 export async function hashFile(path: string): Promise<string | null> {
-  const fileExists = await exists(path);
-  if (!fileExists) return null;
-
+  if (!(await fileExists(path))) return null;
   return await invoke<string>("hash_file", { path });
 }
 
 // Checks if a file exists on disk.
 export async function fileExists(path: string): Promise<boolean> {
-  return await exists(path);
+  return await invoke<boolean>("file_exists", { path });
 }
 
-// Ensures a directory exists, creating it recursively if needed.
+// Ensures a directory exists, creating it recursively if needed (idempotent).
 export async function ensureDirectory(path: string): Promise<void> {
-  const dirExists = await exists(path);
-  if (!dirExists) {
-    await mkdir(path, { recursive: true });
-  }
+  await invoke("ensure_dir", { path });
 }
 
 // --- Per-key serialization ---

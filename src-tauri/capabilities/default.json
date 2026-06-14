@@ -9,24 +9,6 @@
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
-    {
-      "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick/**" }]
-    },
-    {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick/**" }]
-    },
-    {
-      "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick" }, { "path": "$HOME/.dropkick/**" }]
-    },
-    {
-      "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/.dropkick" }, { "path": "$HOME/.dropkick/**" }]
-    },
-    "fs:default",
-    "store:default",
     "core:window:allow-destroy",
     "core:window:allow-set-title",
     "core:window:allow-set-theme",

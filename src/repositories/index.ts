@@ -5,6 +5,7 @@ export {
   readJsonFile,
   readJsonFileResult,
   readJsonFileWithHash,
+  readTextFileContent,
   writeJsonFile,
   hashFile,
   fileExists,

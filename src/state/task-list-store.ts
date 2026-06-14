@@ -73,7 +73,10 @@ type FileLoadError =
 
 // Result returned to UI callers of mutating actions.
 export type ActionResult =
-  | { status: "success" }
+  // `changed` (set by reorder actions like dropkick) reports whether the
+  // operation actually moved anything, so callers can advance selection only on
+  // a real change rather than guessing from the pre-state.
+  | { status: "success"; changed?: boolean }
   | { status: "validation"; reason: string }
   | { status: "error"; message: string };
 
@@ -905,7 +908,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         prefs.timezone,
         prefs.dueSoonDays,
       );
-      if (newTasks === fileState.data.tasks) return { status: "success" };
+      if (newTasks === fileState.data.tasks) return { status: "success", changed: false };
 
       set((state) => {
         const f = state.files[filePath];
@@ -926,9 +929,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
         };
       });
-      return flush(filePath, "dropkick tasks", {
+      const result = await flush(filePath, "dropkick tasks", {
         selected: selectedTaskIds.size,
       });
+      return result.status === "success" ? { ...result, changed: true } : result;
     },
 
     // --- Two-file move ---

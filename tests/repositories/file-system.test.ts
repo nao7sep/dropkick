@@ -1,14 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
-// file-system.ts imports Tauri plugins at module top level. The serialization
-// helpers themselves use only promises, so stub the plugins to keep the import
-// pure under the node test environment.
-vi.mock("@tauri-apps/plugin-fs", () => ({
-  readTextFile: vi.fn(),
-  writeTextFile: vi.fn(),
-  exists: vi.fn(),
-  mkdir: vi.fn(),
-}));
+// file-system.ts imports the Tauri core `invoke` at module top level. The
+// serialization helpers under test use only promises, so stub invoke to keep
+// the import pure under the node test environment.
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 import { withSerial, withSerialTwo, drainAllSerial } from "../../src/repositories/file-system";

@@ -9,8 +9,7 @@
 
 import { homeDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
-import { readTextFile } from "@tauri-apps/plugin-fs";
-import { withSerial, log, toErrorFields } from "../repositories";
+import { withSerial, readTextFileContent, log, toErrorFields } from "../repositories";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 import {
@@ -59,7 +58,7 @@ async function createBackup(
   for (const [sourcePath, entryName] of sources) {
     try {
       const content = await withSerial(sourcePath, () =>
-        readTextFile(sourcePath),
+        readTextFileContent(sourcePath),
       );
       entries.push([entryName, content]);
     } catch (e) {

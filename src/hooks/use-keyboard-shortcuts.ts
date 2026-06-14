@@ -389,14 +389,15 @@ export function useKeyboardShortcuts(
           return;
         }
         if (selectedTasks.length === 0) return;
-        const willChange = selectedTasks.some((task) => task.status === "Pending");
         const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
         const result = await dropkick(filePath);
         if (result.status === "error") {
           await showMessage("Task Reorder Failed", result.message);
           return;
         }
-        if (willChange) {
+        // Advance only when the reorder actually moved something (the store
+        // reports it), not on a no-op dropkick of an already-bottom task.
+        if (result.status === "success" && result.changed) {
           setSelection(nextKey ? new Set([nextKey]) : new Set());
         }
         return;

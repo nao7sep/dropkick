@@ -491,6 +491,9 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                     isActive={selectionKey === dominantSelectedKey}
                     isEditing={editingTaskKey === selectionKey}
                     isUnifiedView={isUnifiedView}
+                    sourceLabel={
+                      isUnifiedView ? tabDisplayName(task.sourceFile, openTabs) : undefined
+                    }
                     onClick={(e) => handleTaskClick(task, e)}
                     onDoubleClick={() => setEditingTaskKey(selectionKey)}
                     onRename={(title) => handleRename(task, title)}
@@ -514,7 +517,9 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                 onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
                 className="flex w-full cursor-pointer select-none items-center gap-2 border-y border-border bg-background px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-muted"
               >
-                <span>{handledExpanded ? "▾" : "▸"}</span>
+                <span className="flex items-center">
+                  {handledExpanded ? "▾" : "▸"}
+                </span>
                 <span>Handled ({grouped.handledTotal})</span>
               </div>
 
@@ -534,6 +539,9 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                         isActive={selectionKey === dominantSelectedKey}
                         isEditing={editingTaskKey === selectionKey}
                         isUnifiedView={isUnifiedView}
+                        sourceLabel={
+                          isUnifiedView ? tabDisplayName(task.sourceFile, openTabs) : undefined
+                        }
                         onClick={(e) => handleTaskClick(task, e)}
                         onDoubleClick={() => setEditingTaskKey(selectionKey)}
                         onRename={(title) => handleRename(task, title)}
@@ -573,6 +581,7 @@ function TaskRow({
   isActive = false,
   isEditing,
   isUnifiedView,
+  sourceLabel,
   onClick,
   onDoubleClick,
   onRename,
@@ -589,6 +598,9 @@ function TaskRow({
   isActive?: boolean;
   isEditing: boolean;
   isUnifiedView: boolean;
+  // Resolved source-list label, shown in unified view. Computed by the parent
+  // from the subscribed open tabs so a tab rename updates the row immediately.
+  sourceLabel?: string;
   onClick: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
   onRename: (title: string) => void;
@@ -631,10 +643,10 @@ function TaskRow({
       {/* Status indicator */}
       <span className="shrink-0 text-xs">
         {task.status === "Completed" && (
-          <span className="text-success">✓</span>
+          <span className="flex items-center text-success">✓</span>
         )}
         {task.status === "Dismissed" && (
-          <span className="text-ink-muted">✗</span>
+          <span className="flex items-center text-ink-muted">✗</span>
         )}
       </span>
 
@@ -683,7 +695,7 @@ function TaskRow({
       {/* Source file label (unified view only) */}
       {isUnifiedView && (
         <span className="shrink-0 max-w-[30%] truncate text-xs text-ink-muted">
-          {tabDisplayName(task.sourceFile)}
+          {sourceLabel}
         </span>
       )}
     </div>
@@ -743,10 +755,14 @@ function loadErrorMessage(
   return `The task list file could not be loaded:\n\n${error.message}`;
 }
 
-/** Look up the tab's display name for a file path; fall back to raw filename. */
-function tabDisplayName(path: string): string {
-  const tabs = useWorkspaceStore.getState().workspace.openTabs;
-  const tab = tabs.find((t) => t.filePath === path);
+/** Look up the tab's display name for a file path; fall back to raw filename.
+ * Pure over the passed-in tabs (subscribed by the caller), so a tab rename
+ * re-renders the affected rows instead of reading a stale getState() snapshot. */
+function tabDisplayName(
+  path: string,
+  openTabs: readonly { filePath: string; displayName: string }[],
+): string {
+  const tab = openTabs.find((t) => t.filePath === path);
   if (tab) return tab.displayName;
   const parts = path.split(/[\\/]/);
   return (parts[parts.length - 1] ?? "").replace(/\.json$/, "");

@@ -301,6 +301,131 @@ fn delete_file(path: String) -> Result<(), String> {
     }
 }
 
+// Generic text read with an explicit missing/success/error union — the
+// non-task-list counterpart to read_json_file_with_hash. Moving plain reads here
+// (alongside writes/exists/mkdir below) is what lets the webview drop the Tauri
+// fs plugin and its broad `$HOME/**` scope: the Rust core reaches the user's
+// chosen files directly, so a compromised renderer cannot.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+enum TextReadResult {
+    Success { text: String },
+    Missing,
+    Error { message: String },
+}
+
+#[tauri::command]
+fn read_text_file(path: &str) -> Result<TextReadResult, String> {
+    let started = log_cmd_start("read_text_file", json!({ "path": path }));
+    match std::fs::read_to_string(path) {
+        Ok(text) => {
+            log_cmd_ok(
+                "read_text_file",
+                started,
+                json!({ "path": path, "bytes": text.len(), "outcome": "success" }),
+            );
+            Ok(TextReadResult::Success { text })
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            log_cmd_ok(
+                "read_text_file",
+                started,
+                json!({ "path": path, "outcome": "missing" }),
+            );
+            Ok(TextReadResult::Missing)
+        }
+        Err(err) => {
+            log_cmd_ok(
+                "read_text_file",
+                started,
+                json!({ "path": path, "outcome": "error", "error": { "message": err.to_string() } }),
+            );
+            Ok(TextReadResult::Error {
+                message: err.to_string(),
+            })
+        }
+    }
+}
+
+// Atomic write: write to a temp file in the same directory, fsync it, then
+// rename over the target (and fsync the directory) so a crash or power loss can
+// never leave a half-written task/config file — the renamed-in file is either
+// the old bytes or the complete new bytes. The parent directory must already
+// exist (callers ensure_dir first), matching the previous plugin behavior.
+#[tauri::command]
+fn write_text_file_atomic(path: &str, contents: &str) -> Result<(), String> {
+    let started = log_cmd_start(
+        "write_text_file_atomic",
+        json!({ "path": path, "bytes": contents.len() }),
+    );
+    let result = write_atomic(path, contents);
+    match &result {
+        Ok(()) => log_cmd_ok(
+            "write_text_file_atomic",
+            started,
+            json!({ "path": path, "bytes": contents.len() }),
+        ),
+        Err(message) => log_cmd_err("write_text_file_atomic", started, message.clone()),
+    }
+    result
+}
+
+fn write_atomic(path: &str, contents: &str) -> Result<(), String> {
+    use std::io::Write;
+    let target = std::path::Path::new(path);
+    let parent = target
+        .parent()
+        .ok_or_else(|| "path has no parent directory".to_string())?;
+    let file_name = target
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| "path has no file name".to_string())?;
+    let tmp = parent.join(format!(".{}.{}.tmp", file_name, std::process::id()));
+
+    let write_tmp = (|| -> std::io::Result<()> {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()?;
+        Ok(())
+    })();
+    if let Err(e) = write_tmp {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e.to_string());
+    }
+
+    if let Err(e) = std::fs::rename(&tmp, target) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e.to_string());
+    }
+
+    // Best-effort: persist the rename itself by fsyncing the directory.
+    if let Ok(dir) = std::fs::File::open(parent) {
+        let _ = dir.sync_all();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn file_exists(path: &str) -> bool {
+    std::path::Path::new(path).exists()
+}
+
+#[tauri::command]
+fn ensure_dir(path: &str) -> Result<(), String> {
+    let started = log_cmd_start("ensure_dir", json!({ "path": path }));
+    match std::fs::create_dir_all(path) {
+        Ok(()) => {
+            log_cmd_ok("ensure_dir", started, json!({ "path": path }));
+            Ok(())
+        }
+        Err(e) => {
+            let message = e.to_string();
+            log_cmd_err("ensure_dir", started, message.clone());
+            Err(message)
+        }
+    }
+}
+
 // Receives a structured log object from the webview frontend and writes it to
 // the session file (the frontend has no filesystem access of its own).
 #[tauri::command]
@@ -460,6 +585,72 @@ mod tests {
         let path = dir.join("nope.txt");
         assert!(delete_file(path.to_str().unwrap().to_string()).is_err());
     }
+
+    #[test]
+    fn read_text_file_returns_missing_success_states() {
+        let dir = unique_temp_dir("read-text");
+        let missing = dir.join("nope.txt");
+        assert!(matches!(
+            read_text_file(missing.to_str().unwrap()).unwrap(),
+            TextReadResult::Missing
+        ));
+
+        let path = dir.join("f.txt");
+        std::fs::write(&path, "héllo\nworld").unwrap();
+        match read_text_file(path.to_str().unwrap()).unwrap() {
+            TextReadResult::Success { text } => assert_eq!(text, "héllo\nworld"),
+            other => panic!("expected Success, got {:?}", serde_json::to_string(&other)),
+        }
+    }
+
+    #[test]
+    fn write_text_file_atomic_writes_and_replaces() {
+        let dir = unique_temp_dir("write-atomic");
+        let path = dir.join("f.json");
+        let p = path.to_str().unwrap();
+
+        write_text_file_atomic(p, "first").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "first");
+
+        // Overwriting replaces the content atomically (rename over existing).
+        write_text_file_atomic(p, "second longer contents").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "second longer contents");
+
+        // No stray temp files left behind in the directory.
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left: {leftovers:?}");
+    }
+
+    #[test]
+    fn write_text_file_atomic_errors_when_parent_missing() {
+        let dir = unique_temp_dir("write-no-parent");
+        let path = dir.join("missing-subdir").join("f.json");
+        assert!(write_text_file_atomic(path.to_str().unwrap(), "x").is_err());
+    }
+
+    #[test]
+    fn file_exists_reflects_presence() {
+        let dir = unique_temp_dir("exists");
+        let path = dir.join("f.txt");
+        assert!(!file_exists(path.to_str().unwrap()));
+        std::fs::write(&path, b"x").unwrap();
+        assert!(file_exists(path.to_str().unwrap()));
+    }
+
+    #[test]
+    fn ensure_dir_creates_nested_and_is_idempotent() {
+        let dir = unique_temp_dir("ensure");
+        let nested = dir.join("a").join("b").join("c");
+        let p = nested.to_str().unwrap();
+        ensure_dir(p).unwrap();
+        assert!(nested.is_dir());
+        // Idempotent: calling again on an existing dir is fine.
+        ensure_dir(p).unwrap();
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -474,8 +665,6 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
         .setup(move |app| {
             // Open the per-session log file under the app's own data dir. The Rust
             // core has filesystem access even though the webview is sandboxed.
@@ -506,6 +695,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             hash_file,
             read_json_file_with_hash,
+            read_text_file,
+            write_text_file_atomic,
+            file_exists,
+            ensure_dir,
             create_backup_from_entries,
             list_directory,
             delete_file,
