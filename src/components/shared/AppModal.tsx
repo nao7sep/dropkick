@@ -15,6 +15,11 @@ interface AppModalProps {
   // Escape key, and outside-click. Use this to run an async guard (e.g. a
   // dirty-check confirmation) before actually closing.
   onRequestClose?: () => void;
+  // When set, wires Radix's aria-describedby to this element id so screen
+  // readers announce the modal's descriptive text. Leave unset (default) for
+  // form modals whose body is all inputs — Radix then renders no Description
+  // and the dialog opts out of aria-describedby without warning.
+  describedById?: string;
   children: ReactNode;
   footer?: ReactNode;
   maxWidth?: number;
@@ -28,6 +33,7 @@ export function AppModal({
   title,
   onClose,
   onRequestClose,
+  describedById,
   children,
   footer,
   maxWidth = 448,
@@ -70,7 +76,7 @@ export function AppModal({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30" />
         <Dialog.Content
           ref={contentRef}
-          aria-describedby={undefined}
+          aria-describedby={describedById}
           data-dropkick-interactive-layer=""
           className={`fixed left-1/2 top-1/2 z-[51] flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface shadow-xl focus:outline-none ${contentClassName}`}
           style={{ maxWidth }}

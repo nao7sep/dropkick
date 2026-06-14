@@ -111,6 +111,9 @@ export function MoveTasksModal({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.defaultPrevented) return;
+    // No IME composition guard here: this modal has no free-text field — the
+    // only input is a <select> destination, which cannot host an IME
+    // composition, so there is nothing for the guard to protect.
     if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
       e.preventDefault();
       handleMove();
@@ -120,6 +123,12 @@ export function MoveTasksModal({
   return (
     <AppModal
       title={`Move ${selectedTasks.length} task${selectedTasks.length > 1 ? "s" : ""}`}
+      // Pure-selection modal per the modal conventions: the only draft is the
+      // <select> destination, committed solely by the Move button. Closing
+      // discards no persisted draft, so there is no dirty state — close routes
+      // directly through onClose with no useDirtyClose/dirty prompt by design
+      // (a dirty prompt here would be a forbidden fake prompt). onRequestClose
+      // is intentionally unset so AppModal's fallback drives every close path.
       onClose={onClose}
       maxWidth={384}
       footer={

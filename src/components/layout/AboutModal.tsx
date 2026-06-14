@@ -14,6 +14,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
     <AppModal
       title="About Dropkick"
       onClose={onClose}
+      describedById="about-modal-description"
       maxWidth={320}
       bodyClassName="px-6 py-5 text-center"
       footerClassName="flex justify-end border-t border-border px-6 py-4"
@@ -28,7 +29,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
     >
       <p className="text-2xl font-bold text-ink-strong">Dropkick</p>
       <p className="mt-1 text-sm text-ink-muted">Version 0.1.0</p>
-      <p className="mt-4 text-sm text-ink-soft">
+      <p id="about-modal-description" className="mt-4 text-sm text-ink-soft">
         A local-first task manager for working with plain JSON task lists
         across multiple files. Your data stays on your machine.
       </p>

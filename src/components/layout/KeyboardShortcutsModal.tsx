@@ -109,6 +109,7 @@ export function KeyboardShortcutsModal({
     <AppModal
       title="Keyboard Shortcuts"
       onClose={onClose}
+      describedById="shortcuts-modal-description"
       maxWidth={1160}
       bodyClassName="flex max-h-[70vh] min-h-0 flex-col overflow-hidden px-6 py-4"
       footerClassName="flex justify-end border-t border-border px-6 py-4"
@@ -121,7 +122,7 @@ export function KeyboardShortcutsModal({
           </button>
       }
     >
-      <div className="mb-3 shrink-0 space-y-1 text-xs leading-5 text-ink-muted">
+      <div id="shortcuts-modal-description" className="mb-3 shrink-0 space-y-1 text-xs leading-5 text-ink-muted">
         <p>Shortcuts can change meaning by context; modal shortcuts apply only inside that modal.</p>
         <p>On macOS, Cmd+Tab is reserved by the system for app switching.</p>
       </div>
