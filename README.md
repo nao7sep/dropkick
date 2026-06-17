@@ -1,167 +1,35 @@
 # Dropkick
 
-A local-first desktop task manager. Task data is stored in plain JSON files that you control — no cloud, no accounts, no sync. Put your task lists wherever you want, including inside project repositories.
-
-The name references the app's core interaction: kicking tasks down the list when you can't deal with them right now.
-
-Built with Tauri v2, React, and TypeScript.
+Dropkick is a local-first desktop task manager built around one idea: when you can't deal with a task right now, *kick* it down the list instead of endlessly re-prioritizing. Task lists, workspaces, and preferences are plain JSON files at paths you choose — no cloud, no accounts, no sync — so your tasks can live anywhere, including inside project repositories. It's a cross-platform desktop app (macOS and Windows) built with Tauri v2, React, and TypeScript, with a keyboard-first workflow and automatic priority grouping.
 
 ## Features
 
-- **Local JSON files** — task lists, workspaces, and preferences are portable JSON files at paths you choose
-- **Kick mechanism** — push tasks down the list by configurable distances (+5, +25, or to the end) instead of endlessly re-prioritizing
-- **Priority groups** — tasks are auto-grouped and displayed in this order: Past Due → Critical → Due Today → Important → Urgent → Due Soon → Tasks. Past Due and Due Today are date-based: Past Due tops everything (even Critical), and Due Today lifts a task above Important and Urgent. Due Soon is gentler — it only elevates tasks that would otherwise be plain Tasks. Important ranks above Urgent by design — urgent-but-unimportant work is a common productivity trap.
-- **Multiple task lists** — open several task list files as tabs, reorder tabs with drag and drop
-- **Unified view** — see all open task lists merged into one view
-- **Deadline dots on tabs** — each task list tab shows a colored dot when it holds pending tasks due by their date: red for past due, orange for due today — so a looming deadline is visible without opening the tab
-- **Move tasks between lists** — move tasks to another open list via `Cmd+M`, the task detail dropdown, or bulk actions
-- **Notes with actionability** — attach notes to tasks, mark them as Informational, Actionable, or Resolved; tasks with actionable notes can't be completed until resolved
-- **Keyboard-first workflow** — selection shortcuts can change status, priority, and due dates; dialogs close with `Esc`
-- **Resizable sidebar** — drag the divider between the task list and detail pane
-- **File integrity** — SHA-256 hash checks detect external modifications before overwriting; if a file changed outside Dropkick, you can overwrite or reload, and if it was deleted, you can recreate it or cancel the change
-- **Automatic backup** — GFS-rotated backups per workspace (hourly while running, pruned automatically); can be turned off in Settings
-- **IME composition support** — Japanese/Chinese/Korean input works correctly in all text fields
-- **Configurable** — font family, dark mode, timezone, kick distances, due soon window, handled tasks page size in Settings; zoom (50%–500%) via the gear menu or keyboard shortcuts
+- **Kick mechanism** — push a task down the list by a configurable distance (+5, +25, or to the end) instead of re-ranking everything
+- **Automatic priority groups** — tasks sort into Past Due → Critical → Due Today → Important → Urgent → Due Soon, with date-based lifting; Important ranks above Urgent by design
+- **Multiple task lists** — open several files as tabs, see them merged in a unified view, and move tasks between lists
+- **Notes with actionability** — mark notes Informational, Actionable, or Resolved; a task with an unresolved actionable note can't be completed
+- **Keyboard-first** — change status, priority, and due dates without leaving the keys
+- **Safe on disk** — SHA-256 change detection before overwrite, plus automatic GFS-rotated backups per workspace
+- **IME-safe** — Japanese/Chinese/Korean input works in every text field
 
-## Data Storage
+## Requirements
 
-All data lives on your filesystem:
+- macOS or Windows
+- To build and run from source: a Rust toolchain, Node.js, and the Tauri v2 system dependencies
 
-| File | Location | Purpose |
-|---|---|---|
-| App config | `~/.dropkick/app.json` | Remembers known workspaces and preferences |
-| Preferences | Any path (default: `~/.dropkick/default-preferences.json`) | Display and behavior settings |
-| Workspace | Any path (default: `~/.dropkick/default-workspace.json`) | Open tabs and recent files |
-| Task lists | Any path | Your tasks |
-| Backups | `~/.dropkick/backups/<workspace-id>/` | Automatic zip backups |
-| Logs | `~/.dropkick/logs/<yyyymmdd-hhmmss-utc.log>` | One JSON-Lines log per launch |
+## Getting started
 
-Each launch writes one session log under `~/.dropkick/logs/`, named by its UTC start time. Every line is a single JSON object (`time`, `level`, `message`, plus event-specific fields) recording startup, shutdown, user-level actions, warnings, and errors. Developer-only `debug` detail adds low-level file and command operation outcomes in a development build or when `DROPKICK_DEBUG=1` is set, so an end user's log stays small. Logs are never auto-deleted; remove `~/.dropkick/logs/` yourself if you want to reclaim space.
-
-Task changes are written to disk immediately. Settings dialog changes require an explicit **Save**, except for the live-applied display settings — dark mode, zoom level, and sidebar width — which save immediately when changed (the Settings dark-mode checkbox, `Cmd+Shift+D`, the zoom shortcuts or gear menu, and the divider drag all apply at once and are not undone by closing Settings with **Cancel**). At startup, Dropkick reopens unified view if it is among the open tabs; otherwise it opens the first task list tab. The current active tab is runtime-only and is not written to `workspace.json`.
-
-If a saved task-list tab or recent file cannot be loaded because the file is missing or temporarily unavailable, Dropkick keeps the workspace reference instead of removing it automatically. The affected tab shows a load-error pane with **Retry** and **Remove tab** actions so you can reconnect the file or remove the tab manually. In unified view, a notice at the top of the list names any open lists that could not be loaded and indicates when lists are still loading, so the merged view is never silently incomplete.
-
-## Keyboard Shortcuts
-
-Shortcuts are shown with `Cmd`. On Windows, use `Ctrl` instead. Shortcuts can change meaning by context; modal shortcuts apply only inside that modal.
-
-### Selection Flow
-
-Dropkick treats review actions and focused edits as two different flows:
-
-- **List review flow** — when you use task-list shortcuts for status, priority, due date, or Dropkick, Dropkick assumes you are reviewing the list from top to bottom. After a successful change, selection advances to the next active task in visual order, crossing group boundaries when needed. If there is no next active task, selection clears instead of following the task into Handled.
-- **Focused edit flow** — when you change priority, due date, or order from the task detail pane, Dropkick keeps the same task selected so you can continue editing its title, description, and notes.
-
-Task-list reorder shortcuts also keep the same task selection, so repeated `Cmd+Up` / `Cmd+Down` presses continue moving the tasks you just moved.
-
-Reordering and Dropkick operate within a single list, so they do nothing in unified view; pressing them there shows a brief on-screen reminder rather than failing silently.
-
-Detail-pane status changes, task deletion, and moves out of the current non-unified list leave the current task behind, so they use the list review flow and select the next active task. In unified view, moving a task to another list keeps it selected because the task remains visible.
-
-The task list is a single keyboard control: `Tab` moves focus into it and back out as a whole, and the arrow keys navigate within it. `Up` / `Down` move the selection one task at a time. Arrowing `Down` past the last active task expands the Handled archive and steps into it, revealing further pages as you reach the end, so Handled is fully keyboard-reachable; `Up` then walks back up through the list, including out of Handled. `Home` / `End` jump to the first / last task and `PageUp` / `PageDown` move by a screenful.
-
-### Task List
-
-| Action | Shortcut |
-|---|---|
-| Dropkick selected tasks | Space |
-| New task | Cmd+N |
-| Move selected tasks | Cmd+M |
-| Focus new note field | Cmd+Shift+N |
-| Save note | Cmd+Enter |
-| Save note as actionable | Cmd+Shift+Enter |
-| Set status to Pending | P |
-| Set status to Completed | C |
-| Set status to Dismissed | X |
-| Dismiss selected tasks | Backspace / Delete |
-| Set priority to Default | 0 |
-| Set priority to Urgent | 1 |
-| Set priority to Important | 2 |
-| Set priority to Critical | 3 |
-| Set due date to today | D |
-| Set due date to tomorrow | T |
-| Clear due date | N |
-| Navigate selection | Up / Down |
-| Jump to first / last task | Home / End |
-| Move selection by a page | PageUp / PageDown |
-| Extend selection | Shift+Up / Shift+Down |
-| Clear selection | Esc |
-| Move task up | Cmd+Up |
-| Move task down | Cmd+Down |
-| Send to first in group | Cmd+Home |
-| Send to last in group | Cmd+End |
-
-### Dialogs
-
-| Action | Shortcut |
-|---|---|
-| Create task in New Task modal | Cmd+Enter |
-| Set draft priority to Default | Cmd+0 |
-| Set draft priority to Urgent | Cmd+1 |
-| Set draft priority to Important | Cmd+2 |
-| Set draft priority to Critical | Cmd+3 |
-| Set draft due date to today | Cmd+D |
-| Set draft due date to tomorrow | Cmd+T |
-| Clear draft due date | Cmd+N |
-| Submit settings / move dialog | Cmd+Enter |
-| Close active dialog | Esc |
-
-### Tabs And App
-
-| Action | Shortcut |
-|---|---|
-| Next tab | Ctrl+Tab |
-| Previous tab | Ctrl+Shift+Tab |
-| Switch tabs (when the tab bar is focused) | Left / Right |
-| First / last tab (when the tab bar is focused) | Home / End |
-| Close the focused tab | Delete / Backspace |
-| Close tab | Cmd+W |
-| Unified view | Cmd+U |
-| Rename tab | Double-click tab |
-| Open settings | Cmd+, |
-| Open keyboard shortcuts | Cmd+/ or ? |
-| Toggle dark mode | Cmd+Shift+D |
-| Zoom in | Cmd+Equal / Cmd+Plus / Cmd+Semicolon |
-| Zoom out | Cmd+Minus |
-| Reset zoom | Cmd+0 |
-
-On macOS, `Cmd+Tab` and `Cmd+Shift+Tab` are reserved by the system for app switching.
-
-## Building from Source
-
-### Prerequisites
-
-- [Rust](https://rustup.rs/) (stable)
-- [Node.js](https://nodejs.org/) (v18+)
-- Tauri v2 system dependencies — see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
-
-### Development
+Double-click the launcher for your platform (`scripts/run-dev.command` on macOS, `scripts/run-dev.ps1` on Windows), or run from source:
 
 ```sh
 npm install
 npm run tauri dev
 ```
 
-### Testing
-
-```sh
-npm test                                  # frontend unit tests (Vitest)
-cargo test --lib --manifest-path src-tauri/Cargo.toml   # Rust command tests
-```
-
-Tests cover the pure logic (task grouping, the kick/reorder algorithms, date and timezone handling, backup rotation), the Zustand stores and file repositories (with Tauri mocked), the frontend logger (envelope, redaction backstop, error fidelity, console fallback), and the Rust commands and logger (UTC time formatting and the redactor).
-
-Frontend tests live in `tests/`, mirroring `src/` (`tests/utils/`, `tests/services/`, `tests/state/`, `tests/repositories/`), with shared fixtures and setup in `tests/helpers/` and `tests/setup.ts`. Rust tests stay inline in `src-tauri` as Cargo `#[cfg(test)]` modules.
-
-### Production Build
-
-```sh
-npm run tauri build
-```
-
-The built application will be in `src-tauri/target/release/`.
-
 ## License
 
-MIT — Yoshinao Inoguchi ([@nao7sep](https://github.com/nao7sep))
+MIT © 2026 Yoshinao Inoguchi
+
+## Contact
+
+Yoshinao Inoguchi — nao7sep@gmail.com
