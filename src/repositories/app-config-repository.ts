@@ -7,7 +7,6 @@
 // repositories. The actual data manipulation (register/unregister) lives in
 // useAppConfigStore; this module owns I/O only.
 
-import { homeDir } from "@tauri-apps/api/path";
 import type { AppConfigDto } from "../models";
 import {
   createDefaultAppConfig,
@@ -19,28 +18,27 @@ import {
   writeJsonFile,
   ensureDirectory,
   fileExists,
+  appDataRoot,
+  joinPath,
   withSerial,
 } from "./file-system";
 import { mergeWithDefaults } from "../utils/merge-defaults";
 import { log } from "./logging";
 
-const DROPKICK_DIR = ".dropkick";
 const APP_CONFIG_FILE = "app.json";
 const DEFAULT_PREFERENCES_FILE = "default-preferences.json";
 const DEFAULT_WORKSPACE_FILE = "default-workspace.json";
 
-// Returns the full path to ~/.dropkick/
+// Returns the app's absolute storage root (~/.dropkick, or DROPKICK_HOME).
+// The Rust core resolves and creates it; the webview never reconstructs it.
 async function getDropkickDir(): Promise<string> {
-  const home = await homeDir();
-  // homeDir() may or may not include a trailing slash depending on platform.
-  const separator = home.endsWith("/") || home.endsWith("\\") ? "" : "/";
-  return `${home}${separator}${DROPKICK_DIR}`;
+  return await appDataRoot();
 }
 
-// Returns the full path to ~/.dropkick/app.json
+// Returns the full path to <root>/app.json
 async function getAppConfigPath(): Promise<string> {
   const dir = await getDropkickDir();
-  return `${dir}/${APP_CONFIG_FILE}`;
+  return joinPath(dir, APP_CONFIG_FILE);
 }
 
 // First-launch setup: creates ~/.dropkick/ with default config, preferences, and workspace.
@@ -52,8 +50,8 @@ export async function initializeAppConfig(): Promise<{
 }> {
   const dir = await getDropkickDir();
   const configPath = await getAppConfigPath();
-  const prefsPath = `${dir}/${DEFAULT_PREFERENCES_FILE}`;
-  const workspacePath = `${dir}/${DEFAULT_WORKSPACE_FILE}`;
+  const prefsPath = joinPath(dir, DEFAULT_PREFERENCES_FILE);
+  const workspacePath = joinPath(dir, DEFAULT_WORKSPACE_FILE);
 
   // Ensure ~/.dropkick/ exists.
   await ensureDirectory(dir);

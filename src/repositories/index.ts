@@ -10,6 +10,8 @@ export {
   hashFile,
   fileExists,
   ensureDirectory,
+  appDataRoot,
+  joinPath,
   withSerial,
   withSerialTwo,
   drainAllSerial,

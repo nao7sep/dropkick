@@ -239,7 +239,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           Back up task lists on startup and hourly
         </label>
         <p className="mt-1 text-xs text-ink-muted">
-          Backups are saved to ~/.dropkick/backups/ (per workspace) and pruned automatically.
+          Backups are saved per workspace in the app's data folder and pruned automatically.
         </p>
       </Field>
     </AppModal>

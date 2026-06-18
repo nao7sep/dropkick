@@ -3,11 +3,12 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tauri::Manager;
+use tauri::AppHandle;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
 mod logging;
+mod paths;
 
 // --- Command boundary logging ---
 //
@@ -426,6 +427,27 @@ fn ensure_dir(path: &str) -> Result<(), String> {
     }
 }
 
+// Returns the absolute storage root (`~/.dropkick`, or `DROPKICK_HOME`),
+// creating it if missing. The Rust core is the only path resolver: the webview
+// calls this once at startup and derives every subpath from the returned
+// absolute root, rather than reconstructing the root from `homeDir()` itself
+// (which cannot read `DROPKICK_HOME` and is forbidden by the per-stack rule).
+#[tauri::command]
+fn app_data_root(app: AppHandle) -> Result<String, String> {
+    let started = log_cmd_start("app_data_root", json!({}));
+    match paths::data_root(&app) {
+        Ok(root) => {
+            let root = root.to_string_lossy().to_string();
+            log_cmd_ok("app_data_root", started, json!({ "root": root }));
+            Ok(root)
+        }
+        Err(message) => {
+            log_cmd_err("app_data_root", started, message.clone());
+            Err(message)
+        }
+    }
+}
+
 // Receives a structured log object from the webview frontend and writes it to
 // the session file (the frontend has no filesystem access of its own).
 #[tauri::command]
@@ -667,13 +689,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             // Open the per-session log file under the app's own data dir. The Rust
-            // core has filesystem access even though the webview is sandboxed.
-            let home = app
-                .path()
-                .home_dir()
-                .map_err(|e| format!("could not resolve home directory: {e}"))?;
-            let log_path = home
-                .join(".dropkick")
+            // core has filesystem access even though the webview is sandboxed, and
+            // it routes through the single storage-root resolver (paths::data_root)
+            // so the log directory and the data directory share one source of
+            // truth and both honor DROPKICK_HOME.
+            let log_path = paths::data_root(app.handle())?
                 .join("logs")
                 .join(logging::session_filename());
             logging::init(&log_path, debug_enabled);
@@ -702,6 +722,7 @@ pub fn run() {
             create_backup_from_entries,
             list_directory,
             delete_file,
+            app_data_root,
             log_event,
             logging_debug_enabled
         ])

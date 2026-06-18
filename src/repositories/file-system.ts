@@ -112,6 +112,32 @@ export async function ensureDirectory(path: string): Promise<void> {
   await invoke("ensure_dir", { path });
 }
 
+// Returns the app's absolute storage root (`~/.dropkick`, or DROPKICK_HOME),
+// resolved and created by the Rust core. The Rust core is the only path
+// resolver: the webview never reconstructs the root from homeDir() (which
+// cannot read DROPKICK_HOME) — it calls this once and joins subpaths onto the
+// returned absolute root with joinPath below.
+export async function appDataRoot(): Promise<string> {
+  return await invoke<string>("app_data_root");
+}
+
+// Joins path segments onto an already-absolute base using that base's own
+// separator. With the absolute root supplied by Rust, this replaces the old
+// separator-by-string-inspection: we infer the platform separator from the
+// base (a Windows path contains "\") and trim any stray separators between
+// segments rather than guessing whether to insert one.
+export function joinPath(base: string, ...segments: string[]): string {
+  const sep = base.includes("\\") && !base.includes("/") ? "\\" : "/";
+  const trimEnd = (s: string) => s.replace(/[/\\]+$/, "");
+  const trimBoth = (s: string) => s.replace(/^[/\\]+|[/\\]+$/g, "");
+  let result = trimEnd(base);
+  for (const segment of segments) {
+    const part = trimBoth(segment);
+    if (part) result = `${result}${sep}${part}`;
+  }
+  return result;
+}
+
 // --- Per-key serialization ---
 //
 // Some files (task list JSON, workspace JSON) can be mutated by many actions in

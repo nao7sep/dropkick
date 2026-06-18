@@ -7,9 +7,15 @@
 //   - 7–30 days old: keep one per week
 //   - Older than 30 days: delete
 
-import { homeDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
-import { withSerial, readTextFileContent, log, toErrorFields } from "../repositories";
+import {
+  withSerial,
+  readTextFileContent,
+  appDataRoot,
+  joinPath,
+  log,
+  toErrorFields,
+} from "../repositories";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 import {
@@ -27,9 +33,10 @@ let backupTimer: ReturnType<typeof setInterval> | null = null;
 // Each workspace gets its own directory keyed by its unique ID
 // so that GFS pruning operates independently per workspace.
 async function getBackupsDir(workspaceId: string): Promise<string> {
-  const home = await homeDir();
-  const sep = home.endsWith("/") || home.endsWith("\\") ? "" : "/";
-  return `${home}${sep}.dropkick/${BACKUPS_DIR_NAME}/${workspaceId}`;
+  // The Rust core owns the storage root (~/.dropkick, or DROPKICK_HOME);
+  // subpaths are joined onto the returned absolute root, never reconstructed.
+  const root = await appDataRoot();
+  return joinPath(root, BACKUPS_DIR_NAME, workspaceId);
 }
 
 // Creates a backup zip of the given file paths.
@@ -79,7 +86,10 @@ async function createBackup(
   }
 
   const backupsDir = await getBackupsDir(workspaceId);
-  const outputPath = `${backupsDir}/backup-${backupTimestamp(new Date())}.zip`;
+  const outputPath = joinPath(
+    backupsDir,
+    `backup-${backupTimestamp(new Date())}.zip`,
+  );
 
   try {
     await invoke<string>("create_backup_from_entries", { entries, outputPath });
@@ -109,11 +119,9 @@ async function pruneBackups(backupsDir: string): Promise<void> {
     const { deleteList } = selectBackupsToPrune(files, Date.now());
     if (deleteList.length === 0) return;
 
-    const sep =
-      backupsDir.endsWith("/") || backupsDir.endsWith("\\") ? "" : "/";
     for (const name of deleteList) {
       await invoke("delete_file", {
-        path: `${backupsDir}${sep}${name}`,
+        path: joinPath(backupsDir, name),
       });
       log.debug("backup pruned file", { name });
     }
