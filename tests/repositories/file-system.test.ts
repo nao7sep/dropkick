@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 // the import pure under the node test environment.
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-import { withSerial, withSerialTwo, drainAllSerial } from "../../src/repositories/file-system";
+import { withSerial, withSerialTwo, drainAllSerial, joinPath } from "../../src/repositories/file-system";
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void;
@@ -16,6 +16,33 @@ function deferred<T = void>() {
   });
   return { promise, resolve, reject };
 }
+
+describe("joinPath", () => {
+  it("joins segments onto a POSIX base with forward slashes", () => {
+    expect(joinPath("/home/u/.dropkick", "data", "tasks.json")).toBe(
+      "/home/u/.dropkick/data/tasks.json",
+    );
+  });
+
+  it("infers the backslash separator from a Windows base", () => {
+    expect(joinPath("C:\\Users\\u\\.dropkick", "data", "tasks.json")).toBe(
+      "C:\\Users\\u\\.dropkick\\data\\tasks.json",
+    );
+  });
+
+  it("trims stray leading/trailing separators between segments (POSIX)", () => {
+    expect(joinPath("/base/", "/data/", "/x.json")).toBe("/base/data/x.json");
+  });
+
+  it("trims stray separators on a Windows base", () => {
+    expect(joinPath("C:\\base\\", "\\data\\", "x.json")).toBe("C:\\base\\data\\x.json");
+  });
+
+  it("skips empty segments and returns a trimmed base when given none", () => {
+    expect(joinPath("/base", "", "x")).toBe("/base/x");
+    expect(joinPath("/base/")).toBe("/base");
+  });
+});
 
 describe("withSerial", () => {
   it("runs callbacks for the same key one at a time, in order", async () => {
