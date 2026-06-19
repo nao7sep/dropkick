@@ -18,7 +18,8 @@ import { showConfirm, showMessage } from "../../repositories";
 import {
   formatTimestamp,
   formatDueDate,
-  sanitizeSingleLine,
+  singleLine,
+  multiline,
   hasPrimaryShortcutModifier,
   primaryModifierLabel,
   taskKey,
@@ -133,7 +134,7 @@ export function TaskDetail({
   }, [focusNewNoteSignal, autoGrowNewNote]);
 
   const handleTitleBlur = async () => {
-    const cleaned = sanitizeSingleLine(titleDraft);
+    const cleaned = singleLine(titleDraft, { minify: true });
     if (!cleaned) {
       // Revert — don't allow empty titles.
       setTitleDraft(task.title);
@@ -150,12 +151,15 @@ export function TaskDetail({
   };
 
   const handleDescBlur = async () => {
-    if (descDraft !== task.description) {
-      const result = await updateDescription(filePath, task.id, descDraft);
+    const cleaned = multiline(descDraft);
+    if (cleaned !== task.description) {
+      const result = await updateDescription(filePath, task.id, cleaned);
       if (await showWriteFailure("Task Update Failed", result)) {
         setDescDraft(task.description);
+        return;
       }
     }
+    setDescDraft(cleaned);
   };
 
   const handleStatusChange = async (status: TaskStatus) => {
@@ -205,11 +209,12 @@ export function TaskDetail({
   const handleAddNote = async (
     actionability: NoteActionability = "Informational",
   ) => {
-    if (!newNoteContent.trim()) return;
+    const cleaned = multiline(newNoteContent);
+    if (!cleaned) return;
     const result = await addNewNote(
       filePath,
       task.id,
-      newNoteContent,
+      cleaned,
       actionability,
     );
     if (await showWriteFailure("Note Update Failed", result)) return;
@@ -505,20 +510,22 @@ function NoteItem({
   }, [draft, editing, autoGrowEdit]);
 
   const handleSave = async () => {
-    if (!draft.trim()) {
+    const cleaned = multiline(draft);
+    if (!cleaned) {
       // Revert — don't allow empty notes.
       setDraft(note.content);
       setEditing(false);
       return;
     }
-    if (draft !== note.content) {
-      const result = await updateNote(filePath, taskId, note.id, draft);
+    if (cleaned !== note.content) {
+      const result = await updateNote(filePath, taskId, note.id, cleaned);
       if (result.status === "error") {
         await showMessage("Note Update Failed", result.message);
         setDraft(note.content);
         return;
       }
     }
+    setDraft(cleaned);
     setEditing(false);
   };
 

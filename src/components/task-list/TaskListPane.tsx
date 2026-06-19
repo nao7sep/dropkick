@@ -10,7 +10,7 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { showMessage } from "../../repositories";
 import {
   toTask,
-  sanitizeSingleLine,
+  singleLine,
   hasPrimaryShortcutModifier,
   primaryModifierLabel,
   taskSelectionKey,
@@ -383,7 +383,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   }
 
   const handleRename = async (task: Task, newTitle: string) => {
-    const cleaned = sanitizeSingleLine(newTitle);
+    const cleaned = singleLine(newTitle, { minify: true });
     if (!cleaned) {
       // Don't allow empty titles — just cancel the rename.
       setEditingTaskKey(null);

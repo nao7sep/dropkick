@@ -4,7 +4,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
-import { sanitizeSingleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
+import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -290,7 +290,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
 
   const handleRenameSubmit = async () => {
     if (editingPath !== null) {
-      const cleaned = sanitizeSingleLine(editValue);
+      const cleaned = singleLine(editValue, { minify: true });
       if (cleaned) {
         log.info("rename tab", { path: editingPath, displayName: cleaned });
         try {

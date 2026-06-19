@@ -5,7 +5,8 @@ import type { TaskPriority } from "../../models";
 import {
   hasPrimaryShortcutModifier,
   matchesShortcutKey,
-  sanitizeSingleLine,
+  singleLine,
+  multiline,
   todayInTimezone,
   tomorrowInTimezone,
 } from "../../utils";
@@ -88,8 +89,8 @@ export function NewTaskModal({
     setSubmitting(true);
     try {
       const result = await addNewTask(targetFile, {
-        title: sanitizeSingleLine(title),
-        description,
+        title: singleLine(title, { minify: true }),
+        description: multiline(description),
         priority,
         dueDate,
       });

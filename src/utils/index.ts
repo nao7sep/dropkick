@@ -15,7 +15,7 @@ export type { CreateTaskOptions } from "./factories";
 
 export { computeGroup, toTask, toDto } from "./domain-mapping";
 
-export { sanitizeSingleLine } from "./sanitize";
+export { singleLine, multiline } from "./textCleanup";
 export {
   hasPrimaryShortcutModifier,
   matchesShortcutKey,

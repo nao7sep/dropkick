@@ -8,7 +8,7 @@ import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { validateTimezone } from "../../utils/timezone";
 import { AppModal } from "../shared/AppModal";
-import { hasPrimaryShortcutModifier, primaryModifierLabel } from "../../utils";
+import { hasPrimaryShortcutModifier, primaryModifierLabel, singleLine } from "../../utils";
 import {
   isPreferencesDraftDirty,
   liveAppliedPreferences,
@@ -56,6 +56,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       // this modal was open. Derived from LIVE_APPLIED_PREFERENCE_KEYS so it
       // stays in lockstep with the dirty-check exclusion.
       ...liveAppliedPreferences(preferences),
+      fontFamily: singleLine(draft.fontFamily),
       timezone: timezoneValidation.value,
       kickDistances: parseKickDistances(kickInput),
     });
