@@ -40,3 +40,15 @@ export {
 export type { ListArrowDownPlan } from "./selection";
 
 export { isZoomIn, isZoomOut, isZoomReset, stepZoomIn, stepZoomOut, ZOOM_LEVELS, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX } from "./zoom";
+
+export {
+  SIDEBAR_MIN_WIDTH,
+  DETAIL_MIN_WIDTH,
+  CONTENT_MIN_HEIGHT,
+  TAB_BAR_MIN_HEIGHT,
+  SPLITTER_WIDTH,
+  DEFAULT_SIDEBAR_WIDTH,
+  computeMinWindowWidth,
+  computeMinWindowHeight,
+  clampSidebarWidth,
+} from "./windowSizing";

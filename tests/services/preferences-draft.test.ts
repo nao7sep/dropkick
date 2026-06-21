@@ -63,7 +63,7 @@ describe("liveAppliedPreferences", () => {
     const c = committed();
     c.darkMode = true;
     c.zoomLevel = 1.7;
-    c.sidebarWidth = 400;
+    c.sidebarWidth = 400; // intent width in pixels
     const picked = liveAppliedPreferences(c);
     expect(Object.keys(picked).sort()).toEqual(
       [...LIVE_APPLIED_PREFERENCE_KEYS].sort(),
@@ -112,7 +112,7 @@ describe("isPreferencesDraftDirty", () => {
       const draft: PreferencesDto = { ...c };
       if (key === "darkMode") draft.darkMode = !c.darkMode;
       else if (key === "zoomLevel") draft.zoomLevel = c.zoomLevel + 0.5;
-      else if (key === "sidebarWidth") draft.sidebarWidth = c.sidebarWidth + 100;
+      else if (key === "sidebarWidth") draft.sidebarWidth = c.sidebarWidth + 40;
       expect(isPreferencesDraftDirty(draft, c, KICK_STRING)).toBe(false);
     },
   );

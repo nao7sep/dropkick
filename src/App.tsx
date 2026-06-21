@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { computeMinWindowWidth, computeMinWindowHeight } from "./utils";
 import "./App.css";
 import type { LoadPreferencesResult, LoadWorkspaceResult } from "./repositories";
 import { showMessage, log, toErrorFields, loadFailureFields } from "./repositories";
@@ -46,6 +47,19 @@ function App() {
       .setTheme(darkMode ? "dark" : "light")
       .catch((e) => log.warn("window setTheme failed", { darkMode, ...toErrorFields(e) }));
   }, [darkMode]);
+
+  // Enforce the content-based minimum window size once at startup. The minimum
+  // is DERIVED from the pane minimums plus the fixed tab bar (windowSizing.ts),
+  // not a literal in tauri.conf.json, so the window can never shrink below what
+  // its panes need and the two sources can never drift apart. Below this, the
+  // OS refuses to shrink the window, so no pane is ever squeezed out.
+  useEffect(() => {
+    getCurrentWindow()
+      .setMinSize(
+        new LogicalSize(computeMinWindowWidth(), computeMinWindowHeight()),
+      )
+      .catch((e) => log.warn("window setMinSize failed", toErrorFields(e)));
+  }, []);
 
   // Initialize on mount.
   useEffect(() => {

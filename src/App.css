@@ -294,6 +294,43 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Scroll bars — thin, rounded, themed (window-chrome-conventions). The
+   `color-scheme` declarations above already paint native form controls in the
+   right palette, but on some platforms they leave the OS scroll bar thick and
+   square; this block styles the bar itself. One global rule covers every
+   overflow container — task list, detail pane, modals (which portal to <body>)
+   — and both themes, because the palette tokens (`--border-strong` thumb,
+   `--ink-faint` hover) already differ per theme.
+
+   WebKit/Blink (Tauri's macOS/Windows webview): a slim ~10px gutter with a
+   transparent track and a pill thumb inset from the gutter edge via a
+   transparent border clipped to the padding box, brightening a notch on hover.
+   Firefox/standards: `scrollbar-width: thin` + `scrollbar-color` give the same
+   slim, themed bar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-color: var(--border-strong);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-faint);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Toast (ToastHost): fade in, hold, fade out across one duration that matches
    the host's dismiss timeout, so the timed unmount lands on the fade-out. */
 @keyframes dropkick-toast {

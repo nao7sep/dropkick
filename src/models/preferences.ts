@@ -7,7 +7,7 @@ export interface PreferencesDto {
   fontFamily: string;
   darkMode: boolean; // false = light theme (default), true = dark theme
   zoomLevel: number; // 0.5–5.0 (1.0 = 100%)
-  sidebarWidth: number; // pixels (160–1280)
+  sidebarWidth: number; // sidebar intent width in PIXELS — the width the user last dragged it to; the displayed width is clamp(SIDEBAR_MIN, intent, maxFit) — see DEFAULT_SIDEBAR_WIDTH / clampSidebarWidth in utils/windowSizing
   timezone: string | null; // IANA timezone e.g. "Asia/Tokyo"; null = system
   kickDistances: number[];
   dueSoonDays: number;
@@ -42,7 +42,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     fontFamily: "system-ui",
     darkMode: false,
     zoomLevel: 1.0,
-    sidebarWidth: 320,
+    sidebarWidth: 320, // sidebar intent width in px; kept in sync with DEFAULT_SIDEBAR_WIDTH (utils/windowSizing)
     timezone: null,
     kickDistances: [...DEFAULT_KICK_DISTANCES],
     dueSoonDays: 7,

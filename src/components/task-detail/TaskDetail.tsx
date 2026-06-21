@@ -238,7 +238,7 @@ export function TaskDetail({
   };
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-y-auto px-4 pt-4">
+    <div className="flex h-full flex-col overflow-y-auto px-4 pt-4">
       {/* Title */}
       <textarea
         ref={titleRef}

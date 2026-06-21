@@ -21,6 +21,11 @@ import {
   ZOOM_DEFAULT,
   hasPrimaryShortcutModifier,
   matchesShortcutKey,
+  clampSidebarWidth,
+  SIDEBAR_MIN_WIDTH,
+  DETAIL_MIN_WIDTH,
+  SPLITTER_WIDTH,
+  DEFAULT_SIDEBAR_WIDTH,
 } from "../../utils";
 import {
   groupTasksForList,
@@ -92,49 +97,104 @@ export function MainWindow() {
     ? "__unified__"
     : activeTab?.filePath ?? "__none__";
 
-  // Sidebar resize state.
-  const MIN_SIDEBAR = 160;
-  const MAX_SIDEBAR = 1280;
-  const sidebarWidth = preferences.sidebarWidth ?? 320;
-  const [dragWidth, setDragWidth] = useState(sidebarWidth);
+  // Sidebar resize state. The layout is an ADJUSTABLE sidebar (a fixed pixel width
+  // set by dragging the splitter) plus a FILL detail pane that takes the remaining
+  // space. Two distinct widths govern the sidebar:
+  //
+  //   - INTENT (persisted): the pixel width the user last dragged the sidebar to.
+  //     Stored in preferences.sidebarWidth, updated ONLY on a splitter drag, never
+  //     on a window resize. It is NOT clamped to the window — only the displayed
+  //     width is.
+  //   - DISPLAY (derived, ephemeral): clamp(SIDEBAR_MIN, intent, maxFit), where
+  //     maxFit = containerWidth - DETAIL_MIN_WIDTH - SPLITTER_WIDTH. This is what
+  //     the layout actually uses. When the window shrinks, the sidebar narrows
+  //     toward SIDEBAR_MIN so the layout never breaks; when it grows back, the
+  //     sidebar returns to exactly its intent because the intent never changed.
+  //
+  // containerWidth comes from a ResizeObserver on the content row and is used ONLY
+  // to compute the displayed width — it is never persisted.
+  const intent = preferences.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH;
+  const contentRowRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  // The live intent width during a drag; mirrors preferences.sidebarWidth
+  // otherwise. Held in state so the sidebar tracks the cursor before the persist.
+  const [dragIntent, setDragIntent] = useState(intent);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
-  const startWidthRef = useRef(sidebarWidth);
+  const startWidthRef = useRef(0);
 
-  // Sync dragWidth when preferences change externally (e.g. settings modal).
+  // Observe the content row's width so a window/container resize recomputes the
+  // displayed sidebar width from the unchanged intent. Persists nothing.
   useEffect(() => {
-    if (!draggingRef.current) setDragWidth(sidebarWidth);
-  }, [sidebarWidth]);
+    const el = contentRowRef.current;
+    if (!el) return;
+    setContainerWidth(el.clientWidth);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasActiveTab]);
+
+  // Sync dragIntent when the persisted intent changes externally (e.g. a
+  // different preferences file loads). Skipped mid-drag so the live drag wins.
+  useEffect(() => {
+    if (draggingRef.current) return;
+    setDragIntent(intent);
+  }, [intent]);
+
+  // The width fed to the layout: the intent clamped to what the current container
+  // can display. Derived, never stored. During a drag dragIntent leads; otherwise
+  // it mirrors the persisted intent.
+  const sidebarWidth = useMemo(
+    () => clampSidebarWidth(dragIntent, containerWidth),
+    [dragIntent, containerWidth],
+  );
 
   const handleDividerDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       draggingRef.current = true;
       startXRef.current = e.clientX;
-      startWidthRef.current = dragWidth;
-      // Track the latest width in the drag's own closure so onUp can persist
-      // it without putting a side effect inside a setState functional updater
+      // The sidebar's displayed pixel width at drag start — the basis for turning
+      // the cursor delta into the raw width the user is dragging to.
+      startWidthRef.current = clampSidebarWidth(
+        dragIntent,
+        contentRowRef.current?.clientWidth ?? 0,
+      );
+      // Track the latest intent in the drag's own closure so onUp can persist it
+      // without putting a side effect inside a setState functional updater
       // (React 19's concurrent mode is allowed to invoke those more than once).
-      let latestWidth = dragWidth;
+      let latestIntent = dragIntent;
 
       const onMove = (ev: MouseEvent) => {
         const delta = ev.clientX - startXRef.current;
-        const clamped = Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, startWidthRef.current + delta));
-        latestWidth = clamped;
-        setDragWidth(clamped);
+        // The raw width the user dragged to becomes the new intent. The intent is
+        // NOT clamped to the window — only the displayed width is (clampSidebarWidth
+        // in render). Floor at SIDEBAR_MIN so a drag past the left edge still
+        // records a sane intent.
+        const rawDraggedPx = Math.max(
+          startWidthRef.current + delta,
+          SIDEBAR_MIN_WIDTH,
+        );
+        latestIntent = rawDraggedPx;
+        setDragIntent(rawDraggedPx);
       };
 
       const onUp = () => {
         draggingRef.current = false;
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        updatePrefs({ sidebarWidth: latestWidth });
+        // Persist the intent (unclamped). Only a drag changes intent and persists.
+        updatePrefs({ sidebarWidth: latestIntent });
       };
 
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [dragWidth, updatePrefs],
+    [dragIntent, updatePrefs],
   );
 
   // Register global keyboard shortcuts.
@@ -414,13 +474,21 @@ export function MainWindow() {
         }}
       />
 
-      {/* Content area */}
+      {/* Content area. A horizontal flex row: the ADJUSTABLE sidebar (a fixed
+          pixel width, `shrink-0`), the splitter, then the FILL detail pane
+          (`flex-1 min-w-0` with a real DETAIL_MIN_WIDTH). The sidebar's pixel
+          width is the intent clamped to what this container can display
+          (clampSidebarWidth); a resize recomputes it from the unchanged intent.
+          Because the window minimum (setMinSize) equals the sum of both pane
+          minimums plus the splitter, neither pane is ever squeezed below it. */}
       {hasActiveTab ? (
-        <div className="flex min-h-0 flex-1">
-          {/* Left pane — task list */}
+        <div ref={contentRowRef} className="flex min-h-0 flex-1">
+          {/* Left pane — task list. The adjustable pane: fixed displayed pixel
+              width, never shrinks below it (clampSidebarWidth floors at
+              SIDEBAR_MIN_WIDTH). */}
           <div
             className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-surface"
-            style={{ width: dragWidth }}
+            style={{ width: `${sidebarWidth}px` }}
           >
             <ErrorBoundary>
               <TaskListPane
@@ -432,14 +500,21 @@ export function MainWindow() {
             </ErrorBoundary>
           </div>
 
-          {/* Resize divider */}
+          {/* Resize divider — a fixed-width flex item. */}
           <div
             onMouseDown={handleDividerDown}
-            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong"
+            className="shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong"
+            style={{ width: `${SPLITTER_WIDTH}px` }}
           />
 
-          {/* Right pane — detail/summary/bulk */}
-          <div className="h-full min-w-0 flex-1 overflow-hidden bg-surface">
+          {/* Right pane — detail/summary/bulk. The fill pane: `flex-1 min-w-0`
+              takes the remaining space, with `min-width: DETAIL_MIN_WIDTH` so it
+              never collapses below its content (overriding the flex item default
+              that would otherwise let a widened sidebar squeeze it to nothing). */}
+          <div
+            className="h-full flex-1 min-w-0 overflow-hidden bg-surface"
+            style={{ minWidth: `${DETAIL_MIN_WIDTH}px` }}
+          >
             <ErrorBoundary>
               <TaskDetailPane
                 key={activePaneKey}
