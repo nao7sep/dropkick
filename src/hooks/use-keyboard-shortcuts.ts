@@ -25,6 +25,7 @@ import {
   isOpenShortcutsHelpShortcut,
   tabCycleDirection,
 } from "../utils";
+import { isComposingEvent } from "./useComposing";
 
 // Toast messages for actions that are silently disabled in unified view. They
 // lead with the view because that is the part users forget — an empty selection
@@ -223,6 +224,11 @@ export function useKeyboardShortcuts(
       // consumed this key, and never act on keys originating inside an overlay.
       if (e.defaultPrevented) return;
       if (isInsideInteractiveLayer(e)) return;
+
+      // While an IME candidate is pending, the chord belongs to the composition — even the
+      // always-available mod-chords (Cmd+N and friends) stand down until it commits, rather than
+      // firing on a not-yet-committed candidate (text-input-ime-conventions).
+      if (isComposingEvent(e)) return;
 
       const mod = hasPrimaryShortcutModifier(e);
       const hasNonShiftModifier = e.metaKey || e.ctrlKey || e.altKey;
