@@ -8,6 +8,7 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { showMessage } from "../../repositories";
 import type { ActionResult } from "../../state";
+import { groupMoveBySource, summarizeBulkStatusResult } from "../../utils";
 import { taskKey, taskSelectionKey } from "../../utils";
 
 interface BulkActionsProps {
@@ -45,48 +46,26 @@ export function BulkActions({
   };
 
   const handleBulkStatus = async (status: TaskStatus) => {
-    const validationReasons = new Map<string, number>();
-    let firstError: string | null = null;
-
+    const results: ActionResult[] = [];
     for (const task of selectedTasks) {
       const taskFile = isUnifiedView ? task.sourceFile : filePath;
-      const result = await setStatus(taskFile, task.id, status);
-      if (result.status === "validation") {
-        validationReasons.set(
-          result.reason,
-          (validationReasons.get(result.reason) ?? 0) + 1,
-        );
-      } else if (result.status === "error" && firstError === null) {
-        firstError = result.message;
-      }
+      results.push(await setStatus(taskFile, task.id, status));
     }
+    const summary = summarizeBulkStatusResult(results);
 
-    if (validationReasons.size > 0 || firstError !== null) {
+    if (summary.hasIssues) {
       const details: string[] = [];
-
-      if (validationReasons.size > 0) {
-        const skippedCount = [...validationReasons.values()].reduce(
-          (total, count) => total + count,
-          0,
-        );
-        const reasons = [...validationReasons.entries()]
-          .map(([reason, count]) =>
-            count === 1 ? reason : `${reason} (${count} tasks)`,
-          )
-          .join("; ");
-        details.push(`Skipped ${skippedCount} task(s): ${reasons}.`);
+      if (summary.skippedCount > 0) {
+        details.push(`Skipped ${summary.skippedCount} task(s): ${summary.reasonsText}.`);
       }
-
-      if (firstError !== null) {
-        details.push(`First error: ${firstError}`);
+      if (summary.firstError !== null) {
+        details.push(`First error: ${summary.firstError}`);
       }
-
       await showMessage("Some Tasks Were Not Updated", details.join("\n\n"));
     }
 
     if (
-      validationReasons.size === 0 &&
-      firstError === null &&
+      !summary.hasIssues &&
       (status === "Completed" || status === "Dismissed")
     ) {
       setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
@@ -112,12 +91,7 @@ export function BulkActions({
     if (!moveTarget) return;
     if (isUnifiedView) {
       // Group tasks by source file and move each group.
-      const bySource = new Map<string, Set<string>>();
-      for (const task of selectedTasks) {
-        const ids = bySource.get(task.sourceFile) ?? new Set();
-        ids.add(task.id);
-        bySource.set(task.sourceFile, ids);
-      }
+      const bySource = groupMoveBySource(selectedTasks);
       let movedAny = false;
       const movedSources = new Set<string>();
       for (const [src, ids] of bySource) {

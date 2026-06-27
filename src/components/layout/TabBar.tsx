@@ -443,7 +443,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                 title="Menu"
                 className="flex h-10 w-10 shrink-0 items-center justify-center text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
               >
-                <Menu size={15} />
+                <Menu size={18} />
               </button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>

@@ -30,3 +30,6 @@ lerna-debug.log*
 
 # OS files
 .DS_Store
+
+# Coverage reports (generated)
+coverage/

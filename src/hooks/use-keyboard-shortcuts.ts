@@ -10,12 +10,14 @@ import { useToastStore } from "../state/toast-store";
 import { showConfirm, showMessage } from "../repositories";
 import { groupTasksForList, groupTasksForUnifiedView } from "../services";
 import type { Task, TaskPriority, TaskStatus } from "../models";
+import type { ActionResult } from "../state";
 import {
   pickNextActiveKey,
   taskSelectionKey,
   toTask,
   todayInTimezone,
   tomorrowInTimezone,
+  summarizeBulkStatusResult,
 } from "../utils";
 import {
   hasPrimaryShortcutModifier,
@@ -130,40 +132,22 @@ export function useKeyboardShortcuts(
       if (selectedTasks.length === 0) return false;
       const changed = selectedTasks.some((task) => task.status !== status);
 
-      const validationReasons = new Map<string, number>();
-      let firstError: string | null = null;
-
+      const results: ActionResult[] = [];
       for (const task of selectedTasks) {
-        const result = await setStatus(task.sourceFile, task.id, status);
-        if (result.status === "validation") {
-          validationReasons.set(
-            result.reason,
-            (validationReasons.get(result.reason) ?? 0) + 1,
-          );
-        } else if (result.status === "error" && firstError === null) {
-          firstError = result.message;
-        }
+        results.push(await setStatus(task.sourceFile, task.id, status));
       }
+      const summary = summarizeBulkStatusResult(results);
 
-      if (validationReasons.size > 0) {
-        const skippedCount = [...validationReasons.values()].reduce(
-          (total, count) => total + count,
-          0,
-        );
-        const details = [...validationReasons.entries()]
-          .map(([reason, count]) =>
-            count === 1 ? reason : `${reason} (${count} tasks)`,
-          )
-          .join("; ");
+      if (summary.skippedCount > 0) {
         await showMessage(
           "Some Tasks Were Skipped",
-          `Skipped ${skippedCount} task(s): ${details}.`,
+          `Skipped ${summary.skippedCount} task(s): ${summary.reasonsText}.`,
         );
         return false;
       }
 
-      if (firstError !== null) {
-        await showMessage("Task Update Failed", firstError);
+      if (summary.firstError !== null) {
+        await showMessage("Task Update Failed", summary.firstError);
         return false;
       }
 

@@ -13,6 +13,7 @@ import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppConfigStore } from "./state/app-config-store";
 import { startBackupSchedule } from "./services";
 import { StartupPicker } from "./components/layout/StartupPicker";
+import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
 import { AppDialogHost } from "./components/shared/AppDialogHost";
 import { ToastHost } from "./components/shared/ToastHost";
@@ -150,16 +151,7 @@ function App() {
       break;
 
     case "error":
-      content = (
-        <div className="flex h-screen items-center justify-center bg-background">
-          <div className="max-w-md rounded-lg bg-surface p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-bold text-danger">
-              Startup Error
-            </h2>
-            <p className="text-sm text-ink-soft">{phase.message}</p>
-          </div>
-        </div>
-      );
+      content = <StartupErrorScreen message={phase.message} />;
       break;
 
     case "startup":

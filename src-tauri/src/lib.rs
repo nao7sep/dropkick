@@ -177,27 +177,39 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
         }
     };
 
-    let data = match serde_json::from_slice::<TaskListDto>(&bytes) {
-        Ok(data) => data,
-        Err(err) => {
-            log_cmd_ok(
-                "read_json_file_with_hash",
-                started,
-                json!({ "path": path, "bytes": bytes.len(), "outcome": "invalid", "error": { "message": err.to_string() } }),
-            );
-            return Ok(JsonFileWithHashResult::Invalid {
-                message: err.to_string(),
-            });
-        }
-    };
-    let tasks = data.tasks.len();
-    let hash = sha256_hex(&bytes);
-    log_cmd_ok(
-        "read_json_file_with_hash",
-        started,
-        json!({ "path": path, "bytes": bytes.len(), "tasks": tasks, "outcome": "success" }),
-    );
-    Ok(JsonFileWithHashResult::Success { data, hash })
+    let result = classify_json_bytes(&bytes);
+    match &result {
+        JsonFileWithHashResult::Success { data, .. } => log_cmd_ok(
+            "read_json_file_with_hash",
+            started,
+            json!({ "path": path, "bytes": bytes.len(), "tasks": data.tasks.len(), "outcome": "success" }),
+        ),
+        JsonFileWithHashResult::Invalid { message } => log_cmd_ok(
+            "read_json_file_with_hash",
+            started,
+            json!({ "path": path, "bytes": bytes.len(), "outcome": "invalid", "error": { "message": message } }),
+        ),
+        // classify_json_bytes only yields Success or Invalid; Missing/Error are
+        // decided by the filesystem read above.
+        _ => {}
+    }
+    Ok(result)
+}
+
+// The pure parse/classify half of read_json_file_with_hash: given a file's
+// bytes, either parse them into a TaskListDto (Success, with the content hash)
+// or report the parse failure (Invalid). No filesystem access, so it is testable
+// against in-memory bytes.
+fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
+    match serde_json::from_slice::<TaskListDto>(bytes) {
+        Ok(data) => JsonFileWithHashResult::Success {
+            data,
+            hash: sha256_hex(bytes),
+        },
+        Err(err) => JsonFileWithHashResult::Invalid {
+            message: err.to_string(),
+        },
+    }
 }
 
 // Creates a zip backup from a list of (zip_entry_name, content) pairs.
@@ -223,21 +235,9 @@ fn create_backup_from_entries(
                 .map_err(|e| format!("Failed to create backup directory: {}", e))?;
         }
 
-        let file = std::fs::File::create(&output_path)
+        let bytes = build_backup_zip(&entries)?;
+        std::fs::write(&output_path, &bytes)
             .map_err(|e| format!("Failed to create backup file: {}", e))?;
-        let mut zip = ZipWriter::new(file);
-        let options =
-            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-
-        for (entry_name, content) in &entries {
-            zip.start_file(entry_name, options)
-                .map_err(|e| format!("Failed to add {} to zip: {}", entry_name, e))?;
-            std::io::Write::write_all(&mut zip, content.as_bytes())
-                .map_err(|e| format!("Failed to write {} to zip: {}", entry_name, e))?;
-        }
-
-        zip.finish()
-            .map_err(|e| format!("Failed to finalize zip: {}", e))?;
         Ok(output_path.clone())
     })();
 
@@ -250,6 +250,26 @@ fn create_backup_from_entries(
         Err(message) => log_cmd_err("create_backup_from_entries", started, message.clone()),
     }
     result
+}
+
+// Builds the backup zip entirely in memory so the zip construction (entry names,
+// contents, compression, finalization) can be tested without touching disk.
+// create_backup_from_entries writes the returned bytes to the output path.
+fn build_backup_zip(entries: &[(String, String)]) -> Result<Vec<u8>, String> {
+    let mut zip = ZipWriter::new(std::io::Cursor::new(Vec::<u8>::new()));
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+    for (entry_name, content) in entries {
+        zip.start_file(entry_name, options)
+            .map_err(|e| format!("Failed to add {} to zip: {}", entry_name, e))?;
+        std::io::Write::write_all(&mut zip, content.as_bytes())
+            .map_err(|e| format!("Failed to write {} to zip: {}", entry_name, e))?;
+    }
+
+    let cursor = zip
+        .finish()
+        .map_err(|e| format!("Failed to finalize zip: {}", e))?;
+    Ok(cursor.into_inner())
 }
 
 // Lists files in a directory, returning their names.
@@ -371,6 +391,16 @@ fn write_text_file_atomic(path: &str, contents: &str) -> Result<(), String> {
     result
 }
 
+// The staging temp-file name write_atomic renames into place. NOTE: it is keyed
+// only by the target file name and the process id, so two concurrent writes from
+// the SAME process to the SAME path produce the SAME temp name and would clobber
+// each other's staging file. That is safe only because the frontend serializes
+// writes per path (withSerial in file-system.ts) — this name is not itself a
+// concurrency guard.
+fn atomic_temp_name(file_name: &str, pid: u32) -> String {
+    format!(".{}.{}.tmp", file_name, pid)
+}
+
 fn write_atomic(path: &str, contents: &str) -> Result<(), String> {
     use std::io::Write;
     let target = std::path::Path::new(path);
@@ -381,7 +411,7 @@ fn write_atomic(path: &str, contents: &str) -> Result<(), String> {
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| "path has no file name".to_string())?;
-    let tmp = parent.join(format!(".{}.{}.tmp", file_name, std::process::id()));
+    let tmp = parent.join(atomic_temp_name(file_name, std::process::id()));
 
     let write_tmp = (|| -> std::io::Result<()> {
         let mut file = std::fs::File::create(&tmp)?;
@@ -535,6 +565,59 @@ mod tests {
             }
             other => panic!("expected Success, got {:?}", serde_json::to_string(&other)),
         }
+    }
+
+    #[test]
+    fn classify_json_bytes_success_and_invalid() {
+        let json = br#"{"version":"1.0.0","tasks":[]}"#;
+        match classify_json_bytes(json) {
+            JsonFileWithHashResult::Success { data, hash } => {
+                assert_eq!(data.version, "1.0.0");
+                assert!(data.tasks.is_empty());
+                assert_eq!(hash, sha256_hex(json));
+            }
+            other => panic!("expected Success, got {:?}", serde_json::to_string(&other)),
+        }
+        assert!(matches!(
+            classify_json_bytes(b"{ not json"),
+            JsonFileWithHashResult::Invalid { .. }
+        ));
+    }
+
+    #[test]
+    fn build_backup_zip_produces_a_readable_in_memory_archive() {
+        let entries = vec![
+            ("tasks.json".to_string(), "hello".to_string()),
+            ("prefs.json".to_string(), "world".to_string()),
+        ];
+        let bytes = build_backup_zip(&entries).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        assert_eq!(archive.len(), 2);
+        let mut content = String::new();
+        archive
+            .by_name("tasks.json")
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        assert_eq!(content, "hello");
+    }
+
+    #[test]
+    fn atomic_temp_name_is_stable_per_file_and_pid() {
+        // Same file + same process => same temp name. This is the documented
+        // collision: two same-process writers to one path stage through the same
+        // temp file, which is why the frontend serializes writes per path.
+        assert_eq!(atomic_temp_name("tasks.json", 1234), ".tasks.json.1234.tmp");
+        assert_eq!(
+            atomic_temp_name("tasks.json", 1234),
+            atomic_temp_name("tasks.json", 1234)
+        );
+        // A different pid or file name yields a different temp name.
+        assert_ne!(
+            atomic_temp_name("tasks.json", 1234),
+            atomic_temp_name("tasks.json", 5678)
+        );
+        assert_ne!(atomic_temp_name("a.json", 1), atomic_temp_name("b.json", 1));
     }
 
     #[test]

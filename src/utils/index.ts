@@ -52,3 +52,6 @@ export {
   computeMinWindowHeight,
   clampSidebarWidth,
 } from "./windowSizing";
+
+export { summarizeBulkStatusResult, groupMoveBySource } from "./bulk-status";
+export type { BulkStatusSummary } from "./bulk-status";

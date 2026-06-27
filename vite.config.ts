@@ -43,5 +43,19 @@ export default defineConfig(async () => ({
     environment: "node",
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.ts"],
+    coverage: {
+      // V8's native coverage for the frontend (the Rust backend has its own
+      // cargo-llvm-cov pass). `include` spans src so the report flags logic no
+      // test reaches, not just a score for what is reached.
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+      include: ["src/**/*.{ts,tsx}"],
+      // Excluded as framework wiring with no decision to cover:
+      exclude: [
+        "src/main.tsx", // React DOM mount
+        "src/vite-env.d.ts",
+        "**/*.d.ts",
+      ],
+    },
   },
 }));

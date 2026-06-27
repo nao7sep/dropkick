@@ -1,5 +1,10 @@
 // Startup picker — shown on every launch.
 // User selects a preferences file and a workspace file, then clicks Launch.
+//
+// Root launch gate, not a stacked modal: it replaces the whole app until the
+// user launches and has no "cancel" target, so it is intentionally exempt from
+// the *Modal/*Dialog naming rule (recorded as an exempt root surface in the
+// modal-dialog conventions).
 
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
