@@ -17,6 +17,13 @@ Dropkick is a local-first desktop task manager built around one idea: when you c
 - macOS or Windows
 - To build and run from source: a Rust toolchain, Node.js, and the Tauri v2 system dependencies
 
+## Download
+
+Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows are on the [Releases](https://github.com/nao7sep/dropkick/releases) page. These builds are **unsigned**, so the OS warns the first time you open one:
+
+- **macOS** — right-click the app and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/Dropkick.app`).
+- **Windows** — on the SmartScreen prompt, click **More info → Run anyway**.
+
 ## Getting started
 
 Double-click the launcher for your platform (`scripts/run-dev.command` on macOS, `scripts/run-dev.ps1` on Windows), or run from source:

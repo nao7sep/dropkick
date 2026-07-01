@@ -4,6 +4,9 @@ node_modules
 # Build outputs and caches
 dist
 dist-ssr
+artifacts/
+src-tauri/target/
+src-tauri/gen/
 *.tsbuildinfo
 
 # Local environment overrides
