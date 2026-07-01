@@ -560,6 +560,67 @@ fn logging_debug_enabled() -> bool {
     logging::debug_enabled()
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    // Developer-only `debug` logging: on for a dev build, or when explicitly
+    // requested via DROPKICK_DEBUG=1. Off (and compiled-quiet) in release.
+    let debug_enabled = cfg!(debug_assertions)
+        || std::env::var("DROPKICK_DEBUG")
+            .map(|v| v == "1")
+            .unwrap_or(false);
+
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .setup(move |app| {
+            // Open the per-session log file under the app's own data dir. The Rust
+            // core has filesystem access even though the webview is sandboxed, and
+            // it routes through the single storage-root resolver (paths::data_root)
+            // so the log directory and the data directory share one source of
+            // truth and both honor DROPKICK_HOME.
+            let log_path = paths::data_root(app.handle())?
+                .join("logs")
+                .join(logging::session_filename());
+            logging::init(&log_path, debug_enabled);
+            install_panic_hook();
+
+            logging::info(
+                "app startup",
+                json!({
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "build": if cfg!(debug_assertions) { "debug" } else { "release" },
+                    "debugLogging": debug_enabled,
+                    "logPath": log_path.to_string_lossy(),
+                    "os": std::env::consts::OS,
+                    "arch": std::env::consts::ARCH,
+                }),
+            );
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            hash_file,
+            read_json_file_with_hash,
+            read_text_file,
+            write_text_file_atomic,
+            file_exists,
+            ensure_dir,
+            file_metadata,
+            list_files_recursive,
+            write_zip_archive,
+            app_data_root,
+            log_event,
+            logging_debug_enabled
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            logging::info("app shutdown", json!({ "reason": "exit" }));
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -836,63 +897,3 @@ mod tests {
     }
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    // Developer-only `debug` logging: on for a dev build, or when explicitly
-    // requested via DROPKICK_DEBUG=1. Off (and compiled-quiet) in release.
-    let debug_enabled = cfg!(debug_assertions)
-        || std::env::var("DROPKICK_DEBUG")
-            .map(|v| v == "1")
-            .unwrap_or(false);
-
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .setup(move |app| {
-            // Open the per-session log file under the app's own data dir. The Rust
-            // core has filesystem access even though the webview is sandboxed, and
-            // it routes through the single storage-root resolver (paths::data_root)
-            // so the log directory and the data directory share one source of
-            // truth and both honor DROPKICK_HOME.
-            let log_path = paths::data_root(app.handle())?
-                .join("logs")
-                .join(logging::session_filename());
-            logging::init(&log_path, debug_enabled);
-            install_panic_hook();
-
-            logging::info(
-                "app startup",
-                json!({
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "build": if cfg!(debug_assertions) { "debug" } else { "release" },
-                    "debugLogging": debug_enabled,
-                    "logPath": log_path.to_string_lossy(),
-                    "os": std::env::consts::OS,
-                    "arch": std::env::consts::ARCH,
-                }),
-            );
-            Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![
-            hash_file,
-            read_json_file_with_hash,
-            read_text_file,
-            write_text_file_atomic,
-            file_exists,
-            ensure_dir,
-            file_metadata,
-            list_files_recursive,
-            write_zip_archive,
-            app_data_root,
-            log_event,
-            logging_debug_enabled
-        ])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application");
-
-    app.run(|_app_handle, event| {
-        if let tauri::RunEvent::Exit = event {
-            logging::info("app shutdown", json!({ "reason": "exit" }));
-        }
-    });
-}
