@@ -1,7 +1,13 @@
-// Manages ~/.dropkick/app.json — the app-level configuration.
+// Manages ~/.dropkick/state.json — the app-level state.
+//
+// Every field here (last selection + known preferences/workspace lists) is
+// rebuildable, so the file is state, not durable configuration. There is no
+// separate config.json: dropkick has no app-level user-tunable settings that
+// outlive a rebuild — those live in the seeded preferences.json / workspace.json
+// user documents.
 //
 // initializeAppConfig handles first-launch setup (creating ~/.dropkick/ and
-// default preferences/workspace files). It runs exactly once at startup, so
+// the seeded preferences/workspace files). It runs exactly once at startup, so
 // it doesn't need serialization. All subsequent writes go through
 // flushAppConfig, which uses withSerial — the same pattern as the other
 // repositories. The actual data manipulation (register/unregister) lives in
@@ -25,9 +31,9 @@ import {
 import { mergeWithDefaults } from "../utils/merge-defaults";
 import { log } from "./logging";
 
-const APP_CONFIG_FILE = "app.json";
-const DEFAULT_PREFERENCES_FILE = "default-preferences.json";
-const DEFAULT_WORKSPACE_FILE = "default-workspace.json";
+const APP_STATE_FILE = "state.json";
+const DEFAULT_PREFERENCES_FILE = "preferences.json";
+const DEFAULT_WORKSPACE_FILE = "workspace.json";
 
 // Returns the app's absolute storage root (~/.dropkick, or DROPKICK_HOME).
 // The Rust core resolves and creates it; the webview never reconstructs it.
@@ -35,10 +41,10 @@ async function getDropkickDir(): Promise<string> {
   return await appDataRoot();
 }
 
-// Returns the full path to <root>/app.json
+// Returns the full path to <root>/state.json
 async function getAppConfigPath(): Promise<string> {
   const dir = await getDropkickDir();
-  return joinPath(dir, APP_CONFIG_FILE);
+  return joinPath(dir, APP_STATE_FILE);
 }
 
 // First-launch setup: creates ~/.dropkick/ with default config, preferences, and workspace.

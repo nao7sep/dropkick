@@ -1,5 +1,6 @@
-// App-level configuration stored at ~/.dropkick/app.json
-// Remembers known workspace/preferences files and last selections.
+// App-level state stored at ~/.dropkick/state.json
+// Remembers known workspace/preferences files and last selections — all
+// rebuildable, so this is state rather than durable configuration.
 
 export interface AppConfigDto {
   version: string;

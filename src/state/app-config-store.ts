@@ -1,4 +1,4 @@
-// AppConfigStore — loaded once at launch from ~/.dropkick/app.json.
+// AppConfigStore — loaded once at launch from ~/.dropkick/state.json.
 // Tracks known preferences/workspace paths and the last selection.
 //
 // Mutations are synchronous `set((state) => …)` over the latest store state,
@@ -16,7 +16,7 @@ interface AppConfigState {
   // Current config data.
   config: AppConfigDto;
 
-  // Path to ~/.dropkick/app.json.
+  // Path to ~/.dropkick/state.json.
   filePath: string;
 
   // Whether the config has been initialized from disk.
