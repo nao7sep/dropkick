@@ -44,7 +44,7 @@ function flushSucceeds() {
 
 function seedFile(tasks = [makeTask({ id: "a" }), makeTask({ id: "b" })]) {
   useTaskListStore.setState({
-    files: { [FILE]: { data: { version: "1.0.0", tasks } } },
+    files: { [FILE]: { data: { version: "1.0.0", id: "L1", tasks } } },
     fileLoadErrors: {},
     selectedKeys: new Set(),
     handledVisible: {},
@@ -342,7 +342,7 @@ describe("reorderTick scroll-follow signal", () => {
 describe("flush conflict reload", () => {
   it("applies reloaded disk data and reports an error when the file changed externally", async () => {
     seedFile([makeTask({ id: "a", title: "local" })]);
-    const reloaded: TaskListDto = { version: "1.0.0", tasks: [makeTask({ id: "z", title: "from disk" })] };
+    const reloaded: TaskListDto = { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "z", title: "from disk" })] };
     flushTaskList.mockResolvedValue({ status: "reloaded", data: reloaded, message: "changed externally" });
 
     const result = await useTaskListStore.getState().addNewTask(FILE, { title: "x" });
@@ -371,8 +371,8 @@ describe("moveTasks", () => {
   function seedTwoFiles() {
     useTaskListStore.setState({
       files: {
-        [SRC]: { data: { version: "1.0.0", tasks: [makeTask({ id: "s1" }), makeTask({ id: "s2" })] } },
-        [DST]: { data: { version: "1.0.0", tasks: [makeTask({ id: "d1" })] } },
+        [SRC]: { data: { version: "1.0.0", id: "SRC", tasks: [makeTask({ id: "s1" }), makeTask({ id: "s2" })] } },
+        [DST]: { data: { version: "1.0.0", id: "DST", tasks: [makeTask({ id: "d1" })] } },
       },
       fileLoadErrors: {},
       selectedKeys: new Set(),
@@ -390,8 +390,8 @@ describe("moveTasks", () => {
   it("applies both files' data and clears the selection on success", async () => {
     seedTwoFiles();
     useTaskListStore.getState().setSelection(new Set([taskKey(SRC, "s1")]));
-    const sourceData: TaskListDto = { version: "1.0.0", tasks: [makeTask({ id: "s2" })] };
-    const destData: TaskListDto = { version: "1.0.0", tasks: [makeTask({ id: "s1" }), makeTask({ id: "d1" })] };
+    const sourceData: TaskListDto = { version: "1.0.0", id: "SRC", tasks: [makeTask({ id: "s2" })] };
+    const destData: TaskListDto = { version: "1.0.0", id: "DST", tasks: [makeTask({ id: "s1" }), makeTask({ id: "d1" })] };
     flushMove.mockImplementation(async (_s, _d, getInputs: () => unknown) => {
       getInputs(); // exercise the closure that reads latest store state
       return { status: "success", sourceData, destData };
