@@ -1,7 +1,9 @@
 // About dialog — shows app name, version, author, and license.
 
+import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { getVersion } from "@tauri-apps/api/app";
 import { AppModal } from "../shared/AppModal";
 import { log, toErrorFields } from "../../repositories";
 
@@ -10,6 +12,13 @@ interface AboutModalProps {
 }
 
 export function AboutModal({ onClose }: AboutModalProps) {
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    getVersion()
+      .then(setVersion)
+      .catch((e) => log.warn("get app version failed", toErrorFields(e)));
+  }, []);
+
   return (
     <AppModal
       title="About Dropkick"
@@ -28,7 +37,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
       }
     >
       <p className="text-2xl font-bold text-ink-strong">Dropkick</p>
-      <p className="mt-1 text-sm text-ink-muted">Version 0.1.0</p>
+      <p className="mt-1 text-sm text-ink-muted">{version && `Version ${version}`}</p>
       <p id="about-modal-description" className="mt-4 text-sm text-ink-soft">
         A local-first task manager for working with plain JSON task lists
         across multiple files. Your data stays on your machine.
