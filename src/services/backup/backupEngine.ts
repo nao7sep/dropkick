@@ -38,11 +38,11 @@ async function readIndex(
   indexPath: string,
 ): Promise<{ index: BackupIndex; wasReset: boolean }> {
   const result = await readJsonFileResult<BackupIndex>(indexPath);
-  if (result.status === "missing") return { index: [], wasReset: false };
-  if (result.status === "success" && Array.isArray(result.data)) {
-    return { index: result.data, wasReset: false };
+  if (result.status === "missing") return { index: { entries: [] }, wasReset: false };
+  if (result.status === "success" && Array.isArray(result.data?.entries)) {
+    return { index: { entries: result.data.entries }, wasReset: false };
   }
-  return { index: [], wasReset: true };
+  return { index: { entries: [] }, wasReset: true };
 }
 
 export async function runBackup(
@@ -112,9 +112,9 @@ export async function runBackup(
 
     // ...then record it. Append one row per archived file (the index keeps
     // history; the plan reads the latest row per path).
-    const updatedIndex: BackupIndex = [...index];
+    const updatedIndex: BackupIndex = { entries: [...index.entries] };
     for (const candidate of archived) {
-      updatedIndex.push({
+      updatedIndex.entries.push({
         archivedAt,
         archivePath: candidate.archivePath,
         sizeBytes: candidate.sizeBytes,

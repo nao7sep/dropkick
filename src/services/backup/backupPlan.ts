@@ -16,7 +16,7 @@ export const MTIME_MATCH_TOLERANCE_MS = 2000;
 // stamp, so a plain lexicographic max is chronological.
 function latestByPath(index: BackupIndex): Map<string, BackupIndexEntry> {
   const latest = new Map<string, BackupIndexEntry>();
-  for (const entry of index) {
+  for (const entry of index.entries) {
     const prior = latest.get(entry.archivePath);
     if (prior === undefined || entry.archivedAt > prior.archivedAt) {
       latest.set(entry.archivePath, entry);

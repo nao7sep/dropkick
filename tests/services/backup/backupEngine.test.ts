@@ -120,7 +120,7 @@ describe("runBackup", () => {
       "zip:/home/backups/backup-20260701-080000-utc.zip",
       `json:${INDEX_PATH}`,
     ]);
-    expect(readIndex()).toHaveLength(3);
+    expect(readIndex().entries).toHaveLength(3);
   });
 
   it("second run with nothing changed writes no archive and no index", async () => {
@@ -150,7 +150,7 @@ describe("runBackup", () => {
     );
     expect(archived).toEqual(["preferences/PREF.json"]);
     // Index now holds the original 3 rows plus the one new capture.
-    expect(readIndex()).toHaveLength(4);
+    expect(readIndex().entries).toHaveLength(4);
   });
 
   it("resets a corrupt index and runs a full backup", async () => {

@@ -12,7 +12,12 @@ export interface BackupIndexEntry {
   lastWriteUtc: string; // ISO 8601, truncated to whole seconds
 }
 
-export type BackupIndex = BackupIndexEntry[];
+// The index file is a JSON object wrapping the rows (not a bare array), so future
+// top-level metadata (a schema `version`, say) can be added without disturbing the
+// records — the fleet-wide shape (data-backup-conventions).
+export interface BackupIndex {
+  entries: BackupIndexEntry[];
+}
 
 // One file the collector decided is worth backing up, already stat'd. `content`
 // is present only when it was read during collection (task lists, whose id lives
