@@ -102,24 +102,25 @@ describe("runBackup", () => {
     expect(report.nothingChanged).toBe(false);
     expect(report.indexWasReset).toBe(false);
     expect(report.archiveFileName).toBe("backup-20260701-080000-utc.zip");
-    // preferences + workspace + task list + state.json (logs/ excluded, the two
-    // in-home documents are captured by id, not mirrored).
-    expect(report.filesArchived).toBe(4);
+    // preferences + workspace + task list. state.json is seeded but excluded per the
+    // content-based rule (session bookkeeping, not durable work); logs/ excluded; the
+    // two in-home documents are captured by id, not mirrored.
+    expect(report.filesArchived).toBe(3);
 
     const archived = JSON.parse(fs.get("/home/backups/backup-20260701-080000-utc.zip")!.content);
     expect([...archived].sort()).toEqual([
       "preferences/PREF.json",
-      "state.json",
       "workspaces/WS/task-lists/TL.json",
       "workspaces/WS/workspace.json",
     ]);
+    expect(archived).not.toContain("state.json");
 
     // Archive is written before the index (crash-safety invariant).
     expect(callOrder).toEqual([
       "zip:/home/backups/backup-20260701-080000-utc.zip",
       `json:${INDEX_PATH}`,
     ]);
-    expect(readIndex()).toHaveLength(4);
+    expect(readIndex()).toHaveLength(3);
   });
 
   it("second run with nothing changed writes no archive and no index", async () => {
@@ -138,18 +139,18 @@ describe("runBackup", () => {
     await runBackup(baseInputs(), NOW);
     callOrder.length = 0;
 
-    // Touch state.json well beyond the 2s tolerance.
-    const s = fs.get("/home/state.json")!;
-    fs.set("/home/state.json", { ...s, mtimeMs: s.mtimeMs + 10_000 });
+    // Touch the preferences file well beyond the 2s tolerance (state.json is excluded).
+    const s = fs.get("/home/preferences.json")!;
+    fs.set("/home/preferences.json", { ...s, mtimeMs: s.mtimeMs + 10_000 });
 
     const report = await runBackup(baseInputs(), NOW + 60_000);
     expect(report.filesArchived).toBe(1);
     const archived = JSON.parse(
       fs.get("/home/backups/backup-20260701-080100-utc.zip")!.content,
     );
-    expect(archived).toEqual(["state.json"]);
-    // Index now holds the original 4 rows plus the one new capture.
-    expect(readIndex()).toHaveLength(5);
+    expect(archived).toEqual(["preferences/PREF.json"]);
+    // Index now holds the original 3 rows plus the one new capture.
+    expect(readIndex()).toHaveLength(4);
   });
 
   it("resets a corrupt index and runs a full backup", async () => {
@@ -158,7 +159,7 @@ describe("runBackup", () => {
 
     const report = await runBackup(baseInputs(), NOW);
     expect(report.indexWasReset).toBe(true);
-    expect(report.filesArchived).toBe(4);
+    expect(report.filesArchived).toBe(3);
   });
 
   it("records a skip for an unreadable document but still backs up the rest", async () => {
@@ -166,7 +167,7 @@ describe("runBackup", () => {
     fs.delete("/proj/tasks.json"); // task list vanished
 
     const report = await runBackup(baseInputs(), NOW);
-    expect(report.filesArchived).toBe(3);
+    expect(report.filesArchived).toBe(2);
     expect(report.skips.some((s) => s.sourcePath === "/proj/tasks.json")).toBe(true);
   });
 });
