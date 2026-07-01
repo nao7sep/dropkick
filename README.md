@@ -9,7 +9,7 @@ Dropkick is a local-first desktop task manager built around one idea: when you c
 - **Multiple task lists** — open several files as tabs, see them merged in a unified view, and move tasks between lists
 - **Notes with actionability** — mark notes Informational, Actionable, or Resolved; a task with an unresolved actionable note can't be completed
 - **Keyboard-first** — change status, priority, and due dates without leaving the keys
-- **Safe on disk** — SHA-256 change detection before overwrite, plus automatic GFS-rotated backups per workspace
+- **Safe on disk** — SHA-256 change detection before overwrite, so an edit made to a task file outside the app is never silently clobbered
 - **IME-safe** — Japanese/Chinese/Korean input works in every text field
 
 ## Requirements
