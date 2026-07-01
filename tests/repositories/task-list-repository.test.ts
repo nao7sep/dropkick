@@ -27,7 +27,7 @@ vi.mock("../../src/repositories/dialogs", () => ({
 // Re-imported fresh per test so the module-level knownHashes map is isolated.
 let repo: typeof import("../../src/repositories/task-list-repository");
 
-const data = (tasks: TaskListDto["tasks"] = []): TaskListDto => ({ version: "1.0.0", tasks });
+const data = (tasks: TaskListDto["tasks"] = []): TaskListDto => ({ version: "1.0.0", id: "T0", tasks });
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -53,6 +53,44 @@ describe("loadTaskList", () => {
   it("passes through a non-success load result", async () => {
     readJsonFileWithHash.mockResolvedValue({ status: "missing" });
     expect(await repo.loadTaskList("/f.json")).toEqual({ status: "missing" });
+  });
+
+  it("materializes a missing id: generates one, persists it, and re-hashes", async () => {
+    // A legacy file surfaces id === "" (the Rust TaskListDto default).
+    readJsonFileWithHash.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", id: "", tasks: [] },
+      hash: "OLD",
+    });
+    hashFile.mockResolvedValue("NEWHASH"); // the post-write rehash
+
+    const result = await repo.loadTaskList("/legacy.json");
+
+    // The persisted file carries a freshly generated, non-empty id...
+    expect(writeJsonFile).toHaveBeenCalledTimes(1);
+    const [writtenPath, written] = writeJsonFile.mock.calls[0];
+    expect(writtenPath).toBe("/legacy.json");
+    expect((written as TaskListDto).id).toMatch(/.+/);
+    // ...and the returned data carries that same id.
+    if (result.status !== "success") throw new Error("expected success");
+    expect(result.taskList.data.id).toBe((written as TaskListDto).id);
+
+    // The re-hash is now the registered hash: a matching flush uses it, no conflict.
+    hashFile.mockReset();
+    hashFile.mockResolvedValueOnce("NEWHASH").mockResolvedValueOnce("NEWHASH2");
+    expect(await repo.flushTaskList("/legacy.json", () => data())).toEqual({ status: "success" });
+  });
+
+  it("does not rewrite a file that already has an id", async () => {
+    readJsonFileWithHash.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", id: "EXISTING", tasks: [] },
+      hash: "H1",
+    });
+    const result = await repo.loadTaskList("/f.json");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+    if (result.status !== "success") throw new Error("expected success");
+    expect(result.taskList.data.id).toBe("EXISTING");
   });
 });
 

@@ -44,4 +44,4 @@ export {
   isPreferencesDraftDirty,
 } from "./preferences-draft";
 
-export { startBackupSchedule } from "./backup";
+export { runBackupInBackground } from "./backup/backupService";

@@ -38,14 +38,23 @@ export async function loadPreferences(
   const data = result.data;
   const defaults = createDefaultPreferences(data.name ?? "Default");
   const merged = mergeWithDefaults(defaults, data);
-  return {
-    status: "success",
-    preferences: {
-      ...merged,
-      timezone: coerceTimezone(data.timezone),
-      kickDistances: normalizeKickDistances(data.kickDistances),
-    },
+  const preferences: PreferencesDto = {
+    ...merged,
+    timezone: coerceTimezone(data.timezone),
+    kickDistances: normalizeKickDistances(data.kickDistances),
   };
+  // Materialize a missing stable id by persisting it once, so the backup archive
+  // slot (preferences/<id>.json) does not change between launches — mergeWithDefaults
+  // otherwise mints a fresh id on every load until one is written back. Best-effort:
+  // a failed write just defers materialization to the next load.
+  if (!data.id) {
+    try {
+      await writeJsonFile(path, preferences);
+    } catch {
+      // Non-fatal — the id persists on the next successful save.
+    }
+  }
+  return { status: "success", preferences };
 }
 
 // Flushes the latest preferences state to disk. Calls are serialized per

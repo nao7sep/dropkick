@@ -10,6 +10,7 @@
 
 import type { TaskListDto, TaskDto } from "../models";
 import { createEmptyTaskList } from "../models";
+import { generateId } from "../utils/ids";
 import {
   readJsonFileWithHash,
   writeJsonFile,
@@ -89,6 +90,16 @@ export async function loadTaskList(
   return withSerial(filePath, async () => {
     const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
     if (loaded.status !== "success") return loaded;
+    // Materialize a missing id and persist it, so the backup archive slot
+    // (task-lists/<id>.json) is stable across launches. Legacy files surface
+    // id === "" (the Rust TaskListDto default). writeAndRemember re-hashes after
+    // the write, keeping external-modification detection anchored to the bytes
+    // now on disk; unchanged files keep the hash read above.
+    if (!loaded.data.id) {
+      const data: TaskListDto = { ...loaded.data, id: generateId() };
+      await writeAndRemember(filePath, data);
+      return { status: "success", taskList: { filePath, data } };
+    }
     rememberHash(filePath, loaded.hash);
     return {
       status: "success",

@@ -11,7 +11,7 @@ import { showMessage, log, toErrorFields, loadFailureFields } from "./repositori
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppConfigStore } from "./state/app-config-store";
-import { startBackupSchedule } from "./services";
+import { runBackupInBackground } from "./services";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
@@ -115,10 +115,11 @@ function App() {
       // Remember only a successfully loaded selection.
       await setLastPaths(preferencesPath, workspacePath);
 
-      // Start backup system: immediate backup + periodic backups every hour.
-      // Does not block the main window from appearing.
+      // Just-in-case data backup: fire-and-forget after the documents have
+      // loaded (their ids are now materialized in the stores), so it never blocks
+      // the main window from appearing.
       const workspace = useWorkspaceStore.getState().workspace;
-      startBackupSchedule(workspace.id, preferencesPath, workspacePath);
+      runBackupInBackground(preferencesPath, workspacePath);
 
       // Record the effective configuration once the session is live: the
       // preferences object (no secret-bearing fields) and a workspace summary.

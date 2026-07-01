@@ -1,6 +1,8 @@
 // Task list stored as a JSON file at any path (typically in a project repo root).
 // Contains an ordered array of tasks. Array position = display order.
 
+import { generateId } from "../utils/ids";
+
 export type TaskStatus = "Pending" | "Completed" | "Dismissed";
 
 export type TaskPriority = "Critical" | "Urgent" | "Important" | "Default";
@@ -29,12 +31,17 @@ export interface TaskDto {
 
 export interface TaskListDto {
   version: string;
+  // Stable identity used as this list's backup archive slot
+  // (workspaces/<workspaceId>/task-lists/<id>.json). Generated once at creation
+  // and materialized on load for legacy files — see loadTaskList.
+  id: string;
   tasks: TaskDto[];
 }
 
 export function createEmptyTaskList(): TaskListDto {
   return {
     version: "1.0.0",
+    id: generateId(),
     tasks: [],
   };
 }

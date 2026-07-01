@@ -15,8 +15,16 @@ export {
   withSerial,
   withSerialTwo,
   drainAllSerial,
+  fileMetadata,
+  listFilesRecursive,
+  writeZipArchive,
 } from "./file-system";
-export type { JsonReadResult, JsonReadWithHashResult } from "./file-system";
+export type {
+  JsonReadResult,
+  JsonReadWithHashResult,
+  FileMetadata,
+  WalkedFile,
+} from "./file-system";
 
 export {
   openJsonFileDialog,

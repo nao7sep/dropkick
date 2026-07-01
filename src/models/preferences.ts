@@ -1,8 +1,14 @@
 // User preferences stored as a portable JSON file at any path.
 // Controls display and behavior settings.
 
+import { generateId } from "../utils/ids";
+
 export interface PreferencesDto {
   version: string;
+  // Stable identity used as this document's backup archive slot
+  // (preferences/<id>.json). Generated once at creation and materialized on load
+  // for legacy files — see loadPreferences.
+  id: string;
   name: string;
   fontFamily: string;
   darkMode: boolean; // false = light theme (default), true = dark theme
@@ -38,6 +44,7 @@ export function normalizeKickDistances(values: unknown): number[] {
 export function createDefaultPreferences(name: string): PreferencesDto {
   return {
     version: "1.0.0",
+    id: generateId(),
     name,
     fontFamily: "system-ui",
     darkMode: false,

@@ -41,20 +41,30 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
   const data = result.data;
   const defaults = createDefaultWorkspace(data.name ?? "Default");
   const merged = mergeWithDefaults(defaults, data);
-  return {
-    status: "success",
-    workspace: {
-      ...merged,
-      // openTabs/recentFiles are required arrays that the startup path iterates
-      // immediately (startupTabIndex, recent-file rendering). A hand-edited or
-      // corrupted file holding a non-array — or null — would otherwise crash the
-      // launch, so coerce to an empty list, mirroring normalizeKickDistances on
-      // the preferences side.
-      openTabs: Array.isArray(data.openTabs) ? data.openTabs : [],
-      recentFiles: Array.isArray(data.recentFiles) ? data.recentFiles : [],
-      activeTabIndex: defaults.activeTabIndex,
-    },
+  const workspace: WorkspaceDto = {
+    ...merged,
+    // openTabs/recentFiles are required arrays that the startup path iterates
+    // immediately (startupTabIndex, recent-file rendering). A hand-edited or
+    // corrupted file holding a non-array — or null — would otherwise crash the
+    // launch, so coerce to an empty list, mirroring normalizeKickDistances on
+    // the preferences side.
+    openTabs: Array.isArray(data.openTabs) ? data.openTabs : [],
+    recentFiles: Array.isArray(data.recentFiles) ? data.recentFiles : [],
+    activeTabIndex: defaults.activeTabIndex,
   };
+  // Materialize a missing stable id by persisting it once. The id is the backup
+  // archive slot (workspaces/<id>/…); without a write-back mergeWithDefaults mints
+  // a fresh one on every load, so the slot would move each launch. Best-effort: a
+  // failed write just defers materialization to the next load.
+  if (!data.id) {
+    const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
+    try {
+      await writeJsonFile(path, persisted);
+    } catch {
+      // Non-fatal — the id persists on the next successful save.
+    }
+  }
+  return { status: "success", workspace };
 }
 
 // Flushes the latest workspace state to disk. Calls are serialized per path,

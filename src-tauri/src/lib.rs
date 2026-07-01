@@ -108,8 +108,15 @@ struct TaskDto {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct TaskListDto {
     version: String,
+    // A stable identity materialized on load (see task-list-repository.ts). Legacy
+    // files predate the field, so it defaults to empty on read; the frontend fills
+    // and persists it. It rides through this struct so read_json_file_with_hash —
+    // which returns the deserialized DTO, not the raw text — never strips it.
+    #[serde(default)]
+    id: String,
     tasks: Vec<TaskDto>,
 }
 
@@ -212,50 +219,161 @@ fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
     }
 }
 
-// Creates a zip backup from a list of (zip_entry_name, content) pairs.
-// The frontend reads each source file inside its per-path serial slot (see
-// withSerial in file-system.ts) so the bytes here are guaranteed to be a
-// coherent snapshot of one file at one moment — never mid-write.
-// Returns the path to the created zip file.
+// One file's size and last-modified time (epoch milliseconds). The backup engine
+// stats each candidate through this and compares size + mtime against its index
+// to decide, without reading content, which files changed since the last archive.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FileMetadata {
+    size: u64,
+    mtime_ms: f64,
+}
+
+fn read_file_metadata(path: &str) -> Result<FileMetadata, String> {
+    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    let modified = meta.modified().map_err(|e| e.to_string())?;
+    let mtime_ms = modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis() as f64;
+    Ok(FileMetadata {
+        size: meta.len(),
+        mtime_ms,
+    })
+}
+
+// Returns a single file's size and mtime. Errors (including a missing file) are
+// returned as Err so the backup collector can skip that file best-effort.
 #[tauri::command]
-fn create_backup_from_entries(
-    entries: Vec<(String, String)>,
-    output_path: String,
-) -> Result<String, String> {
+fn file_metadata(path: &str) -> Result<FileMetadata, String> {
+    let started = log_cmd_start("file_metadata", json!({ "path": path }));
+    let result = read_file_metadata(path);
+    match &result {
+        Ok(m) => log_cmd_ok(
+            "file_metadata",
+            started,
+            json!({ "path": path, "size": m.size, "mtimeMs": m.mtime_ms }),
+        ),
+        Err(message) => log_cmd_err("file_metadata", started, message.clone()),
+    }
+    result
+}
+
+// One file found under a walked root: its path relative to that root (always
+// forward-slash separated, so it maps straight onto a zip entry name), plus size
+// and mtime for change detection.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WalkedFile {
+    relative_path: String,
+    size: u64,
+    mtime_ms: f64,
+}
+
+fn walk_dir(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<WalkedFile>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => return, // Unreadable subtree: skip it, best-effort.
+    };
+    for entry in entries.flatten() {
+        let file_type = match entry.file_type() {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        // is_dir/is_file are both false for a symlink, so symlinks are skipped —
+        // no symlink following, no walk loops.
+        if file_type.is_dir() {
+            walk_dir(root, &entry.path(), out);
+        } else if file_type.is_file() {
+            let meta = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            let mtime_ms = match meta
+                .modified()
+                .ok()
+                .and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok())
+            {
+                Some(d) => d.as_millis() as f64,
+                None => continue,
+            };
+            let path = entry.path();
+            let relative_path = match path.strip_prefix(root) {
+                Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+                Err(_) => continue,
+            };
+            out.push(WalkedFile {
+                relative_path,
+                size: meta.len(),
+                mtime_ms,
+            });
+        }
+    }
+}
+
+// Recursively lists every regular file under `root` with its size and mtime. A
+// missing root yields an empty list (first run). Exclusions are applied by the
+// backup engine in TypeScript, so this returns everything it can read.
+#[tauri::command]
+fn list_files_recursive(root: String) -> Result<Vec<WalkedFile>, String> {
+    let started = log_cmd_start("list_files_recursive", json!({ "root": root }));
+    let mut files = Vec::new();
+    let root_path = std::path::Path::new(&root);
+    if root_path.exists() {
+        walk_dir(root_path, root_path, &mut files);
+    }
+    log_cmd_ok(
+        "list_files_recursive",
+        started,
+        json!({ "root": root, "count": files.len() }),
+    );
+    Ok(files)
+}
+
+// Writes a zip archive of (entry_name, content) text pairs to `output_path`,
+// creating the parent directory if needed. The backup only archives JSON
+// documents, so entry contents are UTF-8 text. Entry names are supplied by the
+// caller and must already be unique (case-insensitively) — this primitive does
+// no path mapping and no de-duplication of its own. Returns the output path.
+#[tauri::command]
+fn write_zip_archive(entries: Vec<(String, String)>, output_path: String) -> Result<String, String> {
     let total_bytes: usize = entries.iter().map(|(_, content)| content.len()).sum();
     let started = log_cmd_start(
-        "create_backup_from_entries",
+        "write_zip_archive",
         json!({ "outputPath": output_path, "entries": entries.len(), "bytes": total_bytes }),
     );
 
     let result = (|| -> Result<String, String> {
-        // Ensure parent directory exists.
         if let Some(parent) = std::path::Path::new(&output_path).parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create backup directory: {}", e))?;
         }
-
-        let bytes = build_backup_zip(&entries)?;
-        std::fs::write(&output_path, &bytes)
-            .map_err(|e| format!("Failed to create backup file: {}", e))?;
+        let bytes = build_zip_bytes(&entries)?;
+        // Write to a temp path and rename into place, so the index (written only
+        // after this returns) can never come to reference a torn, half-written
+        // archive — the rename is atomic on the same filesystem.
+        let tmp_path = format!("{}.tmp", output_path);
+        std::fs::write(&tmp_path, &bytes)
+            .map_err(|e| format!("Failed to write backup file: {}", e))?;
+        std::fs::rename(&tmp_path, &output_path)
+            .map_err(|e| format!("Failed to finalize backup file: {}", e))?;
         Ok(output_path.clone())
     })();
 
     match &result {
         Ok(path) => log_cmd_ok(
-            "create_backup_from_entries",
+            "write_zip_archive",
             started,
             json!({ "outputPath": path, "entries": entries.len(), "bytes": total_bytes }),
         ),
-        Err(message) => log_cmd_err("create_backup_from_entries", started, message.clone()),
+        Err(message) => log_cmd_err("write_zip_archive", started, message.clone()),
     }
     result
 }
 
-// Builds the backup zip entirely in memory so the zip construction (entry names,
-// contents, compression, finalization) can be tested without touching disk.
-// create_backup_from_entries writes the returned bytes to the output path.
-fn build_backup_zip(entries: &[(String, String)]) -> Result<Vec<u8>, String> {
+// Builds the zip entirely in memory so the construction (entry names, contents,
+// compression, finalization) can be tested without touching disk.
+fn build_zip_bytes(entries: &[(String, String)]) -> Result<Vec<u8>, String> {
     let mut zip = ZipWriter::new(std::io::Cursor::new(Vec::<u8>::new()));
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
@@ -270,56 +388,6 @@ fn build_backup_zip(entries: &[(String, String)]) -> Result<Vec<u8>, String> {
         .finish()
         .map_err(|e| format!("Failed to finalize zip: {}", e))?;
     Ok(cursor.into_inner())
-}
-
-// Lists files in a directory, returning their names.
-// Used by the frontend to enumerate existing backups for pruning.
-#[tauri::command]
-fn list_directory(path: String) -> Result<Vec<String>, String> {
-    let started = log_cmd_start("list_directory", json!({ "path": path }));
-    let dir = match std::fs::read_dir(&path) {
-        Ok(d) => d,
-        Err(_) => {
-            // Directory doesn't exist yet — that's fine.
-            log_cmd_ok(
-                "list_directory",
-                started,
-                json!({ "path": path, "count": 0, "outcome": "missing" }),
-            );
-            return Ok(vec![]);
-        }
-    };
-
-    let mut names: Vec<String> = Vec::new();
-    for entry in dir.flatten() {
-        if let Some(name) = entry.file_name().to_str() {
-            names.push(name.to_string());
-        }
-    }
-    names.sort();
-    log_cmd_ok(
-        "list_directory",
-        started,
-        json!({ "path": path, "count": names.len() }),
-    );
-    Ok(names)
-}
-
-// Deletes a file. Used to prune old backups.
-#[tauri::command]
-fn delete_file(path: String) -> Result<(), String> {
-    let started = log_cmd_start("delete_file", json!({ "path": path }));
-    match std::fs::remove_file(&path) {
-        Ok(()) => {
-            log_cmd_ok("delete_file", started, json!({ "path": path }));
-            Ok(())
-        }
-        Err(e) => {
-            let message = format!("Failed to delete {}: {}", path, e);
-            log_cmd_err("delete_file", started, message.clone());
-            Err(message)
-        }
-    }
 }
 
 // Generic text read with an explicit missing/success/error union — the
@@ -585,12 +653,12 @@ mod tests {
     }
 
     #[test]
-    fn build_backup_zip_produces_a_readable_in_memory_archive() {
+    fn build_zip_bytes_produces_a_readable_in_memory_archive() {
         let entries = vec![
             ("tasks.json".to_string(), "hello".to_string()),
             ("prefs.json".to_string(), "world".to_string()),
         ];
-        let bytes = build_backup_zip(&entries).unwrap();
+        let bytes = build_zip_bytes(&entries).unwrap();
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
         assert_eq!(archive.len(), 2);
         let mut content = String::new();
@@ -621,15 +689,14 @@ mod tests {
     }
 
     #[test]
-    fn create_backup_writes_a_readable_zip() {
+    fn write_zip_archive_writes_a_readable_zip() {
         let dir = unique_temp_dir("backup");
         let output = dir.join("nested").join("backup.zip");
         let entries = vec![
             ("tasks.json".to_string(), "hello".to_string()),
             ("prefs.json".to_string(), "world".to_string()),
         ];
-        let returned =
-            create_backup_from_entries(entries, output.to_str().unwrap().to_string()).unwrap();
+        let returned = write_zip_archive(entries, output.to_str().unwrap().to_string()).unwrap();
         assert_eq!(returned, output.to_str().unwrap());
         // Parent directory was created and the file exists.
         assert!(output.exists());
@@ -657,38 +724,49 @@ mod tests {
     }
 
     #[test]
-    fn list_directory_returns_empty_for_missing_dir() {
-        let dir = unique_temp_dir("list-missing");
+    fn file_metadata_reports_size_and_mtime() {
+        let dir = unique_temp_dir("file-meta");
+        let path = dir.join("doc.json");
+        std::fs::write(&path, b"hello").unwrap();
+        let meta = file_metadata(path.to_str().unwrap()).unwrap();
+        assert_eq!(meta.size, 5);
+        assert!(meta.mtime_ms > 0.0);
+    }
+
+    #[test]
+    fn file_metadata_errors_for_missing_file() {
+        let dir = unique_temp_dir("file-meta-missing");
+        let path = dir.join("nope.json");
+        assert!(file_metadata(path.to_str().unwrap()).is_err());
+    }
+
+    #[test]
+    fn list_files_recursive_returns_empty_for_missing_root() {
+        let dir = unique_temp_dir("walk-missing");
         let missing = dir.join("does-not-exist");
-        let result = list_directory(missing.to_str().unwrap().to_string()).unwrap();
+        let result = list_files_recursive(missing.to_str().unwrap().to_string()).unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
-    fn list_directory_returns_sorted_names() {
-        let dir = unique_temp_dir("list");
-        std::fs::write(dir.join("c.txt"), b"").unwrap();
-        std::fs::write(dir.join("a.txt"), b"").unwrap();
-        std::fs::write(dir.join("b.txt"), b"").unwrap();
-        let result = list_directory(dir.to_str().unwrap().to_string()).unwrap();
-        assert_eq!(result, vec!["a.txt", "b.txt", "c.txt"]);
-    }
+    fn list_files_recursive_walks_nested_files_with_relative_forward_slash_paths() {
+        let dir = unique_temp_dir("walk");
+        std::fs::write(dir.join("state.json"), b"{}").unwrap();
+        let nested = dir.join("logs").join("inner");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("a.log"), b"x").unwrap();
 
-    #[test]
-    fn delete_file_removes_the_file() {
-        let dir = unique_temp_dir("delete");
-        let path = dir.join("gone.txt");
-        std::fs::write(&path, b"x").unwrap();
-        assert!(path.exists());
-        delete_file(path.to_str().unwrap().to_string()).unwrap();
-        assert!(!path.exists());
-    }
+        let mut result = list_files_recursive(dir.to_str().unwrap().to_string()).unwrap();
+        result.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
 
-    #[test]
-    fn delete_file_errors_for_missing_file() {
-        let dir = unique_temp_dir("delete-missing");
-        let path = dir.join("nope.txt");
-        assert!(delete_file(path.to_str().unwrap().to_string()).is_err());
+        let paths: Vec<&str> = result.iter().map(|f| f.relative_path.as_str()).collect();
+        assert_eq!(paths, vec!["logs/inner/a.log", "state.json"]);
+        // Sizes are reported; the nested file is 1 byte.
+        let nested_entry = result
+            .iter()
+            .find(|f| f.relative_path == "logs/inner/a.log")
+            .unwrap();
+        assert_eq!(nested_entry.size, 1);
     }
 
     #[test]
@@ -802,9 +880,9 @@ pub fn run() {
             write_text_file_atomic,
             file_exists,
             ensure_dir,
-            create_backup_from_entries,
-            list_directory,
-            delete_file,
+            file_metadata,
+            list_files_recursive,
+            write_zip_archive,
             app_data_root,
             log_event,
             logging_debug_enabled
