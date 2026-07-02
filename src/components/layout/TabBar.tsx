@@ -311,7 +311,9 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
+      onDragStart={() => document.body.classList.add("dnd-dragging")}
+      onDragEnd={(event) => { void handleDragEnd(event); document.body.classList.remove("dnd-dragging"); }}
+      onDragCancel={() => document.body.classList.remove("dnd-dragging")}
     >
       <SortableContext
         items={tabIds}

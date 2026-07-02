@@ -7,6 +7,14 @@ button:disabled {
   cursor: default;
 }
 
+/* While a tab drag (reorder) is in progress the whole window shows the closed-hand
+   "grabbing" cursor, overriding the pointer the tabs would otherwise show under the
+   roaming pointer. The body class is toggled by the DndContext drag handlers. */
+body.dnd-dragging,
+body.dnd-dragging * {
+  cursor: grabbing !important;
+}
+
 /* ── Semantic color tokens ────────────────────────────────────────────────
    Single source of truth for every color in the app. The light values below
    alias Tailwind's default palette, so the UI is unchanged by the move to
