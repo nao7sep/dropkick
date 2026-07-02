@@ -6,6 +6,7 @@
 // moment — the on-disk files are whatever the last session flushed, before this
 // session can touch them.
 
+import { isTauri } from "@tauri-apps/api/core";
 import { appDataRoot, log, toErrorFields } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
@@ -28,6 +29,11 @@ async function runOnce(
   workspacePath: string,
 ): Promise<void> {
   try {
+    // No Rust core in the browser preview — nothing to back up, no commands.
+    if (!isTauri()) {
+      return;
+    }
+
     const preferences = usePreferencesStore.getState().preferences;
     if (!preferences.backupEnabled) {
       log.info("backup skipped (disabled)");
@@ -65,7 +71,8 @@ function logReport(report: BackupReport): void {
     return;
   }
   if (report.nothingChanged) {
-    log.info("backup: nothing changed");
+    // The common outcome; at debug so a normal no-op run is silent in production.
+    log.debug("backup: nothing changed");
     return;
   }
   log.info("backup created", {
