@@ -6,7 +6,6 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { log, toErrorFields } from "./logging";
-import { generateId } from "../utils/ids";
 
 // Mirror of the Rust TextReadResult union (read_text_file command).
 type TextReadResult =
@@ -99,18 +98,12 @@ export async function listFilesRecursive(root: string): Promise<WalkedFile[]> {
 // creating the parent directory if needed. Entry names must already be unique
 // (case-insensitively) — the caller owns path mapping. Returns the output path.
 // The temp file the Rust side stages through (`<stem>-<nanoid>.tmp`, beside
-// outputPath) is named from a nanoid generated here — the same generateId()
-// utility dropkick entities use — since the Rust core has no nanoid crate of
-// its own.
+// outputPath) is named from a nanoid the Rust core generates itself.
 export async function writeZipArchive(
   entries: [string, string][],
   outputPath: string,
 ): Promise<string> {
-  return await invoke<string>("write_zip_archive", {
-    entries,
-    outputPath,
-    tempTag: generateId(),
-  });
+  return await invoke<string>("write_zip_archive", { entries, outputPath });
 }
 
 // Reads a JSON file once via the backend and returns the parsed data plus a
@@ -134,11 +127,10 @@ export async function writeJsonFile<T>(path: string, data: T): Promise<void> {
   const text = JSON.stringify(data, null, 2);
   try {
     // Atomic on the Rust side (temp + fsync + rename), so a crash mid-write
-    // never leaves a half-written file. tempTag names the staging file
-    // (`<stem>-<nanoid>.tmp`, beside `path`) — generated here with the same
-    // generateId() utility dropkick entities use, since the Rust core has no
-    // nanoid crate of its own.
-    await invoke("write_text_file_atomic", { path, contents: text, tempTag: generateId() });
+    // never leaves a half-written file. The staging file
+    // (`<stem>-<nanoid>.tmp`, beside `path`) is named from a nanoid the Rust
+    // core generates itself.
+    await invoke("write_text_file_atomic", { path, contents: text });
     log.debug("file write", { path, chars: text.length });
   } catch (e) {
     log.error("file write failed", { path, ...toErrorFields(e) });
