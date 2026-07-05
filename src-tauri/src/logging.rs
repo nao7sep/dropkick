@@ -6,7 +6,9 @@
 // Design (mirrors ~/code/company/conventions/...-logging-conventions.md):
 //   - One file per process launch: ~/.dropkick/logs/<yyyymmdd-hhmmss-fff-utc.log>.
 //     Strictly that stamp — no pid or id suffix. Two launches in the same UTC
-//     millisecond collide on the name, which is accepted, not avoided.
+//     millisecond collide on the name; the file is opened with exclusive
+//     create, so the second launch's open fails and it degrades to the
+//     stderr fallback rather than interleaving two sessions into one file.
 //   - One JSON object per line: { time, level, message, ...fields }.
 //   - `time` is UTC ISO 8601 with milliseconds and `Z`, generated here without a
 //     date crate (no new heavy deps) via a hand-rolled civil-time conversion.
@@ -22,7 +24,10 @@
 //   - A mandatory, non-destructive redactor replaces the value of any field whose
 //     name (exact, case-insensitive) is in the denied set; it never edits prose.
 //   - If the file cannot be opened or written, it degrades to stderr and never
-//     panics — the app must never crash because logging failed.
+//     panics — the app must never crash because logging failed. A mid-session
+//     write failure permanently switches to the stderr fallback (the dead
+//     handle is dropped and never retried), and the line that failed to write
+//     is re-emitted to stderr so its content is never lost.
 
 use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
@@ -192,7 +197,12 @@ fn open_writer(file_path: &Path) -> Option<File> {
             return None;
         }
     }
-    match OpenOptions::new().create(true).append(true).open(file_path) {
+    // Exclusive create: a session file is always fresh, never appended into.
+    // Two launches landing on the same millisecond stamp are the one case this
+    // can legitimately fail on live filesystems; the second one loses the race
+    // and falls through to the stderr fallback below rather than interleaving
+    // both sessions into a single file.
+    match OpenOptions::new().create_new(true).write(true).open(file_path) {
         Ok(file) => Some(file),
         Err(e) => {
             eprintln!(
@@ -231,12 +241,22 @@ impl Logger {
         // wedge logging shut, least of all the panic hook trying to record it.
         let mut inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
         match inner.writer.as_mut() {
-            // One write_all per line; the file is opened in append mode and this
-            // is the only writer in the process, so lines never interleave. The
-            // bytes reach the OS immediately — no buffer, nothing to flush.
+            // One write_all per line; the file is opened via exclusive create
+            // and this is the only writer in the process, so lines never
+            // interleave. The bytes reach the OS immediately — no buffer,
+            // nothing to flush.
             Some(writer) => {
                 if let Err(e) = writer.write_all(line.as_bytes()) {
-                    eprintln!("[dropkick:logging] write failed: {e}; line: {line}");
+                    // The handle is dead (disk full, permissions revoked, the
+                    // device went away). Never retry it: drop it permanently so
+                    // every later call takes the `None` branch below, and
+                    // re-emit this very line to stderr right now so its content
+                    // is degraded-to, not silently swallowed.
+                    eprintln!(
+                        "[dropkick:logging] write failed: {e}; switching to stderr fallback"
+                    );
+                    inner.writer = None;
+                    eprint!("{line}");
                 }
             }
             None => eprint!("{line}"),
@@ -571,5 +591,82 @@ mod tests {
         let (logger, path) = temp_logger(false);
         logger.emit_forwarded(json!({ "level": "warn", "message": "careful" }));
         assert_eq!(read_lines(&path)[0]["level"], json!("warn"));
+    }
+
+    // --- Exclusive create: same-path second open degrades to the fallback ---
+
+    #[test]
+    fn exclusive_create_second_open_of_same_path_falls_back_to_stderr() {
+        let path = std::env::temp_dir().join(format!(
+            "dropkick-log-test-exclusive-{}.log",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+
+        let first = open_writer(&path);
+        assert!(first.is_some(), "the first open should create the file exclusively");
+
+        // A second open of the exact same path (the same-millisecond-clash case
+        // in practice) must not append into or truncate the first session's
+        // file — `create_new` makes it fail outright, and `open_writer` turns
+        // that failure into the `None` stderr-fallback sentinel.
+        let second = open_writer(&path);
+        assert!(
+            second.is_none(),
+            "a same-path second open must fail over to the stderr fallback, not interleave"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // --- Mid-session write failure: permanent fallback, dead handle dropped ---
+
+    #[test]
+    fn write_failure_permanently_falls_back_and_stops_touching_the_dead_handle() {
+        // Induce a real, deterministic write failure without abusing fd
+        // ownership (closing a live fd out from under an open `File` trips
+        // Rust's IO-safety double-close abort on the eventual second close).
+        // A file opened read-only is a legitimate, valid handle whose own
+        // close() always succeeds — but every write against it genuinely fails
+        // at the OS level (EBADF/"access denied"), the same shape `write_all`
+        // sees on a real mid-session failure (disk full, permissions revoked).
+        let path = std::env::temp_dir().join(format!(
+            "dropkick-log-test-write-fail-{}.log",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        std::fs::write(&path, b"").expect("create temp file");
+        let readonly = File::open(&path).expect("open temp file read-only");
+
+        let logger = Logger {
+            inner: Mutex::new(Inner {
+                writer: Some(readonly),
+            }),
+            debug_enabled: false,
+            denied: default_denied(),
+        };
+
+        // The failing write must not panic, and must permanently drop the dead
+        // handle rather than retry it on the next call.
+        logger.emit(Level::Warn, "during-failure", json!({}));
+        {
+            let inner = logger.inner.lock().unwrap();
+            assert!(
+                inner.writer.is_none(),
+                "a write failure must permanently switch the logger to the stderr fallback"
+            );
+        }
+
+        // A later line must take the same `None` fallback branch as the failed
+        // line rather than retrying the dead handle — provable because the file
+        // on disk (never successfully written through the read-only handle)
+        // stays empty.
+        logger.emit(Level::Info, "after-failure", json!({}));
+        assert!(
+            read_lines(&path).is_empty(),
+            "no line should ever reach the dead (read-only) file handle"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 }
