@@ -3,7 +3,7 @@
 // categories that are re-derivable or are the backup's own output:
 //   - logs/     : session logs, not user data
 //   - backups/  : our own archives and index (never back up the backups)
-//   - *.tmp     : atomic-write temp files (".{name}.{pid}.tmp") mid-rename
+//   - *.tmp     : atomic-write temp files ("<stem>-<nanoid>.tmp") mid-rename
 //   - state.json: volatile session bookkeeping (recent files, open tabs, last
 //     paths) — not durable user work, so excluded per the content-based rule.
 //   - OS/file-manager metadata a file manager drops into any browsed directory

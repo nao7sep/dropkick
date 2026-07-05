@@ -2,14 +2,19 @@ import { describe, it, expect } from "vitest";
 import { backupTimestamp, toIsoSeconds } from "../../../src/services/backup/backupTime";
 
 describe("backupTimestamp", () => {
-  it("formats an instant as yyyymmdd-hhmmss-utc in UTC", () => {
-    const ms = Date.UTC(2026, 6, 1, 2, 22, 20); // 2026-07-01T02:22:20Z
-    expect(backupTimestamp(ms)).toBe("20260701-022220-utc");
+  it("formats an instant as yyyymmdd-hhmmss-fff-utc in UTC", () => {
+    const ms = Date.UTC(2026, 6, 1, 2, 22, 20, 5); // 2026-07-01T02:22:20.005Z
+    expect(backupTimestamp(ms)).toBe("20260701-022220-005-utc");
   });
 
-  it("zero-pads every field", () => {
-    const ms = Date.UTC(2026, 0, 5, 3, 4, 9); // 2026-01-05T03:04:09Z
-    expect(backupTimestamp(ms)).toBe("20260105-030409-utc");
+  it("zero-pads every field, including milliseconds", () => {
+    const ms = Date.UTC(2026, 0, 5, 3, 4, 9, 7); // 2026-01-05T03:04:09.007Z
+    expect(backupTimestamp(ms)).toBe("20260105-030409-007-utc");
+  });
+
+  it("pads a three-digit millisecond value without truncating it", () => {
+    const ms = Date.UTC(2026, 0, 5, 3, 4, 9, 123); // 2026-01-05T03:04:09.123Z
+    expect(backupTimestamp(ms)).toBe("20260105-030409-123-utc");
   });
 });
 

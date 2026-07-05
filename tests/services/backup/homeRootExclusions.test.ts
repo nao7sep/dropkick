@@ -8,9 +8,9 @@ describe("isExcludedHomeFile", () => {
   });
 
   it("excludes the feature's own output, logs, temporaries, and volatile state", () => {
-    expect(isExcludedHomeFile("logs/20260701-000000-utc.log")).toBe(true);
+    expect(isExcludedHomeFile("logs/20260701-000000-000-utc.log")).toBe(true);
     expect(isExcludedHomeFile("backups/index.json")).toBe(true);
-    expect(isExcludedHomeFile(".config.json.123.tmp")).toBe(true);
+    expect(isExcludedHomeFile("config-V1StGXR8.tmp")).toBe(true);
     expect(isExcludedHomeFile("state.json")).toBe(true);
   });
 

@@ -6,6 +6,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { log, toErrorFields } from "./logging";
+import { generateId } from "../utils/ids";
 
 // Mirror of the Rust TextReadResult union (read_text_file command).
 type TextReadResult =
@@ -97,11 +98,19 @@ export async function listFilesRecursive(root: string): Promise<WalkedFile[]> {
 // Writes a zip archive of [entryName, content] text pairs to `outputPath`,
 // creating the parent directory if needed. Entry names must already be unique
 // (case-insensitively) — the caller owns path mapping. Returns the output path.
+// The temp file the Rust side stages through (`<stem>-<nanoid>.tmp`, beside
+// outputPath) is named from a nanoid generated here — the same generateId()
+// utility dropkick entities use — since the Rust core has no nanoid crate of
+// its own.
 export async function writeZipArchive(
   entries: [string, string][],
   outputPath: string,
 ): Promise<string> {
-  return await invoke<string>("write_zip_archive", { entries, outputPath });
+  return await invoke<string>("write_zip_archive", {
+    entries,
+    outputPath,
+    tempTag: generateId(),
+  });
 }
 
 // Reads a JSON file once via the backend and returns the parsed data plus a
@@ -117,13 +126,19 @@ export async function readJsonFileWithHash<T>(
 // Writes an object to disk as formatted JSON. This is the single write boundary
 // for every JSON file (preferences, workspace, app config, task lists), so it
 // logs the write (debug) and surfaces any failure (error) with its path before
-// re-propagating it.
+// re-propagating it. This is also the write path for external documents saved
+// at user-picked locations (preferences/task lists outside ~/.dropkick) — the
+// Rust side stages its temp file beside `path` wherever that is, never under
+// ~/.dropkick.
 export async function writeJsonFile<T>(path: string, data: T): Promise<void> {
   const text = JSON.stringify(data, null, 2);
   try {
     // Atomic on the Rust side (temp + fsync + rename), so a crash mid-write
-    // never leaves a half-written file.
-    await invoke("write_text_file_atomic", { path, contents: text });
+    // never leaves a half-written file. tempTag names the staging file
+    // (`<stem>-<nanoid>.tmp`, beside `path`) — generated here with the same
+    // generateId() utility dropkick entities use, since the Rust core has no
+    // nanoid crate of its own.
+    await invoke("write_text_file_atomic", { path, contents: text, tempTag: generateId() });
     log.debug("file write", { path, chars: text.length });
   } catch (e) {
     log.error("file write failed", { path, ...toErrorFields(e) });

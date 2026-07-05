@@ -4,9 +4,9 @@
 // reference logger for our Tauri apps — keep it self-contained and dependency-free.
 //
 // Design (mirrors ~/code/company/conventions/...-logging-conventions.md):
-//   - One file per process launch: ~/.dropkick/logs/<yyyymmdd-hhmmss-utc.log>.
-//     Strictly that stamp — no millisecond, pid, or id suffix. Two launches in
-//     the same UTC second collide on the name, which is accepted, not avoided.
+//   - One file per process launch: ~/.dropkick/logs/<yyyymmdd-hhmmss-fff-utc.log>.
+//     Strictly that stamp — no pid or id suffix. Two launches in the same UTC
+//     millisecond collide on the name, which is accepted, not avoided.
 //   - One JSON object per line: { time, level, message, ...fields }.
 //   - `time` is UTC ISO 8601 with milliseconds and `Z`, generated here without a
 //     date crate (no new heavy deps) via a hand-rolled civil-time conversion.
@@ -107,12 +107,13 @@ fn iso_millis(ms: i64) -> String {
 }
 
 fn filename_stamp(ms: i64) -> String {
-    let (y, mo, d, h, mi, s, _ms3) = parts_from_millis(ms);
-    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-utc")
+    let (y, mo, d, h, mi, s, ms3) = parts_from_millis(ms);
+    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{ms3:03}-utc")
 }
 
-// `<yyyymmdd-hhmmss-utc.log>` for the current launch — the plain UTC stamp with
-// no suffix; a same-second collision is accepted rather than engineered around.
+// `<yyyymmdd-hhmmss-fff-utc.log>` for the current launch — the plain UTC stamp
+// (with milliseconds) and no other suffix; a same-millisecond collision is
+// accepted rather than engineered around.
 pub fn session_filename() -> String {
     format!("{}.log", filename_stamp(now_unix_millis()))
 }
@@ -386,17 +387,26 @@ mod tests {
 
     #[test]
     fn filename_stamp_matches_known_vector() {
-        assert_eq!(filename_stamp(1_700_000_000_123), "20231114-221320-utc");
+        assert_eq!(filename_stamp(1_700_000_000_123), "20231114-221320-123-utc");
     }
 
     #[test]
-    fn session_filename_is_the_plain_utc_stamp() {
+    fn session_filename_is_the_plain_utc_stamp_with_milliseconds() {
         let filename = session_filename();
-        // Strictly yyyymmdd-hhmmss-utc.log — no millisecond, pid, or id suffix.
+        // Strictly yyyymmdd-hhmmss-fff-utc.log — no pid or id suffix.
         assert!(
             filename.ends_with("-utc.log") && !filename.contains("-p"),
-            "filename {filename} must be the plain yyyymmdd-hhmmss-utc.log form"
+            "filename {filename} must be the plain yyyymmdd-hhmmss-fff-utc.log form"
         );
+        let stamp = filename.strip_suffix(".log").unwrap();
+        let parts: Vec<&str> = stamp.split('-').collect();
+        assert_eq!(
+            parts.len(),
+            4,
+            "stamp {stamp} must split on '-' into 4 parts: yyyymmdd, hhmmss, fff, utc"
+        );
+        assert_eq!(parts[3], "utc");
+        assert_eq!(parts[2].len(), 3, "millisecond part must be zero-padded to 3 digits");
     }
 
     #[test]

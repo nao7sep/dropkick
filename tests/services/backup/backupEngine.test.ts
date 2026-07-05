@@ -57,12 +57,13 @@ vi.mock("../../../src/repositories", () => ({
     put(outputPath, JSON.stringify(entries.map(([name]) => name)));
     return outputPath;
   },
+  fileExists: async (path: string) => fs.has(path),
 }));
 
 // Imported after the mock is registered.
 let runBackup: typeof import("../../../src/services/backup/backupEngine").runBackup;
 
-const NOW = Date.UTC(2026, 6, 1, 8, 0, 0); // -> 20260701-080000-utc
+const NOW = Date.UTC(2026, 6, 1, 8, 0, 0); // -> 20260701-080000-000-utc
 const INDEX_PATH = "/home/backups/index.json";
 
 function baseInputs(): BackupInputs {
@@ -101,13 +102,13 @@ describe("runBackup", () => {
     expect(report.fatal).toBeNull();
     expect(report.nothingChanged).toBe(false);
     expect(report.indexWasReset).toBe(false);
-    expect(report.archiveFileName).toBe("backup-20260701-080000-utc.zip");
+    expect(report.archiveFileName).toBe("backup-20260701-080000-000-utc.zip");
     // preferences + workspace + task list. state.json is seeded but excluded per the
     // content-based rule (session bookkeeping, not durable work); logs/ excluded; the
     // two in-home documents are captured by id, not mirrored.
     expect(report.filesArchived).toBe(3);
 
-    const archived = JSON.parse(fs.get("/home/backups/backup-20260701-080000-utc.zip")!.content);
+    const archived = JSON.parse(fs.get("/home/backups/backup-20260701-080000-000-utc.zip")!.content);
     expect([...archived].sort()).toEqual([
       "preferences/PREF.json",
       "workspaces/WS/task-lists/TL.json",
@@ -117,7 +118,7 @@ describe("runBackup", () => {
 
     // Archive is written before the index (crash-safety invariant).
     expect(callOrder).toEqual([
-      "zip:/home/backups/backup-20260701-080000-utc.zip",
+      "zip:/home/backups/backup-20260701-080000-000-utc.zip",
       `json:${INDEX_PATH}`,
     ]);
     expect(readIndex().entries).toHaveLength(3);
@@ -146,7 +147,7 @@ describe("runBackup", () => {
     const report = await runBackup(baseInputs(), NOW + 60_000);
     expect(report.filesArchived).toBe(1);
     const archived = JSON.parse(
-      fs.get("/home/backups/backup-20260701-080100-utc.zip")!.content,
+      fs.get("/home/backups/backup-20260701-080100-000-utc.zip")!.content,
     );
     expect(archived).toEqual(["preferences/PREF.json"]);
     // Index now holds the original 3 rows plus the one new capture.
@@ -169,5 +170,38 @@ describe("runBackup", () => {
     const report = await runBackup(baseInputs(), NOW);
     expect(report.filesArchived).toBe(2);
     expect(report.skips.some((s) => s.sourcePath === "/proj/tasks.json")).toBe(true);
+  });
+
+  it("never clobbers an existing archive: advances the stamp by 1ms when the name is taken", async () => {
+    seedFiles();
+    // Pre-occupy the exact name this run would otherwise pick for NOW.
+    put("/home/backups/backup-20260701-080000-000-utc.zip", "already here");
+
+    const report = await runBackup(baseInputs(), NOW);
+
+    // The winning stamp advanced by 1ms rather than overwriting the taken name.
+    expect(report.archiveFileName).toBe("backup-20260701-080000-001-utc.zip");
+    expect(fs.get("/home/backups/backup-20260701-080000-000-utc.zip")!.content).toBe(
+      "already here",
+    ); // untouched
+    expect(callOrder).toEqual([
+      "zip:/home/backups/backup-20260701-080000-001-utc.zip",
+      `json:${INDEX_PATH}`,
+    ]);
+
+    // The index rows use the same winning stamp as the archive's file name.
+    const rows = readIndex().entries;
+    expect(rows).toHaveLength(3);
+    expect(rows.every((r) => r.archivedAt === "20260701-080000-001-utc")).toBe(true);
+  });
+
+  it("keeps advancing past every consecutive taken stamp", async () => {
+    seedFiles();
+    put("/home/backups/backup-20260701-080000-000-utc.zip", "taken");
+    put("/home/backups/backup-20260701-080000-001-utc.zip", "also taken");
+
+    const report = await runBackup(baseInputs(), NOW);
+
+    expect(report.archiveFileName).toBe("backup-20260701-080000-002-utc.zip");
   });
 });

@@ -334,9 +334,15 @@ fn list_files_recursive(root: String) -> Result<Vec<WalkedFile>, String> {
 // creating the parent directory if needed. The backup only archives JSON
 // documents, so entry contents are UTF-8 text. Entry names are supplied by the
 // caller and must already be unique (case-insensitively) — this primitive does
-// no path mapping and no de-duplication of its own. Returns the output path.
+// no path mapping and no de-duplication of its own. `temp_tag` is a
+// caller-generated nanoid (see write_text_file_atomic) used to name the
+// staging file alongside the target. Returns the output path.
 #[tauri::command]
-fn write_zip_archive(entries: Vec<(String, String)>, output_path: String) -> Result<String, String> {
+fn write_zip_archive(
+    entries: Vec<(String, String)>,
+    output_path: String,
+    temp_tag: String,
+) -> Result<String, String> {
     let total_bytes: usize = entries.iter().map(|(_, content)| content.len()).sum();
     let started = log_cmd_start(
         "write_zip_archive",
@@ -344,15 +350,21 @@ fn write_zip_archive(entries: Vec<(String, String)>, output_path: String) -> Res
     );
 
     let result = (|| -> Result<String, String> {
-        if let Some(parent) = std::path::Path::new(&output_path).parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create backup directory: {}", e))?;
-        }
+        let target = std::path::Path::new(&output_path);
+        let parent = target
+            .parent()
+            .ok_or_else(|| "output path has no parent directory".to_string())?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create backup directory: {}", e))?;
+        let file_name = target
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| "output path has no file name".to_string())?;
         let bytes = build_zip_bytes(&entries)?;
-        // Write to a temp path and rename into place, so the index (written only
-        // after this returns) can never come to reference a torn, half-written
-        // archive — the rename is atomic on the same filesystem.
-        let tmp_path = format!("{}.tmp", output_path);
+        // Write to a sibling temp path and rename into place, so the index
+        // (written only after this returns) can never come to reference a torn,
+        // half-written archive — the rename is atomic on the same filesystem.
+        let tmp_path = parent.join(atomic_temp_name(file_name, &temp_tag)?);
         std::fs::write(&tmp_path, &bytes)
             .map_err(|e| format!("Failed to write backup file: {}", e))?;
         std::fs::rename(&tmp_path, &output_path)
@@ -441,13 +453,17 @@ fn read_text_file(path: &str) -> Result<TextReadResult, String> {
 // never leave a half-written task/config file — the renamed-in file is either
 // the old bytes or the complete new bytes. The parent directory must already
 // exist (callers ensure_dir first), matching the previous plugin behavior.
+// `temp_tag` is a nanoid the frontend generates per call (via the same nanoid
+// utility dropkick entities use — see utils/ids.ts) so the temp file's name is
+// filename-grammar compliant (`<stem>-<nanoid>.tmp`) without pulling a random-
+// number crate into the Rust core, which has none today.
 #[tauri::command]
-fn write_text_file_atomic(path: &str, contents: &str) -> Result<(), String> {
+fn write_text_file_atomic(path: &str, contents: &str, temp_tag: &str) -> Result<(), String> {
     let started = log_cmd_start(
         "write_text_file_atomic",
         json!({ "path": path, "bytes": contents.len() }),
     );
-    let result = write_atomic(path, contents);
+    let result = write_atomic(path, contents, temp_tag);
     match &result {
         Ok(()) => log_cmd_ok(
             "write_text_file_atomic",
@@ -459,17 +475,47 @@ fn write_text_file_atomic(path: &str, contents: &str) -> Result<(), String> {
     result
 }
 
-// The staging temp-file name write_atomic renames into place. NOTE: it is keyed
-// only by the target file name and the process id, so two concurrent writes from
-// the SAME process to the SAME path produce the SAME temp name and would clobber
-// each other's staging file. That is safe only because the frontend serializes
-// writes per path (withSerial in file-system.ts) — this name is not itself a
-// concurrency guard.
-fn atomic_temp_name(file_name: &str, pid: u32) -> String {
-    format!(".{}.{}.tmp", file_name, pid)
+// A temp_tag is caller (webview) supplied but gets embedded directly into a
+// filename on disk, so the Rust core — the sole owner of filesystem decisions
+// per the storage-path convention — validates it here rather than trusting the
+// frontend to hand over a name-safe token. Anything outside this shape (a path
+// separator, a dot, whitespace, an oversized string) is rejected rather than
+// stripped or truncated, so a malformed tag never silently reshapes the
+// resulting path.
+const TEMP_TAG_MAX_LEN: usize = 64;
+
+fn is_valid_temp_tag(tag: &str) -> bool {
+    !tag.is_empty()
+        && tag.len() <= TEMP_TAG_MAX_LEN
+        && tag
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-fn write_atomic(path: &str, contents: &str) -> Result<(), String> {
+// The staging temp-file name an atomic write renames into place:
+// `<stem>-<tag>.tmp`, sibling to the target (stem = the target's file name
+// without its final extension). `tag` is caller-supplied (a nanoid, in
+// practice), so distinct calls — even concurrent ones to the same path — get
+// distinct staging files. That said, the frontend still serializes writes per
+// path (withSerial in file-system.ts) for the unrelated reason of keeping
+// hash-checked reads and writes from interleaving. Both write_text_file_atomic
+// and write_zip_archive funnel through here, so this is the single point where
+// an invalid tag is rejected rather than embedded in a path.
+fn atomic_temp_name(file_name: &str, tag: &str) -> Result<String, String> {
+    if !is_valid_temp_tag(tag) {
+        return Err(format!(
+            "invalid temp_tag {:?}: must match ^[A-Za-z0-9_-]{{1,{}}}$",
+            tag, TEMP_TAG_MAX_LEN
+        ));
+    }
+    let stem = std::path::Path::new(file_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(file_name);
+    Ok(format!("{}-{}.tmp", stem, tag))
+}
+
+fn write_atomic(path: &str, contents: &str, temp_tag: &str) -> Result<(), String> {
     use std::io::Write;
     let target = std::path::Path::new(path);
     let parent = target
@@ -479,7 +525,7 @@ fn write_atomic(path: &str, contents: &str) -> Result<(), String> {
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| "path has no file name".to_string())?;
-    let tmp = parent.join(atomic_temp_name(file_name, std::process::id()));
+    let tmp = parent.join(atomic_temp_name(file_name, temp_tag)?);
 
     let write_tmp = (|| -> std::io::Result<()> {
         let mut file = std::fs::File::create(&tmp)?;
@@ -732,21 +778,79 @@ mod tests {
     }
 
     #[test]
-    fn atomic_temp_name_is_stable_per_file_and_pid() {
-        // Same file + same process => same temp name. This is the documented
-        // collision: two same-process writers to one path stage through the same
-        // temp file, which is why the frontend serializes writes per path.
-        assert_eq!(atomic_temp_name("tasks.json", 1234), ".tasks.json.1234.tmp");
+    fn atomic_temp_name_is_stem_plus_tag_dot_tmp() {
+        // Grammar: <stem>-<tag>.tmp — one final extension, the target's
+        // extension dropped rather than dot-appended after it.
         assert_eq!(
-            atomic_temp_name("tasks.json", 1234),
-            atomic_temp_name("tasks.json", 1234)
+            atomic_temp_name("tasks.json", "V1StGXR8").unwrap(),
+            "tasks-V1StGXR8.tmp"
         );
-        // A different pid or file name yields a different temp name.
+        // A different tag or file name yields a different temp name; unlike the
+        // old pid-keyed scheme, even the SAME file with a fresh tag now differs —
+        // each call supplies its own nanoid.
         assert_ne!(
-            atomic_temp_name("tasks.json", 1234),
-            atomic_temp_name("tasks.json", 5678)
+            atomic_temp_name("tasks.json", "aaaaaaaa").unwrap(),
+            atomic_temp_name("tasks.json", "bbbbbbbb").unwrap()
         );
-        assert_ne!(atomic_temp_name("a.json", 1), atomic_temp_name("b.json", 1));
+        assert_ne!(
+            atomic_temp_name("a.json", "tag").unwrap(),
+            atomic_temp_name("b.json", "tag").unwrap()
+        );
+    }
+
+    #[test]
+    fn is_valid_temp_tag_accepts_the_documented_shape() {
+        // Letters, digits, underscore, hyphen; 1 to 64 characters.
+        assert!(is_valid_temp_tag("a"));
+        assert!(is_valid_temp_tag("V1StGXR8"));
+        assert!(is_valid_temp_tag("tag-one_2"));
+        assert!(is_valid_temp_tag(&"a".repeat(64))); // exactly the max length
+    }
+
+    #[test]
+    fn is_valid_temp_tag_rejects_anything_outside_the_shape() {
+        assert!(!is_valid_temp_tag("")); // empty
+        assert!(!is_valid_temp_tag(&"a".repeat(65))); // one over the max length
+        assert!(!is_valid_temp_tag("../escape")); // path traversal
+        assert!(!is_valid_temp_tag("a/b")); // path separator
+        assert!(!is_valid_temp_tag("a\\b")); // Windows path separator
+        assert!(!is_valid_temp_tag("tag.tmp")); // dot: could reshape the extension
+        assert!(!is_valid_temp_tag("tag with space"));
+        assert!(!is_valid_temp_tag("tag\nname")); // embedded newline
+        assert!(!is_valid_temp_tag("tagé")); // non-ASCII
+    }
+
+    #[test]
+    fn atomic_temp_name_rejects_an_invalid_tag() {
+        let err = atomic_temp_name("tasks.json", "../escape").unwrap_err();
+        assert!(err.contains("invalid temp_tag"));
+    }
+
+    #[test]
+    fn write_text_file_atomic_rejects_an_invalid_temp_tag() {
+        let dir = unique_temp_dir("write-bad-tag");
+        let path = dir.join("f.json");
+        let err = write_text_file_atomic(path.to_str().unwrap(), "x", "not/a valid tag")
+            .unwrap_err();
+        assert!(err.contains("invalid temp_tag"));
+        // Nothing was written: the target and any stray temp file are absent.
+        assert!(!path.exists());
+        assert!(std::fs::read_dir(&dir).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn write_zip_archive_rejects_an_invalid_temp_tag() {
+        let dir = unique_temp_dir("zip-bad-tag");
+        let output = dir.join("backup.zip");
+        let entries = vec![("tasks.json".to_string(), "hello".to_string())];
+        let err = write_zip_archive(
+            entries,
+            output.to_str().unwrap().to_string(),
+            "bad.tag".to_string(),
+        )
+        .unwrap_err();
+        assert!(err.contains("invalid temp_tag"));
+        assert!(!output.exists());
     }
 
     #[test]
@@ -757,10 +861,22 @@ mod tests {
             ("tasks.json".to_string(), "hello".to_string()),
             ("prefs.json".to_string(), "world".to_string()),
         ];
-        let returned = write_zip_archive(entries, output.to_str().unwrap().to_string()).unwrap();
+        let returned = write_zip_archive(
+            entries,
+            output.to_str().unwrap().to_string(),
+            "nanoidtag1".to_string(),
+        )
+        .unwrap();
         assert_eq!(returned, output.to_str().unwrap());
         // Parent directory was created and the file exists.
         assert!(output.exists());
+        // No stray temp file left behind in the directory (rename cleaned it up).
+        let leftovers: Vec<_> = std::fs::read_dir(output.parent().unwrap())
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left: {leftovers:?}");
 
         // Read the zip back and verify both entries and their contents.
         let f = std::fs::File::open(&output).unwrap();
@@ -853,11 +969,13 @@ mod tests {
         let path = dir.join("f.json");
         let p = path.to_str().unwrap();
 
-        write_text_file_atomic(p, "first").unwrap();
+        write_text_file_atomic(p, "first", "tag-one").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "first");
 
         // Overwriting replaces the content atomically (rename over existing).
-        write_text_file_atomic(p, "second longer contents").unwrap();
+        // A fresh tag per call, exactly as the frontend generates a fresh nanoid
+        // per write.
+        write_text_file_atomic(p, "second longer contents", "tag-two").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "second longer contents");
 
         // No stray temp files left behind in the directory.
@@ -873,7 +991,7 @@ mod tests {
     fn write_text_file_atomic_errors_when_parent_missing() {
         let dir = unique_temp_dir("write-no-parent");
         let path = dir.join("missing-subdir").join("f.json");
-        assert!(write_text_file_atomic(path.to_str().unwrap(), "x").is_err());
+        assert!(write_text_file_atomic(path.to_str().unwrap(), "x", "tag").is_err());
     }
 
     #[test]

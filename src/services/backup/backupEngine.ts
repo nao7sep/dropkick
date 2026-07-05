@@ -12,6 +12,7 @@ import {
   readTextFileContent,
   withSerial,
   joinPath,
+  fileExists,
 } from "../../repositories";
 import type {
   BackupIndex,
@@ -43,6 +44,30 @@ async function readIndex(
     return { index: { entries: result.data.entries }, wasReset: false };
   }
   return { index: { entries: [] }, wasReset: true };
+}
+
+// The archive's name is derived from a millisecond timestamp, so two runs that
+// land in the same millisecond — a fast backup cadence, or a caller-supplied
+// clock — would otherwise both resolve to the same `backup-<stamp>.zip`, and
+// the Rust write (an unconditional rename into place) would silently clobber
+// the earlier archive. Per the data-backup convention, a create must never
+// clobber: before writing, probe for the candidate name and, if it is taken,
+// advance by one millisecond and try again until a free stamp is found. The
+// winning stamp is used for both the zip's file name and the index rows this
+// run appends, so the two stay in lockstep with what actually landed on disk.
+async function resolveFreeArchiveStamp(
+  backupsDir: string,
+  nowMs: number,
+): Promise<{ archivedAt: string; archiveFileName: string }> {
+  let candidateMs = nowMs;
+  for (;;) {
+    const archivedAt = backupTimestamp(candidateMs);
+    const archiveFileName = `backup-${archivedAt}.zip`;
+    if (!(await fileExists(joinPath(backupsDir, archiveFileName)))) {
+      return { archivedAt, archiveFileName };
+    }
+    candidateMs += 1;
+  }
 }
 
 export async function runBackup(
@@ -104,8 +129,7 @@ export async function runBackup(
       };
     }
 
-    const archivedAt = backupTimestamp(nowMs);
-    const archiveFileName = `backup-${archivedAt}.zip`;
+    const { archivedAt, archiveFileName } = await resolveFreeArchiveStamp(backupsDir, nowMs);
 
     // Archive first...
     await writeZipArchive(entries, joinPath(backupsDir, archiveFileName));
