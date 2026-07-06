@@ -27,6 +27,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.11"
 hex = "0.4"
-zip = "8"
 getrandom = "0.3"
+# The write-through data-backup store. `bundled` compiles SQLite from source into
+# the binary, so the store needs no system libsqlite3 and adds no packaging churn
+# (the lowest-friction SQLite binding for the Rust core, per the data-backup
+# conventions' "built-in or lowest-friction binding" rule).
+rusqlite = { version = "0.40", features = ["bundled"] }
 

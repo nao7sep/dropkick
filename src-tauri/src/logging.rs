@@ -111,6 +111,16 @@ fn iso_millis(ms: i64) -> String {
     format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}.{ms3:03}Z")
 }
 
+// The current instant as the serialized ISO-8601 UTC-with-milliseconds form
+// (`2026-07-06T04:05:12.345Z`) — the timestamp-conventions' internal/serialized
+// shape, a data value. Reuses the same `iso_millis` formatter the log lines use
+// so there is one time formatter, never a fourth. The data-backup store stamps
+// its `written_at_utc` column with this — NEVER the `yyyymmdd-hhmmss-fff-utc`
+// filename stamp (`filename_stamp` above), which belongs to file names only.
+pub fn now_iso_millis() -> String {
+    iso_millis(now_unix_millis())
+}
+
 fn filename_stamp(ms: i64) -> String {
     let (y, mo, d, h, mi, s, ms3) = parts_from_millis(ms);
     format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{ms3:03}-utc")
@@ -345,10 +355,10 @@ pub fn info(message: &str, fields: Value) {
     emit(Level::Info, message, fields);
 }
 
-// Retained for a complete four-level emitter API (this is the reference logger).
-// The frontend's warnings arrive pre-leveled through `emit_forwarded`, and the
-// Rust core currently has no warn-worthy event of its own, so this is unused here.
-#[allow(dead_code)]
+// One `warn` line is what the data-backup store logs when it cannot open
+// (recording disabled for the session) or when a single record fails — the
+// convention's "logs only failures, one warn line" contract. The frontend's
+// warnings also arrive pre-leveled through `emit_forwarded`.
 pub fn warn(message: &str, fields: Value) {
     emit(Level::Warn, message, fields);
 }

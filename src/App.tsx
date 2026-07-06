@@ -11,7 +11,6 @@ import { showMessage, log, toErrorFields, loadFailureFields } from "./repositori
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppConfigStore } from "./state/app-config-store";
-import { runBackupInBackground } from "./services";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
@@ -115,11 +114,11 @@ function App() {
       // Remember only a successfully loaded selection.
       await setLastPaths(preferencesPath, workspacePath);
 
-      // Just-in-case data backup: fire-and-forget after the documents have
-      // loaded (their ids are now materialized in the stores), so it never blocks
-      // the main window from appearing.
+      // The just-in-case data backup is no longer a startup pass: it is now a
+      // write-through store in the Rust core that records every managed-text save
+      // the instant its atomic rename lands (see backup_store.rs). There is
+      // nothing to kick off here.
       const workspace = useWorkspaceStore.getState().workspace;
-      runBackupInBackground(preferencesPath, workspacePath);
 
       // Record the effective configuration once the session is live: the
       // preferences object (no secret-bearing fields) and a workspace summary.

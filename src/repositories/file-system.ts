@@ -59,53 +59,6 @@ export async function readJsonFileResult<T>(
   }
 }
 
-// Reads a file's raw text content, throwing if it is missing or unreadable.
-// Backup relies on the throw to skip files it cannot read.
-export async function readTextFileContent(path: string): Promise<string> {
-  const result = await invoke<TextReadResult>("read_text_file", { path });
-  if (result.status === "success") return result.text;
-  if (result.status === "missing") throw new Error(`File not found: ${path}`);
-  throw new Error(result.message);
-}
-
-// A file's size (bytes) and last-modified time (epoch milliseconds). Mirror of
-// the Rust FileMetadata / WalkedFile structs. Backup uses size + mtime to detect
-// which files changed since the last archive without reading their contents.
-export interface FileMetadata {
-  size: number;
-  mtimeMs: number;
-}
-
-export interface WalkedFile {
-  relativePath: string; // relative to the walked root, forward-slash separated
-  size: number;
-  mtimeMs: number;
-}
-
-// Returns a single file's size and mtime. Throws (missing file, permission
-// denied, …) so backup can skip that file best-effort.
-export async function fileMetadata(path: string): Promise<FileMetadata> {
-  return await invoke<FileMetadata>("file_metadata", { path });
-}
-
-// Recursively lists every regular file under `root` with size and mtime, each
-// path relative to `root`. A missing root returns an empty list.
-export async function listFilesRecursive(root: string): Promise<WalkedFile[]> {
-  return await invoke<WalkedFile[]>("list_files_recursive", { root });
-}
-
-// Writes a zip archive of [entryName, content] text pairs to `outputPath`,
-// creating the parent directory if needed. Entry names must already be unique
-// (case-insensitively) — the caller owns path mapping. Returns the output path.
-// The temp file the Rust side stages through (`<stem>-<nanoid>.tmp`, beside
-// outputPath) is named from a nanoid the Rust core generates itself.
-export async function writeZipArchive(
-  entries: [string, string][],
-  outputPath: string,
-): Promise<string> {
-  return await invoke<string>("write_zip_archive", { entries, outputPath });
-}
-
 // Reads a JSON file once via the backend and returns the parsed data plus a
 // hash of the exact bytes that were read.
 export async function readJsonFileWithHash<T>(

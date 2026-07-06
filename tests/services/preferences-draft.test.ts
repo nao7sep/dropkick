@@ -129,7 +129,7 @@ describe("isPreferencesDraftDirty", () => {
       { timezone: "Asia/Tokyo" },
       { dueSoonDays: c.dueSoonDays + 1 },
       { handledTasksPageSize: c.handledTasksPageSize + 10 },
-      { backupEnabled: !c.backupEnabled },
+      { fontFamily: `${c.fontFamily}-alt` },
     ];
     for (const change of cases) {
       expect(isPreferencesDraftDirty({ ...c, ...change }, c, KICK_STRING)).toBe(

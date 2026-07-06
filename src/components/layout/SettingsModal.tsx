@@ -227,22 +227,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           className="w-24 rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
       </Field>
-
-      {/* Automatic backup */}
-      <Field label="Automatic backup">
-        <label className="flex items-center gap-2 text-sm text-ink">
-          <input
-            type="checkbox"
-            checked={draft.backupEnabled}
-            onChange={(e) => setField("backupEnabled", e.target.checked)}
-            className="rounded border-border-strong"
-          />
-          Back up task lists at startup
-        </label>
-        <p className="mt-1 text-xs text-ink-muted">
-          Backups are saved per workspace in the app's data folder and kept indefinitely.
-        </p>
-      </Field>
     </AppModal>
   );
 }

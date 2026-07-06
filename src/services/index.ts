@@ -43,5 +43,3 @@ export {
   parseKickDistances,
   isPreferencesDraftDirty,
 } from "./preferences-draft";
-
-export { runBackupInBackground } from "./backup/backupService";

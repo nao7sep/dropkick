@@ -18,7 +18,6 @@ export interface PreferencesDto {
   kickDistances: number[];
   dueSoonDays: number;
   handledTasksPageSize: number;
-  backupEnabled: boolean;
 }
 
 // Default kick distances — the single source of truth for the "+N" actions.
@@ -54,6 +53,5 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     kickDistances: [...DEFAULT_KICK_DISTANCES],
     dueSoonDays: 7,
     handledTasksPageSize: 50,
-    backupEnabled: true,
   };
 }

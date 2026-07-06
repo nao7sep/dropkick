@@ -4,9 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tauri::AppHandle;
-use zip::write::SimpleFileOptions;
-use zip::ZipWriter;
 
+mod backup_store;
 mod logging;
 mod nanoid;
 mod paths;
@@ -220,186 +219,6 @@ fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
     }
 }
 
-// One file's size and last-modified time (epoch milliseconds). The backup engine
-// stats each candidate through this and compares size + mtime against its index
-// to decide, without reading content, which files changed since the last archive.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct FileMetadata {
-    size: u64,
-    mtime_ms: f64,
-}
-
-fn read_file_metadata(path: &str) -> Result<FileMetadata, String> {
-    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
-    let modified = meta.modified().map_err(|e| e.to_string())?;
-    let mtime_ms = modified
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis() as f64;
-    Ok(FileMetadata {
-        size: meta.len(),
-        mtime_ms,
-    })
-}
-
-// Returns a single file's size and mtime. Errors (including a missing file) are
-// returned as Err so the backup collector can skip that file best-effort.
-#[tauri::command]
-fn file_metadata(path: &str) -> Result<FileMetadata, String> {
-    let started = log_cmd_start("file_metadata", json!({ "path": path }));
-    let result = read_file_metadata(path);
-    match &result {
-        Ok(m) => log_cmd_ok(
-            "file_metadata",
-            started,
-            json!({ "path": path, "size": m.size, "mtimeMs": m.mtime_ms }),
-        ),
-        Err(message) => log_cmd_err("file_metadata", started, message.clone()),
-    }
-    result
-}
-
-// One file found under a walked root: its path relative to that root (always
-// forward-slash separated, so it maps straight onto a zip entry name), plus size
-// and mtime for change detection.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct WalkedFile {
-    relative_path: String,
-    size: u64,
-    mtime_ms: f64,
-}
-
-fn walk_dir(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<WalkedFile>) {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(_) => return, // Unreadable subtree: skip it, best-effort.
-    };
-    for entry in entries.flatten() {
-        let file_type = match entry.file_type() {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
-        // is_dir/is_file are both false for a symlink, so symlinks are skipped —
-        // no symlink following, no walk loops.
-        if file_type.is_dir() {
-            walk_dir(root, &entry.path(), out);
-        } else if file_type.is_file() {
-            let meta = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-            let mtime_ms = match meta
-                .modified()
-                .ok()
-                .and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok())
-            {
-                Some(d) => d.as_millis() as f64,
-                None => continue,
-            };
-            let path = entry.path();
-            let relative_path = match path.strip_prefix(root) {
-                Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
-                Err(_) => continue,
-            };
-            out.push(WalkedFile {
-                relative_path,
-                size: meta.len(),
-                mtime_ms,
-            });
-        }
-    }
-}
-
-// Recursively lists every regular file under `root` with its size and mtime. A
-// missing root yields an empty list (first run). Exclusions are applied by the
-// backup engine in TypeScript, so this returns everything it can read.
-#[tauri::command]
-fn list_files_recursive(root: String) -> Result<Vec<WalkedFile>, String> {
-    let started = log_cmd_start("list_files_recursive", json!({ "root": root }));
-    let mut files = Vec::new();
-    let root_path = std::path::Path::new(&root);
-    if root_path.exists() {
-        walk_dir(root_path, root_path, &mut files);
-    }
-    log_cmd_ok(
-        "list_files_recursive",
-        started,
-        json!({ "root": root, "count": files.len() }),
-    );
-    Ok(files)
-}
-
-// Writes a zip archive of (entry_name, content) text pairs to `output_path`,
-// creating the parent directory if needed. The backup only archives JSON
-// documents, so entry contents are UTF-8 text. Entry names are supplied by the
-// caller and must already be unique (case-insensitively) — this primitive does
-// no path mapping and no de-duplication of its own. Returns the output path.
-#[tauri::command]
-fn write_zip_archive(
-    entries: Vec<(String, String)>,
-    output_path: String,
-) -> Result<String, String> {
-    let total_bytes: usize = entries.iter().map(|(_, content)| content.len()).sum();
-    let started = log_cmd_start(
-        "write_zip_archive",
-        json!({ "outputPath": output_path, "entries": entries.len(), "bytes": total_bytes }),
-    );
-
-    let result = (|| -> Result<String, String> {
-        let target = std::path::Path::new(&output_path);
-        let parent = target
-            .parent()
-            .ok_or_else(|| "output path has no parent directory".to_string())?;
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create backup directory: {}", e))?;
-        let file_name = target
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| "output path has no file name".to_string())?;
-        let bytes = build_zip_bytes(&entries)?;
-        // Write to a sibling temp path and rename into place, so the index
-        // (written only after this returns) can never come to reference a torn,
-        // half-written archive — the rename is atomic on the same filesystem.
-        let tmp_path = parent.join(atomic_temp_name(file_name));
-        std::fs::write(&tmp_path, &bytes)
-            .map_err(|e| format!("Failed to write backup file: {}", e))?;
-        std::fs::rename(&tmp_path, &output_path)
-            .map_err(|e| format!("Failed to finalize backup file: {}", e))?;
-        Ok(output_path.clone())
-    })();
-
-    match &result {
-        Ok(path) => log_cmd_ok(
-            "write_zip_archive",
-            started,
-            json!({ "outputPath": path, "entries": entries.len(), "bytes": total_bytes }),
-        ),
-        Err(message) => log_cmd_err("write_zip_archive", started, message.clone()),
-    }
-    result
-}
-
-// Builds the zip entirely in memory so the construction (entry names, contents,
-// compression, finalization) can be tested without touching disk.
-fn build_zip_bytes(entries: &[(String, String)]) -> Result<Vec<u8>, String> {
-    let mut zip = ZipWriter::new(std::io::Cursor::new(Vec::<u8>::new()));
-    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-
-    for (entry_name, content) in entries {
-        zip.start_file(entry_name, options)
-            .map_err(|e| format!("Failed to add {} to zip: {}", entry_name, e))?;
-        std::io::Write::write_all(&mut zip, content.as_bytes())
-            .map_err(|e| format!("Failed to write {} to zip: {}", entry_name, e))?;
-    }
-
-    let cursor = zip
-        .finish()
-        .map_err(|e| format!("Failed to finalize zip: {}", e))?;
-    Ok(cursor.into_inner())
-}
-
 // Generic text read with an explicit missing/success/error union — the
 // non-task-list counterpart to read_json_file_with_hash. Moving plain reads here
 // (alongside writes/exists/mkdir below) is what lets the webview drop the Tauri
@@ -478,8 +297,7 @@ fn write_text_file_atomic(path: &str, contents: &str) -> Result<(), String> {
 // per call, so distinct calls — even concurrent ones to the same path — get
 // distinct staging files. That said, the frontend still serializes writes per
 // path (withSerial in file-system.ts) for the unrelated reason of keeping
-// hash-checked reads and writes from interleaving. Both write_text_file_atomic
-// and write_zip_archive funnel through here.
+// hash-checked reads and writes from interleaving.
 fn atomic_temp_name(file_name: &str) -> String {
     let stem = std::path::Path::new(file_name)
         .file_stem()
@@ -520,6 +338,26 @@ fn write_atomic(path: &str, contents: &str) -> Result<(), String> {
     if let Ok(dir) = std::fs::File::open(parent) {
         let _ = dir.sync_all();
     }
+
+    // --- Data-backup record hook (data-backup conventions) ---
+    // The rename has landed: `target` now holds exactly `contents` and is where it
+    // belongs, so — and only now, strictly AFTER the rename — record the exact raw
+    // bytes we just wrote into the write-through store. Recording before the rename
+    // would risk a "backup of a save that never happened". We reuse the in-hand
+    // bytes (`contents.as_bytes()`), never re-reading the file (which would risk
+    // capturing a concurrent writer's content, not what this call wrote).
+    //
+    // This is the ONE managed-text choke point every managed write funnels through
+    // (webview -> write_text_file_atomic -> here), so the hook lives in exactly one
+    // place. record() is best-effort and silent on success; it never throws, never
+    // breaks this save that already succeeded above, and never crashes the app.
+    // Managed durable text (state.json, preferences/workspaces/task-lists — internal
+    // and external) is recorded on every save; dedup absorbs the churn. The only
+    // things NOT recorded are what never reaches this path: append-mode logs
+    // (logging.rs opens with create_new + per-line write_all, never atomically) and
+    // the backup_store's own SQLite file (written by the backup layer, not here).
+    backup_store::record(target, contents.as_bytes());
+
     Ok(())
 }
 
@@ -597,11 +435,17 @@ pub fn run() {
             // it routes through the single storage-root resolver (paths::data_root)
             // so the log directory and the data directory share one source of
             // truth and both honor DROPKICK_HOME.
-            let log_path = paths::data_root(app.handle())?
-                .join("logs")
-                .join(logging::session_filename());
+            let data_root = paths::data_root(app.handle())?;
+            let log_path = data_root.join("logs").join(logging::session_filename());
             logging::init(&log_path, debug_enabled);
             install_panic_hook();
+
+            // Open the write-through data-backup store once, best-effort, under the
+            // same DROPKICK_HOME-aware root (never a hardcoded path). If it cannot
+            // open, one warn is logged and recording is disabled for the session —
+            // it never blocks startup. Every managed-text save from now on records
+            // through it, strictly after its atomic rename lands (see write_atomic).
+            backup_store::init(data_root.join("backups.sqlite3"));
 
             logging::info(
                 "app startup",
@@ -623,9 +467,6 @@ pub fn run() {
             write_text_file_atomic,
             file_exists,
             ensure_dir,
-            file_metadata,
-            list_files_recursive,
-            write_zip_archive,
             app_data_root,
             log_event,
             logging_debug_enabled
@@ -643,7 +484,6 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Read;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     // Unique temp directory per call so parallel tests never collide.
@@ -733,24 +573,6 @@ mod tests {
     }
 
     #[test]
-    fn build_zip_bytes_produces_a_readable_in_memory_archive() {
-        let entries = vec![
-            ("tasks.json".to_string(), "hello".to_string()),
-            ("prefs.json".to_string(), "world".to_string()),
-        ];
-        let bytes = build_zip_bytes(&entries).unwrap();
-        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
-        assert_eq!(archive.len(), 2);
-        let mut content = String::new();
-        archive
-            .by_name("tasks.json")
-            .unwrap()
-            .read_to_string(&mut content)
-            .unwrap();
-        assert_eq!(content, "hello");
-    }
-
-    #[test]
     fn atomic_temp_name_is_stem_plus_nanoid_dot_tmp() {
         // Grammar: <stem>-<nanoid>.tmp — one final extension, the target's
         // extension dropped rather than dot-appended after it.
@@ -771,94 +593,6 @@ mod tests {
         // Different file names produce differently-stemmed temp names too.
         assert!(atomic_temp_name("a.json").starts_with("a-"));
         assert!(atomic_temp_name("b.json").starts_with("b-"));
-    }
-
-    #[test]
-    fn write_zip_archive_writes_a_readable_zip() {
-        let dir = unique_temp_dir("backup");
-        let output = dir.join("nested").join("backup.zip");
-        let entries = vec![
-            ("tasks.json".to_string(), "hello".to_string()),
-            ("prefs.json".to_string(), "world".to_string()),
-        ];
-        let returned = write_zip_archive(entries, output.to_str().unwrap().to_string()).unwrap();
-        assert_eq!(returned, output.to_str().unwrap());
-        // Parent directory was created and the file exists.
-        assert!(output.exists());
-        // No stray temp file left behind in the directory (rename cleaned it up).
-        let leftovers: Vec<_> = std::fs::read_dir(output.parent().unwrap())
-            .unwrap()
-            .flatten()
-            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
-            .collect();
-        assert!(leftovers.is_empty(), "temp files left: {leftovers:?}");
-
-        // Read the zip back and verify both entries and their contents.
-        let f = std::fs::File::open(&output).unwrap();
-        let mut archive = zip::ZipArchive::new(f).unwrap();
-        assert_eq!(archive.len(), 2);
-
-        let mut tasks = String::new();
-        archive
-            .by_name("tasks.json")
-            .unwrap()
-            .read_to_string(&mut tasks)
-            .unwrap();
-        assert_eq!(tasks, "hello");
-
-        let mut prefs = String::new();
-        archive
-            .by_name("prefs.json")
-            .unwrap()
-            .read_to_string(&mut prefs)
-            .unwrap();
-        assert_eq!(prefs, "world");
-    }
-
-    #[test]
-    fn file_metadata_reports_size_and_mtime() {
-        let dir = unique_temp_dir("file-meta");
-        let path = dir.join("doc.json");
-        std::fs::write(&path, b"hello").unwrap();
-        let meta = file_metadata(path.to_str().unwrap()).unwrap();
-        assert_eq!(meta.size, 5);
-        assert!(meta.mtime_ms > 0.0);
-    }
-
-    #[test]
-    fn file_metadata_errors_for_missing_file() {
-        let dir = unique_temp_dir("file-meta-missing");
-        let path = dir.join("nope.json");
-        assert!(file_metadata(path.to_str().unwrap()).is_err());
-    }
-
-    #[test]
-    fn list_files_recursive_returns_empty_for_missing_root() {
-        let dir = unique_temp_dir("walk-missing");
-        let missing = dir.join("does-not-exist");
-        let result = list_files_recursive(missing.to_str().unwrap().to_string()).unwrap();
-        assert!(result.is_empty());
-    }
-
-    #[test]
-    fn list_files_recursive_walks_nested_files_with_relative_forward_slash_paths() {
-        let dir = unique_temp_dir("walk");
-        std::fs::write(dir.join("state.json"), b"{}").unwrap();
-        let nested = dir.join("logs").join("inner");
-        std::fs::create_dir_all(&nested).unwrap();
-        std::fs::write(nested.join("a.log"), b"x").unwrap();
-
-        let mut result = list_files_recursive(dir.to_str().unwrap().to_string()).unwrap();
-        result.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
-
-        let paths: Vec<&str> = result.iter().map(|f| f.relative_path.as_str()).collect();
-        assert_eq!(paths, vec!["logs/inner/a.log", "state.json"]);
-        // Sizes are reported; the nested file is 1 byte.
-        let nested_entry = result
-            .iter()
-            .find(|f| f.relative_path == "logs/inner/a.log")
-            .unwrap();
-        assert_eq!(nested_entry.size, 1);
     }
 
     #[test]
