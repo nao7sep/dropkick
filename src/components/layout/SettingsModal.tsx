@@ -237,10 +237,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             onChange={(e) => setField("backupEnabled", e.target.checked)}
             className="rounded border-border-strong"
           />
-          Back up task lists on startup and hourly
+          Back up task lists at startup
         </label>
         <p className="mt-1 text-xs text-ink-muted">
-          Backups are saved per workspace in the app's data folder and pruned automatically.
+          Backups are saved per workspace in the app's data folder and kept indefinitely.
         </p>
       </Field>
     </AppModal>
