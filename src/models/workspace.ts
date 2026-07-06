@@ -5,7 +5,7 @@ import { generateId } from "../utils/ids";
 
 export interface WorkspaceDto {
   version: string;
-  id: string; // unique, generated once, used for backup subdirectory
+  id: string; // stable identity, unique and generated once at creation
   name: string;
   openTabs: TabDto[];
   recentFiles: RecentFileDto[];

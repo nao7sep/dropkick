@@ -31,9 +31,8 @@ export interface TaskDto {
 
 export interface TaskListDto {
   version: string;
-  // Stable identity used as this list's backup archive slot
-  // (workspaces/<workspaceId>/task-lists/<id>.json). Generated once at creation
-  // and materialized on load for legacy files — see loadTaskList.
+  // Stable identity for this list. Generated once at creation and materialized
+  // on load for legacy files that lack one — see loadTaskList.
   id: string;
   tasks: TaskDto[];
 }

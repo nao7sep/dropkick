@@ -43,10 +43,10 @@ export async function loadPreferences(
     timezone: coerceTimezone(data.timezone),
     kickDistances: normalizeKickDistances(data.kickDistances),
   };
-  // Materialize a missing stable id by persisting it once, so the backup archive
-  // slot (preferences/<id>.json) does not change between launches — mergeWithDefaults
-  // otherwise mints a fresh id on every load until one is written back. Best-effort:
-  // a failed write just defers materialization to the next load.
+  // Materialize a missing stable id by persisting it once, so this document's
+  // identity does not change between launches — mergeWithDefaults otherwise mints
+  // a fresh id on every load until one is written back. Best-effort: a failed
+  // write just defers materialization to the next load.
   if (!data.id) {
     try {
       await writeJsonFile(path, preferences);

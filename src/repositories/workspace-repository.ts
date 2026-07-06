@@ -52,10 +52,10 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
     recentFiles: Array.isArray(data.recentFiles) ? data.recentFiles : [],
     activeTabIndex: defaults.activeTabIndex,
   };
-  // Materialize a missing stable id by persisting it once. The id is the backup
-  // archive slot (workspaces/<id>/…); without a write-back mergeWithDefaults mints
-  // a fresh one on every load, so the slot would move each launch. Best-effort: a
-  // failed write just defers materialization to the next load.
+  // Materialize a missing stable id by persisting it once, so this workspace's
+  // identity does not change between launches — without a write-back
+  // mergeWithDefaults mints a fresh one on every load. Best-effort: a failed
+  // write just defers materialization to the next load.
   if (!data.id) {
     const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
     try {

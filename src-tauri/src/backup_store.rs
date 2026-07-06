@@ -207,13 +207,16 @@ pub fn close_for_test() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    // The store singleton is process-global, so these tests must not run in
-    // parallel against it. A single mutex serializes them; each test opens a fresh
-    // throwaway store file, exercises it, then closes it so the next test re-opens
-    // cleanly.
-    static TEST_LOCK: Mutex<()> = Mutex::new(());
+    // The store singleton is process-global, so every test that touches it is
+    // marked `#[serial(backup_store)]`. `cargo test` runs tests in parallel threads
+    // within one process; the shared `backup_store` key makes this group (plus the
+    // lib.rs atomic-write test, which reaches `record` through `write_atomic`)
+    // mutually exclusive, so no test resets/reopens the singleton out from under
+    // another. Each test opens a fresh throwaway store file, exercises it, then
+    // closes it so the next test re-opens cleanly.
 
     fn unique_store_file(label: &str) -> PathBuf {
         static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -230,8 +233,10 @@ mod tests {
 
     // Opens a throwaway store, runs `body` against a direct connection to the same
     // file for assertions, and always closes the singleton afterward.
+    // Serialization is provided by `#[serial(backup_store)]` on each caller, not by
+    // an in-module lock, so this group is also mutually exclusive with the lib.rs
+    // atomic-write test that shares the same key.
     fn with_store<F: FnOnce(&Path)>(label: &str, body: F) {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let file = unique_store_file(label);
         init(file.clone());
         body(&file);
@@ -263,6 +268,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(backup_store)]
     fn content_blob_is_byte_identical_including_crlf_and_non_utf8() {
         with_store("blob-fidelity", |file| {
             // A CR/LF pair, a UTF-8 BOM, and a lone 0xFF byte (invalid UTF-8):
@@ -281,6 +287,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(backup_store)]
     fn written_at_utc_is_serialized_iso_ms_not_the_filename_stamp() {
         with_store("iso-shape", |file| {
             let p = "/abs/a.json";
@@ -306,6 +313,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(backup_store)]
     fn dedup_skips_an_unchanged_re_save() {
         with_store("dedup", |file| {
             let p = "/abs/b.json";
@@ -316,6 +324,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(backup_store)]
     fn a_changed_save_and_a_revert_each_insert_a_row() {
         with_store("changed-and-revert", |file| {
             let p = "/abs/c.json";
@@ -331,6 +340,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(backup_store)]
     fn dedup_is_per_path_not_global() {
         with_store("per-path", |file| {
             // Identical content under two different paths each records (dedup is
@@ -343,22 +353,22 @@ mod tests {
     }
 
     #[test]
+    #[serial(backup_store)]
     fn record_is_a_silent_no_op_when_the_store_never_opened() {
         // Best-effort: with the store disabled (never init'd / closed), a record
         // call must not panic and must simply do nothing.
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         close_for_test(); // ensure disabled state
         record(Path::new("/abs/whatever.json"), b"data"); // must not panic
     }
 
     #[test]
+    #[serial(backup_store)]
     fn record_never_panics_on_a_broken_connection() {
         // Best-effort under a store failure: inject a closed/failing connection by
         // opening a store then closing the underlying DB out from under it is not
         // portable, so instead prove the no-throw contract by pointing init at an
         // un-creatable path — the open fails, recording is disabled, and a
         // subsequent record is a silent no-op (never a panic, never a crash).
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // A path whose parent is a FILE, so create_dir_all + open must fail.
         let dir = std::env::temp_dir().join(format!(
             "dropkick-backupstore-badpath-{}",

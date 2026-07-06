@@ -90,11 +90,11 @@ export async function loadTaskList(
   return withSerial(filePath, async () => {
     const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
     if (loaded.status !== "success") return loaded;
-    // Materialize a missing id and persist it, so the backup archive slot
-    // (task-lists/<id>.json) is stable across launches. Legacy files surface
-    // id === "" (the Rust TaskListDto default). writeAndRemember re-hashes after
-    // the write, keeping external-modification detection anchored to the bytes
-    // now on disk; unchanged files keep the hash read above.
+    // Materialize a missing id and persist it once, so this list's stable
+    // identity does not change between launches. Legacy files surface id === ""
+    // (the Rust TaskListDto default). writeAndRemember re-hashes after the write,
+    // keeping external-modification detection anchored to the bytes now on disk;
+    // unchanged files keep the hash read above.
     if (!loaded.data.id) {
       const data: TaskListDto = { ...loaded.data, id: generateId() };
       await writeAndRemember(filePath, data);

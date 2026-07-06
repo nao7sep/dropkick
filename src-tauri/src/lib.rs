@@ -484,6 +484,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     // Unique temp directory per call so parallel tests never collide.
@@ -613,6 +614,12 @@ mod tests {
     }
 
     #[test]
+    // Reaches `backup_store::record` through `write_atomic`, so it shares the
+    // process-global store singleton with the backup_store tests. The shared
+    // `backup_store` key serializes it against that group (which resets/reopens the
+    // singleton), so a concurrent `init`/`close_for_test` can never swap the
+    // connection out from under this write's record hook.
+    #[serial(backup_store)]
     fn write_text_file_atomic_writes_and_replaces() {
         let dir = unique_temp_dir("write-atomic");
         let path = dir.join("f.json");

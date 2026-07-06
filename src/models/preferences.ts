@@ -5,9 +5,8 @@ import { generateId } from "../utils/ids";
 
 export interface PreferencesDto {
   version: string;
-  // Stable identity used as this document's backup archive slot
-  // (preferences/<id>.json). Generated once at creation and materialized on load
-  // for legacy files — see loadPreferences.
+  // Stable identity for this document. Generated once at creation and
+  // materialized on load for legacy files that lack one — see loadPreferences.
   id: string;
   name: string;
   fontFamily: string;

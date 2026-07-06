@@ -34,3 +34,15 @@ getrandom = "0.3"
 # conventions' "built-in or lowest-friction binding" rule).
 rusqlite = { version = "0.40", features = ["bundled"] }
 
+[dev-dependencies]
+# Serializes the tests that share the process-global backup-store singleton
+# (`static STORE` in backup_store.rs). `cargo test` runs tests in parallel threads
+# within one process, so the backup_store tests (which reset/reopen the singleton
+# via `init`/`close_for_test` against throwaway roots) and the lib.rs atomic-write
+# test (which reaches `backup_store::record` through `write_atomic`) would race
+# over that one connection. `#[serial(backup_store)]` with a shared key makes that
+# group mutually exclusive while unrelated tests still parallelize. Default
+# features (async runtime + logging) are unused here; only the synchronous
+# `#[serial]` attribute is needed.
+serial_test = { version = "3.5", default-features = false }
+
