@@ -54,8 +54,8 @@ describe("update", () => {
   });
 
   it("does not flush when no file path is set", async () => {
-    await usePreferencesStore.getState().update({ zoomLevel: 2 });
-    expect(usePreferencesStore.getState().preferences.zoomLevel).toBe(2);
+    await usePreferencesStore.getState().update({ handledTasksPageSize: 25 });
+    expect(usePreferencesStore.getState().preferences.handledTasksPageSize).toBe(25);
     expect(flushPreferences).not.toHaveBeenCalled();
   });
 

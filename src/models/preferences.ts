@@ -11,8 +11,11 @@ export interface PreferencesDto {
   name: string;
   fontFamily: string;
   darkMode: boolean; // false = light theme (default), true = dark theme
-  zoomLevel: number; // 0.5–5.0 (1.0 = 100%)
-  sidebarWidth: number; // sidebar intent width in PIXELS — the width the user last dragged it to; the displayed width is clamp(SIDEBAR_MIN, intent, maxFit) — see DEFAULT_SIDEBAR_WIDTH / clampSidebarWidth in utils/windowSizing
+  // NOTE: zoomLevel and sidebarWidth used to live here but are VIEW STATE, not
+  // preferences — they moved to AppConfigDto / state.json (see models/app-config.ts
+  // and persisted-store-separation-conventions). darkMode stays: it is an authored
+  // appearance SETTING the user chooses, akin to fontFamily, and travels with the
+  // portable preferences document.
   timezone: string | null; // IANA timezone e.g. "Asia/Tokyo"; null = system
   kickDistances: number[];
   dueSoonDays: number;
@@ -46,8 +49,6 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     name,
     fontFamily: "system-ui",
     darkMode: false,
-    zoomLevel: 1.0,
-    sidebarWidth: 320, // sidebar intent width in px; kept in sync with DEFAULT_SIDEBAR_WIDTH (utils/windowSizing)
     timezone: null,
     kickDistances: [...DEFAULT_KICK_DISTANCES],
     dueSoonDays: 7,

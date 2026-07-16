@@ -36,9 +36,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     ? null
     : "Invalid IANA timezone";
 
-  // Live-applied keys (darkMode, zoomLevel, sidebarWidth) are excluded from the
-  // dirty check — they are owned outside this draft and closing never discards
-  // them. See services/preferences-draft.
+  // The live-applied key (darkMode) is excluded from the dirty check — it is owned
+  // outside this draft and closing never discards it. (zoom and sidebar width are
+  // view state now, not preferences, so they aren't in this draft at all.) See
+  // services/preferences-draft.
   const isDirty = useMemo(
     () => isPreferencesDraftDirty(draft, preferences, kickInput),
     [draft, preferences, kickInput],

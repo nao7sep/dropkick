@@ -2,17 +2,19 @@
 // be unit tested and so the "live-applied vs. staged" split lives in one place.
 //
 // The Settings modal stages most preferences in a local draft and commits them
-// on Save. A few display settings are instead applied immediately and owned
-// outside the draft:
+// on Save. One display setting is instead applied immediately and owned outside
+// the draft:
 //
-//   - darkMode      — toggled live by the Settings checkbox and the global
-//                     Cmd/Ctrl+Shift+D shortcut; both write the store directly.
-//   - zoomLevel     — driven by the zoom shortcuts / gear menu.
-//   - sidebarWidth  — driven by the divider drag.
+//   - darkMode — toggled live by the Settings checkbox and the global
+//                Cmd/Ctrl+Shift+D shortcut; both write the store directly.
 //
-// These never participate in the draft's dirty check (changing them must not
-// arm a "discard changes?" prompt) and are re-affirmed from the live store on
-// Save so a stale draft copy can never revert them.
+// It never participates in the draft's dirty check (changing it must not arm a
+// "discard changes?" prompt) and is re-affirmed from the live store on Save so a
+// stale draft copy can never revert it.
+//
+// (zoomLevel and sidebarWidth were also live-applied here, but they are view
+// state, not preferences — they moved to AppConfigDto / state.json and no longer
+// pass through the Settings draft at all. See persisted-store-separation-conventions.)
 
 import type { PreferencesDto } from "../models";
 import { normalizeKickDistances } from "../models";
@@ -23,8 +25,6 @@ import { normalizeKickDistances } from "../models";
 // these out, and liveAppliedPreferences re-affirms exactly these on Save.
 export const LIVE_APPLIED_PREFERENCE_KEYS: readonly (keyof PreferencesDto)[] = [
   "darkMode",
-  "zoomLevel",
-  "sidebarWidth",
 ];
 
 // Picks the live-applied keys out of a preferences source. handleSave spreads

@@ -96,14 +96,14 @@ describe("loadPreferences — drops keys removed from the shape", () => {
     // the DTO.
     readJsonFileResult.mockResolvedValue({
       status: "success",
-      data: { version: "1.0.0", name: "Nulls", darkMode: null, zoomLevel: null },
+      data: { version: "1.0.0", name: "Nulls", darkMode: null, dueSoonDays: null },
     });
 
     const result = await loadPreferences("/prefs.json");
     expect(result.status).toBe("success");
     if (result.status !== "success") return;
     expect(result.preferences.darkMode).toBe(false);
-    expect(result.preferences.zoomLevel).toBe(1.0);
+    expect(result.preferences.dueSoonDays).toBe(7);
   });
 });
 

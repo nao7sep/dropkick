@@ -102,7 +102,39 @@ describe("app-level storage filenames", () => {
     expect(configPath).toBe(`${ROOT}/state.json`);
     expect(config.lastPreferencesPath).toBe("/x/preferences.json");
     expect(config.knownWorkspaces).toEqual(["/x/workspace.json"]);
+    // A state.json written before zoom/sidebar became view state has neither
+    // field; the load boundary fills both from defaults (mergeWithDefaults), so
+    // the migration from preferences.json needs no explicit code.
+    expect(config.zoomLevel).toBe(1.0);
+    expect(config.sidebarWidth).toBe(320);
     // Existing install re-reads state only; no seed/state files are rewritten.
     expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it("preserves stored zoom and sidebar view-state values", async () => {
+    // View state (zoom, sidebar width) now lives in state.json, not the portable
+    // preferences file. A stored value must survive the load unchanged.
+    fileExists.mockResolvedValue(true);
+    readJsonFileResult.mockImplementation((p: string) => {
+      if (p === `${ROOT}/state.json`) {
+        return Promise.resolve({
+          status: "success",
+          data: {
+            version: "1.0.0",
+            lastPreferencesPath: "/x/preferences.json",
+            lastWorkspacePath: "/x/workspace.json",
+            knownPreferences: ["/x/preferences.json"],
+            knownWorkspaces: ["/x/workspace.json"],
+            zoomLevel: 1.5,
+            sidebarWidth: 440,
+          },
+        });
+      }
+      return Promise.resolve({ status: "missing" });
+    });
+
+    const { config } = await initializeAppConfig();
+    expect(config.zoomLevel).toBe(1.5);
+    expect(config.sidebarWidth).toBe(440);
   });
 });

@@ -26,6 +26,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
+import { useAppConfigStore } from "../../state/app-config-store";
 import {
   openJsonFileDialog,
   saveJsonFileDialog,
@@ -49,7 +50,9 @@ interface TabBarProps {
 
 export function TabBar({ onGearMenuSelect }: TabBarProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
-  const updatePrefs = usePreferencesStore((s) => s.update);
+  // Zoom is view state (state.json), not a preference — read/write via app-config.
+  const zoomLevel = useAppConfigStore((s) => s.config.zoomLevel);
+  const updateViewState = useAppConfigStore((s) => s.updateViewState);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const activeTabIndex = workspace.activeTabIndex;
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
@@ -479,34 +482,34 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                   <div className="flex items-center overflow-hidden rounded border border-border">
                     <button
                       onClick={() => {
-                        const next = stepZoomOut(preferences.zoomLevel);
-                        if (next !== preferences.zoomLevel) updatePrefs({ zoomLevel: next });
+                        const next = stepZoomOut(zoomLevel);
+                        if (next !== zoomLevel) updateViewState({ zoomLevel: next });
                       }}
-                      disabled={stepZoomOut(preferences.zoomLevel) === preferences.zoomLevel}
+                      disabled={stepZoomOut(zoomLevel) === zoomLevel}
                       className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-30"
                       title="Zoom out"
                     >
                       <Minus size={12} />
                     </button>
-                    {preferences.zoomLevel !== ZOOM_DEFAULT ? (
+                    {zoomLevel !== ZOOM_DEFAULT ? (
                       <button
-                        onClick={() => updatePrefs({ zoomLevel: ZOOM_DEFAULT })}
+                        onClick={() => updateViewState({ zoomLevel: ZOOM_DEFAULT })}
                         className="w-10 border-x border-border bg-surface text-center text-xs tabular-nums text-primary hover:text-primary-hover leading-6"
                         title="Reset to 100%"
                       >
-                        {Math.round(preferences.zoomLevel * 100)}%
+                        {Math.round(zoomLevel * 100)}%
                       </button>
                     ) : (
                       <span className="w-10 border-x border-border bg-surface text-center text-xs tabular-nums text-ink leading-6">
-                        {Math.round(preferences.zoomLevel * 100)}%
+                        {Math.round(zoomLevel * 100)}%
                       </span>
                     )}
                     <button
                       onClick={() => {
-                        const next = stepZoomIn(preferences.zoomLevel);
-                        if (next !== preferences.zoomLevel) updatePrefs({ zoomLevel: next });
+                        const next = stepZoomIn(zoomLevel);
+                        if (next !== zoomLevel) updateViewState({ zoomLevel: next });
                       }}
-                      disabled={stepZoomIn(preferences.zoomLevel) === preferences.zoomLevel}
+                      disabled={stepZoomIn(zoomLevel) === zoomLevel}
                       className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-30"
                       title="Zoom in"
                     >

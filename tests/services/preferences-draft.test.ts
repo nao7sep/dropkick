@@ -62,13 +62,12 @@ describe("liveAppliedPreferences", () => {
   it("picks exactly the live-applied keys from the source", () => {
     const c = committed();
     c.darkMode = true;
-    c.zoomLevel = 1.7;
-    c.sidebarWidth = 400; // intent width in pixels
     const picked = liveAppliedPreferences(c);
     expect(Object.keys(picked).sort()).toEqual(
       [...LIVE_APPLIED_PREFERENCE_KEYS].sort(),
     );
-    expect(picked).toEqual({ darkMode: true, zoomLevel: 1.7, sidebarWidth: 400 });
+    // Only darkMode is live-applied now; zoom and sidebar width moved to view state.
+    expect(picked).toEqual({ darkMode: true });
   });
 
   it("does not include any staged key (so a Save spread cannot revert them)", () => {
@@ -108,11 +107,10 @@ describe("isPreferencesDraftDirty", () => {
     (key) => {
       const c = committed();
       // Flip the live-applied value in the draft only; closing never discards
-      // these, so they must not arm the dirty prompt.
+      // these, so they must not arm the dirty prompt. darkMode is the only
+      // live-applied key now (zoom/sidebar are view state, not preferences).
       const draft: PreferencesDto = { ...c };
       if (key === "darkMode") draft.darkMode = !c.darkMode;
-      else if (key === "zoomLevel") draft.zoomLevel = c.zoomLevel + 0.5;
-      else if (key === "sidebarWidth") draft.sidebarWidth = c.sidebarWidth + 40;
       expect(isPreferencesDraftDirty(draft, c, KICK_STRING)).toBe(false);
     },
   );

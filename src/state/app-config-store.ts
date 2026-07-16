@@ -10,7 +10,12 @@
 import { create } from "zustand";
 import type { AppConfigDto } from "../models";
 import { createDefaultAppConfig } from "../models";
-import { initializeAppConfig, flushAppConfig } from "../repositories";
+import { initializeAppConfig, flushAppConfig, log } from "../repositories";
+
+// The view-state fields callers may set through updateViewState. Restricting the
+// patch to these keeps the register/unregister list logic the sole writer of the
+// path fields — a generic setter would let a caller stomp knownPreferences.
+type ViewStateChanges = Partial<Pick<AppConfigDto, "zoomLevel" | "sidebarWidth">>;
 
 interface AppConfigState {
   // Current config data.
@@ -24,6 +29,10 @@ interface AppConfigState {
 
   // Actions.
   initialize: () => Promise<void>;
+  // Apply a live view adjustment (zoom / sidebar width) and persist it. The single
+  // funnel for zoom shortcuts, the gear-menu zoom, and the divider drag — the
+  // state-store analogue of the preferences store's `update`.
+  updateViewState: (changes: ViewStateChanges) => Promise<void>;
   setLastPaths: (
     preferencesPath: string,
     workspacePath: string,
@@ -49,6 +58,14 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
     initialize: async () => {
       const { config, configPath } = await initializeAppConfig();
       set({ config, filePath: configPath, loaded: true });
+    },
+
+    updateViewState: async (changes) => {
+      // Log which keys changed, not the values, to keep the line stable — same
+      // funnel discipline as the preferences store's update.
+      log.info("view state updated", { changed: Object.keys(changes) });
+      set((state) => ({ config: { ...state.config, ...changes } }));
+      await flush();
     },
 
     setLastPaths: async (preferencesPath, workspacePath) => {

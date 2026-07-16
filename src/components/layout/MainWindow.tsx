@@ -6,6 +6,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { showMessage, drainAllSerial, log, toErrorFields } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
+import { useAppConfigStore } from "../../state/app-config-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
@@ -71,6 +72,10 @@ class ErrorBoundary extends Component<
 export function MainWindow() {
   const preferences = usePreferencesStore((s) => s.preferences);
   const updatePrefs = usePreferencesStore((s) => s.update);
+  // Zoom and sidebar width are view state (state.json), not preferences.
+  const zoomLevel = useAppConfigStore((s) => s.config.zoomLevel);
+  const sidebarIntent = useAppConfigStore((s) => s.config.sidebarWidth);
+  const updateViewState = useAppConfigStore((s) => s.updateViewState);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const activeTabIndex = workspace.activeTabIndex;
   const activeTab =
@@ -102,9 +107,9 @@ export function MainWindow() {
   // space. Two distinct widths govern the sidebar:
   //
   //   - INTENT (persisted): the pixel width the user last dragged the sidebar to.
-  //     Stored in preferences.sidebarWidth, updated ONLY on a splitter drag, never
-  //     on a window resize. It is NOT clamped to the window — only the displayed
-  //     width is.
+  //     Stored in state.json (AppConfigDto.sidebarWidth), updated ONLY on a splitter
+  //     drag, never on a window resize. It is NOT clamped to the window — only the
+  //     displayed width is.
   //   - DISPLAY (derived, ephemeral): clamp(SIDEBAR_MIN, intent, maxFit), where
   //     maxFit = containerWidth - DETAIL_MIN_WIDTH - SPLITTER_WIDTH. This is what
   //     the layout actually uses. When the window shrinks, the sidebar narrows
@@ -113,10 +118,10 @@ export function MainWindow() {
   //
   // containerWidth comes from a ResizeObserver on the content row and is used ONLY
   // to compute the displayed width — it is never persisted.
-  const intent = preferences.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH;
+  const intent = sidebarIntent ?? DEFAULT_SIDEBAR_WIDTH;
   const contentRowRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  // The live intent width during a drag; mirrors preferences.sidebarWidth
+  // The live intent width during a drag; mirrors the persisted sidebarWidth
   // otherwise. Held in state so the sidebar tracks the cursor before the persist.
   const [dragIntent, setDragIntent] = useState(intent);
   const draggingRef = useRef(false);
@@ -188,13 +193,13 @@ export function MainWindow() {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         // Persist the intent (unclamped). Only a drag changes intent and persists.
-        updatePrefs({ sidebarWidth: latestIntent });
+        updateViewState({ sidebarWidth: latestIntent });
       };
 
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [dragIntent, updatePrefs],
+    [dragIntent, updateViewState],
   );
 
   // Register global keyboard shortcuts.
@@ -211,20 +216,20 @@ export function MainWindow() {
   // Apply saved zoom level on startup and when changed.
   useEffect(() => {
     getCurrentWebview()
-      .setZoom(preferences.zoomLevel)
+      .setZoom(zoomLevel)
       .catch((e) =>
         log.warn("webview setZoom failed", {
-          zoomLevel: preferences.zoomLevel,
+          zoomLevel,
           ...toErrorFields(e),
         }),
       );
-  }, [preferences.zoomLevel]);
+  }, [zoomLevel]);
 
   // Zoom keyboard shortcuts — separate effect so they work even when the gear menu
   // is open (the gear menu sets data-dropkick-interactive-layer, which suppresses
   // shortcuts in useKeyboardShortcuts; zoom should always be accessible).
-  const zoomLevelRef = useRef(preferences.zoomLevel);
-  useEffect(() => { zoomLevelRef.current = preferences.zoomLevel; }, [preferences.zoomLevel]);
+  const zoomLevelRef = useRef(zoomLevel);
+  useEffect(() => { zoomLevelRef.current = zoomLevel; }, [zoomLevel]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // If a focused layer (e.g. the New Task modal, which uses Cmd+0 for
@@ -233,13 +238,13 @@ export function MainWindow() {
       if (e.defaultPrevented) return;
       if (isZoomIn(e)) {
         e.preventDefault();
-        updatePrefs({ zoomLevel: stepZoomIn(zoomLevelRef.current) });
+        updateViewState({ zoomLevel: stepZoomIn(zoomLevelRef.current) });
       } else if (isZoomOut(e)) {
         e.preventDefault();
-        updatePrefs({ zoomLevel: stepZoomOut(zoomLevelRef.current) });
+        updateViewState({ zoomLevel: stepZoomOut(zoomLevelRef.current) });
       } else if (isZoomReset(e)) {
         e.preventDefault();
-        updatePrefs({ zoomLevel: ZOOM_DEFAULT });
+        updateViewState({ zoomLevel: ZOOM_DEFAULT });
       } else if (
         hasPrimaryShortcutModifier(e) &&
         e.shiftKey &&
@@ -247,7 +252,9 @@ export function MainWindow() {
       ) {
         // Quick dark-mode toggle. Like zoom, this lives outside
         // useKeyboardShortcuts so it stays available even when a menu/modal is
-        // open. Read the latest value from the store to avoid a stale closure.
+        // open. darkMode is a preference (authored appearance setting), so it goes
+        // through the preferences store — unlike zoom, which is view state. Read the
+        // latest value from the store to avoid a stale closure.
         e.preventDefault();
         updatePrefs({
           darkMode: !usePreferencesStore.getState().preferences.darkMode,
@@ -256,7 +263,7 @@ export function MainWindow() {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [updatePrefs]);
+  }, [updateViewState, updatePrefs]);
 
   useEffect(() => {
     const title = activeTab ? `${activeTab.displayName} - Dropkick` : "Dropkick";
