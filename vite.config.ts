@@ -1,13 +1,11 @@
-/// <reference types="vitest/config" />
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -47,7 +45,7 @@ export default defineConfig(async () => ({
       // V8's native coverage for the frontend (the Rust backend has its own
       // cargo-llvm-cov pass). `include` spans src so the report flags logic no
       // test reaches, not just a score for what is reached.
-      provider: "v8",
+      provider: "v8" as const,
       reporter: ["text", "html", "lcov"],
       include: ["src/**/*.{ts,tsx}"],
       // Excluded as framework wiring with no decision to cover:
