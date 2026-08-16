@@ -36,6 +36,38 @@ const APP_STATE_FILE = "state.json";
 const DEFAULT_PREFERENCES_FILE = "preferences.json";
 const DEFAULT_WORKSPACE_FILE = "workspace.json";
 
+function appConfigShapeIssue(value: unknown): string | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return "state root is not an object";
+  }
+
+  const data = value as Record<string, unknown>;
+  const stringFields = ["version", "lastPreferencesPath", "lastWorkspacePath"] as const;
+  for (const field of stringFields) {
+    if (data[field] !== undefined && typeof data[field] !== "string") {
+      return `${field} is not a string`;
+    }
+  }
+
+  const pathLists = ["knownPreferences", "knownWorkspaces"] as const;
+  for (const field of pathLists) {
+    const list = data[field];
+    if (list !== undefined && (!Array.isArray(list) || !list.every((item) => typeof item === "string"))) {
+      return `${field} is not an array of strings`;
+    }
+  }
+
+  const numberFields = ["zoomLevel", "sidebarWidth"] as const;
+  for (const field of numberFields) {
+    const number = data[field];
+    if (number !== undefined && (typeof number !== "number" || !Number.isFinite(number))) {
+      return `${field} is not a finite number`;
+    }
+  }
+
+  return null;
+}
+
 // Returns the app's absolute storage root (~/.dropkick, or DROPKICK_HOME).
 // The Rust core resolves and creates it; the webview never reconstructs it.
 async function getDropkickDir(): Promise<string> {
@@ -65,7 +97,7 @@ export async function initializeAppConfig(): Promise<{
   await ensureDirectory(dir);
 
   // Create or read app config.
-  const configResult = await readJsonFileResult<AppConfigDto>(configPath);
+  const configResult = await readJsonFileResult<unknown>(configPath);
 
   let quarantinedTo: string | null = null;
   if (configResult.status === "invalid") {
@@ -77,11 +109,7 @@ export async function initializeAppConfig(): Promise<{
     });
   } else if (configResult.status === "success") {
     const data = configResult.data;
-    const shapeIssue =
-      (data.knownPreferences !== undefined && !Array.isArray(data.knownPreferences) && "knownPreferences is not an array") ||
-      (data.knownWorkspaces !== undefined && !Array.isArray(data.knownWorkspaces) && "knownWorkspaces is not an array") ||
-      (data.lastPreferencesPath !== undefined && typeof data.lastPreferencesPath !== "string" && "lastPreferencesPath is not a string") ||
-      (data.lastWorkspacePath !== undefined && typeof data.lastWorkspacePath !== "string" && "lastWorkspacePath is not a string");
+    const shapeIssue = appConfigShapeIssue(data);
     if (shapeIssue) {
       quarantinedTo = await quarantineFile(configPath);
       log.warn("shape-damaged state.json quarantined; recreating defaults", {
@@ -118,7 +146,10 @@ export async function initializeAppConfig(): Promise<{
     // Fill any newly added fields from defaults and drop keys no longer part of
     // AppConfigDto, so a retired field is never re-emitted — the same
     // load-boundary contract as the preferences and workspace repositories.
-    config = mergeWithDefaults(createDefaultAppConfig(), configResult.data);
+    config = mergeWithDefaults(
+      createDefaultAppConfig(),
+      configResult.data as Partial<AppConfigDto>,
+    );
   } else {
     throw new Error(`Failed to load app config: ${configResult.message}`);
   }

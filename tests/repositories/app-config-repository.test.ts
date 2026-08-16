@@ -182,6 +182,26 @@ describe("corrupt state.json", () => {
 });
 
 describe("shape-damaged state.json", () => {
+  it.each([
+    ["a null root", null],
+    ["a list containing a non-path value", { knownPreferences: [{}] }],
+    ["a wrong-typed view-state value", { zoomLevel: "large" }],
+  ])("quarantines %s before the value reaches the app", async (_label, data) => {
+    readJsonFileResult.mockResolvedValue({ status: "success", data });
+    fileExists.mockResolvedValue(true);
+    quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
+
+    const { config, quarantinedTo } = await initializeAppConfig();
+
+    expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
+    expect(config).toEqual(expect.objectContaining({
+      knownPreferences: [`${ROOT}/preferences.json`],
+      knownWorkspaces: [`${ROOT}/workspace.json`],
+      zoomLevel: 1,
+    }));
+    expect(quarantinedTo).toBe(`${ROOT}/state-20260817-000000-000-utc.invalid`);
+  });
+
   it("quarantines a wrong-typed known-list and rebuilds, instead of crashing the picker", async () => {
     // The file PARSES, so the invalid-status branch never fires; without a shape
     // check mergeWithDefaults passes the string through and StartupPicker throws
