@@ -200,12 +200,30 @@ describe("shape-damaged state.json", () => {
     fileExists.mockResolvedValue(true);
     quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
 
-    const { config } = await initializeAppConfig();
+    const { config, quarantinedTo } = await initializeAppConfig();
 
     expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
     expect(Array.isArray(config.knownWorkspaces)).toBe(true);
     expect(config.knownWorkspaces).toEqual([`${ROOT}/workspace.json`]);
+    expect(quarantinedTo).toBe(`${ROOT}/state-20260817-000000-000-utc.invalid`);
     expect(writeJsonFile.mock.calls.map((c) => c[0])).toContain(`${ROOT}/state.json`);
+  });
+
+  it("recreates missing default documents through the same recovery path", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { knownWorkspaces: "wrong" },
+    });
+    fileExists.mockResolvedValue(false);
+    quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
+
+    await initializeAppConfig();
+
+    expect(writeJsonFile.mock.calls.map((c) => c[0])).toEqual(expect.arrayContaining([
+      `${ROOT}/preferences.json`,
+      `${ROOT}/workspace.json`,
+      `${ROOT}/state.json`,
+    ]));
   });
 
   it("leaves a sound state.json alone", async () => {

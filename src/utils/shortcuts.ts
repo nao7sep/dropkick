@@ -59,10 +59,7 @@ const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(platformString);
 // the DISPLAY word is platform-bound; the predicate below accepts both.
 export const primaryModifierLabel = isApplePlatform ? "Cmd" : "Ctrl";
 
-// The one shared command-modifier predicate (keyboard-shortcut-conventions):
-// both Cmd and Ctrl fire on every platform, and Alt is excluded because
-// Chromium delivers Windows AltGr as Ctrl+Alt — an unguarded predicate would
-// let an AltGr-typed character fire an accelerator and swallow the character.
+// Alt is excluded because Chromium delivers Windows AltGr as Ctrl+Alt.
 export function hasPrimaryShortcutModifier(
   event: ShortcutModifierState,
 ): boolean {
@@ -75,16 +72,8 @@ export function hasPointerCommandModifier(event: PointerModifierState): boolean 
   return event.metaKey || event.ctrlKey;
 }
 
-// Bare-Ctrl chords on these letters shadow Cocoa's text-editing keymap
-// (StandardKeyBinding.dict: kill-line, transpose, next-line, ...), as does
-// Ctrl+Slash. Such a chord stands down while the target is editable on macOS —
-// the Cmd half is unbound there and always fires (keyboard-shortcut-conventions).
-const COCOA_CTRL_TEXT_KEYS = new Set([
-  "a", "b", "d", "e", "f", "h", "k", "l", "n", "o", "p", "t", "v", "y", "/",
-  // Ctrl+Return is insertLineBreak: — omitting it let Ctrl+Return in a text field
-  // both swallow the line break and fire the chord.
-  "Enter",
-]);
+// App chords that overlap Cocoa text editing while a field has focus.
+const MAC_TEXT_BINDING_KEYS = new Set(["n", "/", "Enter"]);
 
 export function shadowsMacTextBinding(
   event: ShortcutModifierState & ShortcutKeyState,
@@ -92,7 +81,7 @@ export function shadowsMacTextBinding(
   if (!isApplePlatform) return false;
   if (event.metaKey || !event.ctrlKey) return false;
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  return COCOA_CTRL_TEXT_KEYS.has(key);
+  return MAC_TEXT_BINDING_KEYS.has(key);
 }
 
 // Structural shape of an editable-target check, DOM-free for unit tests.

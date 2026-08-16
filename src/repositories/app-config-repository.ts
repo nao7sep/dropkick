@@ -54,6 +54,7 @@ async function getAppConfigPath(): Promise<string> {
 export async function initializeAppConfig(): Promise<{
   config: AppConfigDto;
   configPath: string;
+  quarantinedTo: string | null;
 }> {
   const dir = await getDropkickDir();
   const configPath = await getAppConfigPath();
@@ -66,14 +67,6 @@ export async function initializeAppConfig(): Promise<{
   // Create or read app config.
   const configResult = await readJsonFileResult<AppConfigDto>(configPath);
 
-  // Present-but-unparseable state file: quarantine it aside and rebuild from
-  // defaults — every field here is rebuildable view state and path memory, so
-  // being unable to launch over it would be the worse failure (storage-path
-  // conventions: rebuildable stores quarantine; work product halts). The
-  // rename runs OUTSIDE any parse-failure handling: if it cannot land, its
-  // error propagates to the startup error screen rather than falling through
-  // to a default write over the very bytes quarantine preserves. A plain read
-  // error (permissions, I/O) is not corruption and still halts below.
   let quarantinedTo: string | null = null;
   if (configResult.status === "invalid") {
     quarantinedTo = await quarantineFile(configPath);
@@ -82,6 +75,21 @@ export async function initializeAppConfig(): Promise<{
       quarantinedTo,
       message: configResult.message,
     });
+  } else if (configResult.status === "success") {
+    const data = configResult.data;
+    const shapeIssue =
+      (data.knownPreferences !== undefined && !Array.isArray(data.knownPreferences) && "knownPreferences is not an array") ||
+      (data.knownWorkspaces !== undefined && !Array.isArray(data.knownWorkspaces) && "knownWorkspaces is not an array") ||
+      (data.lastPreferencesPath !== undefined && typeof data.lastPreferencesPath !== "string" && "lastPreferencesPath is not a string") ||
+      (data.lastWorkspacePath !== undefined && typeof data.lastWorkspacePath !== "string" && "lastWorkspacePath is not a string");
+    if (shapeIssue) {
+      quarantinedTo = await quarantineFile(configPath);
+      log.warn("shape-damaged state.json quarantined; recreating defaults", {
+        configPath,
+        quarantinedTo,
+        issue: shapeIssue,
+      });
+    }
   }
 
   let config: AppConfigDto;
@@ -107,36 +115,6 @@ export async function initializeAppConfig(): Promise<{
     config.knownWorkspaces = [workspacePath];
     await writeJsonFile(configPath, config);
   } else if (configResult.status === "success") {
-    // A present-but-wrong-shape field is corruption, the same branch as unparseable
-    // JSON — the guard the preferences and workspace repositories already carry, and
-    // the one this store was missing even though it is the store that owns the
-    // quarantine above. mergeWithDefaults passes a wrong-typed value for a PRESENT
-    // key straight through, so a string where knownWorkspaces belongs reaches the
-    // startup picker and throws `items.map is not a function` with no boundary above
-    // it: a blank window on every launch, and no .invalid file, because the parse
-    // succeeded. An ABSENT field still takes its default (storage-path conventions).
-    const data = configResult.data;
-    const shapeIssue =
-      (data.knownPreferences !== undefined && !Array.isArray(data.knownPreferences) && "knownPreferences is not an array") ||
-      (data.knownWorkspaces !== undefined && !Array.isArray(data.knownWorkspaces) && "knownWorkspaces is not an array") ||
-      (data.lastPreferencesPath !== undefined && typeof data.lastPreferencesPath !== "string" && "lastPreferencesPath is not a string") ||
-      (data.lastWorkspacePath !== undefined && typeof data.lastWorkspacePath !== "string" && "lastWorkspacePath is not a string");
-    if (shapeIssue) {
-      quarantinedTo = await quarantineFile(configPath);
-      log.warn("shape-damaged state.json quarantined; recreating defaults", {
-        configPath,
-        quarantinedTo,
-        issue: shapeIssue,
-      });
-      config = createDefaultAppConfig();
-      config.lastPreferencesPath = prefsPath;
-      config.lastWorkspacePath = workspacePath;
-      config.knownPreferences = [prefsPath];
-      config.knownWorkspaces = [workspacePath];
-      await writeJsonFile(configPath, config);
-      log.info("app config initialized", { configPath, created: true });
-      return { config, configPath };
-    }
     // Fill any newly added fields from defaults and drop keys no longer part of
     // AppConfigDto, so a retired field is never re-emitted — the same
     // load-boundary contract as the preferences and workspace repositories.
@@ -146,7 +124,7 @@ export async function initializeAppConfig(): Promise<{
   }
 
   log.info("app config initialized", { configPath, created });
-  return { config, configPath };
+  return { config, configPath, quarantinedTo };
 }
 
 // Flushes the latest app config state to disk. Calls are serialized per path,

@@ -218,10 +218,6 @@ export function useKeyboardShortcuts(
       // firing on a not-yet-committed candidate (text-input-ime-conventions).
       if (isComposingEvent(e)) return;
 
-      // On macOS a bare-Ctrl chord on a Cocoa text-editing key (Ctrl+N =
-      // next-line, ...) belongs to the text system while the caret is in an
-      // editable field; the Cmd half of the same chord always fires
-      // (keyboard-shortcut-conventions).
       if (shadowsMacTextBinding(e) && isEditableTarget(e.target as HTMLElement | null)) {
         return;
       }

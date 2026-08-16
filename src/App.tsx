@@ -65,8 +65,14 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        await initializeAppConfig();
+        const quarantinedTo = await initializeAppConfig();
         setPhase({ kind: "startup" });
+        if (quarantinedTo) {
+          await showMessage(
+            "Saved Locations Were Reset",
+            `DropKick could not read its saved workspace and preferences list. The file was set aside here:\n\n${quarantinedTo}\n\nThe underlying workspace and preferences files were not changed; reopen any non-default ones you still use.`,
+          );
+        }
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         log.error("app initialization failed", toErrorFields(e));

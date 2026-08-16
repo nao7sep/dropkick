@@ -28,7 +28,7 @@ interface AppConfigState {
   loaded: boolean;
 
   // Actions.
-  initialize: () => Promise<void>;
+  initialize: () => Promise<string | null>;
   // Apply a live view adjustment (zoom / sidebar width) and persist it. The single
   // funnel for zoom shortcuts, the hamburger-menu zoom, and the divider drag — the
   // state-store analogue of the preferences store's `update`.
@@ -56,8 +56,9 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
     loaded: false,
 
     initialize: async () => {
-      const { config, configPath } = await initializeAppConfig();
+      const { config, configPath, quarantinedTo } = await initializeAppConfig();
       set({ config, filePath: configPath, loaded: true });
+      return quarantinedTo;
     },
 
     updateViewState: async (changes) => {
