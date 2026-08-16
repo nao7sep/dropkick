@@ -22,6 +22,7 @@ import {
 import {
   readJsonFileResult,
   writeJsonFile,
+  quarantineFile,
   ensureDirectory,
   fileExists,
   appDataRoot,
@@ -64,9 +65,28 @@ export async function initializeAppConfig(): Promise<{
 
   // Create or read app config.
   const configResult = await readJsonFileResult<AppConfigDto>(configPath);
+
+  // Present-but-unparseable state file: quarantine it aside and rebuild from
+  // defaults — every field here is rebuildable view state and path memory, so
+  // being unable to launch over it would be the worse failure (storage-path
+  // conventions: rebuildable stores quarantine; work product halts). The
+  // rename runs OUTSIDE any parse-failure handling: if it cannot land, its
+  // error propagates to the startup error screen rather than falling through
+  // to a default write over the very bytes quarantine preserves. A plain read
+  // error (permissions, I/O) is not corruption and still halts below.
+  let quarantinedTo: string | null = null;
+  if (configResult.status === "invalid") {
+    quarantinedTo = await quarantineFile(configPath);
+    log.warn("corrupt state.json quarantined; recreating defaults", {
+      configPath,
+      quarantinedTo,
+      message: configResult.message,
+    });
+  }
+
   let config: AppConfigDto;
-  const created = configResult.status === "missing";
-  if (configResult.status === "missing") {
+  const created = configResult.status === "missing" || quarantinedTo !== null;
+  if (created) {
     // Create default preferences if missing.
     if (!(await fileExists(prefsPath))) {
       const prefs = createDefaultPreferences("Default");

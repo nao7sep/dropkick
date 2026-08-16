@@ -21,6 +21,8 @@ import {
 } from "../utils";
 import {
   hasPrimaryShortcutModifier,
+  shadowsMacTextBinding,
+  isEditableTarget,
   matchesShortcutKey,
   consumesSpace,
   isOpenSettingsShortcut,
@@ -38,10 +40,12 @@ const UNIFIED_REORDER_MSG =
   "You're in unified view — reordering works in a single list.";
 
 function isTyping(e: KeyboardEvent): boolean {
-  const tag = (e.target as HTMLElement)?.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  if ((e.target as HTMLElement)?.isContentEditable) return true;
-  return false;
+  // The shared walking predicate (a rich-text target is a DIV descendant of
+  // its contenteditable, so a tagName-only test would miss it); SELECT is not
+  // editable for chord purposes but does consume plain keys for its own
+  // type-ahead, so it keeps its explicit check here.
+  if (isEditableTarget(e.target as HTMLElement | null)) return true;
+  return (e.target as HTMLElement)?.tagName === "SELECT";
 }
 
 function isInsideInteractiveLayer(e: KeyboardEvent): boolean {
@@ -213,6 +217,14 @@ export function useKeyboardShortcuts(
       // always-available mod-chords (Cmd+N and friends) stand down until it commits, rather than
       // firing on a not-yet-committed candidate (text-input-ime-conventions).
       if (isComposingEvent(e)) return;
+
+      // On macOS a bare-Ctrl chord on a Cocoa text-editing key (Ctrl+N =
+      // next-line, ...) belongs to the text system while the caret is in an
+      // editable field; the Cmd half of the same chord always fires
+      // (keyboard-shortcut-conventions).
+      if (shadowsMacTextBinding(e) && isEditableTarget(e.target as HTMLElement | null)) {
+        return;
+      }
 
       const mod = hasPrimaryShortcutModifier(e);
       const hasNonShiftModifier = e.metaKey || e.ctrlKey || e.altKey;

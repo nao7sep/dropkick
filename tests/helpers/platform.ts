@@ -1,9 +1,10 @@
 // Helpers for testing platform-dependent modules.
 //
-// utils/zoom and utils/shortcuts read navigator.platform once at module load to
-// decide the primary modifier (Cmd on Apple, Ctrl elsewhere). To test both
-// platforms, stub navigator BEFORE importing the module and re-import it with a
-// fresh module registry each time.
+// utils/shortcuts reads navigator.platform once at module load for the
+// primary-modifier DISPLAY word and the macOS shadow predicate (the binding
+// itself accepts both modifiers on every platform). To test both platforms,
+// stub navigator BEFORE importing the module and re-import it with a fresh
+// module registry each time.
 
 import { vi } from "vitest";
 

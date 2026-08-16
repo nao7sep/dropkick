@@ -11,7 +11,7 @@ import { showMessage } from "../../repositories";
 import {
   toTask,
   singleLine,
-  hasPrimaryShortcutModifier,
+  hasPointerCommandModifier,
   primaryModifierLabel,
   taskSelectionKey,
   rowDomId,
@@ -207,7 +207,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       }
     }
 
-    if (hasPrimaryShortcutModifier(e)) {
+    // Pointer chord: the command flags alone, no Alt exclusion — AltGr types
+    // characters, which has no meaning for a click, and Cmd+Alt+Click must
+    // keep toggling (keyboard-shortcut-conventions).
+    if (hasPointerCommandModifier(e)) {
       // Toggle single.
       const next = new Set(selectedKeys);
       if (next.has(clickedKey)) {

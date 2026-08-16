@@ -10,6 +10,7 @@ import { useAppConfigStore } from "../../state/app-config-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
+import { isComposingEvent } from "../../hooks/useComposing";
 import {
   pickNextActiveKey,
   taskSelectionKey,
@@ -162,6 +163,9 @@ export function MainWindow() {
     (e: React.MouseEvent) => {
       e.preventDefault();
       draggingRef.current = true;
+      // Window-wide col-resize cursor for the whole drag (same pattern as the
+      // tab drag's dnd-dragging class) — see App.css.
+      document.body.classList.add("divider-dragging");
       startXRef.current = e.clientX;
       // The sidebar's displayed pixel width at drag start — the basis for turning
       // the cursor delta into the raw width the user is dragging to.
@@ -190,6 +194,7 @@ export function MainWindow() {
 
       const onUp = () => {
         draggingRef.current = false;
+        document.body.classList.remove("divider-dragging");
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         // Persist the intent (unclamped). Only a drag changes intent and persists.
@@ -225,8 +230,8 @@ export function MainWindow() {
       );
   }, [zoomLevel]);
 
-  // Zoom keyboard shortcuts — separate effect so they work even when the gear menu
-  // is open (the gear menu sets data-dropkick-interactive-layer, which suppresses
+  // Zoom keyboard shortcuts — separate effect so they work even when the hamburger
+  // menu is open (the menu sets data-dropkick-interactive-layer, which suppresses
   // shortcuts in useKeyboardShortcuts; zoom should always be accessible).
   const zoomLevelRef = useRef(zoomLevel);
   useEffect(() => { zoomLevelRef.current = zoomLevel; }, [zoomLevel]);
@@ -236,6 +241,10 @@ export function MainWindow() {
       // priority) already handled this key, don't also zoom. Zoom stays
       // globally available otherwise, even with a menu or modal open.
       if (e.defaultPrevented) return;
+      // Mid-composition the chord belongs to the pending IME candidate —
+      // matters on macOS where Ctrl+Semicolon is an IME conversion chord and
+      // Semicolon is a zoom key (text-input-ime-conventions).
+      if (isComposingEvent(e)) return;
       if (isZoomIn(e)) {
         e.preventDefault();
         updateViewState({ zoomLevel: stepZoomIn(zoomLevelRef.current) });
@@ -474,7 +483,7 @@ export function MainWindow() {
     >
       {/* Tab bar */}
       <TabBar
-        onGearMenuSelect={(item) => {
+        onMenuSelect={(item) => {
           if (item === "settings") setShowSettings(true);
           else if (item === "shortcuts") setShowShortcuts(true);
           else if (item === "about") setShowAbout(true);

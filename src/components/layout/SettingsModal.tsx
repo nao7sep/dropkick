@@ -1,5 +1,5 @@
 // Settings modal — edits preferences (font, timezone, kick distances, etc.).
-// Opens from a gear icon in the tab bar. Changes are staged locally and saved only on "Save".
+// Opens from the hamburger menu in the tab bar. Changes are staged locally and saved only on "Save".
 
 import { useMemo, useRef, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";

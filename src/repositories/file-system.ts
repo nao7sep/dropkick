@@ -91,6 +91,15 @@ export async function writeJsonFile<T>(path: string, data: T): Promise<void> {
   }
 }
 
+// Quarantines a present-but-unparseable managed store: the Rust core renames it
+// beside itself to `<stem>-<millisecond-utc-stamp>.invalid` and returns the new
+// path. Failure propagates to the caller — a failed quarantine must halt the
+// load, never fall through to defaults over the preserved bytes (storage-path
+// conventions).
+export async function quarantineFile(path: string): Promise<string> {
+  return await invoke<string>("quarantine_file", { path });
+}
+
 // Computes SHA-256 hash of a file via the Rust backend.
 // Returns null if the file does not exist.
 export async function hashFile(path: string): Promise<string | null> {

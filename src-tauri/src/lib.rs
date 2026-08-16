@@ -366,6 +366,44 @@ fn file_exists(path: &str) -> bool {
     std::path::Path::new(path).exists()
 }
 
+// `<stem>-<yyyymmdd-hhmmss-fff-utc>.invalid` beside the source — the
+// derived-filename grammar with a moment discriminator (storage-path
+// conventions' quarantine name).
+fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("store");
+    path.with_file_name(format!("{stem}-{}.invalid", logging::filename_stamp_now()))
+}
+
+// Quarantines a present-but-unparseable managed store: renames it beside itself
+// to its quarantine name so the original bytes survive for recovery while the
+// caller recreates defaults. The rename either lands or errors — a failure must
+// reach the caller and halt the load, never fall through to a default-reset
+// over the very bytes quarantine exists to preserve (storage-path conventions).
+#[tauri::command]
+fn quarantine_file(path: &str) -> Result<String, String> {
+    let started = log_cmd_start("quarantine_file", json!({ "path": path }));
+    let target = quarantine_target(std::path::Path::new(path));
+    match std::fs::rename(path, &target) {
+        Ok(()) => {
+            let target = target.to_string_lossy().to_string();
+            log_cmd_ok(
+                "quarantine_file",
+                started,
+                json!({ "path": path, "quarantinedTo": target }),
+            );
+            Ok(target)
+        }
+        Err(e) => {
+            let message = e.to_string();
+            log_cmd_err("quarantine_file", started, message.clone());
+            Err(message)
+        }
+    }
+}
+
 #[tauri::command]
 fn ensure_dir(path: &str) -> Result<(), String> {
     let started = log_cmd_start("ensure_dir", json!({ "path": path }));
@@ -466,6 +504,7 @@ pub fn run() {
             read_text_file,
             write_text_file_atomic,
             file_exists,
+            quarantine_file,
             ensure_dir,
             app_data_root,
             log_event,
@@ -520,6 +559,37 @@ mod tests {
         std::fs::write(&path, b"abc").unwrap();
         let result = hash_file(path.to_str().unwrap()).unwrap();
         assert_eq!(result, sha256_hex(b"abc"));
+    }
+
+    #[test]
+    fn quarantine_target_is_stem_stamp_dot_invalid_beside_the_source() {
+        let target = quarantine_target(std::path::Path::new("/data/state.json"));
+        assert_eq!(target.parent(), Some(std::path::Path::new("/data")));
+        let name = target.file_name().and_then(|n| n.to_str()).unwrap();
+        // <stem>-<yyyymmdd-hhmmss-fff-utc>.invalid — one final role extension,
+        // never a suffix dot-appended after the full "state.json".
+        assert!(name.starts_with("state-"), "unexpected name: {name}");
+        assert!(name.ends_with("-utc.invalid"), "unexpected name: {name}");
+        assert!(!name.contains("state.json"), "old shape leaked in: {name}");
+    }
+
+    #[test]
+    fn quarantine_file_renames_and_preserves_bytes() {
+        let dir = unique_temp_dir("quarantine");
+        let path = dir.join("state.json");
+        std::fs::write(&path, b"{ corrupt bytes").unwrap();
+
+        let quarantined = quarantine_file(path.to_str().unwrap()).unwrap();
+
+        assert!(!path.exists(), "source must be renamed away");
+        assert_eq!(std::fs::read(&quarantined).unwrap(), b"{ corrupt bytes");
+    }
+
+    #[test]
+    fn quarantine_file_errors_for_missing_source() {
+        let dir = unique_temp_dir("quarantine-missing");
+        let path = dir.join("absent.json");
+        assert!(quarantine_file(path.to_str().unwrap()).is_err());
     }
 
     #[test]

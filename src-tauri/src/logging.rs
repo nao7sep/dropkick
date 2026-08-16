@@ -133,6 +133,13 @@ pub fn session_filename() -> String {
     format!("{}.log", filename_stamp(now_unix_millis()))
 }
 
+// The bare filename stamp for other derived-sibling names that carry a moment
+// discriminator (a quarantined store's `<stem>-<stamp>.invalid`) — the same
+// formatter as the session log name, so there is exactly one filename stamp.
+pub fn filename_stamp_now() -> String {
+    filename_stamp(now_unix_millis())
+}
+
 // --- Redaction: non-destructive, key-name based, recursive, total ---
 
 fn default_denied() -> HashSet<String> {

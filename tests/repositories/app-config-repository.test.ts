@@ -9,6 +9,7 @@ const writeJsonFile = vi.fn();
 const ensureDirectory = vi.fn();
 const fileExists = vi.fn();
 const appDataRoot = vi.fn();
+const quarantineFile = vi.fn();
 
 vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileResult: (p: string) => readJsonFileResult(p),
@@ -16,6 +17,7 @@ vi.mock("../../src/repositories/file-system", () => ({
   ensureDirectory: (p: string) => ensureDirectory(p),
   fileExists: (p: string) => fileExists(p),
   appDataRoot: () => appDataRoot(),
+  quarantineFile: (p: string) => quarantineFile(p),
   // The repository joins with plain "/"; mirror that so asserted paths are stable.
   joinPath: (...parts: string[]) => parts.join("/"),
   withSerial: (_p: string, fn: () => unknown) => fn(),
@@ -36,6 +38,7 @@ beforeEach(() => {
   ensureDirectory.mockReset();
   fileExists.mockReset();
   appDataRoot.mockReset();
+  quarantineFile.mockReset();
   appDataRoot.mockResolvedValue(ROOT);
   ensureDirectory.mockResolvedValue(undefined);
   writeJsonFile.mockResolvedValue(undefined);
@@ -136,5 +139,44 @@ describe("app-level storage filenames", () => {
     const { config } = await initializeAppConfig();
     expect(config.zoomLevel).toBe(1.5);
     expect(config.sidebarWidth).toBe(440);
+  });
+});
+
+describe("corrupt state.json", () => {
+  it("quarantines the corrupt file, then recreates defaults (never resets in place)", async () => {
+    // Present but unparseable: the load quarantines it aside and proceeds with
+    // a rebuilt default state — being unable to launch over rebuildable view
+    // state would be the worse failure (storage-path conventions).
+    readJsonFileResult.mockResolvedValue({ status: "invalid", message: "bad json" });
+    fileExists.mockResolvedValue(true); // seed files exist; must not be recreated
+    quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
+
+    const { config, configPath } = await initializeAppConfig();
+
+    expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
+    expect(configPath).toBe(`${ROOT}/state.json`);
+    const writtenPaths = writeJsonFile.mock.calls.map((c) => c[0]);
+    expect(writtenPaths).toContain(`${ROOT}/state.json`);
+    expect(writtenPaths).not.toContain(`${ROOT}/preferences.json`);
+    expect(writtenPaths).not.toContain(`${ROOT}/workspace.json`);
+    expect(config.lastPreferencesPath).toBe(`${ROOT}/preferences.json`);
+    expect(config.knownWorkspaces).toEqual([`${ROOT}/workspace.json`]);
+  });
+
+  it("halts when the quarantine rename itself fails — never defaults over the bytes", async () => {
+    readJsonFileResult.mockResolvedValue({ status: "invalid", message: "bad json" });
+    fileExists.mockResolvedValue(true);
+    quarantineFile.mockRejectedValue(new Error("permission denied"));
+
+    await expect(initializeAppConfig()).rejects.toThrow("permission denied");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it("still halts on a plain read error — an unreadable file is not corrupt", async () => {
+    readJsonFileResult.mockResolvedValue({ status: "error", message: "EACCES" });
+
+    await expect(initializeAppConfig()).rejects.toThrow("Failed to load app config: EACCES");
+    expect(quarantineFile).not.toHaveBeenCalled();
+    expect(writeJsonFile).not.toHaveBeenCalled();
   });
 });

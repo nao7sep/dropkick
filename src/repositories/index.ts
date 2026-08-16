@@ -6,6 +6,7 @@ export {
   readJsonFileResult,
   readJsonFileWithHash,
   writeJsonFile,
+  quarantineFile,
   hashFile,
   fileExists,
   ensureDirectory,

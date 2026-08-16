@@ -1,6 +1,6 @@
 // Tab bar — displays open tabs with drag-to-reorder, close, and rename.
 // The [+] button opens a menu to create/open task list files.
-// The gear icon opens a menu with Settings, Keyboard Shortcuts, and About.
+// The hamburger icon opens a menu with Settings, Keyboard Shortcuts, and About.
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
@@ -35,7 +35,7 @@ import {
   toErrorFields,
 } from "../../repositories";
 
-type GearMenuItem = "settings" | "shortcuts" | "about";
+type MenuItemId = "settings" | "shortcuts" | "about";
 
 // Shared styling for menu items. `data-[highlighted]` is Radix's active-item
 // state (keyboard arrow focus and pointer hover both set it).
@@ -45,10 +45,10 @@ const MENU_ITEM_ICON_CLASS =
   "flex cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
 
 interface TabBarProps {
-  onGearMenuSelect: (item: GearMenuItem) => void;
+  onMenuSelect: (item: MenuItemId) => void;
 }
 
-export function TabBar({ onGearMenuSelect }: TabBarProps) {
+export function TabBar({ onMenuSelect }: TabBarProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
   // Zoom is view state (state.json), not a preference — read/write via app-config.
   const zoomLevel = useAppConfigStore((s) => s.config.zoomLevel);
@@ -437,10 +437,10 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
 
-          {/* Spacer pushes the gear menu to the right edge. */}
+          {/* Spacer pushes the hamburger menu to the right edge. */}
           <div className="flex-1" />
 
-          {/* Gear menu */}
+          {/* Hamburger menu */}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <button
@@ -459,14 +459,14 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                 className="z-50 w-52 rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
               >
                 <DropdownMenu.Item
-                  onSelect={() => onGearMenuSelect("settings")}
+                  onSelect={() => onMenuSelect("settings")}
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Settings size={14} className="text-ink-muted" />
                   Settings
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
-                  onSelect={() => onGearMenuSelect("shortcuts")}
+                  onSelect={() => onMenuSelect("shortcuts")}
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Keyboard size={14} className="text-ink-muted" />
@@ -520,7 +520,7 @@ export function TabBar({ onGearMenuSelect }: TabBarProps) {
                 <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
 
                 <DropdownMenu.Item
-                  onSelect={() => onGearMenuSelect("about")}
+                  onSelect={() => onMenuSelect("about")}
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Info size={14} className="text-ink-muted" />

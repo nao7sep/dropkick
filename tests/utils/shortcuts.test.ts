@@ -3,6 +3,11 @@ import {
   matchesShortcutKey,
   consumesSpace,
   tabCycleDirection,
+  hasPrimaryShortcutModifier,
+  hasPointerCommandModifier,
+  isEditableTarget,
+  isOpenSettingsShortcut,
+  isOpenShortcutsHelpShortcut,
 } from "../../src/utils/shortcuts";
 import { importWithPlatform } from "../helpers/platform";
 
@@ -112,21 +117,93 @@ describe("matchesShortcutKey", () => {
   });
 });
 
-describe("hasPrimaryShortcutModifier (platform-dependent)", () => {
+describe("hasPrimaryShortcutModifier", () => {
+  it("fires on either Cmd or Ctrl — both are bound on every platform", () => {
+    // The keyboard-shortcut-conventions' cross-machine muscle-memory rule:
+    // the binding is platform-independent; only the display word is not.
+    expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: false, altKey: false })).toBe(true);
+    expect(hasPrimaryShortcutModifier({ metaKey: false, ctrlKey: true, altKey: false })).toBe(true);
+    expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: true, altKey: false })).toBe(true);
+    expect(hasPrimaryShortcutModifier({ metaKey: false, ctrlKey: false, altKey: false })).toBe(false);
+  });
+
+  it("rejects Alt chords — Windows AltGr arrives as Ctrl+Alt and must keep typing", () => {
+    expect(hasPrimaryShortcutModifier({ metaKey: false, ctrlKey: true, altKey: true })).toBe(false);
+    expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: false, altKey: true })).toBe(false);
+    expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: true, altKey: true })).toBe(false);
+  });
+});
+
+describe("hasPointerCommandModifier", () => {
+  it("tests the command flags alone — Cmd+Alt+Click must keep working", () => {
+    expect(hasPointerCommandModifier({ metaKey: true, ctrlKey: false })).toBe(true);
+    expect(hasPointerCommandModifier({ metaKey: false, ctrlKey: true })).toBe(true);
+    expect(hasPointerCommandModifier({ metaKey: false, ctrlKey: false })).toBe(false);
+  });
+});
+
+// Build a fake editable-walk target chain.
+function domNode(opts: {
+  tagName?: string;
+  isContentEditable?: boolean;
+  type?: string | null;
+  parent?: ReturnType<typeof domNode> | null;
+}): {
+  tagName?: string;
+  isContentEditable?: boolean;
+  parentElement: ReturnType<typeof domNode> | null;
+  getAttribute: (name: string) => string | null;
+} {
+  return {
+    tagName: opts.tagName,
+    isContentEditable: opts.isContentEditable,
+    parentElement: opts.parent ?? null,
+    getAttribute: (name: string) => (name === "type" ? (opts.type ?? null) : null),
+  };
+}
+
+describe("isEditableTarget", () => {
+  it("recognizes textareas and text-bearing inputs", () => {
+    expect(isEditableTarget(domNode({ tagName: "TEXTAREA" }))).toBe(true);
+    expect(isEditableTarget(domNode({ tagName: "INPUT", type: "text" }))).toBe(true);
+    expect(isEditableTarget(domNode({ tagName: "INPUT", type: null }))).toBe(true); // default type is text
+    expect(isEditableTarget(domNode({ tagName: "INPUT", type: "search" }))).toBe(true);
+  });
+
+  it("rejects non-text inputs and non-editable elements", () => {
+    expect(isEditableTarget(domNode({ tagName: "INPUT", type: "checkbox" }))).toBe(false);
+    expect(isEditableTarget(domNode({ tagName: "INPUT", type: "range" }))).toBe(false);
+    expect(isEditableTarget(domNode({ tagName: "DIV" }))).toBe(false);
+    expect(isEditableTarget(domNode({ tagName: "SELECT" }))).toBe(false);
+    expect(isEditableTarget(null)).toBe(false);
+  });
+
+  it("walks parentElement — a rich-text target is a DIV inside the contenteditable", () => {
+    const editorRoot = domNode({ tagName: "DIV", isContentEditable: true });
+    const innerSpan = domNode({ tagName: "SPAN", parent: editorRoot });
+    expect(isEditableTarget(innerSpan)).toBe(true);
+  });
+});
+
+describe("shadowsMacTextBinding (platform-dependent)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("uses metaKey (Cmd) on macOS", async () => {
-    const { hasPrimaryShortcutModifier } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
-    expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: false })).toBe(true);
-    expect(hasPrimaryShortcutModifier({ metaKey: false, ctrlKey: true })).toBe(false);
+  it("on macOS, flags bare-Ctrl chords on Cocoa text-editing keys", async () => {
+    const { shadowsMacTextBinding } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    // Ctrl+N is Cocoa next-line; Ctrl+Slash is a Cocoa binding too.
+    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false, key: "n" })).toBe(true);
+    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false, key: "/" })).toBe(true);
+    // The Cmd half of the same chord is unbound and must fire.
+    expect(shadowsMacTextBinding({ metaKey: true, ctrlKey: false, altKey: false, key: "n" })).toBe(false);
+    // Non-Cocoa letters pass through (m, w, u are dropkick chords, unbound in Cocoa).
+    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false, key: "m" })).toBe(false);
   });
 
-  it("uses ctrlKey on Windows", async () => {
-    const { hasPrimaryShortcutModifier } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
-    expect(hasPrimaryShortcutModifier({ metaKey: false, ctrlKey: true })).toBe(true);
-    expect(hasPrimaryShortcutModifier({ metaKey: true, ctrlKey: false })).toBe(false);
+  it("never fires off macOS — there is no Cocoa keymap to shadow", async () => {
+    const { shadowsMacTextBinding } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
+    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false, key: "n" })).toBe(false);
   });
 });
 
@@ -163,71 +240,48 @@ function keyEvent(opts: {
   };
 }
 
-describe("isOpenSettingsShortcut (platform-dependent)", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("matches the primary modifier + comma on macOS (Cmd)", async () => {
-    const { isOpenSettingsShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+describe("isOpenSettingsShortcut", () => {
+  it("matches Cmd+comma and Ctrl+comma — both bound on every platform", () => {
     expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, key: "," }))).toBe(true);
-    // On macOS the primary modifier is Cmd, so Ctrl+comma must not match.
-    expect(isOpenSettingsShortcut(keyEvent({ ctrlKey: true, key: "," }))).toBe(false);
-  });
-
-  it("matches the primary modifier + comma on Windows (Ctrl)", async () => {
-    const { isOpenSettingsShortcut } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
     expect(isOpenSettingsShortcut(keyEvent({ ctrlKey: true, key: "," }))).toBe(true);
-    expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, key: "," }))).toBe(false);
   });
 
-  it("requires the modifier and rejects extra modifiers / other keys", async () => {
-    const { isOpenSettingsShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+  it("requires the modifier and rejects extra modifiers / other keys", () => {
     expect(isOpenSettingsShortcut(keyEvent({ key: "," }))).toBe(false); // bare comma
     expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, shiftKey: true, key: "," }))).toBe(false);
-    expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, altKey: true, key: "," }))).toBe(false);
+    // AltGr (Ctrl+Alt) must keep typing — the shared predicate excludes Alt.
+    expect(isOpenSettingsShortcut(keyEvent({ ctrlKey: true, altKey: true, key: "," }))).toBe(false);
     expect(isOpenSettingsShortcut(keyEvent({ metaKey: true, key: "." }))).toBe(false);
   });
 });
 
-describe("isOpenShortcutsHelpShortcut (platform-dependent)", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("matches the primary modifier + slash on macOS (Cmd)", async () => {
-    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+describe("isOpenShortcutsHelpShortcut", () => {
+  it("matches Cmd+slash and Ctrl+slash — both bound on every platform", () => {
     expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, key: "/" }))).toBe(true);
-    expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, key: "/" }))).toBe(false);
-  });
-
-  it("matches the primary modifier + slash on Windows (Ctrl)", async () => {
-    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
     expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, key: "/" }))).toBe(true);
-    expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, key: "/" }))).toBe(false);
   });
 
-  it("matches a bare '?' regardless of platform (Shift produces it)", async () => {
-    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+  it("matches a bare '?' regardless of platform (Shift produces it)", () => {
     expect(isOpenShortcutsHelpShortcut(keyEvent({ key: "?" }))).toBe(true);
     expect(isOpenShortcutsHelpShortcut(keyEvent({ shiftKey: true, key: "?" }))).toBe(true);
   });
 
-  it("matches Cmd+/ even when Shift is held (shifted-slash layouts, e.g. German QWERTZ)", async () => {
+  it("matches Cmd+/ even when Shift is held (shifted-slash layouts, e.g. German QWERTZ)", () => {
     // On layouts where "/" is Shift+<key>, the chord arrives as key "/" with
     // shiftKey true; allowing it here keeps Cmd+/ working there.
-    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
     expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, shiftKey: true, key: "/" }))).toBe(true);
   });
 
-  it("rejects a primary-modified '?' and a bare slash", async () => {
-    const { isOpenShortcutsHelpShortcut } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+  it("rejects a primary-modified '?', a bare slash, and AltGr combos", () => {
     // Cmd+? is not a binding (the slash form is), so a modified "?" must miss.
     // On US layouts Cmd+Shift+/ reports key "?", not "/", so it lands here.
     expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, key: "?" }))).toBe(false);
     expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, shiftKey: true, key: "?" }))).toBe(false);
     expect(isOpenShortcutsHelpShortcut(keyEvent({ key: "/" }))).toBe(false); // bare slash
-    // Alt/AltGr is still excluded on the slash branch.
-    expect(isOpenShortcutsHelpShortcut(keyEvent({ metaKey: true, altKey: true, key: "/" }))).toBe(false);
+    // AltGr producing "/" or "?" is typing, not the chord or the alias: the
+    // slash branch loses its modifier via the predicate's Alt exclusion, and
+    // the "?" branch's own raw !altKey flag rejects it.
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, altKey: true, key: "/" }))).toBe(false);
+    expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, altKey: true, key: "?" }))).toBe(false);
   });
 });

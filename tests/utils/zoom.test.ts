@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   ZOOM_LEVELS,
   ZOOM_DEFAULT,
@@ -6,8 +6,10 @@ import {
   ZOOM_MAX,
   stepZoomIn,
   stepZoomOut,
+  isZoomIn,
+  isZoomOut,
+  isZoomReset,
 } from "../../src/utils/zoom";
-import { importWithPlatform } from "../helpers/platform";
 
 describe("zoom level stepping", () => {
   it("exposes sane constants", () => {
@@ -42,40 +44,41 @@ describe("zoom level stepping", () => {
   });
 });
 
-// Type for the dynamically re-imported module under a stubbed platform.
-type ZoomModule = typeof import("../../src/utils/zoom");
-
 function keyEvent(init: Partial<KeyboardEvent>): KeyboardEvent {
-  return init as KeyboardEvent;
+  return { metaKey: false, ctrlKey: false, altKey: false, ...init } as KeyboardEvent;
 }
 
-describe("zoom keyboard shortcuts (platform-dependent)", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("on macOS, requires Cmd (metaKey) for zoom keys", async () => {
-    const { isZoomIn, isZoomOut, isZoomReset } = await importWithPlatform<ZoomModule>("mac", () => import("../../src/utils/zoom"));
+describe("zoom keyboard shortcuts", () => {
+  // Each modifier is asserted ALONE — setting both in one event is exactly how
+  // a single-modifier regression stays invisible (keyboard-shortcut-conventions).
+  it("fires on Cmd (metaKey) for every zoom key", () => {
     expect(isZoomIn(keyEvent({ key: "=", metaKey: true }))).toBe(true);
     expect(isZoomIn(keyEvent({ key: "+", metaKey: true }))).toBe(true);
     expect(isZoomIn(keyEvent({ key: ";", metaKey: true }))).toBe(true);
     expect(isZoomOut(keyEvent({ key: "-", metaKey: true }))).toBe(true);
     expect(isZoomReset(keyEvent({ key: "0", metaKey: true }))).toBe(true);
-    // Ctrl must NOT trigger on macOS.
-    expect(isZoomIn(keyEvent({ key: "=", ctrlKey: true }))).toBe(false);
   });
 
-  it("on Windows, requires Ctrl for zoom keys", async () => {
-    const { isZoomIn, isZoomOut, isZoomReset } = await importWithPlatform<ZoomModule>("windows", () => import("../../src/utils/zoom"));
+  it("fires on Ctrl too — both modifiers are bound on every platform", () => {
     expect(isZoomIn(keyEvent({ key: "=", ctrlKey: true }))).toBe(true);
+    expect(isZoomIn(keyEvent({ key: "+", ctrlKey: true }))).toBe(true);
+    expect(isZoomIn(keyEvent({ key: ";", ctrlKey: true }))).toBe(true);
     expect(isZoomOut(keyEvent({ key: "-", ctrlKey: true }))).toBe(true);
     expect(isZoomReset(keyEvent({ key: "0", ctrlKey: true }))).toBe(true);
-    // Cmd must NOT trigger on Windows.
-    expect(isZoomIn(keyEvent({ key: "=", metaKey: true }))).toBe(false);
   });
 
-  it("ignores zoom keys without the primary modifier", async () => {
-    const { isZoomIn } = await importWithPlatform<ZoomModule>("mac", () => import("../../src/utils/zoom"));
+  it("rejects AltGr chords — Windows delivers AltGr as Ctrl+Alt", () => {
+    // e.g. Hungarian AltGr+comma types ";" — a zoom-in key — and must keep
+    // typing the character instead of zooming and swallowing it.
+    expect(isZoomIn(keyEvent({ key: ";", ctrlKey: true, altKey: true }))).toBe(false);
+    expect(isZoomIn(keyEvent({ key: "=", ctrlKey: true, altKey: true }))).toBe(false);
+    expect(isZoomOut(keyEvent({ key: "-", ctrlKey: true, altKey: true }))).toBe(false);
+    expect(isZoomReset(keyEvent({ key: "0", ctrlKey: true, altKey: true }))).toBe(false);
+  });
+
+  it("ignores zoom keys without the primary modifier", () => {
     expect(isZoomIn(keyEvent({ key: "=" }))).toBe(false);
+    expect(isZoomOut(keyEvent({ key: "-" }))).toBe(false);
+    expect(isZoomReset(keyEvent({ key: "0" }))).toBe(false);
   });
 });
