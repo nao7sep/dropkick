@@ -123,10 +123,23 @@ describe("loadPreferences — kickDistances normalization", () => {
     expect(result.preferences.kickDistances).toEqual([5, 999]);
   });
 
-  it("falls back to the default pair when stored kickDistances is not a usable array", async () => {
+  it("reports a present-but-non-array kickDistances as invalid instead of coercing it", async () => {
+    // A wrong-shape field is corruption, the same branch as unparseable JSON:
+    // coercing it and letting the next flush write defaults back would destroy
+    // the user's file quietly (storage-path conventions).
     readJsonFileResult.mockResolvedValue({
       status: "success",
       data: { version: "1.0.0", name: "Broken", kickDistances: "nope" },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("invalid");
+  });
+
+  it("fills an absent kickDistances from the defaults", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "NoKicks" },
     });
 
     const result = await loadPreferences("/prefs.json");

@@ -39,17 +39,24 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
   }
 
   const data = result.data;
+  // A present-but-wrong-shape field is corruption, the same branch as
+  // unparseable JSON: coercing it to [] and letting the next flush write the
+  // emptied list back would destroy the user's tabs on a file that never
+  // looked corrupt (storage-path conventions). An absent field still takes
+  // its default below; the failing file is reported in place like any other
+  // unloadable document, and the rest of the app keeps working.
+  if (data.openTabs !== undefined && !Array.isArray(data.openTabs)) {
+    return { status: "invalid", message: "openTabs is not an array" };
+  }
+  if (data.recentFiles !== undefined && !Array.isArray(data.recentFiles)) {
+    return { status: "invalid", message: "recentFiles is not an array" };
+  }
   const defaults = createDefaultWorkspace(data.name ?? "Default");
   const merged = mergeWithDefaults(defaults, data);
   const workspace: WorkspaceDto = {
     ...merged,
-    // openTabs/recentFiles are required arrays that the startup path iterates
-    // immediately (startupTabIndex, recent-file rendering). A hand-edited or
-    // corrupted file holding a non-array — or null — would otherwise crash the
-    // launch, so coerce to an empty list, mirroring normalizeKickDistances on
-    // the preferences side.
-    openTabs: Array.isArray(data.openTabs) ? data.openTabs : [],
-    recentFiles: Array.isArray(data.recentFiles) ? data.recentFiles : [],
+    openTabs: data.openTabs ?? defaults.openTabs,
+    recentFiles: data.recentFiles ?? defaults.recentFiles,
     activeTabIndex: defaults.activeTabIndex,
   };
   // Materialize a missing stable id by persisting it once, so this workspace's

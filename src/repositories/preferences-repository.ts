@@ -36,6 +36,13 @@ export async function loadPreferences(
   // stored keys no longer part of PreferencesDto — a retired field is not copied
   // through the load, so the next flush never re-emits it.
   const data = result.data;
+  // Same shape rule as the workspace repository: a present-but-non-array
+  // kickDistances is corruption reported in place, never coerced and flushed
+  // back over the user's file. Absent takes the defaults; element-level
+  // clamping inside normalizeKickDistances is value use, not a shape failure.
+  if (data.kickDistances !== undefined && !Array.isArray(data.kickDistances)) {
+    return { status: "invalid", message: "kickDistances is not an array" };
+  }
   const defaults = createDefaultPreferences(data.name ?? "Default");
   const merged = mergeWithDefaults(defaults, data);
   const preferences: PreferencesDto = {

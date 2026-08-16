@@ -66,25 +66,30 @@ describe("loadWorkspace — merge with defaults", () => {
     expect("retiredField" in result.workspace).toBe(false);
   });
 
-  it("coerces a non-array openTabs/recentFiles to an empty list so a corrupted file cannot crash startup", async () => {
-    // A hand-edited or partially-corrupted file holds non-array values where the
-    // startup path expects to call .findIndex / .length.
+  it("reports a present-but-wrong-shape openTabs/recentFiles as invalid instead of coercing", async () => {
+    // A wrong-shape field is corruption, the same branch as unparseable JSON:
+    // coercing to [] and letting the next flush write the emptied lists back
+    // would destroy the user's tabs on a file that never looked corrupt
+    // (storage-path conventions). The failing file is reported in place; the
+    // rest of the app keeps working.
     readJsonFileResult.mockResolvedValue({
       status: "success",
       data: { version: "1.0.0", name: "Corrupt", openTabs: "nope", recentFiles: 5 },
     });
 
-    const result = await loadWorkspace("/ws.json");
-    expect(result.status).toBe("success");
-    if (result.status !== "success") return;
-    expect(result.workspace.openTabs).toEqual([]);
-    expect(result.workspace.recentFiles).toEqual([]);
-  });
+    expect((await loadWorkspace("/ws.json")).status).toBe("invalid");
 
-  it("coerces a null openTabs/recentFiles to an empty list", async () => {
     readJsonFileResult.mockResolvedValue({
       status: "success",
       data: { version: "1.0.0", name: "Nulls", openTabs: null, recentFiles: null },
+    });
+    expect((await loadWorkspace("/ws.json")).status).toBe("invalid");
+  });
+
+  it("fills absent openTabs/recentFiles from the defaults", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Sparse" },
     });
 
     const result = await loadWorkspace("/ws.json");
