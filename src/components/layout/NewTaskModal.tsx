@@ -9,6 +9,8 @@ import {
   multiline,
   todayInTimezone,
   tomorrowInTimezone,
+  shadowsMacTextBinding,
+  isEditableTarget,
 } from "../../utils";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -109,8 +111,11 @@ export function NewTaskModal({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.defaultPrevented || !hasPrimaryShortcutModifier(e)) return;
 
-    // Primary modifier + Enter submits from anywhere in the modal.
+    // Primary modifier + Enter submits from anywhere in the modal — except that the
+    // Ctrl half is Cocoa's insertLineBreak: while the caret is in a text field, so it
+    // yields there and Cmd+Enter carries the binding (keyboard-shortcut-conventions).
     if (e.key === "Enter") {
+      if (shadowsMacTextBinding(e) && isEditableTarget(e.target as HTMLElement | null)) return;
       if (isComposingKeyboardEvent(composing.composingRef, e)) return;
       e.preventDefault();
       handleCreate();

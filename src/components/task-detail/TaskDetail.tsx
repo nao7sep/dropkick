@@ -24,6 +24,7 @@ import {
   primaryModifierLabel,
   taskKey,
   taskSelectionKey,
+  shadowsMacTextBinding,
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -438,6 +439,10 @@ export function TaskDetail({
             }}
             onKeyDown={(e) => {
               if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
+                // Cmd+Enter is the binding and stays live; the Ctrl half is Cocoa's
+                // insertLineBreak: inside a text field, so it yields there
+                // (keyboard-shortcut-conventions).
+                if (shadowsMacTextBinding(e)) return;
                 if (isComposingKeyboardEvent(noteComposing.composingRef, e)) return;
                 e.preventDefault();
                 handleAddNote(e.shiftKey ? "Actionable" : "Informational");
@@ -604,6 +609,7 @@ function NoteItem({
             }}
             onKeyDown={(e) => {
               if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
+                if (shadowsMacTextBinding(e)) return; // Ctrl+Enter is insertLineBreak: on macOS
                 if (isComposingKeyboardEvent(composing.composingRef, e)) return;
                 e.preventDefault();
                 handleSave();

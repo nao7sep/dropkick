@@ -180,3 +180,49 @@ describe("corrupt state.json", () => {
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 });
+
+describe("shape-damaged state.json", () => {
+  it("quarantines a wrong-typed known-list and rebuilds, instead of crashing the picker", async () => {
+    // The file PARSES, so the invalid-status branch never fires; without a shape
+    // check mergeWithDefaults passes the string through and StartupPicker throws
+    // `items.map is not a function` with no ErrorBoundary above it — a blank window
+    // on every launch, and no .invalid file.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: {
+        version: "1.0.0",
+        lastPreferencesPath: "/x/preferences.json",
+        lastWorkspacePath: "/x/workspace.json",
+        knownPreferences: ["/x/preferences.json"],
+        knownWorkspaces: "/x/workspace.json", // a string where a list belongs
+      },
+    });
+    fileExists.mockResolvedValue(true);
+    quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
+
+    const { config } = await initializeAppConfig();
+
+    expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
+    expect(Array.isArray(config.knownWorkspaces)).toBe(true);
+    expect(config.knownWorkspaces).toEqual([`${ROOT}/workspace.json`]);
+    expect(writeJsonFile.mock.calls.map((c) => c[0])).toContain(`${ROOT}/state.json`);
+  });
+
+  it("leaves a sound state.json alone", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: {
+        version: "1.0.0",
+        lastPreferencesPath: "/x/preferences.json",
+        lastWorkspacePath: "/x/workspace.json",
+        knownPreferences: ["/x/preferences.json"],
+        knownWorkspaces: ["/x/workspace.json"],
+      },
+    });
+    fileExists.mockResolvedValue(true);
+
+    await initializeAppConfig();
+    expect(quarantineFile).not.toHaveBeenCalled();
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+});

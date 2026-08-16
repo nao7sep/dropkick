@@ -8,7 +8,13 @@ import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { validateTimezone } from "../../utils/timezone";
 import { AppModal } from "../shared/AppModal";
-import { hasPrimaryShortcutModifier, primaryModifierLabel, singleLine } from "../../utils";
+import {
+  hasPrimaryShortcutModifier,
+  primaryModifierLabel,
+  singleLine,
+  shadowsMacTextBinding,
+  isEditableTarget,
+} from "../../utils";
 import {
   isPreferencesDraftDirty,
   liveAppliedPreferences,
@@ -101,6 +107,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       contentProps={{
         onKeyDown: (e) => {
           if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
+            if (shadowsMacTextBinding(e) && isEditableTarget(e.target as HTMLElement | null)) return;
             if (isComposingKeyboardEvent(composing.composingRef, e)) return;
             e.preventDefault();
             handleSave();

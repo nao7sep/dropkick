@@ -107,6 +107,36 @@ export async function initializeAppConfig(): Promise<{
     config.knownWorkspaces = [workspacePath];
     await writeJsonFile(configPath, config);
   } else if (configResult.status === "success") {
+    // A present-but-wrong-shape field is corruption, the same branch as unparseable
+    // JSON — the guard the preferences and workspace repositories already carry, and
+    // the one this store was missing even though it is the store that owns the
+    // quarantine above. mergeWithDefaults passes a wrong-typed value for a PRESENT
+    // key straight through, so a string where knownWorkspaces belongs reaches the
+    // startup picker and throws `items.map is not a function` with no boundary above
+    // it: a blank window on every launch, and no .invalid file, because the parse
+    // succeeded. An ABSENT field still takes its default (storage-path conventions).
+    const data = configResult.data;
+    const shapeIssue =
+      (data.knownPreferences !== undefined && !Array.isArray(data.knownPreferences) && "knownPreferences is not an array") ||
+      (data.knownWorkspaces !== undefined && !Array.isArray(data.knownWorkspaces) && "knownWorkspaces is not an array") ||
+      (data.lastPreferencesPath !== undefined && typeof data.lastPreferencesPath !== "string" && "lastPreferencesPath is not a string") ||
+      (data.lastWorkspacePath !== undefined && typeof data.lastWorkspacePath !== "string" && "lastWorkspacePath is not a string");
+    if (shapeIssue) {
+      quarantinedTo = await quarantineFile(configPath);
+      log.warn("shape-damaged state.json quarantined; recreating defaults", {
+        configPath,
+        quarantinedTo,
+        issue: shapeIssue,
+      });
+      config = createDefaultAppConfig();
+      config.lastPreferencesPath = prefsPath;
+      config.lastWorkspacePath = workspacePath;
+      config.knownPreferences = [prefsPath];
+      config.knownWorkspaces = [workspacePath];
+      await writeJsonFile(configPath, config);
+      log.info("app config initialized", { configPath, created: true });
+      return { config, configPath };
+    }
     // Fill any newly added fields from defaults and drop keys no longer part of
     // AppConfigDto, so a retired field is never re-emitted — the same
     // load-boundary contract as the preferences and workspace repositories.
