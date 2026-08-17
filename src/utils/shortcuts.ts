@@ -1,32 +1,13 @@
-interface ShortcutModifierState {
-  metaKey: boolean;
-  ctrlKey: boolean;
-  altKey: boolean;
-}
+// Event and element parameter types are structural minimums so these pure
+// predicates stay testable without a DOM (vitest runs them in the node
+// environment). KeyboardEvent, MouseEvent, and HTMLElement all satisfy them.
+type ModifierFlags = { metaKey: boolean; ctrlKey: boolean; altKey: boolean };
+type KeyChord = ModifierFlags & { shiftKey: boolean; key: string };
 
-// Pointer chords carry no altKey semantics (AltGr types characters, which has
-// no meaning for a click), so their predicate takes only the two command flags.
-interface PointerModifierState {
-  metaKey: boolean;
-  ctrlKey: boolean;
-}
-
-interface ShortcutKeyState {
-  key: string;
-}
-
-// Full key+modifier shape for the utility-dialog shortcut predicates below,
-// composed from the minimal shapes above. KeyboardEvent satisfies it structurally.
-interface UtilityShortcutEvent extends ShortcutModifierState, ShortcutKeyState {
-  altKey: boolean;
-  shiftKey: boolean;
-}
-
-// Minimal shape of an event target, so consumesSpace stays DOM-free and unit
-// testable. HTMLElement satisfies it structurally.
-interface SpaceTargetState {
+interface ElementLike {
   tagName?: string;
   isContentEditable?: boolean;
+  parentElement?: ElementLike | null;
   getAttribute?: (name: string) => string | null;
 }
 
@@ -60,36 +41,26 @@ const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(platformString);
 export const primaryModifierLabel = isApplePlatform ? "Cmd" : "Ctrl";
 
 // Alt is excluded because Chromium delivers Windows AltGr as Ctrl+Alt.
-export function hasPrimaryShortcutModifier(
-  event: ShortcutModifierState,
-): boolean {
+export function hasPrimaryShortcutModifier(event: ModifierFlags): boolean {
   return (event.metaKey || event.ctrlKey) && !event.altKey;
 }
 
 // The pointer-chord half: Cmd/Ctrl+Click toggle-select and friends test the
 // command flags alone — no Alt exclusion, so Cmd+Alt+Click keeps working.
-export function hasPointerCommandModifier(event: PointerModifierState): boolean {
+export function hasPointerCommandModifier(event: {
+  metaKey: boolean;
+  ctrlKey: boolean;
+}): boolean {
   return event.metaKey || event.ctrlKey;
 }
 
-// App chords that overlap Cocoa text editing while a field has focus.
-const MAC_TEXT_BINDING_KEYS = new Set(["n", "/", "Enter"]);
-
-export function shadowsMacTextBinding(
-  event: ShortcutModifierState & ShortcutKeyState,
-): boolean {
-  if (!isApplePlatform) return false;
-  if (event.metaKey || !event.ctrlKey) return false;
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  return MAC_TEXT_BINDING_KEYS.has(key);
-}
-
-// Structural shape of an editable-target check, DOM-free for unit tests.
-interface EditableTargetLike {
-  tagName?: string;
-  isContentEditable?: boolean;
-  parentElement?: EditableTargetLike | null;
-  getAttribute?: (name: string) => string | null;
+// On macOS, Ctrl inside a text field belongs to the text system whatever the
+// key is, so the Ctrl half of a dual-bound chord stands down there — one
+// blanket test, no per-chord key list (keyboard-shortcut-conventions). The Cmd
+// half is the binding and always fires. Literal-Ctrl chords (Ctrl+Tab) never
+// pass through this: they are matched before it, on their own branch.
+export function shadowsMacTextBinding(event: ModifierFlags): boolean {
+  return isApplePlatform && event.ctrlKey && !event.metaKey;
 }
 
 // INPUT types that carry typed text; the rest (checkbox, radio, range, ...)
@@ -103,9 +74,9 @@ const TEXT_INPUT_TYPES = new Set([
 // load-bearing: a rich-text editor's event target is a DIV descendant of the
 // contenteditable, so a tagName-only test would let every chord through.
 export function isEditableTarget(
-  target: EditableTargetLike | null | undefined,
+  target: ElementLike | null | undefined,
 ): boolean {
-  let current: EditableTargetLike | null | undefined = target;
+  let current: ElementLike | null | undefined = target;
   while (current) {
     if (current.isContentEditable) return true;
     if (current.tagName === "TEXTAREA") return true;
@@ -122,7 +93,7 @@ export function isEditableTarget(
 // Shift is held with a command-style shortcut. Normalize letter keys so shortcut
 // matching does not depend on uppercase/lowercase event.key behavior.
 export function matchesShortcutKey(
-  event: ShortcutKeyState,
+  event: { key: string },
   expectedKey: string,
 ): boolean {
   const eventKey =
@@ -135,7 +106,7 @@ export function matchesShortcutKey(
 
 // Cmd/Ctrl+, opens Settings — the platform-conventional settings shortcut.
 // The predicate already excludes Alt, so no per-chord altKey check remains.
-export function isOpenSettingsShortcut(event: UtilityShortcutEvent): boolean {
+export function isOpenSettingsShortcut(event: KeyChord): boolean {
   return (
     hasPrimaryShortcutModifier(event) &&
     !event.shiftKey &&
@@ -152,9 +123,7 @@ export function isOpenSettingsShortcut(event: UtilityShortcutEvent): boolean {
 // key === "/" with shiftKey === true. On US-style layouts Shift+"/" instead
 // produces key === "?", which never reaches this branch, so allowing Shift here
 // only rescues the shifted-slash layouts and cannot cause a false match.
-export function isOpenShortcutsHelpShortcut(
-  event: UtilityShortcutEvent,
-): boolean {
+export function isOpenShortcutsHelpShortcut(event: KeyChord): boolean {
   if (hasPrimaryShortcutModifier(event) && event.key === "/") {
     return true;
   }
@@ -172,7 +141,7 @@ export function isOpenShortcutsHelpShortcut(
 // free there and is the cross-platform browser convention. Returns the cycle
 // direction (+1 next, -1 previous), or null when the event isn't a tab-cycle
 // chord.
-export function tabCycleDirection(event: UtilityShortcutEvent): 1 | -1 | null {
+export function tabCycleDirection(event: KeyChord): 1 | -1 | null {
   if (!event.ctrlKey || event.metaKey || event.altKey || event.key !== "Tab") {
     return null;
   }
@@ -183,7 +152,7 @@ export function tabCycleDirection(event: UtilityShortcutEvent): 1 | -1 | null {
 // Space is free to act as the Dropkick key and must be stopped from scrolling
 // the list.
 export function consumesSpace(
-  target: SpaceTargetState | null | undefined,
+  target: ElementLike | null | undefined,
 ): boolean {
   if (!target) return false;
   if (target.tagName && SPACE_CONSUMING_TAGS.has(target.tagName)) return true;

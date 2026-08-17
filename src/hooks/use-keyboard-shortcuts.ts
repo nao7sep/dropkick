@@ -218,6 +218,21 @@ export function useKeyboardShortcuts(
       // firing on a not-yet-committed candidate (text-input-ime-conventions).
       if (isComposingEvent(e)) return;
 
+      // --- Ctrl+Tab / Ctrl+Shift+Tab: Cycle tabs (literal Ctrl on every
+      // platform — see tabCycleDirection; macOS reserves Cmd+Tab). Matched
+      // BEFORE the macOS Ctrl stand-down below: a literal-Ctrl chord is not a
+      // dual binding and must stay live inside text fields. ---
+      const cycle = tabCycleDirection(e);
+      if (cycle !== null) {
+        e.preventDefault();
+        const tabs = workspace.openTabs;
+        if (tabs.length <= 1) return;
+        const current = workspace.activeTabIndex;
+        const next = (current + cycle + tabs.length) % tabs.length;
+        await setActiveTab(next);
+        return;
+      }
+
       if (shadowsMacTextBinding(e) && isEditableTarget(e.target as HTMLElement | null)) {
         return;
       }
@@ -490,20 +505,8 @@ export function useKeyboardShortcuts(
       // Plain ArrowUp/ArrowDown navigation lives in the task list itself
       // (TaskListPane's listbox onKeyDown), so it fires only when the list has
       // focus — never while focus is in the detail pane. Cmd+Arrow (reorder) is
-      // still handled above as a global command.
-
-      // --- Ctrl+Tab / Ctrl+Shift+Tab: Cycle tabs (literal Ctrl on every
-      // platform — see tabCycleDirection; macOS reserves Cmd+Tab) ---
-      const cycle = tabCycleDirection(e);
-      if (cycle !== null) {
-        e.preventDefault();
-        const tabs = workspace.openTabs;
-        if (tabs.length <= 1) return;
-        const current = workspace.activeTabIndex;
-        const next = (current + cycle + tabs.length) % tabs.length;
-        await setActiveTab(next);
-        return;
-      }
+      // still handled above as a global command. Ctrl+Tab tab cycling is
+      // matched at the top of the handler, before the macOS Ctrl stand-down.
 
       // --- Primary modifier + W: Close current tab ---
       if (mod && matchesShortcutKey(e, "w")) {

@@ -190,20 +190,20 @@ describe("shadowsMacTextBinding (platform-dependent)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("on macOS, flags bare-Ctrl chords on Cocoa text-editing keys", async () => {
+  it("on macOS, flags every bare-Ctrl chord — the blanket rule, no key list", async () => {
     const { shadowsMacTextBinding } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
-    // Ctrl+N is Cocoa next-line; Ctrl+Slash is a Cocoa binding too.
-    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false, key: "n" })).toBe(true);
-    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false, key: "/" })).toBe(true);
-    // The Cmd half of the same chord is unbound and must fire.
-    expect(shadowsMacTextBinding({ metaKey: true, ctrlKey: false, altKey: false, key: "n" })).toBe(false);
-    // Non-Cocoa letters pass through (m, w, u are dropkick chords, unbound in Cocoa).
-    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false, key: "m" })).toBe(false);
+    // Any Ctrl chord: inside a text field, Ctrl belongs to the macOS text
+    // system whatever the key is (keyboard-shortcut-conventions).
+    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false })).toBe(true);
+    // The Cmd half of the same chord is the binding and must fire.
+    expect(shadowsMacTextBinding({ metaKey: true, ctrlKey: false, altKey: false })).toBe(false);
+    expect(shadowsMacTextBinding({ metaKey: true, ctrlKey: true, altKey: false })).toBe(false);
+    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: false, altKey: false })).toBe(false);
   });
 
   it("never fires off macOS — there is no Cocoa keymap to shadow", async () => {
     const { shadowsMacTextBinding } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
-    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false, key: "n" })).toBe(false);
+    expect(shadowsMacTextBinding({ metaKey: false, ctrlKey: true, altKey: false })).toBe(false);
   });
 });
 
