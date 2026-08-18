@@ -6,6 +6,12 @@ interface DialogOptions {
   tone?: DialogTone;
   confirmLabel?: string;
   cancelLabel?: string;
+  // Set when BOTH choices destroy something different, so neither is the safe
+  // one. Such a dialog opens with focus on its own surface instead of on a
+  // button, so a reflexive Enter does nothing and the user must pick
+  // deliberately (modal-dialog-conventions). Do not set it to avoid choosing:
+  // it states that no safe choice exists, not that one was hard to pick.
+  noSafeAction?: boolean;
 }
 
 interface MessageDialogRequest {
@@ -24,6 +30,7 @@ interface ConfirmDialogRequest {
   tone: DialogTone;
   confirmLabel: string;
   cancelLabel: string;
+  noSafeAction: boolean;
   resolve: (confirmed: boolean) => void;
 }
 
@@ -83,6 +90,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         tone: options.tone ?? "default",
         confirmLabel: options.confirmLabel ?? "OK",
         cancelLabel: options.cancelLabel ?? "Cancel",
+        noSafeAction: options.noSafeAction ?? false,
         resolve,
       };
 

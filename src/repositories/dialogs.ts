@@ -48,6 +48,15 @@ export async function showConfirm(
 
 // Shows a conflict dialog for external file modifications.
 // Returns "overwrite" or "cancel".
+//
+// Neither choice is safe: Overwrite destroys whatever wrote the file, and
+// Discard & Reload destroys the user's in-app change. So no button takes focus
+// and a reflexive Enter does nothing — the user has to pick. Escape still
+// resolves to the reload side, which is the one outcome the caller reports back
+// ("Your in-app change was not saved"), so the loss is announced rather than
+// silent; a third do-nothing exit was considered and rejected because it would
+// re-raise this same dialog on the next write, which the repository
+// deliberately avoids by dropping the stored hash.
 export async function showFileConflictDialog(
   filePath: string,
 ): Promise<"overwrite" | "cancel"> {
@@ -58,6 +67,7 @@ export async function showFileConflictDialog(
       tone: "warning",
       confirmLabel: "Overwrite",
       cancelLabel: "Discard & Reload",
+      noSafeAction: true,
     },
   );
   return overwrite ? "overwrite" : "cancel";

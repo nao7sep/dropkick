@@ -9,6 +9,7 @@ export function AppDialogHost() {
   const cancelCurrent = useDialogStore((s) => s.cancelCurrent);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const handleOpenChange = (open: boolean) => {
     if (open || !current) return;
@@ -32,14 +33,22 @@ export function AppDialogHost() {
             data-dropkick-interactive-layer=""
             className="fixed left-1/2 top-1/2 z-[101] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-surface shadow-xl focus:outline-none"
             onPointerDownOutside={(e) => e.preventDefault()}
+            ref={contentRef}
+            tabIndex={-1}
             onOpenAutoFocus={(e) => {
               if (!current) return;
               e.preventDefault();
-              if (current.kind === "confirm") {
-                cancelRef.current?.focus();
-              } else {
+              if (current.kind !== "confirm") {
                 confirmRef.current?.focus();
+                return;
               }
+              // Both choices destroy something different, so neither may take a
+              // reflexive Enter: land on the surface and make the user pick.
+              if (current.noSafeAction) {
+                contentRef.current?.focus();
+                return;
+              }
+              cancelRef.current?.focus();
             }}
           >
             <div className="border-b border-border px-6 py-4">
