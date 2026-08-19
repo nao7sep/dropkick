@@ -4,11 +4,18 @@ import { useEffect, useState, useRef, useCallback, useMemo, Component } from "re
 import type { ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { showMessage, drainAllSerial, log, toErrorFields } from "../../repositories";
+import {
+  showMessage,
+  showUnsavedChangesConfirm,
+  drainAllSerial,
+  log,
+  toErrorFields,
+} from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useAppConfigStore } from "../../state/app-config-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
+import { useNoteDraftStore, hasUnsavedDrafts } from "../../state/note-draft-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { isComposingEvent } from "../../hooks/useComposing";
 import {
@@ -306,6 +313,13 @@ export function MainWindow() {
         try {
           if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
+          }
+          // Quit is the one exit that ends the draft store's session, so it is
+          // the one exit that asks. Every other exit parks the draft instead.
+          const { drafts } = useNoteDraftStore.getState();
+          if (hasUnsavedDrafts(drafts)) {
+            const discard = await showUnsavedChangesConfirm();
+            if (!discard) return;
           }
           await drainAllSerial();
           await window.destroy();

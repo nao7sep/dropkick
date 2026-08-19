@@ -28,6 +28,11 @@ import {
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
+import {
+  useNoteDraftStore,
+  composerDraftKey,
+  editorDraftKey,
+} from "../../state/note-draft-store";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 
 interface TaskDetailProps {
@@ -64,8 +69,17 @@ export function TaskDetail({
 
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description);
-  const [newNoteContent, setNewNoteContent] = useState("");
   const [moveTarget, setMoveTarget] = useState("");
+
+  // The new-note composer draft lives in the session draft store, keyed by task
+  // id, so it survives this component unmounting (task switch, tab cycle, bulk
+  // action) and is restored when the task is selected again.
+  const newNoteContent = useNoteDraftStore(
+    (s) => s.drafts[composerDraftKey(task.id)]?.text ?? "",
+  );
+  const updateComposerDraft = useNoteDraftStore((s) => s.updateDraft);
+  const clearComposerDraft = useNoteDraftStore((s) => s.clearDraft);
+  const clearTaskDrafts = useNoteDraftStore((s) => s.clearTaskDrafts);
 
   // Available move destinations (other open task list tabs).
   const moveDestinations = workspace.openTabs.filter(
@@ -79,7 +93,6 @@ export function TaskDetail({
     setLastTaskKey(currentTaskKey);
     setTitleDraft(task.title);
     setDescDraft(task.description);
-    setNewNoteContent("");
   }
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -203,6 +216,7 @@ export function TaskDetail({
         await showMessage("Delete Failed", result.message);
         return;
       }
+      clearTaskDrafts(task.id);
       setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
     }
   };
@@ -219,7 +233,7 @@ export function TaskDetail({
       actionability,
     );
     if (await showWriteFailure("Note Update Failed", result)) return;
-    setNewNoteContent("");
+    clearComposerDraft(composerDraftKey(task.id));
   };
 
   const handleMoveTask = async () => {
@@ -434,7 +448,7 @@ export function TaskDetail({
             ref={newNoteRef}
             value={newNoteContent}
             onChange={(e) => {
-              setNewNoteContent(e.target.value);
+              updateComposerDraft(composerDraftKey(task.id), e.target.value);
               autoGrowNewNote();
             }}
             onKeyDown={(e) => {
@@ -503,8 +517,17 @@ function NoteItem({
   const removeNote = useTaskListStore((s) => s.removeNote);
   const setActionability = useTaskListStore((s) => s.setNoteActionability);
 
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(note.content);
+  // The edit draft lives in the session draft store; its presence IS the
+  // editing state, so the two can never disagree and a parked edit survives
+  // this component unmounting (the detail pane re-renders on every selection
+  // or task change). Edit seeds it, Save and Cancel clear it.
+  const draftKey = editorDraftKey(taskId, note.id);
+  const entry = useNoteDraftStore((s) => s.drafts[draftKey]);
+  const beginDraft = useNoteDraftStore((s) => s.beginDraft);
+  const updateDraft = useNoteDraftStore((s) => s.updateDraft);
+  const clearDraft = useNoteDraftStore((s) => s.clearDraft);
+  const editing = entry !== undefined;
+  const draft = entry?.text ?? "";
   const composing = useComposing();
   const editRef = useRef<HTMLTextAreaElement>(null);
   const autoGrowEdit = useAutoGrow(editRef);
@@ -518,20 +541,19 @@ function NoteItem({
     const cleaned = multiline(draft);
     if (!cleaned) {
       // Revert — don't allow empty notes.
-      setDraft(note.content);
-      setEditing(false);
+      clearDraft(draftKey);
       return;
     }
     if (cleaned !== note.content) {
       const result = await updateNote(filePath, taskId, note.id, cleaned);
       if (result.status === "error") {
+        // Keep the draft as typed so the user can retry or Cancel; a failed
+        // write is no reason to discard their text.
         await showMessage("Note Update Failed", result.message);
-        setDraft(note.content);
         return;
       }
     }
-    setDraft(cleaned);
-    setEditing(false);
+    clearDraft(draftKey);
   };
 
   const handleDeleteNote = async () => {
@@ -543,7 +565,10 @@ function NoteItem({
       const result = await removeNote(filePath, taskId, note.id);
       if (result.status === "error") {
         await showMessage("Note Update Failed", result.message);
+        return;
       }
+      // The note is gone; a parked edit draft for it must not linger.
+      clearDraft(draftKey);
     }
   };
 
@@ -604,7 +629,7 @@ function NoteItem({
             ref={editRef}
             value={draft}
             onChange={(e) => {
-              setDraft(e.target.value);
+              updateDraft(draftKey, e.target.value);
               autoGrowEdit();
             }}
             onKeyDown={(e) => {
@@ -629,10 +654,7 @@ function NoteItem({
               Save
             </button>
             <button
-              onClick={() => {
-                setEditing(false);
-                setDraft(note.content);
-              }}
+              onClick={() => clearDraft(draftKey)}
               className="rounded border border-border px-3 py-1 text-xs text-ink-muted hover:bg-background"
             >
               Cancel
@@ -641,7 +663,7 @@ function NoteItem({
         </div>
       ) : (
         <div
-          onClick={() => setEditing(true)}
+          onClick={() => beginDraft(draftKey, note.content)}
           className="cursor-pointer text-sm text-ink"
         >
           <p className="whitespace-pre-wrap break-words">{note.content}</p>
