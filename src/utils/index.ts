@@ -22,6 +22,7 @@ export {
   shadowsMacTextBinding,
   noteEditorAction,
   isEditableTarget,
+  standsDownForMacText,
   matchesShortcutKey,
   consumesSpace,
   primaryModifierLabel,

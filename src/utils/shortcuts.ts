@@ -70,9 +70,15 @@ const TEXT_INPUT_TYPES = new Set([
   "datetime-local", "month", "time", "week",
 ]);
 
-// One editable-target predicate for the whole app. The parentElement walk is
-// load-bearing: a rich-text editor's event target is a DIV descendant of the
-// contenteditable, so a tagName-only test would let every chord through.
+// One editable-target predicate for the whole app.
+//
+// The parentElement walk is precautionary, not load-bearing here: every
+// editable surface in this app is a plain <textarea> or <input>, whose event
+// target is the element itself, so a leaf test would currently suffice. It is
+// kept because this predicate guards chords that destroy work — Delete, status
+// changes — while the user is typing, and the day a rich-text editor arrives
+// its event target IS a descendant of the contenteditable, where a leaf test
+// silently lets every chord through.
 export function isEditableTarget(
   target: ElementLike | null | undefined,
 ): boolean {
@@ -88,6 +94,18 @@ export function isEditableTarget(
   }
   return false;
 }
+
+// The macOS Ctrl stand-down as one call, rather than a two-term conjunction
+// every dispatch site has to remember to spell in full. The convention requires
+// this test wherever a dual-bound chord is matched — not only at the main
+// dispatcher — and a named predicate is what makes a missing one visible.
+export function standsDownForMacText(
+  event: ModifierFlags,
+  target: ElementLike | null | undefined,
+): boolean {
+  return shadowsMacTextBinding(event) && isEditableTarget(target);
+}
+
 
 // Some webview/platform combinations report printable keys in lowercase even when
 // Shift is held with a command-style shortcut. Normalize letter keys so shortcut

@@ -28,6 +28,7 @@ import {
   stepZoomOut,
   ZOOM_DEFAULT,
   hasPrimaryShortcutModifier,
+  standsDownForMacText,
   matchesShortcutKey,
   clampSidebarWidth,
   SIDEBAR_MIN_WIDTH,
@@ -249,6 +250,17 @@ export function MainWindow() {
       // matters on macOS where Ctrl+Semicolon is an IME conversion chord and
       // Semicolon is a zoom key (text-input-ime-conventions).
       if (isComposingEvent(e)) return;
+      // On macOS the Ctrl half of a dual-bound chord stands down while the
+      // target is editable — Ctrl is not the command key there, and inside a
+      // text field it belongs to the text system whatever the key is. This is
+      // the same blanket test the main dispatcher and the note editor make; the
+      // convention requires it at every site that matches a dual-bound chord,
+      // not only the main one. Without it Ctrl+Minus/Equal/Semicolon/0 and
+      // Ctrl+Shift+D were swallowed while the caret sat in a note or a Settings
+      // field (keyboard-shortcut-conventions).
+      if (standsDownForMacText(e, e.target as HTMLElement | null)) {
+        return;
+      }
       if (isZoomIn(e)) {
         e.preventDefault();
         updateViewState({ zoomLevel: stepZoomIn(zoomLevelRef.current) });

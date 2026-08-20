@@ -19,7 +19,7 @@ import {
 } from "../utils";
 import {
   hasPrimaryShortcutModifier,
-  shadowsMacTextBinding,
+  standsDownForMacText,
   isEditableTarget,
   matchesShortcutKey,
   consumesSpace,
@@ -39,10 +39,9 @@ const UNIFIED_REORDER_MSG =
   "You're in unified view — reordering works in a single list.";
 
 function isTyping(e: KeyboardEvent): boolean {
-  // The shared walking predicate (a rich-text target is a DIV descendant of
-  // its contenteditable, so a tagName-only test would miss it); SELECT is not
-  // editable for chord purposes but does consume plain keys for its own
-  // type-ahead, so it keeps its explicit check here.
+  // The shared editable predicate; SELECT is not editable for chord purposes
+  // but does consume plain keys for its own type-ahead, so it keeps its
+  // explicit check here.
   if (isEditableTarget(e.target as HTMLElement | null)) return true;
   return (e.target as HTMLElement)?.tagName === "SELECT";
 }
@@ -203,7 +202,7 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      if (shadowsMacTextBinding(e) && isEditableTarget(e.target as HTMLElement | null)) {
+      if (standsDownForMacText(e, e.target as HTMLElement | null)) {
         return;
       }
 

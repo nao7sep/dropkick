@@ -208,6 +208,35 @@ describe("shadowsMacTextBinding (platform-dependent)", () => {
   });
 });
 
+describe("standsDownForMacText (platform-dependent)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const textarea = { tagName: "TEXTAREA", isContentEditable: false, parentElement: null };
+  const button = { tagName: "BUTTON", isContentEditable: false, parentElement: null };
+
+  it("stands a Ctrl chord down inside a text field on macOS, and nowhere else", async () => {
+    const { standsDownForMacText } = await importWithPlatform<ShortcutsModule>("mac", () => import("../../src/utils/shortcuts"));
+    const ctrl = { metaKey: false, ctrlKey: true, altKey: false };
+    const cmd = { metaKey: true, ctrlKey: false, altKey: false };
+
+    // Inside a text field the Ctrl half belongs to the macOS text system.
+    expect(standsDownForMacText(ctrl, textarea)).toBe(true);
+    // Outside one it is a live alias.
+    expect(standsDownForMacText(ctrl, button)).toBe(false);
+    // The Cmd half is the binding and always fires, text field or not.
+    expect(standsDownForMacText(cmd, textarea)).toBe(false);
+  });
+
+  it("never stands down off macOS", async () => {
+    const { standsDownForMacText } = await importWithPlatform<ShortcutsModule>("windows", () => import("../../src/utils/shortcuts"));
+    expect(
+      standsDownForMacText({ metaKey: false, ctrlKey: true, altKey: false }, textarea),
+    ).toBe(false);
+  });
+});
+
 describe("primaryModifierLabel (platform-dependent)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
