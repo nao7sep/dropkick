@@ -7,6 +7,7 @@
 //      workspace path. Overlapping flushes never land out of order.
 
 import { create } from "zustand";
+import { guardBackgroundWrite } from "./background-write";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
 import type { LoadWorkspaceResult } from "../repositories";
@@ -52,7 +53,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   async function flush(): Promise<void> {
     const { filePath } = get();
     if (!filePath) return;
-    await flushWorkspace(filePath, () => get().workspace);
+    // Tab changes persist as a side effect of ordinary interaction, so a
+    // failure is reported rather than thrown — see guardBackgroundWrite.
+    await guardBackgroundWrite("Your open tabs", () =>
+      flushWorkspace(filePath, () => get().workspace),
+    );
   }
 
   return {

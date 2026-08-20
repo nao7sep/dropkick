@@ -8,6 +8,7 @@
 // as task-list, workspace, and preferences stores.
 
 import { create } from "zustand";
+import { guardBackgroundWrite } from "./background-write";
 import type { AppConfigDto } from "../models";
 import { createDefaultAppConfig } from "../models";
 import { initializeAppConfig, flushAppConfig, log } from "../repositories";
@@ -47,7 +48,12 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
   async function flush(): Promise<void> {
     const { filePath } = get();
     if (!filePath) return;
-    await flushAppConfig(filePath, () => get().config);
+    // View state persists as a side effect of ordinary interaction (a zoom
+    // shortcut, a divider drag), so a failure is reported rather than thrown —
+    // see guardBackgroundWrite.
+    await guardBackgroundWrite("Your window layout", () =>
+      flushAppConfig(filePath, () => get().config),
+    );
   }
 
   return {

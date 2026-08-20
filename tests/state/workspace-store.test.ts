@@ -11,10 +11,12 @@ vi.mock("../../src/repositories", () => ({
   flushWorkspace: (path: string, getWorkspace: () => unknown) => flushWorkspace(path, getWorkspace),
   loadWorkspace: (path: string) => loadWorkspace(path),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  toErrorFields: (e: unknown) => ({ error: { message: String(e) } }),
 }));
 
 import { useWorkspaceStore } from "../../src/state/workspace-store";
 import { createDefaultWorkspace } from "../../src/models";
+import { useToastStore } from "../../src/state/toast-store";
 
 function resetStore(filePath = "/ws.json") {
   useWorkspaceStore.setState({
@@ -189,5 +191,21 @@ describe("load startup tab selection", () => {
     });
     await useWorkspaceStore.getState().load("/ws.json");
     expect(activeIdx()).toBe(0);
+  });
+});
+
+describe("a failed write", () => {
+  it("reports instead of rejecting, so a tab change is never silently lost", async () => {
+    // Tab changes persist as a side effect of clicking, so there is no "Save"
+    // whose failure could be shown in place. Unguarded, the rejection escaped
+    // to the global handler and the change was simply absent next launch.
+    resetStore();
+    flushWorkspace.mockRejectedValueOnce(new Error("disk full"));
+
+    await expect(
+      useWorkspaceStore.getState().addTab("/a.json", "A"),
+    ).resolves.not.toThrow();
+
+    expect(useToastStore.getState().message).toContain("could not be saved");
   });
 });
