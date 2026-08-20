@@ -22,6 +22,7 @@ import {
 } from "../../repositories";
 import { useAppStateStore } from "../../state/app-state-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
+import { rowDomId, stepIndex } from "../../utils";
 
 interface StartupPickerProps {
   onLaunch: (preferencesPath: string, workspacePath: string) => void;
@@ -197,6 +198,12 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   );
 }
 
+// A stable, HTML-safe option id. Prefixed with the section label because the
+// same path could legitimately appear in both lists.
+function optionDomId(label: string, path: string): string {
+  return `${label.toLowerCase()}-${rowDomId(path)}`;
+}
+
 // Reusable section for preferences and workspace selection.
 function Section({
   label,
@@ -217,13 +224,41 @@ function Section({
   onRemove: (path: string) => void;
   openButtonRef?: RefObject<HTMLButtonElement | null>;
 }) {
+  // Selection follows the cursor, which is this list's whole purpose — there is
+  // nothing to "open", only a file to choose.
+  const handleListKeyDown = (e: React.KeyboardEvent) => {
+    if (items.length === 0) return;
+    const current = Math.max(0, items.indexOf(selected));
+    let next: number | null = null;
+    if (e.key === "ArrowDown") next = stepIndex(current, 1, items.length);
+    else if (e.key === "ArrowUp") next = stepIndex(current, -1, items.length);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = items.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    onSelect(items[next]);
+  };
+
   return (
     <div className="mb-6">
       <label className="mb-2 block text-sm font-medium text-ink">
         {label}
       </label>
 
-      <div className="max-h-36 overflow-y-auto rounded-md border border-border">
+      {/* A real listbox, not a stack of clickable divs: this list drives the
+          launch gate's only decision, and a keyboard-only user could otherwise
+          reach Open / New / Remove / Launch but never change which file is
+          selected — switching workspaces meant re-picking the same file through
+          the native dialog. One tab stop, arrows to move, selection follows the
+          cursor (composite-control-conventions). */}
+      <div
+        role="listbox"
+        aria-label={label}
+        aria-activedescendant={selected ? optionDomId(label, selected) : undefined}
+        tabIndex={0}
+        onKeyDown={handleListKeyDown}
+        className="max-h-36 overflow-y-auto rounded-md border border-border outline-none focus:border-primary-ring"
+      >
         {items.length === 0 ? (
           <div className="px-3 py-2 text-sm text-ink-muted">
             No {label.toLowerCase()} files configured
@@ -232,6 +267,9 @@ function Section({
           items.map((path) => (
             <div
               key={path}
+              id={optionDomId(label, path)}
+              role="option"
+              aria-selected={selected === path}
               onClick={() => onSelect(path)}
               className={`flex cursor-pointer items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-background ${
                 selected === path
