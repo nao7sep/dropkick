@@ -592,15 +592,15 @@ function NoteItem({
     clearDraftIf(draftKey, draft);
   };
 
-  // Every cancel path funnels through one guarded function, per the modal
-  // conventions' rule that no close path may bypass the dirty check — here that
-  // is Escape and the Cancel button, which must not disagree about whether an
-  // edit can vanish. A draft still equal to the saved note closes silently;
-  // one the user actually changed asks first, because the draft store exists
-  // precisely so an edit is never discarded without being asked about.
+  // ESCAPE ONLY. The Cancel button below deliberately does NOT share this guard
+  // (developer, 2026-08-20): clicking Cancel IS the decision to discard, and
+  // asking again turns an explicit answer into a nag. Escape is the reflex —
+  // hit on the way out of a field, or aimed at something else entirely — so it
+  // is the one that must ask before a typed draft disappears.
+  //
   // Compared after `multiline`, so whitespace that saving would strip anyway
   // does not count as a change worth interrupting the user over.
-  const requestCancel = useDirtyClose(
+  const requestCancelViaEscape = useDirtyClose(
     editing && multiline(draft) !== note.content,
     () => clearDraft(draftKey),
   );
@@ -689,7 +689,7 @@ function NoteItem({
               // so a half-typed Japanese word must not close or save the editor.
               if (isComposingKeyboardEvent(composing.composingRef, e)) return;
               e.preventDefault();
-              if (action === "cancel") void requestCancel();
+              if (action === "cancel") void requestCancelViaEscape();
               else void handleSave(action === "save-actionable" ? "Actionable" : undefined);
             }}
             {...composing.handlers}
@@ -709,7 +709,8 @@ function NoteItem({
               Save
             </button>
             <button
-              onClick={() => void requestCancel()}
+              // Immediate, unguarded discard — see requestCancelViaEscape above.
+              onClick={() => clearDraft(draftKey)}
               className="rounded border border-border px-3 py-1 text-xs text-ink-muted hover:bg-background"
             >
               Cancel
