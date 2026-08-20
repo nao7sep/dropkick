@@ -2,7 +2,7 @@
 // Supports selection (click, Shift+click, Cmd+click on macOS / Ctrl+click on Windows).
 
 import { useState, useRef, useMemo, useEffect } from "react";
-import { Plus, AlertCircle } from "lucide-react";
+import { Plus, AlertCircle, Check, X } from "lucide-react";
 import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
@@ -646,10 +646,10 @@ function TaskRow({
       {/* Status indicator */}
       <span className="shrink-0 text-xs">
         {task.status === "Completed" && (
-          <span className="flex items-center text-success">✓</span>
+          <Check size={14} className="text-success" />
         )}
         {task.status === "Dismissed" && (
-          <span className="flex items-center text-ink-muted">✗</span>
+          <X size={14} className="text-ink-muted" />
         )}
       </span>
 

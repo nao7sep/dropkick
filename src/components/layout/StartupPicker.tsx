@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { FolderOpen, Plus, X } from "lucide-react";
+import { ArrowLeft, FolderOpen, Plus, X } from "lucide-react";
 import type { LoadPreferencesResult, LoadWorkspaceResult } from "../../repositories";
 import {
   createPreferencesFile,
@@ -214,7 +214,7 @@ function Section({
                 {path}
               </span>
               {selected === path && (
-                <span className="shrink-0 text-xs text-primary">←</span>
+                <ArrowLeft size={14} className="shrink-0 text-primary" />
               )}
             </div>
           ))
