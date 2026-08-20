@@ -135,9 +135,23 @@ fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(hasher.finalize())
 }
 
+// Every filesystem command below carries `#[tauri::command(async)]`.
+//
+// A plain `#[tauri::command]` executes INLINE on the thread that drives the
+// webview, so all of this ran on the UI thread: a single save costs three
+// fsyncs plus a SQLite insert of the whole document, note drafts write through
+// every few seconds while the user is typing, and a contended backup write
+// waits up to the store's five-second busy timeout — a five-second frozen
+// window. The attribute on a SYNC function is the one that dispatches to
+// Tauri's thread pool (its own name for it is "sync_threadpool"); writing these
+// as `async fn` instead would hand blocking std::fs work to an async-runtime
+// worker, which is the wrong pool for it.
+//
+// file_exists takes an owned String because a command that returns something
+// other than a Result cannot borrow from the invoke message.
 // Computes SHA-256 hash of a file's raw bytes.
 // Called from TypeScript before every write to detect external modifications.
-#[tauri::command]
+#[tauri::command(async)]
 fn hash_file(path: &str) -> Result<String, String> {
     let started = log_cmd_start("hash_file", json!({ "path": path }));
     match std::fs::read(path) {
@@ -159,7 +173,7 @@ fn hash_file(path: &str) -> Result<String, String> {
 
 // Reads a JSON file once, parses it, and returns an explicit result with a
 // hash of the exact bytes that were read.
-#[tauri::command]
+#[tauri::command(async)]
 fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String> {
     let started = log_cmd_start("read_json_file_with_hash", json!({ "path": path }));
     let bytes = match std::fs::read(path) {
@@ -241,7 +255,7 @@ enum TextReadResult {
     Error { message: String },
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn read_text_file(path: &str) -> Result<TextReadResult, String> {
     let started = log_cmd_start("read_text_file", json!({ "path": path }));
     match std::fs::read_to_string(path) {
@@ -287,7 +301,7 @@ fn read_text_file(path: &str) -> Result<TextReadResult, String> {
 // already in hand saves reading the whole file back — and removes the window in
 // which a re-read could hash a concurrent writer's content instead of this
 // call's.
-#[tauri::command]
+#[tauri::command(async)]
 fn write_text_file_atomic(path: &str, contents: &str) -> Result<String, String> {
     let started = log_cmd_start(
         "write_text_file_atomic",
@@ -375,8 +389,9 @@ fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
     Ok(sha256_hex(contents.as_bytes()))
 }
 
-#[tauri::command]
-fn file_exists(path: &str) -> bool {
+#[tauri::command(async)]
+fn file_exists(path: String) -> bool {
+    let path = path.as_str();
     std::path::Path::new(path).exists()
 }
 
@@ -396,7 +411,7 @@ fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
 // caller recreates defaults. The rename either lands or errors — a failure must
 // reach the caller and halt the load, never fall through to a default-reset
 // over the very bytes quarantine exists to preserve (storage-path conventions).
-#[tauri::command]
+#[tauri::command(async)]
 fn quarantine_file(path: &str) -> Result<String, String> {
     let started = log_cmd_start("quarantine_file", json!({ "path": path }));
     let target = quarantine_target(std::path::Path::new(path));
@@ -418,7 +433,7 @@ fn quarantine_file(path: &str) -> Result<String, String> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn ensure_dir(path: &str) -> Result<(), String> {
     let started = log_cmd_start("ensure_dir", json!({ "path": path }));
     match std::fs::create_dir_all(path) {
@@ -439,7 +454,7 @@ fn ensure_dir(path: &str) -> Result<(), String> {
 // calls this once at startup and derives every subpath from the returned
 // absolute root, rather than reconstructing the root from `homeDir()` itself
 // (which cannot read `DROPKICK_HOME` and is forbidden by the per-stack rule).
-#[tauri::command]
+#[tauri::command(async)]
 fn app_data_root(app: AppHandle) -> Result<String, String> {
     let started = log_cmd_start("app_data_root", json!({}));
     match paths::data_root(&app) {
@@ -781,9 +796,9 @@ mod tests {
     fn file_exists_reflects_presence() {
         let dir = unique_temp_dir("exists");
         let path = dir.join("f.txt");
-        assert!(!file_exists(path.to_str().unwrap()));
+        assert!(!file_exists(path.to_string_lossy().into_owned()));
         std::fs::write(&path, b"x").unwrap();
-        assert!(file_exists(path.to_str().unwrap()));
+        assert!(file_exists(path.to_string_lossy().into_owned()));
     }
 
     #[test]
