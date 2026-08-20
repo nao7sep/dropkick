@@ -2,6 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useRef } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { isComposingEvent } from "../../hooks/useComposing";
 
 type DialogContentProps = Omit<
   ComponentPropsWithoutRef<typeof Dialog.Content>,
@@ -50,12 +51,28 @@ export function AppModal({
   // Outside-clicks that land inside another stacked dialog (marked with
   // data-dropkick-interactive-layer) are ignored — otherwise confirming the
   // guard's own confirmation dialog would re-trigger the close request.
-  const escapeAndOutsideHandlers = onRequestClose
-    ? {
-        onEscapeKeyDown: (e: Event) => {
-          e.preventDefault();
-          onRequestClose();
-        },
+  const escapeAndOutsideHandlers = {
+    onEscapeKeyDown: (e: Event) => {
+      // Escape belongs to the IME while a composition is active: it cancels the
+      // pending candidate and falls back to kana. Radix's dismissable layer
+      // matches `event.key === "Escape"` alone, on a document-CAPTURE listener
+      // that runs ahead of every React handler in the tree, so this callback is
+      // the only place a modal can stand down — and calling preventDefault() on
+      // it is what stops the layer dismissing. Without this, cancelling a
+      // conversion in the New Task title or a Settings field instead read the
+      // preedit text as unsaved changes, opened the confirmation dialog, and
+      // tore the composition down mid-word (text-input-ime-conventions).
+      if (isComposingEvent(e as KeyboardEvent)) {
+        e.preventDefault();
+        return;
+      }
+      // No close guard: let Radix's own dismiss run.
+      if (!onRequestClose) return;
+      e.preventDefault();
+      onRequestClose();
+    },
+    ...(onRequestClose
+      ? {
         onInteractOutside: (e: Event) => {
           e.preventDefault();
           // Ignore clicks that landed inside another stacked dialog layer
@@ -67,8 +84,9 @@ export function AppModal({
           if (layer && layer !== contentRef.current) return;
           onRequestClose();
         },
-      }
-    : {};
+        }
+      : {}),
+  };
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
