@@ -129,14 +129,26 @@ export function useKeyboardShortcuts(
     [selectedTasks, setStatus],
   );
 
-  const applyPriorityToSelection = useCallback(
-    async (priority: TaskPriority) => {
+  // Applies one field across the selection. Priority and due date shared this
+  // shape exactly — the same loop, the same first-error report, the same
+  // "did anything actually change?" test against a different field — so they
+  // are one rule now and a fix to the error handling reaches both.
+  const applyFieldToSelection = useCallback(
+    async <T,>(
+      field: "priority" | "dueDate",
+      apply: (
+        sourceFile: string,
+        taskId: string,
+        value: T,
+      ) => Promise<ActionResult>,
+      value: T,
+    ) => {
       if (selectedTasks.length === 0) return false;
-      const changed = selectedTasks.some((task) => task.priority !== priority);
+      const changed = selectedTasks.some((task) => task[field] !== value);
 
       let firstError: string | null = null;
       for (const task of selectedTasks) {
-        const result = await setPriority(task.sourceFile, task.id, priority);
+        const result = await apply(task.sourceFile, task.id, value);
         if (result.status === "error" && firstError === null) {
           firstError = result.message;
         }
@@ -149,30 +161,41 @@ export function useKeyboardShortcuts(
 
       return changed;
     },
-    [selectedTasks, setPriority],
+    [selectedTasks],
+  );
+
+  const applyPriorityToSelection = useCallback(
+    (priority: TaskPriority) =>
+      applyFieldToSelection("priority", setPriority, priority),
+    [applyFieldToSelection, setPriority],
   );
 
   const applyDueDateToSelection = useCallback(
-    async (dueDate: string | null) => {
-      if (selectedTasks.length === 0) return false;
-      const changed = selectedTasks.some((task) => task.dueDate !== dueDate);
+    (dueDate: string | null) =>
+      applyFieldToSelection("dueDate", setDueDate, dueDate),
+    [applyFieldToSelection, setDueDate],
+  );
 
-      let firstError: string | null = null;
-      for (const task of selectedTasks) {
-        const result = await setDueDate(task.sourceFile, task.id, dueDate);
-        if (result.status === "error" && firstError === null) {
-          firstError = result.message;
-        }
+  // The four reorder chords share one shape: they need a selection, they are
+  // meaningless in the unified view (there is no single file to reorder within),
+  // and they report a write failure the same way.
+  const runReorder = useCallback(
+    async (
+      e: KeyboardEvent,
+      action: (filePath: string) => Promise<ActionResult>,
+    ) => {
+      if (isTyping(e) || selectedKeys.size === 0) return;
+      e.preventDefault();
+      if (isUnifiedView) {
+        useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
+        return;
       }
-
-      if (firstError !== null) {
-        await showMessage("Task Update Failed", firstError);
-        return false;
+      const result = await action(filePath);
+      if (result.status === "error") {
+        await showMessage("Task Reorder Failed", result.message);
       }
-
-      return changed;
     },
-    [selectedTasks, setDueDate],
+    [selectedKeys, isUnifiedView, filePath],
   );
 
   const handler = useCallback(
@@ -396,78 +419,37 @@ export function useKeyboardShortcuts(
           `Dismiss ${selectedTasks.length} selected task(s)?`,
         );
         if (!confirmed) return;
-        let firstError: string | null = null;
-        for (const task of selectedTasks) {
-          const result = await setStatus(task.sourceFile, task.id, "Dismissed");
-          if (result.status === "error" && firstError === null) {
-            firstError = result.message;
-          }
+        // Through the shared applier rather than a fourth copy of the loop: the
+        // open-coded one only looked for errors, so a task refused for an
+        // unresolved actionable note was skipped in silence and the selection
+        // advanced as if it had been dismissed.
+        if (await applyStatusToSelection("Dismissed")) {
+          setSelection(nextKey ? new Set([nextKey]) : new Set());
         }
-        if (firstError !== null) {
-          await showMessage("Task Update Failed", firstError);
-          return;
-        }
-        setSelection(nextKey ? new Set([nextKey]) : new Set());
         return;
       }
 
       // --- Primary modifier + Up: Move selection up one position ---
       if (mod && !e.shiftKey && e.key === "ArrowUp") {
-        if (isTyping(e) || selectedKeys.size === 0) return;
-        e.preventDefault();
-        if (isUnifiedView) {
-          useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
-          return;
-        }
-        const result = await moveUp(filePath);
-        if (result.status === "error") {
-          await showMessage("Task Reorder Failed", result.message);
-        }
+        await runReorder(e, moveUp);
         return;
       }
 
       // --- Primary modifier + Down: Move selection down one position ---
       if (mod && !e.shiftKey && e.key === "ArrowDown") {
-        if (isTyping(e) || selectedKeys.size === 0) return;
-        e.preventDefault();
-        if (isUnifiedView) {
-          useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
-          return;
-        }
-        const result = await moveDown(filePath);
-        if (result.status === "error") {
-          await showMessage("Task Reorder Failed", result.message);
-        }
+        await runReorder(e, moveDown);
         return;
       }
 
       // --- Primary modifier + Home: Send to first in group (Tackle) ---
       if (mod && e.key === "Home") {
-        if (isTyping(e) || selectedKeys.size === 0) return;
-        e.preventDefault();
-        if (isUnifiedView) {
-          useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
-          return;
-        }
-        const result = await sendToFirst(filePath);
-        if (result.status === "error") {
-          await showMessage("Task Reorder Failed", result.message);
-        }
+        await runReorder(e, sendToFirst);
         return;
       }
 
       // --- Primary modifier + End: Send to last in group (Kick) ---
       if (mod && e.key === "End") {
-        if (isTyping(e) || selectedKeys.size === 0) return;
-        e.preventDefault();
-        if (isUnifiedView) {
-          useToastStore.getState().showToast(UNIFIED_REORDER_MSG);
-          return;
-        }
-        const result = await sendToLast(filePath);
-        if (result.status === "error") {
-          await showMessage("Task Reorder Failed", result.message);
-        }
+        await runReorder(e, sendToLast);
         return;
       }
 
