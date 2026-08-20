@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { log, toErrorFields } from "../../repositories";
 
-// Non-dismissible halt shown when startup fails (app-config init, or a
+// Non-dismissible halt shown when startup fails (app-state init, or a
 // preferences/workspace load error). The app must not fall through to the main
 // window — doing so would let the default in-memory state autosave over the
 // user's files. The shell renders this root screen until the user quits and

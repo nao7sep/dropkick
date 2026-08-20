@@ -12,7 +12,7 @@ export interface PreferencesDto {
   fontFamily: string;
   darkMode: boolean; // false = light theme (default), true = dark theme
   // NOTE: zoomLevel and sidebarWidth used to live here but are VIEW STATE, not
-  // preferences — they moved to AppConfigDto / state.json (see models/app-config.ts
+  // preferences — they moved to AppStateDto / state.json (see models/app-state.ts
   // and persisted-store-separation-conventions). darkMode stays: it is an authored
   // appearance SETTING the user chooses, akin to fontFamily, and travels with the
   // portable preferences document.

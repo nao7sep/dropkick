@@ -11,7 +11,7 @@
 // sidebar width dragged on a wide monitor never rides along when a preferences
 // document is copied to a laptop.
 
-export interface AppConfigDto {
+export interface AppStateDto {
   version: string;
   lastPreferencesPath: string;
   lastWorkspacePath: string;
@@ -21,7 +21,7 @@ export interface AppConfigDto {
   sidebarWidth: number; // sidebar intent width in PIXELS — the width the user last dragged it to; the displayed width is clamp(SIDEBAR_MIN, intent, maxFit) — see DEFAULT_SIDEBAR_WIDTH / clampSidebarWidth in utils/windowSizing
 }
 
-export function createDefaultAppConfig(): AppConfigDto {
+export function createDefaultAppState(): AppStateDto {
   return {
     version: "1.0.0",
     lastPreferencesPath: "",

@@ -10,7 +10,7 @@ import { showMessage, log, toErrorFields, loadFailureFields } from "./repositori
 import { DEFAULT_UI_FONT_STACK } from "./models";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
-import { useAppConfigStore } from "./state/app-config-store";
+import { useAppStateStore } from "./state/app-state-store";
 import { useNoteDraftStore } from "./state/note-draft-store";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
@@ -29,9 +29,9 @@ function App() {
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
   const loadPreferences = usePreferencesStore((s) => s.load);
   const loadWorkspace = useWorkspaceStore((s) => s.load);
-  const initializeAppConfig = useAppConfigStore((s) => s.initialize);
+  const initializeAppState = useAppStateStore((s) => s.initialize);
   const loadNoteDrafts = useNoteDraftStore((s) => s.load);
-  const setLastPaths = useAppConfigStore((s) => s.setLastPaths);
+  const setLastPaths = useAppStateStore((s) => s.setLastPaths);
   const darkMode = usePreferencesStore((s) => s.preferences.darkMode);
   const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
   // Guards against a double Launch: phase stays "startup" until the awaited
@@ -82,7 +82,7 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const quarantinedTo = await initializeAppConfig();
+        const quarantinedTo = await initializeAppState();
         setPhase({ kind: "startup" });
         if (quarantinedTo) {
           await showMessage(
@@ -96,7 +96,7 @@ function App() {
         setPhase({ kind: "error", message });
       }
     })();
-  }, [initializeAppConfig]);
+  }, [initializeAppState]);
 
   const handleLaunch = async (
     preferencesPath: string,

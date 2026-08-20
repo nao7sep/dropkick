@@ -10,7 +10,7 @@ import {
   toErrorFields,
 } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
-import { useAppConfigStore } from "../../state/app-config-store";
+import { useAppStateStore } from "../../state/app-state-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useNoteDraftStore } from "../../state/note-draft-store";
@@ -78,9 +78,9 @@ class ErrorBoundary extends Component<
 export function MainWindow() {
   const updatePrefs = usePreferencesStore((s) => s.update);
   // Zoom and sidebar width are view state (state.json), not preferences.
-  const zoomLevel = useAppConfigStore((s) => s.config.zoomLevel);
-  const sidebarIntent = useAppConfigStore((s) => s.config.sidebarWidth);
-  const updateViewState = useAppConfigStore((s) => s.updateViewState);
+  const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
+  const sidebarIntent = useAppStateStore((s) => s.appState.sidebarWidth);
+  const updateViewState = useAppStateStore((s) => s.updateViewState);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const activeTabIndex = workspace.activeTabIndex;
   const activeTab =
@@ -112,7 +112,7 @@ export function MainWindow() {
   // space. Two distinct widths govern the sidebar:
   //
   //   - INTENT (persisted): the pixel width the user last dragged the sidebar to.
-  //     Stored in state.json (AppConfigDto.sidebarWidth), updated ONLY on a splitter
+  //     Stored in state.json (AppStateDto.sidebarWidth), updated ONLY on a splitter
   //     drag, never on a window resize. It is NOT clamped to the window — only the
   //     displayed width is.
   //   - DISPLAY (derived, ephemeral): clamp(SIDEBAR_MIN, intent, maxFit), where

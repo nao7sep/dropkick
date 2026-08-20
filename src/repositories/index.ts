@@ -31,9 +31,9 @@ export {
 } from "./dialogs";
 
 export {
-  initializeAppConfig,
-  flushAppConfig,
-} from "./app-config-repository";
+  initializeAppState,
+  flushAppState,
+} from "./app-state-repository";
 
 export { loadNoteDrafts, flushNoteDrafts } from "./note-draft-repository";
 export type { LoadNoteDraftsResult } from "./note-draft-repository";

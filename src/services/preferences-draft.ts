@@ -13,7 +13,7 @@
 // nothing to re-affirm.
 //
 // (zoomLevel and sidebarWidth are view state, not preferences — they live in
-// AppConfigDto / state.json and never reach this draft. See
+// AppStateDto / state.json and never reach this draft. See
 // persisted-store-separation-conventions.)
 
 import type { PreferencesDto } from "../models";

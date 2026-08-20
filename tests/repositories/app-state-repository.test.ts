@@ -28,7 +28,7 @@ vi.mock("../../src/repositories/logging", () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { initializeAppConfig } from "../../src/repositories/app-config-repository";
+import { initializeAppState } from "../../src/repositories/app-state-repository";
 
 const ROOT = "/home/tester/.dropkick";
 
@@ -45,29 +45,29 @@ beforeEach(() => {
 });
 
 describe("app-level storage filenames", () => {
-  it("reads and writes app state from state.json — never app.json or a config.json", async () => {
+  it("reads and writes app state from state.json — never app.json or a appState.json", async () => {
     // Fresh install: no state file yet, so both seed files get created too.
     readJsonFileResult.mockResolvedValue({ status: "missing" });
     fileExists.mockResolvedValue(false);
 
-    const { configPath } = await initializeAppConfig();
+    const { statePath } = await initializeAppState();
 
     // The single app-level file is state.json (state, not config): one file,
-    // one role. There is deliberately no config.json — every field is
+    // one role. There is deliberately no appState.json — every field is
     // rebuildable, so the config/state split collapses to state-only.
-    expect(configPath).toBe(`${ROOT}/state.json`);
+    expect(statePath).toBe(`${ROOT}/state.json`);
 
     const writtenPaths = writeJsonFile.mock.calls.map((c) => c[0]);
     expect(writtenPaths).toContain(`${ROOT}/state.json`);
     expect(writtenPaths).not.toContain(`${ROOT}/app.json`);
-    expect(writtenPaths).not.toContain(`${ROOT}/config.json`);
+    expect(writtenPaths).not.toContain(`${ROOT}/appState.json`);
   });
 
   it("seeds the default user documents without the redundant default- prefix", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
     fileExists.mockResolvedValue(false);
 
-    await initializeAppConfig();
+    await initializeAppState();
 
     const writtenPaths = writeJsonFile.mock.calls.map((c) => c[0]);
     // The seeded default preferences/workspace live at the root under their
@@ -98,18 +98,18 @@ describe("app-level storage filenames", () => {
       return Promise.resolve({ status: "missing" });
     });
 
-    const { config, configPath } = await initializeAppConfig();
+    const { appState, statePath } = await initializeAppState();
 
     // Read comes from state.json, and the state role (known/recent lists +
     // last selection) is intact — not merged with any durable-config file.
-    expect(configPath).toBe(`${ROOT}/state.json`);
-    expect(config.lastPreferencesPath).toBe("/x/preferences.json");
-    expect(config.knownWorkspaces).toEqual(["/x/workspace.json"]);
+    expect(statePath).toBe(`${ROOT}/state.json`);
+    expect(appState.lastPreferencesPath).toBe("/x/preferences.json");
+    expect(appState.knownWorkspaces).toEqual(["/x/workspace.json"]);
     // A state.json written before zoom/sidebar became view state has neither
     // field; the load boundary fills both from defaults (mergeWithDefaults), so
     // the migration from preferences.json needs no explicit code.
-    expect(config.zoomLevel).toBe(1.0);
-    expect(config.sidebarWidth).toBe(320);
+    expect(appState.zoomLevel).toBe(1.0);
+    expect(appState.sidebarWidth).toBe(320);
     // Existing install re-reads state only; no seed/state files are rewritten.
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
@@ -136,9 +136,9 @@ describe("app-level storage filenames", () => {
       return Promise.resolve({ status: "missing" });
     });
 
-    const { config } = await initializeAppConfig();
-    expect(config.zoomLevel).toBe(1.5);
-    expect(config.sidebarWidth).toBe(440);
+    const { appState } = await initializeAppState();
+    expect(appState.zoomLevel).toBe(1.5);
+    expect(appState.sidebarWidth).toBe(440);
   });
 });
 
@@ -151,16 +151,16 @@ describe("corrupt state.json", () => {
     fileExists.mockResolvedValue(true); // seed files exist; must not be recreated
     quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
 
-    const { config, configPath } = await initializeAppConfig();
+    const { appState, statePath } = await initializeAppState();
 
     expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
-    expect(configPath).toBe(`${ROOT}/state.json`);
+    expect(statePath).toBe(`${ROOT}/state.json`);
     const writtenPaths = writeJsonFile.mock.calls.map((c) => c[0]);
     expect(writtenPaths).toContain(`${ROOT}/state.json`);
     expect(writtenPaths).not.toContain(`${ROOT}/preferences.json`);
     expect(writtenPaths).not.toContain(`${ROOT}/workspace.json`);
-    expect(config.lastPreferencesPath).toBe(`${ROOT}/preferences.json`);
-    expect(config.knownWorkspaces).toEqual([`${ROOT}/workspace.json`]);
+    expect(appState.lastPreferencesPath).toBe(`${ROOT}/preferences.json`);
+    expect(appState.knownWorkspaces).toEqual([`${ROOT}/workspace.json`]);
   });
 
   it("halts when the quarantine rename itself fails — never defaults over the bytes", async () => {
@@ -168,14 +168,14 @@ describe("corrupt state.json", () => {
     fileExists.mockResolvedValue(true);
     quarantineFile.mockRejectedValue(new Error("permission denied"));
 
-    await expect(initializeAppConfig()).rejects.toThrow("permission denied");
+    await expect(initializeAppState()).rejects.toThrow("permission denied");
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
   it("still halts on a plain read error — an unreadable file is not corrupt", async () => {
     readJsonFileResult.mockResolvedValue({ status: "error", message: "EACCES" });
 
-    await expect(initializeAppConfig()).rejects.toThrow("Failed to load app config: EACCES");
+    await expect(initializeAppState()).rejects.toThrow("Failed to load app appState: EACCES");
     expect(quarantineFile).not.toHaveBeenCalled();
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
@@ -202,7 +202,7 @@ describe("seeding the built-in default documents", () => {
       path !== `${ROOT}/preferences.json`,
     );
 
-    await initializeAppConfig();
+    await initializeAppState();
 
     const written = writeJsonFile.mock.calls.map((c) => c[0]);
     expect(written).toContain(`${ROOT}/preferences.json`);
@@ -222,7 +222,7 @@ describe("seeding the built-in default documents", () => {
     });
     fileExists.mockResolvedValue(true);
 
-    await initializeAppConfig();
+    await initializeAppState();
 
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
@@ -238,10 +238,10 @@ describe("shape-damaged state.json", () => {
     fileExists.mockResolvedValue(true);
     quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
 
-    const { config, quarantinedTo } = await initializeAppConfig();
+    const { appState, quarantinedTo } = await initializeAppState();
 
     expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
-    expect(config).toEqual(expect.objectContaining({
+    expect(appState).toEqual(expect.objectContaining({
       knownPreferences: [`${ROOT}/preferences.json`],
       knownWorkspaces: [`${ROOT}/workspace.json`],
       zoomLevel: 1,
@@ -267,11 +267,11 @@ describe("shape-damaged state.json", () => {
     fileExists.mockResolvedValue(true);
     quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
 
-    const { config, quarantinedTo } = await initializeAppConfig();
+    const { appState, quarantinedTo } = await initializeAppState();
 
     expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
-    expect(Array.isArray(config.knownWorkspaces)).toBe(true);
-    expect(config.knownWorkspaces).toEqual([`${ROOT}/workspace.json`]);
+    expect(Array.isArray(appState.knownWorkspaces)).toBe(true);
+    expect(appState.knownWorkspaces).toEqual([`${ROOT}/workspace.json`]);
     expect(quarantinedTo).toBe(`${ROOT}/state-20260817-000000-000-utc.invalid`);
     expect(writeJsonFile.mock.calls.map((c) => c[0])).toContain(`${ROOT}/state.json`);
   });
@@ -284,7 +284,7 @@ describe("shape-damaged state.json", () => {
     fileExists.mockResolvedValue(false);
     quarantineFile.mockResolvedValue(`${ROOT}/state-20260817-000000-000-utc.invalid`);
 
-    await initializeAppConfig();
+    await initializeAppState();
 
     expect(writeJsonFile.mock.calls.map((c) => c[0])).toEqual(expect.arrayContaining([
       `${ROOT}/preferences.json`,
@@ -306,7 +306,7 @@ describe("shape-damaged state.json", () => {
     });
     fileExists.mockResolvedValue(true);
 
-    await initializeAppConfig();
+    await initializeAppState();
     expect(quarantineFile).not.toHaveBeenCalled();
     expect(writeJsonFile).not.toHaveBeenCalled();
   });

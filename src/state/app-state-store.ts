@@ -1,4 +1,4 @@
-// AppConfigStore — loaded once at launch from ~/.dropkick/state.json.
+// AppStateStore — loaded once at launch from ~/.dropkick/state.json.
 // Tracks known preferences/workspace paths and the last selection.
 //
 // Mutations are synchronous `set((state) => …)` over the latest store state,
@@ -9,23 +9,23 @@
 
 import { create } from "zustand";
 import { guardBackgroundWrite } from "./background-write";
-import type { AppConfigDto } from "../models";
-import { createDefaultAppConfig } from "../models";
-import { initializeAppConfig, flushAppConfig, log } from "../repositories";
+import type { AppStateDto } from "../models";
+import { createDefaultAppState } from "../models";
+import { initializeAppState, flushAppState, log } from "../repositories";
 
 // The view-state fields callers may set through updateViewState. Restricting the
 // patch to these keeps the register/unregister list logic the sole writer of the
 // path fields — a generic setter would let a caller stomp knownPreferences.
-type ViewStateChanges = Partial<Pick<AppConfigDto, "zoomLevel" | "sidebarWidth">>;
+type ViewStateChanges = Partial<Pick<AppStateDto, "zoomLevel" | "sidebarWidth">>;
 
-interface AppConfigState {
-  // Current config data.
-  config: AppConfigDto;
+interface AppStateStore {
+  // The current app-level state.
+  appState: AppStateDto;
 
   // Path to ~/.dropkick/state.json.
   filePath: string;
 
-  // Whether the config has been initialized from disk.
+  // Whether the state has been loaded from disk.
   loaded: boolean;
 
   // Actions.
@@ -44,7 +44,7 @@ interface AppConfigState {
   unregisterWorkspace: (path: string) => Promise<void>;
 }
 
-export const useAppConfigStore = create<AppConfigState>((set, get) => {
+export const useAppStateStore = create<AppStateStore>((set, get) => {
   async function flush(): Promise<void> {
     const { filePath } = get();
     if (!filePath) return;
@@ -52,18 +52,18 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
     // shortcut, a divider drag), so a failure is reported rather than thrown —
     // see guardBackgroundWrite.
     await guardBackgroundWrite("Your window layout", () =>
-      flushAppConfig(filePath, () => get().config),
+      flushAppState(filePath, () => get().appState),
     );
   }
 
   return {
-    config: createDefaultAppConfig(),
+    appState: createDefaultAppState(),
     filePath: "",
     loaded: false,
 
     initialize: async () => {
-      const { config, configPath, quarantinedTo } = await initializeAppConfig();
-      set({ config, filePath: configPath, loaded: true });
+      const { appState, statePath, quarantinedTo } = await initializeAppState();
+      set({ appState, filePath: statePath, loaded: true });
       return quarantinedTo;
     },
 
@@ -71,14 +71,14 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
       // Log which keys changed, not the values, to keep the line stable — same
       // funnel discipline as the preferences store's update.
       log.info("view state updated", { changed: Object.keys(changes) });
-      set((state) => ({ config: { ...state.config, ...changes } }));
+      set((state) => ({ appState: { ...state.appState, ...changes } }));
       await flush();
     },
 
     setLastPaths: async (preferencesPath, workspacePath) => {
       set((state) => ({
-        config: {
-          ...state.config,
+        appState: {
+          ...state.appState,
           lastPreferencesPath: preferencesPath,
           lastWorkspacePath: workspacePath,
         },
@@ -88,12 +88,12 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
 
     registerPreferences: async (path) => {
       set((state) => {
-        const known = state.config.knownPreferences.includes(path)
-          ? state.config.knownPreferences
-          : [...state.config.knownPreferences, path];
+        const known = state.appState.knownPreferences.includes(path)
+          ? state.appState.knownPreferences
+          : [...state.appState.knownPreferences, path];
         return {
-          config: {
-            ...state.config,
+          appState: {
+            ...state.appState,
             knownPreferences: known,
             lastPreferencesPath: path,
           },
@@ -104,12 +104,12 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
 
     registerWorkspace: async (path) => {
       set((state) => {
-        const known = state.config.knownWorkspaces.includes(path)
-          ? state.config.knownWorkspaces
-          : [...state.config.knownWorkspaces, path];
+        const known = state.appState.knownWorkspaces.includes(path)
+          ? state.appState.knownWorkspaces
+          : [...state.appState.knownWorkspaces, path];
         return {
-          config: {
-            ...state.config,
+          appState: {
+            ...state.appState,
             knownWorkspaces: known,
             lastWorkspacePath: path,
           },
@@ -120,14 +120,14 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
 
     unregisterPreferences: async (path) => {
       set((state) => {
-        const known = state.config.knownPreferences.filter((p) => p !== path);
+        const known = state.appState.knownPreferences.filter((p) => p !== path);
         const lastPreferencesPath =
-          state.config.lastPreferencesPath === path
+          state.appState.lastPreferencesPath === path
             ? (known[0] ?? "")
-            : state.config.lastPreferencesPath;
+            : state.appState.lastPreferencesPath;
         return {
-          config: {
-            ...state.config,
+          appState: {
+            ...state.appState,
             knownPreferences: known,
             lastPreferencesPath,
           },
@@ -138,14 +138,14 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => {
 
     unregisterWorkspace: async (path) => {
       set((state) => {
-        const known = state.config.knownWorkspaces.filter((p) => p !== path);
+        const known = state.appState.knownWorkspaces.filter((p) => p !== path);
         const lastWorkspacePath =
-          state.config.lastWorkspacePath === path
+          state.appState.lastWorkspacePath === path
             ? (known[0] ?? "")
-            : state.config.lastWorkspacePath;
+            : state.appState.lastWorkspacePath;
         return {
-          config: {
-            ...state.config,
+          appState: {
+            ...state.appState,
             knownWorkspaces: known,
             lastWorkspacePath,
           },

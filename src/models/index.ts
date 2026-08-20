@@ -1,7 +1,7 @@
 export type {
-  AppConfigDto,
-} from "./app-config";
-export { createDefaultAppConfig } from "./app-config";
+  AppStateDto,
+} from "./app-state";
+export { createDefaultAppState } from "./app-state";
 
 export type { NoteDraftsDto } from "./note-drafts";
 export { createDefaultNoteDrafts } from "./note-drafts";

@@ -26,7 +26,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
-import { useAppConfigStore } from "../../state/app-config-store";
+import { useAppStateStore } from "../../state/app-state-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 import {
   openJsonFileDialog,
@@ -51,9 +51,9 @@ interface TabBarProps {
 
 export function TabBar({ onMenuSelect }: TabBarProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
-  // Zoom is view state (state.json), not a preference — read/write via app-config.
-  const zoomLevel = useAppConfigStore((s) => s.config.zoomLevel);
-  const updateViewState = useAppConfigStore((s) => s.updateViewState);
+  // Zoom is view state (state.json), not a preference — read/write via app-appState.
+  const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
+  const updateViewState = useAppStateStore((s) => s.updateViewState);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const activeTabIndex = workspace.activeTabIndex;
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);

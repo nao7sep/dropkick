@@ -20,7 +20,7 @@ import {
   log,
   toErrorFields,
 } from "../../repositories";
-import { useAppConfigStore } from "../../state/app-config-store";
+import { useAppStateStore } from "../../state/app-state-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 
 interface StartupPickerProps {
@@ -28,19 +28,19 @@ interface StartupPickerProps {
 }
 
 export function StartupPicker({ onLaunch }: StartupPickerProps) {
-  const appConfig = useAppConfigStore((s) => s.config);
-  const registerPreferences = useAppConfigStore((s) => s.registerPreferences);
-  const registerWorkspace = useAppConfigStore((s) => s.registerWorkspace);
-  const unregisterPreferences = useAppConfigStore(
+  const appState = useAppStateStore((s) => s.appState);
+  const registerPreferences = useAppStateStore((s) => s.registerPreferences);
+  const registerWorkspace = useAppStateStore((s) => s.registerWorkspace);
+  const unregisterPreferences = useAppStateStore(
     (s) => s.unregisterPreferences,
   );
-  const unregisterWorkspace = useAppConfigStore((s) => s.unregisterWorkspace);
+  const unregisterWorkspace = useAppStateStore((s) => s.unregisterWorkspace);
 
   const [selectedPrefs, setSelectedPrefs] = useState(
-    appConfig.lastPreferencesPath,
+    appState.lastPreferencesPath,
   );
   const [selectedWorkspace, setSelectedWorkspace] = useState(
-    appConfig.lastWorkspacePath,
+    appState.lastWorkspacePath,
   );
   const prefsOpenRef = useRef<HTMLButtonElement>(null);
   const workspaceOpenRef = useRef<HTMLButtonElement>(null);
@@ -135,7 +135,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   const handleRemovePreferences = async (path: string) => {
     await unregisterPreferences(path);
     if (selectedPrefs === path) {
-      setSelectedPrefs(useAppConfigStore.getState().config.lastPreferencesPath);
+      setSelectedPrefs(useAppStateStore.getState().appState.lastPreferencesPath);
     }
   };
 
@@ -143,7 +143,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
     await unregisterWorkspace(path);
     if (selectedWorkspace === path) {
       setSelectedWorkspace(
-        useAppConfigStore.getState().config.lastWorkspacePath,
+        useAppStateStore.getState().appState.lastWorkspacePath,
       );
     }
   };
@@ -160,7 +160,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
         {/* Preferences section */}
         <Section
           label="Preferences"
-          items={appConfig.knownPreferences}
+          items={appState.knownPreferences}
           selected={selectedPrefs}
           onSelect={setSelectedPrefs}
           onOpen={handleOpenPreferences}
@@ -172,7 +172,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
         {/* Workspace section */}
         <Section
           label="Workspace"
-          items={appConfig.knownWorkspaces}
+          items={appState.knownWorkspaces}
           selected={selectedWorkspace}
           onSelect={setSelectedWorkspace}
           onOpen={handleOpenWorkspace}

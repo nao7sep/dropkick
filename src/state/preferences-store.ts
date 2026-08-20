@@ -6,7 +6,7 @@
 // state, and disk writes can never land out of order.
 //
 // Zoom and sidebar width are NOT here: they are view state and live in
-// state.json through the app-config store (persisted-store-separation-
+// state.json through the app-state store (persisted-store-separation-
 // conventions), so nothing they do can reach this file.
 
 import { create } from "zustand";
