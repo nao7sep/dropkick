@@ -24,6 +24,16 @@ Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows ar
 - **macOS** — right-click the app and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/Dropkick.app`).
 - **Windows** — on the SmartScreen prompt, click **More info → Run anyway**.
 
+## First run
+
+Dropkick keeps your settings and your open tabs in two JSON files you choose, so the first launch asks for both before it opens anything:
+
+1. Under **Preferences**, click **New** and save a preferences file — `~/.dropkick/preferences.json` is a fine default.
+2. Under **Workspace**, do the same for a workspace file.
+3. Click **Launch**.
+
+From then on both are remembered and Launch is one click. Task lists themselves are separate files, created from **New task list...** in the tab bar's ☰ menu, and can live anywhere — including inside a project repository.
+
 ## Run from source
 
 Launch it with the script for your platform — double-click `scripts/run-dev.command` on macOS, or right-click `scripts/run-dev.ps1` and choose *Run with PowerShell* on Windows. Or run it by hand:

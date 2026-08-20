@@ -15,14 +15,14 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createElement, act } from "react";
-import { mount } from "../helpers/react-dom";
-import type { Mounted } from "../helpers/react-dom";
-import { AppDialogHost } from "../../src/components/shared/AppDialogHost";
+import { mount } from "../../helpers/react-dom";
+import type { Mounted } from "../../helpers/react-dom";
+import { AppDialogHost } from "../../../src/components/shared/AppDialogHost";
 import {
   useDialogStore,
   showAppConfirm,
   showAppMessage,
-} from "../../src/state/dialog-store";
+} from "../../../src/state/dialog-store";
 
 let host: Mounted;
 
