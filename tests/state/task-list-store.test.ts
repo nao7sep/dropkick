@@ -215,7 +215,7 @@ describe("addNewTask", () => {
   it("prepends a new task and flushes", async () => {
     seedFile();
     const result = await useTaskListStore.getState().addNewTask(FILE, { title: "New" });
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", changed: true });
     expect(tasksOf()[0].title).toBe("New");
     expect(flushTaskList).toHaveBeenCalledTimes(1);
   });
@@ -232,7 +232,7 @@ describe("removeTask", () => {
     seedFile();
     useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a"), taskKey(FILE, "b")]));
     const result = await useTaskListStore.getState().removeTask(FILE, "a");
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", changed: true });
     expect(tasksOf().map((t) => t.id)).toEqual(["b"]);
     expect(useTaskListStore.getState().selectedKeys.has(taskKey(FILE, "a"))).toBe(false);
     expect(useTaskListStore.getState().selectedKeys.has(taskKey(FILE, "b"))).toBe(true);
@@ -243,7 +243,7 @@ describe("updateTitle no-op contract", () => {
   it("returns success WITHOUT flushing when the title is unchanged", async () => {
     seedFile([makeTask({ id: "a", title: "Same" })]);
     const result = await useTaskListStore.getState().updateTitle(FILE, "a", "Same");
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", changed: false });
     expect(flushTaskList).not.toHaveBeenCalled();
   });
 
@@ -273,7 +273,7 @@ describe("setStatus validation gating", () => {
   it("allows completing a task with no actionable notes", async () => {
     seedFile([makeTask({ id: "a" })]);
     const result = await useTaskListStore.getState().setStatus(FILE, "a", "Completed");
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", changed: true });
     expect(tasksOf()[0].status).toBe("Completed");
     expect(flushTaskList).toHaveBeenCalledTimes(1);
   });
@@ -281,7 +281,7 @@ describe("setStatus validation gating", () => {
   it("is a no-op when status is already the target", async () => {
     seedFile([makeTask({ id: "a", status: "Pending" })]);
     const result = await useTaskListStore.getState().setStatus(FILE, "a", "Pending");
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", changed: false });
     expect(flushTaskList).not.toHaveBeenCalled();
   });
 });
@@ -297,7 +297,7 @@ describe("addNewNote", () => {
   it("adds a note and flushes", async () => {
     seedFile([makeTask({ id: "a" })]);
     const result = await useTaskListStore.getState().addNewNote(FILE, "a", "hello", "Actionable");
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", changed: true });
     expect(tasksOf()[0].notes[0]).toMatchObject({ content: "hello", actionability: "Actionable" });
   });
 });
@@ -307,7 +307,7 @@ describe("reorder operations use the current selection", () => {
     seedFile([makeTask({ id: "a" }), makeTask({ id: "b" }), makeTask({ id: "c" })]);
     useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
     const result = await useTaskListStore.getState().sendToLast(FILE);
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", changed: true });
     expect(tasksOf().map((t) => t.id)).toEqual(["b", "c", "a"]);
   });
 
@@ -322,7 +322,7 @@ describe("reorder operations use the current selection", () => {
     seedFile([makeTask({ id: "a" })]);
     useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
     const result = await useTaskListStore.getState().kick(FILE, 5);
-    expect(result).toEqual({ status: "success" });
+    expect(result).toEqual({ status: "success", changed: false });
     expect(flushTaskList).not.toHaveBeenCalled();
   });
 });

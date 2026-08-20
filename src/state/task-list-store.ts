@@ -15,6 +15,7 @@ import { create } from "zustand";
 import type { ActionResult } from "./action-result";
 import type {
   TaskListDto,
+  TaskDto,
   NoteActionability,
   TaskStatus,
   TaskPriority,
@@ -296,6 +297,133 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     return { status: "error", message: result.message };
   }
 
+
+  // Runs one mutation end to end: apply `transform` EXACTLY ONCE against the
+  // latest state inside the synchronous transition, then flush only if it
+  // changed anything. A transform signals "nothing to do" by returning its
+  // input array unchanged.
+  //
+  // Running the operation once is the point. The earlier shape ran it twice —
+  // a precheck against get(), then the same computation again inside the
+  // updater — so every rule had to be written twice per action, and the two
+  // copies had already drifted over whether they reported `changed`. Nothing
+  // awaits between the two reads, so the second was never a different answer.
+  async function mutateTasks(
+    filePath: string,
+    action: string,
+    // Resolved after the transition, so a log line can carry a value the
+    // transform computed — the selection size, which is only known once the
+    // latest selection has been read.
+    fields: LogFields | (() => LogFields),
+    transform: (tasks: TaskDto[], state: TaskListState) => TaskDto[],
+    options: {
+      selection?: (prev: Set<string>) => Set<string>;
+      bumpReorderTick?: boolean;
+    } = {},
+  ): Promise<ActionResult> {
+    let loaded = true;
+    let changed = false;
+    set((state) => {
+      const f = state.files[filePath];
+      if (!f) {
+        loaded = false;
+        return state;
+      }
+      const tasks = transform(f.data.tasks, state);
+      if (tasks === f.data.tasks) return state;
+      changed = true;
+      return {
+        files: {
+          ...state.files,
+          [filePath]: { data: { ...f.data, tasks } },
+        },
+        ...(options.selection
+          ? { selectedKeys: options.selection(state.selectedKeys) }
+          : {}),
+        ...(options.bumpReorderTick
+          ? { reorderTick: state.reorderTick + 1 }
+          : {}),
+      };
+    });
+    if (!loaded) return { status: "error", message: "File not loaded" };
+    if (!changed) return { status: "success", changed: false };
+    const result = await flush(
+      filePath,
+      action,
+      typeof fields === "function" ? fields() : fields,
+    );
+    return result.status === "success"
+      ? { status: "success", changed: true }
+      : result;
+  }
+
+  // Task-level mutation: locate the task, optionally validate it, and replace
+  // it with the transform's result. `validate` runs against the same task the
+  // transform will see, inside the one transition.
+  async function mutateTask(
+    filePath: string,
+    taskId: string,
+    action: string,
+    fields: LogFields,
+    transform: (task: TaskDto) => TaskDto,
+    validate?: (task: TaskDto) => ActionResult | null,
+  ): Promise<ActionResult> {
+    let failure: ActionResult | null = null;
+    const result = await mutateTasks(filePath, action, fields, (tasks) => {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) {
+        failure = { status: "error", message: "Task not found" };
+        return tasks;
+      }
+      const invalid = validate?.(task);
+      if (invalid) {
+        failure = invalid;
+        return tasks;
+      }
+      const next = transform(task);
+      return next === task ? tasks : replaceTask(tasks, next);
+    });
+    return failure ?? result;
+  }
+
+  // Reorder mutation: every reorder acts on the current selection for this file
+  // and needs the same preference-derived arguments, so the shape is shared and
+  // only the reordering function differs.
+  async function mutateSelectionOrder(
+    filePath: string,
+    action: string,
+    apply: (
+      tasks: TaskDto[],
+      ids: Set<string>,
+      timezone: string | null,
+      dueSoonDays: number,
+    ) => TaskDto[],
+    extraFields: LogFields = {},
+    bumpReorderTick = true,
+  ): Promise<ActionResult> {
+    let selectedCount = 0;
+    let empty = false;
+    const prefs = usePreferencesStore.getState().preferences;
+    const result = await mutateTasks(
+      filePath,
+      action,
+      () => ({ selected: selectedCount, ...extraFields }),
+      (tasks, state) => {
+        const ids = selectedTaskIdsForFile(state.selectedKeys, filePath);
+        selectedCount = ids.size;
+        if (ids.size === 0) {
+          empty = true;
+          return tasks;
+        }
+        return apply(tasks, ids, prefs.timezone, prefs.dueSoonDays);
+      },
+      { bumpReorderTick },
+    );
+    return empty
+      ? { status: "error", message: "No tasks selected" }
+      : result;
+  }
+
   return {
     files: {},
     fileLoadErrors: {},
@@ -419,537 +547,145 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     //   3. Async flush.
 
     addNewTask: async (filePath, options) => {
-      if (!get().files[filePath]) {
-        return { status: "error", message: "File not loaded" };
-      }
       const task = createTask(options);
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: addTask(f.data.tasks, task) } },
-          },
-        };
-      });
-      return flush(filePath, "add task", { taskId: task.id });
+      return mutateTasks(filePath, "add task", { taskId: task.id }, (tasks) =>
+        addTask(tasks, task),
+      );
     },
 
     removeTask: async (filePath, taskId) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: deleteTask(f.data.tasks, taskId) } },
-          },
-          selectedKeys: new Set(
-            [...state.selectedKeys].filter((k) => k !== taskKey(filePath, taskId)),
-          ),
-        };
-      });
-      return flush(filePath, "delete task", { taskId });
+      return mutateTasks(
+        filePath,
+        "delete task",
+        { taskId },
+        (tasks) => deleteTask(tasks, taskId),
+        {
+          selection: (prev) =>
+            new Set([...prev].filter((k) => k !== taskKey(filePath, taskId))),
+        },
+      );
     },
 
-    updateTitle: async (filePath, taskId, title) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
+    updateTitle: async (filePath, taskId, title) =>
+      mutateTask(filePath, taskId, "update task title", { taskId }, (task) =>
+        updateTaskTitle(task, title),
+      ),
 
-      const updated = updateTaskTitle(task, title);
-      if (updated === task) return { status: "success" };
+    updateDescription: async (filePath, taskId, description) =>
+      mutateTask(
+        filePath,
+        taskId,
+        "update task description",
+        { taskId },
+        (task) => updateTaskDescription(task, description),
+      ),
 
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        const next = updateTaskTitle(current, title);
-        if (next === current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, next) } },
-          },
-        };
-      });
-      return flush(filePath, "update task title", { taskId });
-    },
+    setStatus: async (filePath, taskId, status) =>
+      mutateTask(
+        filePath,
+        taskId,
+        "set task status",
+        { taskId, status },
+        (task) => changeTaskStatus(task, status),
+        // Setting the status a task already has is a no-op, not a transition,
+        // so it is not validated — the transform then returns the same task and
+        // nothing is written.
+        (task) => {
+          if (task.status === status) return null;
+          const validation = canTransitionStatus(task, status);
+          return validation.valid
+            ? null
+            : { status: "validation", reason: validation.reason! };
+        },
+      ),
 
-    updateDescription: async (filePath, taskId, description) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
+    setPriority: async (filePath, taskId, priority) =>
+      mutateTask(
+        filePath,
+        taskId,
+        "set task priority",
+        { taskId, priority },
+        (task) => changeTaskPriority(task, priority),
+      ),
 
-      const updated = updateTaskDescription(task, description);
-      if (updated === task) return { status: "success" };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        const next = updateTaskDescription(current, description);
-        if (next === current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, next) } },
-          },
-        };
-      });
-      return flush(filePath, "update task description", { taskId });
-    },
-
-    setStatus: async (filePath, taskId, status) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
-      if (task.status === status) return { status: "success" };
-
-      const validation = canTransitionStatus(task, status);
-      if (!validation.valid) {
-        return { status: "validation", reason: validation.reason! };
-      }
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        const next = changeTaskStatus(current, status);
-        if (next === current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, next) } },
-          },
-        };
-      });
-      return flush(filePath, "set task status", { taskId, status });
-    },
-
-    setPriority: async (filePath, taskId, priority) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
-
-      const updated = changeTaskPriority(task, priority);
-      if (updated === task) return { status: "success" };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        const next = changeTaskPriority(current, priority);
-        if (next === current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, next) } },
-          },
-        };
-      });
-      return flush(filePath, "set task priority", { taskId, priority });
-    },
-
-    setDueDate: async (filePath, taskId, dueDate) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
-
-      const updated = changeTaskDueDate(task, dueDate);
-      if (updated === task) return { status: "success" };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        const next = changeTaskDueDate(current, dueDate);
-        if (next === current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, next) } },
-          },
-        };
-      });
-      return flush(filePath, "set task due date", { taskId, dueDate });
-    },
+    setDueDate: async (filePath, taskId, dueDate) =>
+      mutateTask(
+        filePath,
+        taskId,
+        "set task due date",
+        { taskId, dueDate },
+        (task) => changeTaskDueDate(task, dueDate),
+      ),
 
     addNewNote: async (filePath, taskId, content, actionability = "Informational") => {
-      if (!get().files[filePath]) {
-        return { status: "error", message: "File not loaded" };
-      }
       if (!content.trim()) {
         return { status: "error", message: "Note content cannot be empty" };
       }
-      const fileState = get().files[filePath];
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
-
       const note = createNote(content, actionability);
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, addNote(current, note)) } },
-          },
-        };
-      });
-      return flush(filePath, "add note", { taskId, noteId: note.id });
+      return mutateTask(
+        filePath,
+        taskId,
+        "add note",
+        { taskId, noteId: note.id },
+        (task) => addNote(task, note),
+      );
     },
 
-    removeNote: async (filePath, taskId, noteId) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
-
-      const updated = deleteNote(task, noteId);
-      if (updated === task) return { status: "success" };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        const next = deleteNote(current, noteId);
-        if (next === current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, next) } },
-          },
-        };
-      });
-      return flush(filePath, "delete note", { taskId, noteId });
-    },
+    removeNote: async (filePath, taskId, noteId) =>
+      mutateTask(filePath, taskId, "delete note", { taskId, noteId }, (task) =>
+        deleteNote(task, noteId),
+      ),
 
     updateNote: async (filePath, taskId, noteId, content) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
       if (!content.trim()) {
         return { status: "error", message: "Note content cannot be empty" };
       }
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
-
-      const updated = updateNoteContent(task, noteId, content);
-      if (updated === task) return { status: "success" };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        const next = updateNoteContent(current, noteId, content);
-        if (next === current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, next) } },
-          },
-        };
-      });
-      return flush(filePath, "update note", { taskId, noteId });
-    },
-
-    setNoteActionability: async (filePath, taskId, noteId, actionability) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const task = fileState.data.tasks.find((t) => t.id === taskId);
-      if (!task) return { status: "error", message: "Task not found" };
-
-      const updated = changeNoteActionability(task, noteId, actionability);
-      if (updated === task) return { status: "success" };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const current = f.data.tasks.find((t) => t.id === taskId);
-        if (!current) return state;
-        const next = changeNoteActionability(current, noteId, actionability);
-        if (next === current) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: replaceTask(f.data.tasks, next) } },
-          },
-        };
-      });
-      return flush(filePath, "set note actionability", {
+      return mutateTask(
+        filePath,
         taskId,
-        noteId,
-        actionability,
-      });
+        "update note",
+        { taskId, noteId },
+        (task) => updateNoteContent(task, noteId, content),
+      );
     },
+
+    setNoteActionability: async (filePath, taskId, noteId, actionability) =>
+      mutateTask(
+        filePath,
+        taskId,
+        "set note actionability",
+        { taskId, noteId, actionability },
+        (task) => changeNoteActionability(task, noteId, actionability),
+      ),
 
     // --- Reorder operations (use the current selection) ---
 
-    kick: async (filePath, distance) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
-      if (selectedTaskIds.size === 0) {
-        return { status: "error", message: "No tasks selected" };
-      }
-      const prefs = usePreferencesStore.getState().preferences;
-      const newTasks = kickTasks(
-        fileState.data.tasks,
-        selectedTaskIds,
-        distance,
-        prefs.timezone,
-        prefs.dueSoonDays,
-      );
-      if (newTasks === fileState.data.tasks) return { status: "success" };
+    kick: async (filePath, distance) =>
+      mutateSelectionOrder(
+        filePath,
+        "kick tasks",
+        (tasks, ids, timezone, dueSoonDays) =>
+          kickTasks(tasks, ids, distance, timezone, dueSoonDays),
+        { distance },
+      ),
 
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const ids = selectedTaskIdsForFile(state.selectedKeys, filePath);
-        if (ids.size === 0) return state;
-        const next = kickTasks(
-          f.data.tasks,
-          ids,
-          distance,
-          prefs.timezone,
-          prefs.dueSoonDays,
-        );
-        if (next === f.data.tasks) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: next } },
-          },
-          reorderTick: state.reorderTick + 1,
-        };
-      });
-      return flush(filePath, "kick tasks", {
-        selected: selectedTaskIds.size,
-        distance,
-      });
-    },
+    sendToFirst: async (filePath) =>
+      mutateSelectionOrder(filePath, "send tasks to first", sendTasksToFirst),
 
-    sendToFirst: async (filePath) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
-      if (selectedTaskIds.size === 0) {
-        return { status: "error", message: "No tasks selected" };
-      }
-      const prefs = usePreferencesStore.getState().preferences;
-      const newTasks = sendTasksToFirst(
-        fileState.data.tasks,
-        selectedTaskIds,
-        prefs.timezone,
-        prefs.dueSoonDays,
-      );
-      if (newTasks === fileState.data.tasks) return { status: "success" };
+    sendToLast: async (filePath) =>
+      mutateSelectionOrder(filePath, "send tasks to last", sendTasksToLast),
 
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const ids = selectedTaskIdsForFile(state.selectedKeys, filePath);
-        if (ids.size === 0) return state;
-        const next = sendTasksToFirst(
-          f.data.tasks,
-          ids,
-          prefs.timezone,
-          prefs.dueSoonDays,
-        );
-        if (next === f.data.tasks) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: next } },
-          },
-          reorderTick: state.reorderTick + 1,
-        };
-      });
-      return flush(filePath, "send tasks to first", {
-        selected: selectedTaskIds.size,
-      });
-    },
+    moveUp: async (filePath) =>
+      mutateSelectionOrder(filePath, "move tasks up", moveTasksUp),
 
-    sendToLast: async (filePath) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
-      if (selectedTaskIds.size === 0) {
-        return { status: "error", message: "No tasks selected" };
-      }
-      const prefs = usePreferencesStore.getState().preferences;
-      const newTasks = sendTasksToLast(
-        fileState.data.tasks,
-        selectedTaskIds,
-        prefs.timezone,
-        prefs.dueSoonDays,
-      );
-      if (newTasks === fileState.data.tasks) return { status: "success" };
+    moveDown: async (filePath) =>
+      mutateSelectionOrder(filePath, "move tasks down", moveTasksDown),
 
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const ids = selectedTaskIdsForFile(state.selectedKeys, filePath);
-        if (ids.size === 0) return state;
-        const next = sendTasksToLast(
-          f.data.tasks,
-          ids,
-          prefs.timezone,
-          prefs.dueSoonDays,
-        );
-        if (next === f.data.tasks) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: next } },
-          },
-          reorderTick: state.reorderTick + 1,
-        };
-      });
-      return flush(filePath, "send tasks to last", {
-        selected: selectedTaskIds.size,
-      });
-    },
-
-    moveUp: async (filePath) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
-      if (selectedTaskIds.size === 0) {
-        return { status: "error", message: "No tasks selected" };
-      }
-      const prefs = usePreferencesStore.getState().preferences;
-      const newTasks = moveTasksUp(
-        fileState.data.tasks,
-        selectedTaskIds,
-        prefs.timezone,
-        prefs.dueSoonDays,
-      );
-      if (newTasks === fileState.data.tasks) return { status: "success" };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const ids = selectedTaskIdsForFile(state.selectedKeys, filePath);
-        if (ids.size === 0) return state;
-        const next = moveTasksUp(
-          f.data.tasks,
-          ids,
-          prefs.timezone,
-          prefs.dueSoonDays,
-        );
-        if (next === f.data.tasks) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: next } },
-          },
-          reorderTick: state.reorderTick + 1,
-        };
-      });
-      return flush(filePath, "move tasks up", {
-        selected: selectedTaskIds.size,
-      });
-    },
-
-    moveDown: async (filePath) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
-      if (selectedTaskIds.size === 0) {
-        return { status: "error", message: "No tasks selected" };
-      }
-      const prefs = usePreferencesStore.getState().preferences;
-      const newTasks = moveTasksDown(
-        fileState.data.tasks,
-        selectedTaskIds,
-        prefs.timezone,
-        prefs.dueSoonDays,
-      );
-      if (newTasks === fileState.data.tasks) return { status: "success" };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const ids = selectedTaskIdsForFile(state.selectedKeys, filePath);
-        if (ids.size === 0) return state;
-        const next = moveTasksDown(
-          f.data.tasks,
-          ids,
-          prefs.timezone,
-          prefs.dueSoonDays,
-        );
-        if (next === f.data.tasks) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: next } },
-          },
-          reorderTick: state.reorderTick + 1,
-        };
-      });
-      return flush(filePath, "move tasks down", {
-        selected: selectedTaskIds.size,
-      });
-    },
-
-    dropkick: async (filePath) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return { status: "error", message: "File not loaded" };
-      const selectedTaskIds = selectedTaskIdsForFile(get().selectedKeys, filePath);
-      if (selectedTaskIds.size === 0) {
-        return { status: "error", message: "No tasks selected" };
-      }
-      const prefs = usePreferencesStore.getState().preferences;
-      const newTasks = dropkickTasks(
-        fileState.data.tasks,
-        selectedTaskIds,
-        prefs.timezone,
-        prefs.dueSoonDays,
-      );
-      if (newTasks === fileState.data.tasks) return { status: "success", changed: false };
-
-      set((state) => {
-        const f = state.files[filePath];
-        if (!f) return state;
-        const ids = selectedTaskIdsForFile(state.selectedKeys, filePath);
-        if (ids.size === 0) return state;
-        const next = dropkickTasks(
-          f.data.tasks,
-          ids,
-          prefs.timezone,
-          prefs.dueSoonDays,
-        );
-        if (next === f.data.tasks) return state;
-        return {
-          files: {
-            ...state.files,
-            [filePath]: { data: { ...f.data, tasks: next } },
-          },
-        };
-      });
-      const result = await flush(filePath, "dropkick tasks", {
-        selected: selectedTaskIds.size,
-      });
-      return result.status === "success" ? { ...result, changed: true } : result;
-    },
+    // Dropkick deliberately does not bump reorderTick: it sends tasks to the
+    // end of the list rather than repositioning them within the visible order,
+    // so the list has nothing to re-anchor on.
+    dropkick: async (filePath) =>
+      mutateSelectionOrder(filePath, "dropkick tasks", dropkickTasks, {}, false),
 
     // --- Two-file move ---
     //
