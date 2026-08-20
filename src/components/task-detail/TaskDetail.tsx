@@ -27,6 +27,7 @@ import {
   statusAdvancesSelection,
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
+import { Toolbar } from "../shared/Toolbar";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useNoteDraftStore } from "../../state/note-draft-store";
 import { composerDraftKey, editorDraftKey } from "../../services";
@@ -317,7 +318,10 @@ export function TaskDetail({
       </div>
 
       {/* Reorder buttons */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <Toolbar
+        label="Task actions"
+        className="mb-4 flex flex-wrap items-center gap-2"
+      >
         {!isUnifiedView && (
           <>
             <button
@@ -369,7 +373,7 @@ export function TaskDetail({
           <Trash2 size={12} />
           Delete
         </button>
-      </div>
+      </Toolbar>
 
       {/* Move to another list */}
       {moveDestinations.length > 0 && (

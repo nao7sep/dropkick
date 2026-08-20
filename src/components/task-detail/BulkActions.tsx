@@ -14,6 +14,7 @@ import {
   statusAdvancesSelection,
 } from "../../utils";
 import { moveSelectedTasks } from "../../services";
+import { Toolbar } from "../shared/Toolbar";
 
 interface BulkActionsProps {
   selectedTasks: Task[];
@@ -186,7 +187,7 @@ export function BulkActions({
           <label className="mb-2 block text-xs font-medium text-ink-muted">
             Reorder
           </label>
-          <div className="flex gap-2">
+          <Toolbar label="Reorder selected tasks" className="flex gap-2">
             <button
               onClick={async () => {
                 const result = await sendToFirst(filePath);
@@ -226,7 +227,7 @@ export function BulkActions({
             >
               Dropkick
             </button>
-          </div>
+          </Toolbar>
         </div>
       )}
 
