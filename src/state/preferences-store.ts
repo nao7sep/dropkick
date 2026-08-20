@@ -2,9 +2,12 @@
 // Provides display settings, timezone, kick distances, etc. to the entire app.
 //
 // `update` mutates synchronously, then awaits a serialized flush via the
-// repository. Concurrent updates (e.g. divider drag completing during a
-// Settings Save click) all read and apply against the latest store state, and
-// disk writes can never land out of order.
+// repository. Concurrent updates all read and apply against the latest store
+// state, and disk writes can never land out of order.
+//
+// Zoom and sidebar width are NOT here: they are view state and live in
+// state.json through the app-config store (persisted-store-separation-
+// conventions), so nothing they do can reach this file.
 
 import { create } from "zustand";
 import type { PreferencesDto } from "../models";
@@ -46,9 +49,9 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   },
 
   update: async (changes: Partial<PreferencesDto>) => {
-    // The single funnel for every preference change (Settings save, zoom,
-    // dark-mode toggle, sidebar drag): log which keys changed, not the values,
-    // to keep the line stable and free of any future setting's content.
+    // The single funnel for every preference change (a Settings save, the
+    // dark-mode toggle): log which keys changed, not the values, to keep the
+    // line stable and free of any future setting's content.
     log.info("preferences updated", { changed: Object.keys(changes) });
 
     // Sync state transition first — reads the latest store, applies changes

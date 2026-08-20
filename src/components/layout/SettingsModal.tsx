@@ -70,8 +70,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     const result = await update({
       ...draft,
       // Re-affirm the live-applied settings from the current store so a stale
-      // draft copy can't revert a dark-mode / zoom / divider change made while
-      // this modal was open. Derived from LIVE_APPLIED_PREFERENCE_KEYS so it
+      // draft copy can't revert a dark-mode change made while this modal was
+      // open. Derived from LIVE_APPLIED_PREFERENCE_KEYS so it
       // stays in lockstep with the dirty-check exclusion.
       ...liveAppliedPreferences(preferences),
       fontFamily: singleLine(draft.fontFamily),

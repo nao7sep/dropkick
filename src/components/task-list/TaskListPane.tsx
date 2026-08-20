@@ -562,8 +562,10 @@ function TaskRow({
   onCancelRename,
 }: {
   rowRef?: (node: HTMLDivElement | null) => void;
-  // When true, the row is a listbox option (active tasks). Handled archive rows
-  // render without option semantics — they are clickable but not navigable.
+  // When true, the row is a listbox option. Both active rows and expanded
+  // handled rows pass it: navigation runs continuously into the archive, and
+  // aria-activedescendant points at handled rows once the cursor is inside it,
+  // so they need the id/role/aria-selected this adds.
   asOption?: boolean;
   domId?: string;
   task: Task;

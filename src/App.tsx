@@ -72,7 +72,7 @@ function App() {
         if (quarantinedTo) {
           await showMessage(
             "Saved Locations Were Reset",
-            `DropKick could not read its saved workspace and preferences list. The file was set aside here:\n\n${quarantinedTo}\n\nThe underlying workspace and preferences files were not changed; reopen any non-default ones you still use.`,
+            `Dropkick could not read its saved workspace and preferences list. The file was set aside here:\n\n${quarantinedTo}\n\nThe underlying workspace and preferences files were not changed; reopen any non-default ones you still use.`,
           );
         }
       } catch (e) {
@@ -150,7 +150,7 @@ function App() {
       if (draftsQuarantinedTo) {
         await showMessage(
           "Unsaved Note Drafts Were Reset",
-          `DropKick could not read the note text you had typed but not yet saved. The file was set aside here:\n\n${draftsQuarantinedTo}\n\nYour task lists were not affected.`,
+          `Dropkick could not read the note text you had typed but not yet saved. The file was set aside here:\n\n${draftsQuarantinedTo}\n\nYour task lists were not affected.`,
         );
       }
     } finally {

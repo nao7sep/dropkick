@@ -29,7 +29,7 @@ export const LIVE_APPLIED_PREFERENCE_KEYS: readonly (keyof PreferencesDto)[] = [
 
 // Picks the live-applied keys out of a preferences source. handleSave spreads
 // this over the staged draft so the current store values win — a stale draft
-// snapshot can never revert a dark-mode / zoom / divider change made while the
+// snapshot can never revert a dark-mode change made while the
 // modal was open. Driven by LIVE_APPLIED_PREFERENCE_KEYS so the dirty-exclusion
 // list and the Save re-affirm list can never drift apart.
 export function liveAppliedPreferences(

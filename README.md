@@ -26,7 +26,7 @@ Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows ar
 
 ## Run from source
 
-Double-click the launcher for your platform (`scripts/run-dev.command` on macOS, `scripts/run-dev.ps1` on Windows), or run it by hand:
+Launch it with the script for your platform — double-click `scripts/run-dev.command` on macOS, or right-click `scripts/run-dev.ps1` and choose *Run with PowerShell* on Windows. Or run it by hand:
 
 ```sh
 npm install

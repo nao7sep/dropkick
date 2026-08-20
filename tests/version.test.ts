@@ -12,9 +12,9 @@ import {
 // requires to carry a literal value:
 //
 //   - src-tauri/tauri.conf.json  the version the bundle/installer carries and
-//     the OS reports. It is injected into the About dialog as __APP_VERSION__
-//     (see vite.config.ts) and is what the release workflow names the installer
-//     from. This is the canonical source of truth.
+//     the OS reports. The About dialog reads it back at runtime through
+//     getVersion() from @tauri-apps/api/app, and it is what the release
+//     workflow names the installer from. This is the canonical source of truth.
 //   - package.json               the npm manifest (private; never published).
 //   - src-tauri/Cargo.toml       the Rust crate version.
 //   - src-tauri/Cargo.lock       the lockfile's own [[package]] entry for the
