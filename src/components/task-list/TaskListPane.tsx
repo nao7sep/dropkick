@@ -2,7 +2,7 @@
 // Supports selection (click, Shift+click, Cmd+click on macOS / Ctrl+click on Windows).
 
 import { useState, useRef, useMemo, useEffect } from "react";
-import { Plus, AlertCircle, Check, X } from "lucide-react";
+import { Plus, AlertCircle, Check, ChevronDown, ChevronRight, X } from "lucide-react";
 import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
@@ -521,7 +521,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                 className="flex w-full cursor-pointer select-none items-center gap-2 border-y border-border bg-background px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-muted"
               >
                 <span className="flex items-center">
-                  {handledExpanded ? "▾" : "▸"}
+                  {handledExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </span>
                 <span>Handled ({grouped.handledTotal})</span>
               </div>
