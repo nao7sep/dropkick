@@ -36,6 +36,9 @@ export {
   flushAppConfig,
 } from "./app-config-repository";
 
+export { loadNoteDrafts, flushNoteDrafts } from "./note-draft-repository";
+export type { LoadNoteDraftsResult } from "./note-draft-repository";
+
 export {
   loadPreferences,
   flushPreferences,

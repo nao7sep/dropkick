@@ -3,6 +3,9 @@ export type {
 } from "./app-config";
 export { createDefaultAppConfig } from "./app-config";
 
+export type { NoteDraftsDto } from "./note-drafts";
+export { createDefaultNoteDrafts } from "./note-drafts";
+
 export type {
   PreferencesDto,
 } from "./preferences";

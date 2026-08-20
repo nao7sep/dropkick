@@ -6,8 +6,6 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   showMessage,
-  showUnsavedChangesConfirm,
-  drainAllSerial,
   log,
   toErrorFields,
 } from "../../repositories";
@@ -15,8 +13,9 @@ import { usePreferencesStore } from "../../state/preferences-store";
 import { useAppConfigStore } from "../../state/app-config-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
-import { useNoteDraftStore, hasUnsavedDrafts } from "../../state/note-draft-store";
+import { useNoteDraftStore } from "../../state/note-draft-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
+import { useWindowClose } from "../../hooks/use-window-close";
 import { isComposingEvent } from "../../hooks/useComposing";
 import {
   pickNextActiveKey,
@@ -39,6 +38,7 @@ import {
 import {
   groupTasksForList,
   groupTasksForUnifiedView,
+  draftReconcileSubjects,
 } from "../../services";
 import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
@@ -289,59 +289,9 @@ export function MainWindow() {
       .catch((e) => log.warn("window setTitle failed", { title, ...toErrorFields(e) }));
   }, [activeTab?.displayName, activeTab?.filePath, activeTab?.isUnifiedView]);
 
-  // Hold the window open until pending writes are on disk.
-  //
-  // Tauri would otherwise terminate the renderer the moment the OS sends the
-  // close request. That defeats the "writes happen immediately" promise for
-  // anything still in flight, and for anything committed only on blur (title /
-  // description inputs, inline rename) where the user hits Cmd+Q while still
-  // focused on the field. We intercept the close request, blur the active
-  // element so its commit fires synchronously, wait for every per-path serial
-  // chain to settle, and only then destroy the window.
-  //
-  // The mounted flag protects against the StrictMode mount → cleanup → mount
-  // sequence so the listener is never double-registered or leaked.
-  useEffect(() => {
-    let mounted = true;
-    let unlistenFn: (() => void) | null = null;
-
-    (async () => {
-      const window = getCurrentWindow();
-      const unlisten = await window.onCloseRequested(async (event) => {
-        event.preventDefault();
-        log.info("window close requested", {});
-        try {
-          if (document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur();
-          }
-          // Quit is the one exit that ends the draft store's session, so it is
-          // the one exit that asks. Every other exit parks the draft instead.
-          const { drafts } = useNoteDraftStore.getState();
-          if (hasUnsavedDrafts(drafts)) {
-            const discard = await showUnsavedChangesConfirm();
-            if (!discard) return;
-          }
-          await drainAllSerial();
-          await window.destroy();
-        } catch (e) {
-          // A rejection from destroy() leaves the window open. Better that
-          // than an unhandled rejection with preventDefault already called —
-          // the user can retry the close.
-          log.error("window close failed", toErrorFields(e));
-        }
-      });
-      if (mounted) {
-        unlistenFn = unlisten;
-      } else {
-        unlisten();
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      unlistenFn?.();
-    };
-  }, []);
+  // Hold the window open until pending writes are on disk (see the hook for
+  // which exits this can and cannot see).
+  useWindowClose();
 
   // Load the active tab's file when the active tab changes.
   useEffect(() => {
@@ -400,6 +350,24 @@ export function MainWindow() {
       void loadFile(path);
     }
   }, [openListPathsKey, activeTab?.filePath, activeTab?.isUnifiedView, loadFile]);
+
+  // Reconcile the persisted note drafts once the picture is complete.
+  //
+  // Drafts now outlive the session, so a task or note deleted while its draft
+  // was parked would otherwise leave that draft behind for good — text with
+  // nowhere to return to, that the user cannot reach from any surface.
+  // Reconciliation can only DROP, so draftReconcileSubjects answers `null`
+  // until every open list has loaded; this effect just retries until it does
+  // and then runs exactly once for the session.
+  const reconciledRef = useRef(false);
+  useEffect(() => {
+    if (reconciledRef.current) return;
+    const paths = openListPathsKey ? openListPathsKey.split("\0") : [];
+    const subjects = draftReconcileSubjects(paths, files);
+    if (!subjects) return;
+    reconciledRef.current = true;
+    useNoteDraftStore.getState().reconcile(subjects);
+  }, [openListPathsKey, files]);
 
   // File-lifecycle unload. The set of file paths the workspace currently has
   // open drives which files are kept in memory; anything that drops out gets

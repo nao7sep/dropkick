@@ -11,6 +11,7 @@ import { showMessage, log, toErrorFields, loadFailureFields } from "./repositori
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppConfigStore } from "./state/app-config-store";
+import { useNoteDraftStore } from "./state/note-draft-store";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
@@ -28,6 +29,7 @@ function App() {
   const loadPreferences = usePreferencesStore((s) => s.load);
   const loadWorkspace = useWorkspaceStore((s) => s.load);
   const initializeAppConfig = useAppConfigStore((s) => s.initialize);
+  const loadNoteDrafts = useNoteDraftStore((s) => s.load);
   const setLastPaths = useAppConfigStore((s) => s.setLastPaths);
   const darkMode = usePreferencesStore((s) => s.preferences.darkMode);
   // Guards against a double Launch: phase stays "startup" until the awaited
@@ -120,6 +122,11 @@ function App() {
       // Remember only a successfully loaded selection.
       await setLastPaths(preferencesPath, workspacePath);
 
+      // Note drafts — the user's uncommitted note text, written through as they
+      // type. App-level like state.json, not part of the portable documents
+      // just loaded, so it is read here rather than alongside either of them.
+      const draftsQuarantinedTo = await loadNoteDrafts();
+
       // The just-in-case data backup is no longer a startup pass: it is now a
       // write-through store in the Rust core that records every managed-text save
       // the instant its atomic rename lands (see backup_store.rs). There is
@@ -139,6 +146,13 @@ function App() {
       });
 
       setPhase({ kind: "main" });
+
+      if (draftsQuarantinedTo) {
+        await showMessage(
+          "Unsaved Note Drafts Were Reset",
+          `DropKick could not read the note text you had typed but not yet saved. The file was set aside here:\n\n${draftsQuarantinedTo}\n\nYour task lists were not affected.`,
+        );
+      }
     } finally {
       // On failure, allow a retry; on success the picker unmounts so this is moot.
       launchingRef.current = false;

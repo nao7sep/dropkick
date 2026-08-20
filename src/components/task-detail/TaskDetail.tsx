@@ -28,11 +28,8 @@ import {
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
-import {
-  useNoteDraftStore,
-  composerDraftKey,
-  editorDraftKey,
-} from "../../state/note-draft-store";
+import { useNoteDraftStore } from "../../state/note-draft-store";
+import { composerDraftKey, editorDraftKey } from "../../services";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 
 interface TaskDetailProps {
@@ -71,14 +68,15 @@ export function TaskDetail({
   const [descDraft, setDescDraft] = useState(task.description);
   const [moveTarget, setMoveTarget] = useState("");
 
-  // The new-note composer draft lives in the session draft store, keyed by task
-  // id, so it survives this component unmounting (task switch, tab cycle, bulk
-  // action) and is restored when the task is selected again.
+  // The new-note composer draft lives in the draft store, keyed by task id, so
+  // it survives this component unmounting (task switch, tab cycle, bulk action),
+  // is restored when the task is selected again, and — because the store writes
+  // through to disk — survives quitting the app.
   const newNoteContent = useNoteDraftStore(
-    (s) => s.drafts[composerDraftKey(task.id)]?.text ?? "",
+    (s) => s.drafts[composerDraftKey(task.id)] ?? "",
   );
-  const updateComposerDraft = useNoteDraftStore((s) => s.updateDraft);
-  const clearComposerDraft = useNoteDraftStore((s) => s.clearDraft);
+  const updateComposerDraft = useNoteDraftStore((s) => s.setDraft);
+  const clearComposerDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
   const clearTaskDrafts = useNoteDraftStore((s) => s.clearTaskDrafts);
 
   // Available move destinations (other open task list tabs).
@@ -233,7 +231,7 @@ export function TaskDetail({
       actionability,
     );
     if (await showWriteFailure("Note Update Failed", result)) return;
-    clearComposerDraft(composerDraftKey(task.id));
+    clearComposerDraftIf(composerDraftKey(task.id), newNoteContent);
   };
 
   const handleMoveTask = async () => {
@@ -517,20 +515,34 @@ function NoteItem({
   const removeNote = useTaskListStore((s) => s.removeNote);
   const setActionability = useTaskListStore((s) => s.setNoteActionability);
 
-  // The edit draft lives in the session draft store; its presence IS the
-  // editing state, so the two can never disagree and a parked edit survives
-  // this component unmounting (the detail pane re-renders on every selection
-  // or task change). Edit seeds it, Save and Cancel clear it.
+  // The edit draft lives in the draft store; its presence IS the editing state,
+  // so the two can never disagree and a parked edit survives this component
+  // unmounting (the detail pane re-renders on every selection or task change)
+  // and, because the store writes through to disk, quitting the app. Edit seeds
+  // it, Save and Cancel clear it.
   const draftKey = editorDraftKey(taskId, note.id);
   const entry = useNoteDraftStore((s) => s.drafts[draftKey]);
-  const beginDraft = useNoteDraftStore((s) => s.beginDraft);
-  const updateDraft = useNoteDraftStore((s) => s.updateDraft);
+  const setDraft = useNoteDraftStore((s) => s.setDraft);
+  const openDraft = useNoteDraftStore((s) => s.openDraft);
   const clearDraft = useNoteDraftStore((s) => s.clearDraft);
+  const clearDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
+  const justOpened = useNoteDraftStore((s) => s.justOpenedKey === draftKey);
+  const clearJustOpened = useNoteDraftStore((s) => s.clearJustOpened);
   const editing = entry !== undefined;
-  const draft = entry?.text ?? "";
+  const draft = entry ?? "";
   const composing = useComposing();
   const editRef = useRef<HTMLTextAreaElement>(null);
   const autoGrowEdit = useAutoGrow(editRef);
+
+  // Focus the editor the user just opened. Deliberately not `autoFocus`, which
+  // fires on every mount: a parked draft keeps the editor open, and the detail
+  // pane remounts on every task selection, so `autoFocus` stole the arrow keys
+  // from the task list each time the user landed back on the task.
+  useEffect(() => {
+    if (!justOpened) return;
+    editRef.current?.focus();
+    clearJustOpened();
+  }, [justOpened, clearJustOpened]);
 
   // Re-measure when draft changes or when entering edit mode.
   useEffect(() => {
@@ -553,7 +565,7 @@ function NoteItem({
         return;
       }
     }
-    clearDraft(draftKey);
+    clearDraftIf(draftKey, draft);
   };
 
   const handleDeleteNote = async () => {
@@ -629,7 +641,7 @@ function NoteItem({
             ref={editRef}
             value={draft}
             onChange={(e) => {
-              updateDraft(draftKey, e.target.value);
+              setDraft(draftKey, e.target.value);
               autoGrowEdit();
             }}
             onKeyDown={(e) => {
@@ -643,7 +655,6 @@ function NoteItem({
             {...composing.handlers}
             rows={2}
             className="w-full resize-none rounded border border-border p-2 text-sm outline-none focus:border-primary-ring"
-            autoFocus
           />
           <div className="mt-1 flex gap-2">
             <button
@@ -663,7 +674,7 @@ function NoteItem({
         </div>
       ) : (
         <div
-          onClick={() => beginDraft(draftKey, note.content)}
+          onClick={() => openDraft(draftKey, note.content)}
           className="cursor-pointer text-sm text-ink"
         >
           <p className="whitespace-pre-wrap break-words">{note.content}</p>

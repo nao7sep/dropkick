@@ -43,3 +43,11 @@ export {
   parseKickDistances,
   isPreferencesDraftDirty,
 } from "./preferences-draft";
+
+export {
+  composerDraftKey,
+  editorDraftKey,
+  collectDraftSubjects,
+  reconcileDrafts,
+  draftReconcileSubjects,
+} from "./note-drafts";
