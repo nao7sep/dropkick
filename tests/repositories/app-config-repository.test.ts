@@ -181,6 +181,53 @@ describe("corrupt state.json", () => {
   });
 });
 
+describe("seeding the built-in default documents", () => {
+  it("re-materializes a default document deleted on its own", async () => {
+    // Gating this on state.json's absence meant deleting
+    // ~/.dropkick/preferences.json alone left it gone for good: state.json
+    // survived, so nothing re-created it, while knownPreferences still listed
+    // it and Launch dead-ended at "could not be found".
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: {
+        version: "1.0.0",
+        lastPreferencesPath: `${ROOT}/preferences.json`,
+        lastWorkspacePath: `${ROOT}/workspace.json`,
+        knownPreferences: [`${ROOT}/preferences.json`],
+        knownWorkspaces: [`${ROOT}/workspace.json`],
+      },
+    });
+    // The workspace is still there; only the preferences file went missing.
+    fileExists.mockImplementation(async (path: string) =>
+      path !== `${ROOT}/preferences.json`,
+    );
+
+    await initializeAppConfig();
+
+    const written = writeJsonFile.mock.calls.map((c) => c[0]);
+    expect(written).toContain(`${ROOT}/preferences.json`);
+    expect(written).not.toContain(`${ROOT}/workspace.json`);
+  });
+
+  it("writes nothing when both default documents are present", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: {
+        version: "1.0.0",
+        lastPreferencesPath: "",
+        lastWorkspacePath: "",
+        knownPreferences: [],
+        knownWorkspaces: [],
+      },
+    });
+    fileExists.mockResolvedValue(true);
+
+    await initializeAppConfig();
+
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+});
+
 describe("shape-damaged state.json", () => {
   it.each([
     ["a null root", null],

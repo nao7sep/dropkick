@@ -14,11 +14,7 @@
 // useAppConfigStore; this module owns I/O only.
 
 import type { AppConfigDto } from "../models";
-import {
-  createDefaultAppConfig,
-  createDefaultPreferences,
-  createDefaultWorkspace,
-} from "../models";
+import { createDefaultAppConfig } from "../models";
 import {
   readJsonFileResult,
   writeJsonFile,
@@ -29,6 +25,8 @@ import {
   joinPath,
   withSerial,
 } from "./file-system";
+import { createPreferencesFile } from "./preferences-repository";
+import { createWorkspaceFile } from "./workspace-repository";
 import { mergeWithDefaults } from "../utils/merge-defaults";
 import { log } from "./logging";
 
@@ -117,19 +115,6 @@ export async function initializeAppConfig(): Promise<{
   let config: AppConfigDto;
   const created = configResult.status === "missing" || quarantinedTo !== null;
   if (created) {
-    // Create default preferences if missing.
-    if (!(await fileExists(prefsPath))) {
-      const prefs = createDefaultPreferences("Default");
-      await writeJsonFile(prefsPath, prefs);
-    }
-
-    // Create default workspace if missing.
-    if (!(await fileExists(workspacePath))) {
-      const workspace = createDefaultWorkspace("Default");
-      const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
-      await writeJsonFile(workspacePath, persisted);
-    }
-
     config = createDefaultAppConfig();
     config.lastPreferencesPath = prefsPath;
     config.lastWorkspacePath = workspacePath;
@@ -146,6 +131,25 @@ export async function initializeAppConfig(): Promise<{
     );
   } else {
     throw new Error(`Failed to load app config: ${configResult.message}`);
+  }
+
+  // Materialize the built-in default documents whenever they are absent, not
+  // only on a first run.
+  //
+  // Gating this on state.json's absence meant that deleting or moving
+  // ~/.dropkick/preferences.json on its own left it gone for good: state.json
+  // survived, so nothing re-created it, while knownPreferences still listed it
+  // and the picker still preselected it — so Launch dead-ended at "could not be
+  // found" with no recovery but New. Absence of the file itself is the single
+  // trigger the storage-path conventions name.
+  //
+  // Creation goes through the owning repositories rather than being open-coded
+  // here, so a seeded document and a New-created one cannot drift apart.
+  if (!(await fileExists(prefsPath))) {
+    await createPreferencesFile(prefsPath, "Default");
+  }
+  if (!(await fileExists(workspacePath))) {
+    await createWorkspaceFile(workspacePath, "Default");
   }
 
   log.info("app config initialized", { configPath, created });
