@@ -15,7 +15,6 @@ import {
   readJsonFileWithHash,
   writeJsonFile,
   hashFile,
-  fileExists,
   withSerial,
   withSerialTwo,
 } from "./file-system";
@@ -115,12 +114,7 @@ export async function createTaskListFile(
 ): Promise<LoadedTaskList> {
   return withSerial(filePath, async () => {
     const data = createEmptyTaskList();
-    await writeJsonFile(filePath, data);
-    const hash = await hashFile(filePath);
-    if (hash === null) {
-      throw new Error(`Failed to hash newly created file: ${filePath}`);
-    }
-    rememberHash(filePath, hash);
+    rememberHash(filePath, await writeJsonFile(filePath, data));
     return { filePath, data };
   });
 }
@@ -131,12 +125,11 @@ async function writeAndRemember(
   filePath: string,
   data: TaskListDto,
 ): Promise<void> {
-  await writeJsonFile(filePath, data);
-  const newHash = await hashFile(filePath);
-  if (newHash === null) {
-    throw new Error(`Failed to hash file after write: ${filePath}`);
-  }
-  rememberHash(filePath, newHash);
+  // The core hashes the bytes it wrote and hands the digest back, so there is
+  // no read-back here: it would cost a second full read of the file per save,
+  // and it could hash a concurrent writer's content rather than what this call
+  // actually wrote — which is exactly the hash this stores as "ours".
+  rememberHash(filePath, await writeJsonFile(filePath, data));
 }
 
 type HashCheckedWrite =
@@ -153,7 +146,8 @@ async function writeIfHashMatches(
     // Repository contract: callers register the file by loading it first.
     throw new Error(`File not registered: ${filePath}`);
   }
-  if (!(await fileExists(filePath))) return { status: "deleted" };
+  // hashFile already reports a missing file as null, so "does it exist?" is
+  // answered once rather than in two places that could disagree.
   const current = await hashFile(filePath);
   if (current === null) return { status: "deleted" };
   if (current !== expected) return { status: "conflict" };

@@ -282,15 +282,20 @@ fn read_text_file(path: &str) -> Result<TextReadResult, String> {
 // The staging file's name is `<stem>-<nanoid>.tmp` (see atomic_temp_name); the
 // nanoid discriminator is generated here, in the Rust core, via the `nanoid`
 // module — no caller-supplied token crosses the IPC boundary.
+// Returns the SHA-256 of the bytes it wrote. The caller needs that hash to
+// detect a later external modification, and computing it here from the bytes
+// already in hand saves reading the whole file back — and removes the window in
+// which a re-read could hash a concurrent writer's content instead of this
+// call's.
 #[tauri::command]
-fn write_text_file_atomic(path: &str, contents: &str) -> Result<(), String> {
+fn write_text_file_atomic(path: &str, contents: &str) -> Result<String, String> {
     let started = log_cmd_start(
         "write_text_file_atomic",
         json!({ "path": path, "bytes": contents.len() }),
     );
     let result = write_atomic(path, contents);
     match &result {
-        Ok(()) => log_cmd_ok(
+        Ok(_) => log_cmd_ok(
             "write_text_file_atomic",
             started,
             json!({ "path": path, "bytes": contents.len() }),
@@ -315,7 +320,7 @@ fn atomic_temp_name(file_name: &str) -> String {
     format!("{}-{}.tmp", stem, nanoid::generate())
 }
 
-fn write_atomic(path: &str, contents: &str) -> Result<(), String> {
+fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
     use std::io::Write;
     let target = std::path::Path::new(path);
     let parent = target
@@ -367,7 +372,7 @@ fn write_atomic(path: &str, contents: &str) -> Result<(), String> {
     // the backup_store's own SQLite file (written by the backup layer, not here).
     backup_store::record(target, contents.as_bytes());
 
-    Ok(())
+    Ok(sha256_hex(contents.as_bytes()))
 }
 
 #[tauri::command]
@@ -742,6 +747,27 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
             .collect();
         assert!(leftovers.is_empty(), "temp files left: {leftovers:?}");
+    }
+
+    #[test]
+    #[serial(backup_store)]
+    fn write_text_file_atomic_returns_the_hash_of_what_it_wrote() {
+        // The caller registers this digest as "the file as we last wrote it",
+        // and uses it to detect a later external modification. Returning it
+        // from here is what lets the caller skip reading the whole file back —
+        // and what stops a concurrent writer's bytes being hashed instead.
+        let dir = unique_temp_dir("write-hash");
+        let path = dir.join("f.json");
+        let p = path.to_str().unwrap();
+
+        let hash = write_text_file_atomic(p, "hello").unwrap();
+        assert_eq!(hash, sha256_hex(b"hello"));
+        assert_eq!(hash, hash_file(p).unwrap());
+
+        // A second write reports the new content's hash, not the old one.
+        let next = write_text_file_atomic(p, "goodbye").unwrap();
+        assert_ne!(next, hash);
+        assert_eq!(next, hash_file(p).unwrap());
     }
 
     #[test]

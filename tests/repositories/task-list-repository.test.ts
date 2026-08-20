@@ -31,7 +31,8 @@ const data = (tasks: TaskListDto["tasks"] = []): TaskListDto => ({ version: "1.0
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  writeJsonFile.mockResolvedValue(undefined);
+  // The core hashes the bytes it wrote and returns the digest.
+  writeJsonFile.mockResolvedValue("HW");
   fileExists.mockResolvedValue(true);
   vi.resetModules();
   repo = await import("../../src/repositories/task-list-repository");
@@ -62,7 +63,8 @@ describe("loadTaskList", () => {
       data: { version: "1.0.0", id: "", tasks: [] },
       hash: "OLD",
     });
-    hashFile.mockResolvedValue("NEWHASH"); // the post-write rehash
+    // The core returns the hash of the bytes it wrote; nothing is read back.
+    writeJsonFile.mockResolvedValue("NEWHASH");
 
     const result = await repo.loadTaskList("/legacy.json");
 
@@ -75,9 +77,10 @@ describe("loadTaskList", () => {
     if (result.status !== "success") throw new Error("expected success");
     expect(result.taskList.data.id).toBe((written as TaskListDto).id);
 
-    // The re-hash is now the registered hash: a matching flush uses it, no conflict.
+    // The write's own hash is now the registered hash: a matching flush uses
+    // it, no conflict.
     hashFile.mockReset();
-    hashFile.mockResolvedValueOnce("NEWHASH").mockResolvedValueOnce("NEWHASH2");
+    hashFile.mockResolvedValue("NEWHASH");
     expect(await repo.flushTaskList("/legacy.json", () => data())).toEqual({ status: "success" });
   });
 
@@ -95,21 +98,17 @@ describe("loadTaskList", () => {
 });
 
 describe("createTaskListFile", () => {
-  it("writes an empty list, hashes it, and registers it", async () => {
-    hashFile.mockResolvedValue("HNEW");
+  it("writes an empty list and registers the hash the write reported", async () => {
+    writeJsonFile.mockResolvedValue("HNEW");
     const result = await repo.createTaskListFile("/f.json");
     expect(writeJsonFile).toHaveBeenCalledWith("/f.json", expect.objectContaining({ tasks: [] }));
     expect(result.filePath).toBe("/f.json");
     // Registered: a subsequent matching flush should succeed.
     hashFile.mockReset();
-    hashFile.mockResolvedValueOnce("HNEW").mockResolvedValueOnce("HNEW2");
+    hashFile.mockResolvedValue("HNEW");
     expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
   });
 
-  it("throws if the new file cannot be hashed", async () => {
-    hashFile.mockResolvedValue(null);
-    await expect(repo.createTaskListFile("/f.json")).rejects.toThrow(/Failed to hash/);
-  });
 });
 
 describe("flushTaskList — happy path and registration", () => {
@@ -122,8 +121,8 @@ describe("flushTaskList — happy path and registration", () => {
 
   it("writes when the on-disk hash matches the known hash", async () => {
     await register("/f.json", "H0");
-    // First hashFile call = the pre-write check (matches H0); second = post-write rehash.
-    hashFile.mockResolvedValueOnce("H0").mockResolvedValueOnce("H1");
+    // The only hashFile call is the pre-write check; the write reports its own.
+    hashFile.mockResolvedValue("H0");
     const result = await repo.flushTaskList("/f.json", () => data());
     expect(result).toEqual({ status: "success" });
     expect(writeJsonFile).toHaveBeenCalledWith("/f.json", data());
@@ -140,7 +139,7 @@ describe("flushTaskList — conflict resolution", () => {
   it("overwrites when the user chooses overwrite", async () => {
     showFileConflictDialog.mockResolvedValue("overwrite");
     // writeAndRemember rehashes after the overwrite write.
-    hashFile.mockResolvedValueOnce("DIFFERENT").mockResolvedValueOnce("H2");
+    hashFile.mockResolvedValue("DIFFERENT");
     const result = await repo.flushTaskList("/f.json", () => data());
     expect(result).toEqual({ status: "success" });
     expect(writeJsonFile).toHaveBeenCalled();
@@ -178,12 +177,15 @@ describe("flushTaskList — conflict resolution", () => {
 describe("flushTaskList — deleted resolution", () => {
   beforeEach(async () => {
     await register("/f.json", "H0");
-    fileExists.mockResolvedValue(false); // file vanished from disk
+    // The file vanished from disk. hashFile is the single source of truth for
+    // that now — it returns null for a missing file, so the repository does not
+    // ask fileExists the same question a second time.
+    hashFile.mockResolvedValue(null);
   });
 
   it("recreates the file when the user chooses save", async () => {
     showFileDeletedDialog.mockResolvedValue("save");
-    hashFile.mockResolvedValue("HSAVED");
+    writeJsonFile.mockResolvedValue("HSAVED");
     const result = await repo.flushTaskList("/f.json", () => data());
     expect(result).toEqual({ status: "success" });
     expect(writeJsonFile).toHaveBeenCalled();
@@ -210,13 +212,13 @@ describe("forgetTaskList", () => {
 });
 
 describe("forceFlushTaskList", () => {
-  it("writes without any hash check and registers the new hash", async () => {
-    hashFile.mockResolvedValue("HFORCE");
+  it("writes without any hash check and registers the hash the write reported", async () => {
+    writeJsonFile.mockResolvedValue("HFORCE");
     await repo.forceFlushTaskList("/f.json", data());
     expect(writeJsonFile).toHaveBeenCalledWith("/f.json", data());
     // Now registered: a matching flush succeeds without a prior load.
     hashFile.mockReset();
-    hashFile.mockResolvedValueOnce("HFORCE").mockResolvedValueOnce("HFORCE2");
+    hashFile.mockResolvedValue("HFORCE");
     expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
   });
 });
@@ -260,10 +262,11 @@ describe("flushMove", () => {
 
   it("writes destination then source on success", async () => {
     await registerBoth();
-    // dest check matches D0 then rehash; source check matches S0 then rehash.
+    // One hashFile call per file now: the pre-write check. The write reports
+    // its own hash, so there is no rehash to sequence.
     hashFile
-      .mockResolvedValueOnce("D0").mockResolvedValueOnce("D1") // dest write
-      .mockResolvedValueOnce("S0").mockResolvedValueOnce("S1"); // source write
+      .mockResolvedValueOnce("D0") // dest check matches
+      .mockResolvedValueOnce("S0"); // source check matches
     const result = await repo.flushMove(SRC, DST, inputs);
     expect(result.status).toBe("success");
     // Destination written before source (addition before deletion).
@@ -282,9 +285,9 @@ describe("flushMove", () => {
   it("rolls back the destination when the source write conflicts", async () => {
     await registerBoth();
     hashFile
-      .mockResolvedValueOnce("D0").mockResolvedValueOnce("D1") // dest write ok
+      .mockResolvedValueOnce("D0") // dest check matches -> dest write ok
       .mockResolvedValueOnce("SRC-CHANGED") // source check mismatch -> conflict
-      .mockResolvedValueOnce("D1").mockResolvedValueOnce("D2"); // rollback dest write ok
+      .mockResolvedValueOnce("HW"); // rollback dest check matches the write hash
     const result = await repo.flushMove(SRC, DST, inputs);
     expect(result).toEqual({ status: "source-conflict" });
     // dest written, source NOT written, dest rolled back -> 2 dest writes total.
