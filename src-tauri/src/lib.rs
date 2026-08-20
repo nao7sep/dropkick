@@ -505,16 +505,16 @@ fn ensure_dir(path: &str) -> Result<(), String> {
 // absolute root, rather than reconstructing the root from `homeDir()` itself
 // (which cannot read `DROPKICK_HOME` and is forbidden by the per-stack rule).
 #[tauri::command(async)]
-fn app_data_root(app: AppHandle) -> Result<String, String> {
-    let started = log_cmd_start("app_data_root", json!({}));
+fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
+    let started = log_cmd_start("app_paths", json!({}));
     match paths::data_root(&app) {
         Ok(root) => {
-            let root = root.to_string_lossy().to_string();
-            log_cmd_ok("app_data_root", started, json!({ "root": root }));
-            Ok(root)
+            let layout = paths::app_paths(&root);
+            log_cmd_ok("app_paths", started, json!({ "root": layout.root }));
+            Ok(layout)
         }
         Err(message) => {
-            log_cmd_err("app_data_root", started, message.clone());
+            log_cmd_err("app_paths", started, message.clone());
             Err(message)
         }
     }
@@ -562,11 +562,12 @@ pub fn run() {
             // StartupErrorScreen, built for exactly this class of failure, is
             // never reached. Degrade instead: skip the log file and the backup
             // store, let the window open, and let the webview's own
-            // app_data_root call return the same error for that screen to show.
+            // app_paths call return the same error for that screen to show.
             match paths::data_root(app.handle()) {
                 Ok(data_root) => {
-                    let log_path =
-                        data_root.join("logs").join(logging::session_filename());
+                    let layout = paths::app_paths(&data_root);
+                    let log_path = std::path::Path::new(&layout.logs_dir)
+                        .join(logging::session_filename());
                     logging::init(&log_path, debug_enabled);
                     install_panic_hook();
 
@@ -576,7 +577,7 @@ pub fn run() {
                     // disabled for the session — it never blocks startup. Every
                     // managed-text save from now on records through it, strictly
                     // after its atomic rename lands (see write_atomic).
-                    backup_store::init(data_root.join("backups.sqlite3"));
+                    backup_store::init(std::path::PathBuf::from(&layout.backups_file));
 
                     logging::info(
                         "app startup",
@@ -608,7 +609,7 @@ pub fn run() {
             file_exists,
             quarantine_file,
             ensure_dir,
-            app_data_root,
+            app_paths,
             log_event,
             logging_debug_enabled
         ])

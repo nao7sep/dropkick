@@ -53,8 +53,16 @@ beforeEach(async () => {
   diskRead = { status: "missing" };
   invokeMock.mockImplementation((cmd: string) => {
     switch (cmd) {
-      case "app_data_root":
-        return Promise.resolve(ROOT);
+      case "app_paths":
+        return Promise.resolve({
+          root: ROOT,
+          stateFile: `${ROOT}/state.json`,
+          preferencesFile: `${ROOT}/preferences.json`,
+          workspaceFile: `${ROOT}/workspace.json`,
+          noteDraftsFile: DRAFTS_PATH,
+          logsDir: `${ROOT}/logs`,
+          backupsFile: `${ROOT}/backups.sqlite3`,
+        });
       case "read_text_file":
         return Promise.resolve(diskRead);
       case "quarantine_file":

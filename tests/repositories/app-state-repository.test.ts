@@ -8,7 +8,7 @@ const readJsonFileResult = vi.fn();
 const writeJsonFile = vi.fn();
 const ensureDirectory = vi.fn();
 const fileExists = vi.fn();
-const appDataRoot = vi.fn();
+const appPaths = vi.fn();
 const quarantineFile = vi.fn();
 
 vi.mock("../../src/repositories/file-system", () => ({
@@ -16,10 +16,8 @@ vi.mock("../../src/repositories/file-system", () => ({
   writeJsonFile: (p: string, d: unknown) => writeJsonFile(p, d),
   ensureDirectory: (p: string) => ensureDirectory(p),
   fileExists: (p: string) => fileExists(p),
-  appDataRoot: () => appDataRoot(),
+  appPaths: () => appPaths(),
   quarantineFile: (p: string) => quarantineFile(p),
-  // The repository joins with plain "/"; mirror that so asserted paths are stable.
-  joinPath: (...parts: string[]) => parts.join("/"),
   withSerial: (_p: string, fn: () => unknown) => fn(),
 }));
 
@@ -37,15 +35,23 @@ beforeEach(() => {
   writeJsonFile.mockReset();
   ensureDirectory.mockReset();
   fileExists.mockReset();
-  appDataRoot.mockReset();
+  appPaths.mockReset();
   quarantineFile.mockReset();
-  appDataRoot.mockResolvedValue(ROOT);
+  appPaths.mockResolvedValue({
+    root: ROOT,
+    stateFile: `${ROOT}/state.json`,
+    preferencesFile: `${ROOT}/preferences.json`,
+    workspaceFile: `${ROOT}/workspace.json`,
+    noteDraftsFile: `${ROOT}/note-drafts.json`,
+    logsDir: `${ROOT}/logs`,
+    backupsFile: `${ROOT}/backups.sqlite3`,
+  });
   ensureDirectory.mockResolvedValue(undefined);
   writeJsonFile.mockResolvedValue(undefined);
 });
 
 describe("app-level storage filenames", () => {
-  it("reads and writes app state from state.json — never app.json or a appState.json", async () => {
+  it("reads and writes app state from state.json — never app.json or a config.json", async () => {
     // Fresh install: no state file yet, so both seed files get created too.
     readJsonFileResult.mockResolvedValue({ status: "missing" });
     fileExists.mockResolvedValue(false);
@@ -53,14 +59,14 @@ describe("app-level storage filenames", () => {
     const { statePath } = await initializeAppState();
 
     // The single app-level file is state.json (state, not config): one file,
-    // one role. There is deliberately no appState.json — every field is
+    // one role. There is deliberately no config.json — every field is
     // rebuildable, so the config/state split collapses to state-only.
     expect(statePath).toBe(`${ROOT}/state.json`);
 
     const writtenPaths = writeJsonFile.mock.calls.map((c) => c[0]);
     expect(writtenPaths).toContain(`${ROOT}/state.json`);
     expect(writtenPaths).not.toContain(`${ROOT}/app.json`);
-    expect(writtenPaths).not.toContain(`${ROOT}/appState.json`);
+    expect(writtenPaths).not.toContain(`${ROOT}/config.json`);
   });
 
   it("seeds the default user documents without the redundant default- prefix", async () => {

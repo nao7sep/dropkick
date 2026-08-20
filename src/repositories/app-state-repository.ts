@@ -21,8 +21,7 @@ import {
   quarantineFile,
   ensureDirectory,
   fileExists,
-  appDataRoot,
-  joinPath,
+  appPaths,
   withSerial,
 } from "./file-system";
 import { createPreferencesFile } from "./preferences-repository";
@@ -30,9 +29,6 @@ import { createWorkspaceFile } from "./workspace-repository";
 import { mergeWithDefaults } from "../utils/merge-defaults";
 import { log } from "./logging";
 
-const APP_STATE_FILE = "state.json";
-const DEFAULT_PREFERENCES_FILE = "preferences.json";
-const DEFAULT_WORKSPACE_FILE = "workspace.json";
 
 function appStateShapeIssue(value: unknown): string | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -66,27 +62,23 @@ function appStateShapeIssue(value: unknown): string | null {
   return null;
 }
 
-// Returns the full path to <root>/state.json
-async function getAppStatePath(): Promise<string> {
-  const dir = await appDataRoot();
-  return joinPath(dir, APP_STATE_FILE);
-}
-
-// First-launch setup: creates ~/.dropkick/ with default config, preferences, and workspace.
-// Returns the app appState. Once app config exists, selected files are never
+// First-launch setup: creates ~/.dropkick/ with the default state, preferences
+// and workspace documents. Once the state file exists, selected files are never
 // recreated implicitly; missing selections are reported by their loaders.
 export async function initializeAppState(): Promise<{
   appState: AppStateDto;
   statePath: string;
   quarantinedTo: string | null;
 }> {
-  const dir = await appDataRoot();
-  const statePath = await getAppStatePath();
-  const prefsPath = joinPath(dir, DEFAULT_PREFERENCES_FILE);
-  const workspacePath = joinPath(dir, DEFAULT_WORKSPACE_FILE);
+  const {
+    root,
+    stateFile: statePath,
+    preferencesFile: prefsPath,
+    workspaceFile: workspacePath,
+  } = await appPaths();
 
   // Ensure ~/.dropkick/ exists.
-  await ensureDirectory(dir);
+  await ensureDirectory(root);
 
   // Create or read app appState.
   const configResult = await readJsonFileResult<unknown>(statePath);

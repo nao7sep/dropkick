@@ -10,13 +10,11 @@ import {
   readJsonFileResult,
   writeJsonFile,
   quarantineFile,
-  appDataRoot,
-  joinPath,
+  appPaths,
   withSerial,
 } from "./file-system";
 import { log, toErrorFields } from "./logging";
 
-const NOTE_DRAFTS_FILE = "note-drafts.json";
 
 export interface LoadNoteDraftsResult {
   drafts: Record<string, string>;
@@ -61,7 +59,7 @@ function noteDraftsShapeIssue(value: unknown): string | null {
 // leaves `filePath` empty so the session keeps drafts in memory and writes
 // nothing over the bytes it could not read.
 export async function loadNoteDrafts(): Promise<LoadNoteDraftsResult> {
-  const filePath = joinPath(await appDataRoot(), NOTE_DRAFTS_FILE);
+  const { noteDraftsFile: filePath } = await appPaths();
   const result = await readJsonFileResult<unknown>(filePath);
 
   if (result.status === "missing") {

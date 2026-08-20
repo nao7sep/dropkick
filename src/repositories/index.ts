@@ -9,8 +9,7 @@ export {
   hashFile,
   fileExists,
   ensureDirectory,
-  appDataRoot,
-  joinPath,
+  appPaths,
   withSerial,
   withSerialTwo,
   drainAllSerial,
@@ -67,3 +66,5 @@ export {
   flushMove,
   forgetTaskList,
 } from "./task-list-repository";
+
+export type { AppPaths } from "./file-system";

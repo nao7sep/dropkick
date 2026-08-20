@@ -8,10 +8,11 @@
 //! directory — never the current working directory — so the location the app
 //! reads and writes can never depend on how the process was launched.
 //!
-//! Both the log-file resolver (`run()` in `lib.rs`) and the `app_data_root`
+//! Both the log-file resolver (`run()` in `lib.rs`) and the `app_paths`
 //! command the frontend calls route through `data_root` here, so there is one
 //! source of truth and the frontend never reconstructs `~/.dropkick` itself.
 
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Manager};
@@ -123,5 +124,46 @@ fn absolutize(home: &Path, path: PathBuf) -> PathBuf {
         path
     } else {
         home.join(path)
+    }
+}
+
+// The names of every standard subpath under the storage root.
+//
+// They live here, beside the resolver that owns the root, because the
+// storage-path conventions put the whole layout in one place — and because on
+// Tauri the webview must never resolve a data path itself. Scattered across the
+// two processes, the layout was described nowhere: adding or renaming a store
+// meant finding five unrelated files, and the sandboxed half was composing
+// absolute paths with a hand-rolled separator guess.
+const STATE_FILE: &str = "state.json";
+const PREFERENCES_FILE: &str = "preferences.json";
+const WORKSPACE_FILE: &str = "workspace.json";
+const NOTE_DRAFTS_FILE: &str = "note-drafts.json";
+const LOGS_DIR: &str = "logs";
+const BACKUPS_FILE: &str = "backups.sqlite3";
+
+/// Every path the app reads or writes under its storage root, resolved once.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppPaths {
+    pub root: String,
+    pub state_file: String,
+    pub preferences_file: String,
+    pub workspace_file: String,
+    pub note_drafts_file: String,
+    pub logs_dir: String,
+    pub backups_file: String,
+}
+
+pub fn app_paths(root: &Path) -> AppPaths {
+    let at = |name: &str| root.join(name).to_string_lossy().into_owned();
+    AppPaths {
+        root: root.to_string_lossy().into_owned(),
+        state_file: at(STATE_FILE),
+        preferences_file: at(PREFERENCES_FILE),
+        workspace_file: at(WORKSPACE_FILE),
+        note_drafts_file: at(NOTE_DRAFTS_FILE),
+        logs_dir: at(LOGS_DIR),
+        backups_file: at(BACKUPS_FILE),
     }
 }

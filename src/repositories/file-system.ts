@@ -120,30 +120,26 @@ export async function ensureDirectory(path: string): Promise<void> {
   await invoke("ensure_dir", { path });
 }
 
-// Returns the app's absolute storage root (`~/.dropkick`, or DROPKICK_HOME),
-// resolved and created by the Rust core. The Rust core is the only path
-// resolver: the webview never reconstructs the root from homeDir() (which
-// cannot read DROPKICK_HOME) — it calls this once and joins subpaths onto the
-// returned absolute root with joinPath below.
-export async function appDataRoot(): Promise<string> {
-  return await invoke<string>("app_data_root");
+// Every path the app reads or writes under its storage root.
+//
+// The Rust core resolves the whole layout — the root AND the name of every
+// standard subpath — so the webview never composes a data path of its own. It
+// used to receive only the root and join names onto it with a separator
+// inferred from the string, which put path composition in the sandboxed process
+// the storage-path conventions deliberately keep it out of, and left the layout
+// itself described in no single place.
+export interface AppPaths {
+  root: string;
+  stateFile: string;
+  preferencesFile: string;
+  workspaceFile: string;
+  noteDraftsFile: string;
+  logsDir: string;
+  backupsFile: string;
 }
 
-// Joins path segments onto an already-absolute base using that base's own
-// separator. With the absolute root supplied by Rust, this replaces the old
-// separator-by-string-inspection: we infer the platform separator from the
-// base (a Windows path contains "\") and trim any stray separators between
-// segments rather than guessing whether to insert one.
-export function joinPath(base: string, ...segments: string[]): string {
-  const sep = base.includes("\\") && !base.includes("/") ? "\\" : "/";
-  const trimEnd = (s: string) => s.replace(/[/\\]+$/, "");
-  const trimBoth = (s: string) => s.replace(/^[/\\]+|[/\\]+$/g, "");
-  let result = trimEnd(base);
-  for (const segment of segments) {
-    const part = trimBoth(segment);
-    if (part) result = `${result}${sep}${part}`;
-  }
-  return result;
+export async function appPaths(): Promise<AppPaths> {
+  return await invoke<AppPaths>("app_paths");
 }
 
 // --- Per-key serialization ---
