@@ -220,10 +220,19 @@ fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
 }
 
 // Generic text read with an explicit missing/success/error union — the
-// non-task-list counterpart to read_json_file_with_hash. Moving plain reads here
-// (alongside writes/exists/mkdir below) is what lets the webview drop the Tauri
-// fs plugin and its broad `$HOME/**` scope: the Rust core reaches the user's
-// chosen files directly, so a compromised renderer cannot.
+// non-task-list counterpart to read_json_file_with_hash. Moving plain reads
+// here (alongside writes/exists/mkdir below) lets the webview drop the Tauri fs
+// plugin, so no file API is exposed to page script directly.
+//
+// It is NOT a sandbox, and nothing here should be read as one: these commands
+// take an absolute path straight from the webview and hand it to std::fs with
+// no scope, canonicalization or traversal check, which is broader reach than
+// the fs plugin's `$HOME/**` would have been. Nothing in the app can execute
+// attacker code in the renderer — no eval, no dangerouslySetInnerHTML, no shell
+// — so the exposure is a supply-chain one: a compromised npm dependency runs as
+// `'self'` script and can read or write any file the user can. Scoping these
+// commands (a runtime allow-list grown from the paths the user actually picks
+// in a dialog) is open work, tracked in the fleet app-review plan.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 enum TextReadResult {

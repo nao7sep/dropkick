@@ -1,8 +1,11 @@
 // Low-level file system operations, all via the Rust core (Tauri commands).
-// The webview has NO direct filesystem access — no fs plugin, no `$HOME/**`
-// scope — so a compromised renderer cannot read or write arbitrary files; the
-// Rust core reaches only the specific paths these commands are handed. All file
-// I/O goes through this module.
+// The webview carries no fs plugin, so no file API is exposed to page script
+// directly and all file I/O goes through this module.
+//
+// That is not a sandbox: these commands pass an absolute path to the core,
+// which does not scope or canonicalize it, so code running in the renderer can
+// reach any file the user can. See the note above read_text_file in
+// src-tauri/src/lib.rs for the exposure this does and does not cover.
 
 import { invoke } from "@tauri-apps/api/core";
 import { log, toErrorFields } from "./logging";
