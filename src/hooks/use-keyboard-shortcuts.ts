@@ -8,13 +8,11 @@ import { useWorkspaceStore } from "../state/workspace-store";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useToastStore } from "../state/toast-store";
 import { showConfirm, showMessage } from "../repositories";
-import { groupTasksForList, groupTasksForUnifiedView } from "../services";
 import type { Task, TaskPriority, TaskStatus } from "../models";
 import type { ActionResult } from "../state";
 import {
   pickNextActiveKey,
   taskSelectionKey,
-  toTask,
   todayInTimezone,
   tomorrowInTimezone,
   summarizeBulkStatusResult,
@@ -30,6 +28,7 @@ import {
   tabCycleDirection,
 } from "../utils";
 import { isComposingEvent } from "./useComposing";
+import { useViewTasks } from "./useViewTasks";
 
 // Toast messages for actions that are silently disabled in unified view. They
 // lead with the view because that is the part users forget — an empty selection
@@ -66,7 +65,6 @@ export function useKeyboardShortcuts(
   onOpenShortcutsHelp: () => void,
 ) {
   const preferences = usePreferencesStore((s) => s.preferences);
-  const files = useTaskListStore((s) => s.files);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
   const setStatus = useTaskListStore((s) => s.setStatus);
@@ -84,39 +82,11 @@ export function useKeyboardShortcuts(
   const addUnifiedViewTab = useWorkspaceStore((s) => s.addUnifiedViewTab);
 
   const timezone = preferences.timezone;
-  const dueSoonDays = preferences.dueSoonDays;
 
-  const contextTasks: Task[] = useMemo(() => {
-    const tasks: Task[] = [];
-    if (isUnifiedView) {
-      for (const tab of workspace.openTabs) {
-        if (tab.isUnifiedView) continue;
-        const fileState = files[tab.filePath];
-        if (!fileState) continue;
-        for (const dto of fileState.data.tasks) {
-          tasks.push(toTask(dto, tab.filePath, timezone, dueSoonDays));
-        }
-      }
-    } else {
-      const fileState = files[filePath];
-      if (!fileState) return [];
-      for (const dto of fileState.data.tasks) {
-        tasks.push(toTask(dto, filePath, timezone, dueSoonDays));
-      }
-    }
-
-    return tasks;
-  }, [files, filePath, isUnifiedView, timezone, dueSoonDays, workspace.openTabs]);
-
-  // Compute tasks in visual (grouped) order for arrow navigation.
-  const visualTasks: Task[] = useMemo(() => {
-    // Group and flatten to get visual order.
-    const grouped = isUnifiedView
-      ? groupTasksForUnifiedView(contextTasks)
-      : groupTasksForList(contextTasks);
-
-    return grouped.groups.flatMap((g) => g.tasks);
-  }, [contextTasks, isUnifiedView]);
+  const { tasks: contextTasks, visualTasks } = useViewTasks(
+    filePath,
+    isUnifiedView,
+  );
 
   const tasksByKey = useMemo(
     () => new Map(contextTasks.map((task) => [taskSelectionKey(task), task])),

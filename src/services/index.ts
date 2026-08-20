@@ -1,5 +1,10 @@
 export type { GroupedTasks } from "./grouping";
-export { groupTasksForList, groupTasksForUnifiedView } from "./grouping";
+export type { LoadedFiles } from "./grouping";
+export {
+  groupTasks,
+  collectViewTasks,
+  visualTaskOrder,
+} from "./grouping";
 
 export type { ListUrgency } from "./list-urgency";
 export { computeListUrgency, computeTabUrgencies } from "./list-urgency";

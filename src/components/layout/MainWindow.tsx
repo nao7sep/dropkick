@@ -15,12 +15,12 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useNoteDraftStore } from "../../state/note-draft-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
+import { useViewTasks } from "../../hooks/useViewTasks";
 import { useWindowClose } from "../../hooks/use-window-close";
 import { isComposingEvent } from "../../hooks/useComposing";
 import {
   pickNextActiveKey,
   taskSelectionKey,
-  toTask,
   isZoomIn,
   isZoomOut,
   isZoomReset,
@@ -36,8 +36,6 @@ import {
   DEFAULT_SIDEBAR_WIDTH,
 } from "../../utils";
 import {
-  groupTasksForList,
-  groupTasksForUnifiedView,
   draftReconcileSubjects,
 } from "../../services";
 import { TabBar } from "./TabBar";
@@ -48,7 +46,6 @@ import { NewTaskModal } from "./NewTaskModal";
 import { MoveTasksModal } from "./MoveTasksModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
-import type { Task } from "../../models";
 
 // Error boundary — catches rendering errors and shows them instead of blank screen.
 class ErrorBoundary extends Component<
@@ -397,53 +394,17 @@ export function MainWindow() {
     prevOpenFilePathsRef.current = openFilePaths;
   }, [openFilePaths]);
 
-  // Compute selected tasks for the move modal.
+  const { tasks: viewTasks, visualTasks } = useViewTasks(
+    filePath,
+    isUnifiedView,
+  );
+
+  // Selected tasks for the move modal, filtered from the same collection the
+  // panes and the keyboard read.
   const selectedTasks = useMemo(() => {
     if (!showMoveTasks || selectedKeys.size === 0) return [];
-    const tasks: Task[] = [];
-    if (isUnifiedView) {
-      for (const tab of workspace.openTabs) {
-        if (tab.isUnifiedView) continue;
-        const fileState = files[tab.filePath];
-        if (!fileState) continue;
-        for (const dto of fileState.data.tasks) {
-          const task = toTask(dto, tab.filePath, preferences.timezone, preferences.dueSoonDays);
-          if (selectedKeys.has(taskSelectionKey(task))) tasks.push(task);
-        }
-      }
-    } else {
-      const fileState = files[filePath];
-      if (fileState) {
-        for (const dto of fileState.data.tasks) {
-          const task = toTask(dto, filePath, preferences.timezone, preferences.dueSoonDays);
-          if (selectedKeys.has(taskSelectionKey(task))) tasks.push(task);
-        }
-      }
-    }
-    return tasks;
-  }, [showMoveTasks, selectedKeys, files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
-
-  const visualTasks = useMemo(() => {
-    const tasks: Task[] = [];
-    if (isUnifiedView) {
-      for (const tab of workspace.openTabs) {
-        if (tab.isUnifiedView) continue;
-        const fileState = files[tab.filePath];
-        if (!fileState) continue;
-        for (const dto of fileState.data.tasks) {
-          tasks.push(toTask(dto, tab.filePath, preferences.timezone, preferences.dueSoonDays));
-        }
-      }
-      return groupTasksForUnifiedView(tasks).groups.flatMap((group) => group.tasks);
-    }
-
-    const fileState = files[filePath];
-    if (!fileState) return [];
-    for (const dto of fileState.data.tasks) {
-      tasks.push(toTask(dto, filePath, preferences.timezone, preferences.dueSoonDays));
-    }
-    return groupTasksForList(tasks).groups.flatMap((group) => group.tasks);
-  }, [files, filePath, isUnifiedView, preferences.timezone, preferences.dueSoonDays, workspace.openTabs]);
+    return viewTasks.filter((task) => selectedKeys.has(taskSelectionKey(task)));
+  }, [showMoveTasks, selectedKeys, viewTasks]);
 
   const nextActiveTaskKey = useMemo(
     () => pickNextActiveKey(selectedKeys, visualTasks),

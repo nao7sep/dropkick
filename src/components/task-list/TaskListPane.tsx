@@ -9,7 +9,6 @@ import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { showMessage } from "../../repositories";
 import {
-  toTask,
   singleLine,
   hasPointerCommandModifier,
   primaryModifierLabel,
@@ -22,11 +21,10 @@ import {
   type ListArrowDownPlan,
 } from "../../utils";
 import {
-  groupTasksForList,
-  groupTasksForUnifiedView,
   summarizeUnifiedLoadState,
 } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
+import { useViewTasks } from "../../hooks/useViewTasks";
 
 interface TaskListPaneProps {
   filePath: string;
@@ -69,8 +67,6 @@ const GROUP_BGS: Record<TaskGroup, string> = {
 };
 
 export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPaneProps) {
-  const timezone = usePreferencesStore((s) => s.preferences.timezone);
-  const dueSoonDays = usePreferencesStore((s) => s.preferences.dueSoonDays);
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
@@ -91,35 +87,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     (s) => s.handledExpanded[viewKey] ?? false,
   );
 
-  // Select raw data from store (stable references), compute domain models in useMemo.
   const files = useTaskListStore((s) => s.files);
   const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
 
-  const tasks = useMemo(() => {
-    if (isUnifiedView) {
-      const allTasks: Task[] = [];
-      for (const tab of openTabs) {
-        if (tab.isUnifiedView) continue;
-        const fileState = files[tab.filePath];
-        if (!fileState) continue;
-        for (const dto of fileState.data.tasks) {
-          allTasks.push(toTask(dto, tab.filePath, timezone, dueSoonDays));
-        }
-      }
-      return allTasks;
-    }
-    const fileState = files[filePath];
-    if (!fileState) return [] as Task[];
-    return fileState.data.tasks.map((dto) => toTask(dto, filePath, timezone, dueSoonDays));
-  }, [files, filePath, isUnifiedView, timezone, dueSoonDays, openTabs]);
-
-  const grouped = useMemo(
-    () =>
-      isUnifiedView
-        ? groupTasksForUnifiedView(tasks)
-        : groupTasksForList(tasks),
-    [tasks, isUnifiedView],
-  );
+  const { grouped } = useViewTasks(filePath, isUnifiedView);
 
   // In unified view, the merged list silently omits any open list whose file
   // isn't loaded — whether it failed or is still loading. Summarize both so the
