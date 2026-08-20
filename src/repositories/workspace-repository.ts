@@ -6,7 +6,7 @@
 // hash check is needed — the workspace file is owned exclusively by Dropkick.
 
 import type { PersistedWorkspaceDto, WorkspaceDto } from "../models";
-import { createDefaultWorkspace } from "../models";
+import { createDefaultWorkspace, isWorkspaceDocument } from "../models";
 import {
   readJsonFileResult,
   writeJsonFile,
@@ -39,12 +39,20 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
   }
 
   const data = result.data;
-  // A present-but-wrong-shape field is corruption, the same branch as
-  // unparseable JSON: coercing it to [] and letting the next flush write the
-  // emptied list back would destroy the user's tabs on a file that never
-  // looked corrupt (storage-path conventions). An absent field still takes
-  // its default below; the failing file is reported in place like any other
-  // unloadable document, and the rest of the app keeps working.
+  // A file that is not one of ours is corruption, the same branch as unparseable
+  // JSON. This has to run before the merge: the merge fills every field from
+  // defaults, so without it a foreign JSON object loads as an empty workspace
+  // and the id write-back below replaces the file with one — which is reachable
+  // straight from the startup picker's Open button.
+  if (!isWorkspaceDocument(data)) {
+    return { status: "invalid", message: "not a workspace document" };
+  }
+  // A present-but-wrong-shape field is corruption too: coercing it to [] and
+  // letting the next flush write the emptied list back would destroy the user's
+  // tabs on a file that never looked corrupt (storage-path conventions). An
+  // absent field still takes its default below; the failing file is reported in
+  // place like any other unloadable document, and the rest of the app keeps
+  // working.
   if (data.openTabs !== undefined && !Array.isArray(data.openTabs)) {
     return { status: "invalid", message: "openTabs is not an array" };
   }
@@ -57,6 +65,10 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
     ...merged,
     openTabs: data.openTabs ?? defaults.openTabs,
     recentFiles: data.recentFiles ?? defaults.recentFiles,
+    // A stored empty id is as absent as a missing one, and mergeWithDefaults
+    // deliberately preserves "" — so take the freshly minted default rather
+    // than re-persisting the empty value on every launch.
+    id: data.id || defaults.id,
     activeTabIndex: defaults.activeTabIndex,
   };
   // Materialize a missing stable id by persisting it once, so this workspace's

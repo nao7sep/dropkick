@@ -45,7 +45,13 @@ describe("loadWorkspace — merge with defaults", () => {
   it("re-injects the runtime-only activeTabIndex from defaults, ignoring any stored value", async () => {
     readJsonFileResult.mockResolvedValue({
       status: "success",
-      data: { version: "1.0.0", name: "Stale", activeTabIndex: 7 },
+      data: {
+        version: "1.0.0",
+        name: "Stale",
+        openTabs: [],
+        recentFiles: [],
+        activeTabIndex: 7,
+      },
     });
 
     const result = await loadWorkspace("/ws.json");
@@ -57,7 +63,13 @@ describe("loadWorkspace — merge with defaults", () => {
   it("drops stored keys that are no longer part of the shape", async () => {
     readJsonFileResult.mockResolvedValue({
       status: "success",
-      data: { version: "1.0.0", name: "Legacy", retiredField: "stale" },
+      data: {
+        version: "1.0.0",
+        name: "Legacy",
+        openTabs: [],
+        recentFiles: [],
+        retiredField: "stale",
+      },
     });
 
     const result = await loadWorkspace("/ws.json");
@@ -86,10 +98,34 @@ describe("loadWorkspace — merge with defaults", () => {
     expect((await loadWorkspace("/ws.json")).status).toBe("invalid");
   });
 
-  it("fills absent openTabs/recentFiles from the defaults", async () => {
+  it("rejects a JSON document that is not a workspace, without rewriting it", async () => {
+    // The startup picker hands loadWorkspace whatever the user chose in a
+    // *.json file dialog. Merging fills every field from defaults, so without a
+    // kind gate a mis-picked package.json loads as an empty workspace and the
+    // id write-back replaces its contents. Absent discriminator fields are as
+    // disqualifying as wrong-typed ones — a real workspace always carries them.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { name: "dropkick", version: "0.1.0", scripts: { dev: "vite" } },
+    });
+
+    expect((await loadWorkspace("/package.json")).status).toBe("invalid");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+
     readJsonFileResult.mockResolvedValue({
       status: "success",
       data: { version: "1.0.0", name: "Sparse" },
+    });
+    expect((await loadWorkspace("/ws.json")).status).toBe("invalid");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it("fills an absent openTabs/recentFiles from the defaults", async () => {
+    // Recognizing the document kind is a separate question from field shape: a
+    // workspace that carries one of the two lists still heals the other.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", id: "w1", name: "Sparse", recentFiles: [] },
     });
 
     const result = await loadWorkspace("/ws.json");
@@ -97,6 +133,31 @@ describe("loadWorkspace — merge with defaults", () => {
     if (result.status !== "success") return;
     expect(result.workspace.openTabs).toEqual([]);
     expect(result.workspace.recentFiles).toEqual([]);
+  });
+
+  it("mints a stable id when the stored one is an empty string", async () => {
+    // mergeWithDefaults deliberately preserves "", so taking the merged value
+    // would re-detect and re-persist the empty id on every launch and the
+    // document would never gain the identity it is supposed to keep.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: {
+        version: "1.0.0",
+        id: "",
+        name: "Empty id",
+        openTabs: [],
+        recentFiles: [],
+      },
+    });
+
+    const result = await loadWorkspace("/ws.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.workspace.id.length).toBeGreaterThan(0);
+    expect(writeJsonFile).toHaveBeenCalledWith(
+      "/ws.json",
+      expect.objectContaining({ id: result.workspace.id }),
+    );
   });
 
   it("propagates a missing file as missing", async () => {

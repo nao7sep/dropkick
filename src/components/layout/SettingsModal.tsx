@@ -4,6 +4,16 @@
 import { useMemo, useRef, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import type { PreferencesDto } from "../../models";
+import {
+  DUE_SOON_DAYS_DEFAULT,
+  DUE_SOON_DAYS_MAX,
+  DUE_SOON_DAYS_MIN,
+  HANDLED_TASKS_PAGE_SIZE_DEFAULT,
+  HANDLED_TASKS_PAGE_SIZE_MAX,
+  HANDLED_TASKS_PAGE_SIZE_MIN,
+  normalizeDueSoonDays,
+  normalizeHandledTasksPageSize,
+} from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { validateTimezone } from "../../utils/timezone";
@@ -66,6 +76,15 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       fontFamily: singleLine(draft.fontFamily),
       timezone: timezoneValidation.value,
       kickDistances: parseKickDistances(kickInput),
+      // Range-clamp on commit rather than per keystroke, so typing "50" is not
+      // fought by the minimum after the first digit. A min/max attribute is not
+      // enforced for typed input, and both values reach consumers that cannot
+      // recover from an out-of-range one — dueSoonDays feeds date arithmetic,
+      // handledTasksPageSize is a slice length.
+      dueSoonDays: normalizeDueSoonDays(draft.dueSoonDays),
+      handledTasksPageSize: normalizeHandledTasksPageSize(
+        draft.handledTasksPageSize,
+      ),
     });
     onClose();
   };
@@ -194,8 +213,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
         <p className="mt-1 text-xs text-ink-muted">
-          Comma-separated numbers (e.g. 5, 25). "Kick to End" is always
-          available.
+          Comma-separated numbers (e.g. 5, 25). "Kick" is always available.
         </p>
       </Field>
 
@@ -203,13 +221,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       <Field label="Due soon window">
         <input
           type="number"
-          min={1}
-          max={365}
+          min={DUE_SOON_DAYS_MIN}
+          max={DUE_SOON_DAYS_MAX}
           value={draft.dueSoonDays}
           onChange={(e) =>
             setField(
               "dueSoonDays",
-              Math.max(1, parseInt(e.target.value, 10) || 7),
+              parseInt(e.target.value, 10) || DUE_SOON_DAYS_DEFAULT,
             )
           }
           className="w-24 rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
@@ -223,13 +241,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       <Field label="Handled tasks page size">
         <input
           type="number"
-          min={10}
-          max={500}
+          min={HANDLED_TASKS_PAGE_SIZE_MIN}
+          max={HANDLED_TASKS_PAGE_SIZE_MAX}
           value={draft.handledTasksPageSize}
           onChange={(e) =>
             setField(
               "handledTasksPageSize",
-              parseInt(e.target.value, 10) || 50,
+              parseInt(e.target.value, 10) || HANDLED_TASKS_PAGE_SIZE_DEFAULT,
             )
           }
           className="w-24 rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"

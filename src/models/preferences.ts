@@ -42,6 +42,78 @@ export function normalizeKickDistances(values: unknown): number[] {
   return deduplicated.length > 0 ? deduplicated : [...DEFAULT_KICK_DISTANCES];
 }
 
+// Bounds for the two numeric settings. Named here, beside the fields they
+// govern, so the Settings inputs and the normalizers cannot disagree.
+export const DUE_SOON_DAYS_MIN = 1;
+export const DUE_SOON_DAYS_MAX = 365;
+export const DUE_SOON_DAYS_DEFAULT = 7;
+export const HANDLED_TASKS_PAGE_SIZE_MIN = 10;
+export const HANDLED_TASKS_PAGE_SIZE_MAX = 500;
+export const HANDLED_TASKS_PAGE_SIZE_DEFAULT = 50;
+
+// Coerces a stored or typed value to a whole number inside [min, max], falling
+// back to `fallback` for anything non-numeric. An HTML min/max attribute is a
+// hint the browser does not enforce for typed input, so the range has to be
+// applied in code or an out-of-range value reaches the field's consumers.
+function boundedInteger(
+  value: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  const n = typeof value === "string" ? Number.parseInt(value, 10) : value;
+  if (typeof n !== "number" || !Number.isFinite(n)) {
+    return fallback;
+  }
+  return Math.min(Math.max(Math.trunc(n), min), max);
+}
+
+// Normalizes the due-soon window. Applied at every boundary (file load, flush,
+// and the Settings field parse) like normalizeKickDistances, because this value
+// is fed to date arithmetic: an unbounded one overflows the Date range and
+// throws where the caller cannot recover.
+export function normalizeDueSoonDays(value: unknown): number {
+  return boundedInteger(
+    value,
+    DUE_SOON_DAYS_MIN,
+    DUE_SOON_DAYS_MAX,
+    DUE_SOON_DAYS_DEFAULT,
+  );
+}
+
+// Normalizes the handled-archive page size. Applied at the same three
+// boundaries: this value is a slice length, and a negative one silently hides
+// rows from the end of the archive instead of paging into it.
+export function normalizeHandledTasksPageSize(value: unknown): number {
+  return boundedInteger(
+    value,
+    HANDLED_TASKS_PAGE_SIZE_MIN,
+    HANDLED_TASKS_PAGE_SIZE_MAX,
+    HANDLED_TASKS_PAGE_SIZE_DEFAULT,
+  );
+}
+
+// Recognizes a parsed JSON document as a preferences file. This answers "is this
+// one of ours?", which is a separate question from "are its fields well-formed?"
+// — the loader still shape-checks the fields it finds. Without this gate any
+// JSON object passes, takes every field from defaults, and the id write-back
+// rewrites it as a preferences document, so picking a neighbouring .json in the
+// startup picker destroys it. The test is version plus at least one field only
+// this document carries: that rejects a package.json or a workspace while still
+// letting mergeWithDefaults heal a document that predates a newly added field.
+export function isPreferencesDocument(data: Partial<PreferencesDto>): boolean {
+  if (typeof data.version !== "string") {
+    return false;
+  }
+  return (
+    data.fontFamily !== undefined ||
+    data.darkMode !== undefined ||
+    data.kickDistances !== undefined ||
+    data.dueSoonDays !== undefined ||
+    data.handledTasksPageSize !== undefined
+  );
+}
+
 export function createDefaultPreferences(name: string): PreferencesDto {
   return {
     version: "1.0.0",
@@ -51,7 +123,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     darkMode: false,
     timezone: null,
     kickDistances: [...DEFAULT_KICK_DISTANCES],
-    dueSoonDays: 7,
-    handledTasksPageSize: 50,
+    dueSoonDays: DUE_SOON_DAYS_DEFAULT,
+    handledTasksPageSize: HANDLED_TASKS_PAGE_SIZE_DEFAULT,
   };
 }

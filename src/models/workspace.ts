@@ -25,6 +25,23 @@ export interface RecentFileDto {
   lastOpenedAtUtc: string; // ISO 8601
 }
 
+// Recognizes a parsed JSON document as a workspace file. This answers "is this
+// one of ours?", which is a separate question from "are its fields well-formed?"
+// — the loader still shape-checks the fields it finds. Without this gate any
+// JSON object passes, takes every field from defaults, and the id write-back
+// rewrites it as a workspace, so picking a neighbouring .json in the startup
+// picker destroys it. The test is version plus at least one field only a
+// workspace carries: that rejects a package.json or a task list while still
+// letting mergeWithDefaults heal a document that predates a newly added field.
+export function isWorkspaceDocument(
+  data: Partial<PersistedWorkspaceDto>,
+): boolean {
+  return (
+    typeof data.version === "string" &&
+    (data.openTabs !== undefined || data.recentFiles !== undefined)
+  );
+}
+
 export function createDefaultWorkspace(name: string): WorkspaceDto {
   return {
     version: "1.0.0",

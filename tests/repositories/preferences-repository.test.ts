@@ -139,13 +139,96 @@ describe("loadPreferences — kickDistances normalization", () => {
   it("fills an absent kickDistances from the defaults", async () => {
     readJsonFileResult.mockResolvedValue({
       status: "success",
-      data: { version: "1.0.0", name: "NoKicks" },
+      data: { version: "1.0.0", name: "NoKicks", darkMode: false },
     });
 
     const result = await loadPreferences("/prefs.json");
     expect(result.status).toBe("success");
     if (result.status !== "success") return;
     expect(result.preferences.kickDistances).toEqual([5, 25]);
+  });
+});
+
+describe("loadPreferences — document kind", () => {
+  it("rejects a JSON document that is not a preferences file, without rewriting it", async () => {
+    // The startup picker hands loadPreferences whatever the user chose in a
+    // *.json file dialog. Merging fills every field from defaults, so without a
+    // kind gate a mis-picked package.json loads as default preferences and the
+    // id write-back replaces its contents.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { name: "dropkick", version: "0.1.0", scripts: { dev: "vite" } },
+    });
+
+    expect((await loadPreferences("/package.json")).status).toBe("invalid");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+
+    // A workspace document is not a preferences document either.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "WS", openTabs: [], recentFiles: [] },
+    });
+    expect((await loadPreferences("/ws.json")).status).toBe("invalid");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it("mints a stable id when the stored one is an empty string", async () => {
+    // mergeWithDefaults deliberately preserves "", so taking the merged value
+    // would re-detect and re-persist the empty id on every launch and the
+    // document would never gain the identity it is supposed to keep.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", id: "", name: "Empty id", darkMode: false },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.preferences.id.length).toBeGreaterThan(0);
+    expect(writeJsonFile).toHaveBeenCalledWith(
+      "/prefs.json",
+      expect.objectContaining({ id: result.preferences.id }),
+    );
+  });
+});
+
+describe("loadPreferences — numeric range normalization", () => {
+  it("clamps an out-of-range dueSoonDays instead of feeding it to date math", async () => {
+    // dueSoonDays reaches addDays; an unbounded value overflows the Date range
+    // and throws inside a render, where the caller cannot recover.
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Huge", dueSoonDays: 100000000 },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.preferences.dueSoonDays).toBe(365);
+  });
+
+  it("falls back to the default for a non-numeric dueSoonDays", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Stringy", dueSoonDays: "abc" },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.preferences.dueSoonDays).toBe(7);
+  });
+
+  it("clamps a negative handledTasksPageSize, which would slice from the end", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Negative", handledTasksPageSize: -5 },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.preferences.handledTasksPageSize).toBe(10);
   });
 });
 

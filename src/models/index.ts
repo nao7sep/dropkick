@@ -11,8 +11,17 @@ export type {
 } from "./preferences";
 export {
   createDefaultPreferences,
+  isPreferencesDocument,
+  normalizeDueSoonDays,
+  normalizeHandledTasksPageSize,
   normalizeKickDistances,
   DEFAULT_KICK_DISTANCES,
+  DUE_SOON_DAYS_MIN,
+  DUE_SOON_DAYS_MAX,
+  DUE_SOON_DAYS_DEFAULT,
+  HANDLED_TASKS_PAGE_SIZE_MIN,
+  HANDLED_TASKS_PAGE_SIZE_MAX,
+  HANDLED_TASKS_PAGE_SIZE_DEFAULT,
 } from "./preferences";
 
 export type {
@@ -23,6 +32,7 @@ export type {
 } from "./workspace";
 export {
   createDefaultWorkspace,
+  isWorkspaceDocument,
   createTab,
   createUnifiedViewTab,
 } from "./workspace";
