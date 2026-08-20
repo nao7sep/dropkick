@@ -14,12 +14,19 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* The renderer's ambient types, declared rather than left to whatever the
+       import graph happens to drag in. Without this the exclusion of @types/node
+       held only incidentally: one dependency bump whose .d.ts chain reaches it
+       would re-admit `process` and `Buffer` here, and code that is undefined
+       inside the Tauri WebView would compile and ship. tsconfig.test.json
+       overrides this with ["node"] for the specs that read files off disk. */
+    "types": ["vite/client"],
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src"]
 }

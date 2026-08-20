@@ -1,10 +1,17 @@
 {
+  // Typechecks the build tooling, which runs in Node rather than the WebView.
+  // Invoked by name from the `build` and `typecheck` scripts; it carried a
+  // `composite: true` and a project reference from tsconfig.json, but nothing
+  // here ever runs `tsc -b`, so the reference was never checked and the only
+  // live effect was a ~250 KB .tsbuildinfo written on every typecheck.
   "compilerOptions": {
-    "composite": true,
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    // Declared for the same reason the renderer declares its own: vitest/config
+    // drags @types/node in transitively today, which is not a guarantee.
+    "types": ["node"]
   },
   "include": ["vite.config.ts"]
 }
