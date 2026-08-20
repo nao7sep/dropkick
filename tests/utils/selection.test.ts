@@ -10,6 +10,7 @@ import {
   rangeKeysBetween,
   planListArrowDown,
   planRangeSelection,
+  statusAdvancesSelection,
 } from "../../src/utils/selection";
 import { makeTask } from "../helpers/task";
 import type { Task } from "../../src/models";
@@ -242,5 +243,15 @@ describe("planRangeSelection", () => {
   it("declines when nothing is selected or the clicked row is not in the domain", () => {
     expect(planRangeSelection(keys, "a", new Set(), "c")).toBeNull();
     expect(planRangeSelection(keys, "a", new Set(["a"]), "zz")).toBeNull();
+  });
+});
+
+describe("statusAdvancesSelection", () => {
+  it("advances only for the statuses that remove a task from the active list", () => {
+    // The pointer surfaces' rule. Re-opening to Pending keeps the task visible,
+    // so the selection stays on it for continued editing.
+    expect(statusAdvancesSelection("Completed")).toBe(true);
+    expect(statusAdvancesSelection("Dismissed")).toBe(true);
+    expect(statusAdvancesSelection("Pending")).toBe(false);
   });
 });

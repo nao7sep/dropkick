@@ -1,4 +1,4 @@
-import type { Task } from "../models";
+import type { Task, TaskStatus } from "../models";
 
 const TASK_SELECTION_SEPARATOR = "\u0000";
 
@@ -169,4 +169,20 @@ export function planRangeSelection(
   const clickIndex = visualKeys.indexOf(clickedKey);
   if (anchorIndex === -1 || clickIndex === -1) return null;
   return new Set(rangeKeysBetween(visualKeys, anchorIndex, clickIndex));
+}
+
+// Whether a status change moves the task out of the active list, which is the
+// POINTER surfaces' rule for advancing the selection: the detail pane and the
+// bulk actions advance only when the task the user is looking at disappears
+// from the view, and re-opening one to Pending keeps it selected for continued
+// editing.
+//
+// The keyboard deliberately does not use this rule. It advances after every
+// successful status, priority or due-date change, because keyboard use here is
+// triage — walk the list, classify, move on — and stopping on the same task
+// after each keystroke would defeat it. The two rules are a deliberate split
+// between rapid keyboard triage and deliberate pointer editing, stated here
+// because it was previously implicit in three places that disagreed.
+export function statusAdvancesSelection(status: TaskStatus): boolean {
+  return status === "Completed" || status === "Dismissed";
 }

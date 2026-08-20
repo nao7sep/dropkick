@@ -8,8 +8,13 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { showMessage } from "../../repositories";
 import type { ActionResult } from "../../state";
-import { groupMoveBySource, summarizeBulkStatusResult } from "../../utils";
-import { taskKey, taskSelectionKey } from "../../utils";
+import {
+  groupMoveBySource,
+  summarizeBulkStatusResult,
+  taskKey,
+  taskSelectionKey,
+  statusAdvancesSelection,
+} from "../../utils";
 
 interface BulkActionsProps {
   selectedTasks: Task[];
@@ -63,10 +68,9 @@ export function BulkActions({
       await showMessage("Some Tasks Were Not Updated", details.join("\n\n"));
     }
 
-    if (
-      !summary.hasIssues &&
-      (status === "Completed" || status === "Dismissed")
-    ) {
+    // Same pointer rule as the detail pane, plus: a partially applied bulk
+    // change keeps the selection so the user can see what was skipped.
+    if (!summary.hasIssues && statusAdvancesSelection(status)) {
       setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
     }
   };

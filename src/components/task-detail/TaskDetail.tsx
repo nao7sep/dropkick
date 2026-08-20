@@ -24,6 +24,7 @@ import {
   primaryModifierLabel,
   taskKey,
   taskSelectionKey,
+  statusAdvancesSelection,
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -185,10 +186,10 @@ export function TaskDetail({
       return;
     }
 
-    // Advance only when the change moves the task out of the active list
-    // (Completed/Dismissed), matching the bulk action. Re-opening to Pending
-    // keeps the task visible, so keep it selected for continued editing.
-    if (status === "Completed" || status === "Dismissed") {
+    // Pointer rule: advance only when the change moves the task out of the
+    // active list. The keyboard advances after every change instead — see
+    // statusAdvancesSelection for why the two differ.
+    if (statusAdvancesSelection(status)) {
       setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
     }
   };
