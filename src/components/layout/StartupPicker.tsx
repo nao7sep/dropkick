@@ -71,9 +71,8 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   };
 
   const handleNewPreferences = async () => {
-    const path = await saveJsonFileDialog("preferences.json");
-    if (!path) return;
-    const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
+    const normalizedPath = await saveJsonFileDialog("preferences.json");
+    if (!normalizedPath) return;
     await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
     await registerPreferences(normalizedPath);
     setSelectedPrefs(normalizedPath);
@@ -95,9 +94,8 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   };
 
   const handleNewWorkspace = async () => {
-    const path = await saveJsonFileDialog("workspace.json");
-    if (!path) return;
-    const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
+    const normalizedPath = await saveJsonFileDialog("workspace.json");
+    if (!normalizedPath) return;
     await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
     await registerWorkspace(normalizedPath);
     setSelectedWorkspace(normalizedPath);

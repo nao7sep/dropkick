@@ -129,9 +129,8 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
 
   const handleNewTaskList = async () => {
     try {
-      const path = await saveJsonFileDialog("tasks.json");
-      if (!path) return;
-      const normalizedPath = path.endsWith(".json") ? path : `${path}.json`;
+      const normalizedPath = await saveJsonFileDialog("tasks.json");
+      if (!normalizedPath) return;
       log.info("create task list", { path: normalizedPath });
       await createFile(normalizedPath);
       const name = fileNameWithoutExt(normalizedPath);

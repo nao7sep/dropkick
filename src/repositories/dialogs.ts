@@ -3,6 +3,7 @@
 
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { showAppConfirm, showAppMessage } from "../state/dialog-store";
+import { fileExists } from "./file-system";
 
 // Opens a native file dialog for selecting an existing JSON file.
 // Returns the selected file path, or null if cancelled.
@@ -17,16 +18,43 @@ export async function openJsonFileDialog(): Promise<string | null> {
   return result;
 }
 
-// Opens a native save dialog for creating a new JSON file.
-// Returns the chosen file path, or null if cancelled.
+// Opens a native save dialog for creating a new JSON file, and returns the
+// path to create — with a `.json` extension — or null if the user cancelled or
+// declined an overwrite.
+//
+// The extension has to be settled here rather than at each call site, because
+// appending it moves the target: the save panel's own overwrite prompt
+// evaluated the path it returned, so a user who types `MyTasks` where
+// `MyTasks.json` already exists was asked about a file that does not exist and
+// never asked about the one that does. Callers then wrote over it with an empty
+// document. When the append changes the path, the overwrite is confirmed here.
+//
+// The extension test is case-insensitive: on macOS and Windows `MyTasks.JSON`
+// is the same file as `MyTasks.json`, and appending to it would both create a
+// `.JSON.json` and collide case-insensitively with an existing sibling
+// (storage-path-conventions).
 export async function saveJsonFileDialog(
   defaultName?: string,
 ): Promise<string | null> {
-  const result = await save({
+  const picked = await save({
     defaultPath: defaultName,
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
-  return result;
+  if (picked === null) return null;
+  if (picked.toLowerCase().endsWith(".json")) return picked;
+
+  const path = `${picked}.json`;
+  if (!(await fileExists(path))) return path;
+  const overwrite = await showAppConfirm(
+    "Replace Existing File?",
+    `A file already exists at:\n\n${path}\n\nCreating a new one here replaces its contents.`,
+    {
+      tone: "warning",
+      confirmLabel: "Replace",
+      cancelLabel: "Cancel",
+    },
+  );
+  return overwrite ? path : null;
 }
 
 // Shows an informational message dialog.
