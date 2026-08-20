@@ -482,29 +482,52 @@ pub fn run() {
             // it routes through the single storage-root resolver (paths::data_root)
             // so the log directory and the data directory share one source of
             // truth and both honor DROPKICK_HOME.
-            let data_root = paths::data_root(app.handle())?;
-            let log_path = data_root.join("logs").join(logging::session_filename());
-            logging::init(&log_path, debug_enabled);
-            install_panic_hook();
+            //
+            // A storage-root failure must NOT abort the launch. This hook runs
+            // before the logger is open and before the panic hook is installed,
+            // so propagating the error here turns into a panic at the .expect()
+            // below: the window is already built, so it flashes and vanishes
+            // with exit code 101, and the carefully-worded message from
+            // paths::data_root reaches nowhere — no log file, no dialog — while
+            // StartupErrorScreen, built for exactly this class of failure, is
+            // never reached. Degrade instead: skip the log file and the backup
+            // store, let the window open, and let the webview's own
+            // app_data_root call return the same error for that screen to show.
+            match paths::data_root(app.handle()) {
+                Ok(data_root) => {
+                    let log_path =
+                        data_root.join("logs").join(logging::session_filename());
+                    logging::init(&log_path, debug_enabled);
+                    install_panic_hook();
 
-            // Open the write-through data-backup store once, best-effort, under the
-            // same DROPKICK_HOME-aware root (never a hardcoded path). If it cannot
-            // open, one warn is logged and recording is disabled for the session —
-            // it never blocks startup. Every managed-text save from now on records
-            // through it, strictly after its atomic rename lands (see write_atomic).
-            backup_store::init(data_root.join("backups.sqlite3"));
+                    // Open the write-through data-backup store once, best-effort,
+                    // under the same DROPKICK_HOME-aware root (never a hardcoded
+                    // path). If it cannot open, one warn is logged and recording is
+                    // disabled for the session — it never blocks startup. Every
+                    // managed-text save from now on records through it, strictly
+                    // after its atomic rename lands (see write_atomic).
+                    backup_store::init(data_root.join("backups.sqlite3"));
 
-            logging::info(
-                "app startup",
-                json!({
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "build": if cfg!(debug_assertions) { "debug" } else { "release" },
-                    "debugLogging": debug_enabled,
-                    "logPath": log_path.to_string_lossy(),
-                    "os": std::env::consts::OS,
-                    "arch": std::env::consts::ARCH,
-                }),
-            );
+                    logging::info(
+                        "app startup",
+                        json!({
+                            "version": env!("CARGO_PKG_VERSION"),
+                            "build": if cfg!(debug_assertions) { "debug" } else { "release" },
+                            "debugLogging": debug_enabled,
+                            "logPath": log_path.to_string_lossy(),
+                            "os": std::env::consts::OS,
+                            "arch": std::env::consts::ARCH,
+                        }),
+                    );
+                }
+                Err(message) => {
+                    // There is no log file to write to — this IS the failure to
+                    // open one. stderr is the only channel left, and it reaches
+                    // a terminal launch; the user sees the error in the window.
+                    install_panic_hook();
+                    eprintln!("dropkick: storage root unavailable: {message}");
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
