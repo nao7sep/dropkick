@@ -339,9 +339,46 @@ pub fn atomic_temp_name(file_name: &str) -> String {
     format!("{}-{}.tmp", stem, nanoid::generate())
 }
 
+// Follows a symlinked target to the file it points at, up to a small bound so a
+// link loop cannot spin.
+//
+// An atomic write replaces a directory entry, so writing to the link's own path
+// would replace the LINK with a regular file: every later save would land on the
+// link's former location and the real file would go permanently stale, with
+// nothing surfaced. Task lists are documented as living "at any path", and
+// symlinking one into a synced folder or a dotfiles repo is exactly the kind of
+// setup that invites. Resolving one level at a time (rather than canonicalize)
+// keeps the returned path in its original form — canonicalize hands back a
+// `\\?\` extended-length path on Windows, which would then leak into the temp
+// file's sibling name and the backup store's key.
+fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
+    let mut current = path.to_path_buf();
+    for _ in 0..8 {
+        let is_link = std::fs::symlink_metadata(&current)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false);
+        if !is_link {
+            break;
+        }
+        let Ok(dest) = std::fs::read_link(&current) else {
+            break;
+        };
+        current = if dest.is_absolute() {
+            dest
+        } else {
+            match current.parent() {
+                Some(parent) => parent.join(dest),
+                None => dest,
+            }
+        };
+    }
+    current
+}
+
 pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
     use std::io::Write;
-    let target = std::path::Path::new(path);
+    let resolved = resolve_symlink(std::path::Path::new(path));
+    let target = resolved.as_path();
     let parent = target
         .parent()
         .ok_or_else(|| "path has no parent directory".to_string())?;
@@ -357,6 +394,14 @@ pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
         file.sync_all()?;
         Ok(())
     })();
+    // The rename below replaces the target's inode, so the temp file's mode is
+    // what survives — `File::create` gives it 0666 & ~umask (typically 0644),
+    // which would silently widen a file the user had restricted to 0600. Carry
+    // the existing target's permissions over. Best-effort: a filesystem that
+    // cannot set them is not a reason to fail a save.
+    if let Ok(existing) = std::fs::metadata(target) {
+        let _ = std::fs::set_permissions(&tmp, existing.permissions());
+    }
     if let Err(e) = write_tmp {
         let _ = std::fs::remove_file(&tmp);
         return Err(e.to_string());

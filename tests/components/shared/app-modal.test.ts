@@ -8,6 +8,7 @@
 // rather than the predicate, because the predicate was never the missing half.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { Mock } from "vitest";
 import { createElement, act } from "react";
 import { mount } from "../../helpers/react-dom";
 import type { Mounted } from "../../helpers/react-dom";
@@ -33,10 +34,10 @@ afterEach(async () => {
 });
 
 describe("AppModal — Escape during an IME composition", () => {
-  let onRequestClose: ReturnType<typeof vi.fn>;
+  let onRequestClose: Mock<() => void>;
 
   beforeEach(async () => {
-    onRequestClose = vi.fn();
+    onRequestClose = vi.fn<() => void>();
     host = await mount(
       createElement(AppModal, {
         title: "New Task",

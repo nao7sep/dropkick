@@ -136,3 +136,45 @@ fn write_atomic_errors_when_parent_missing() {
     assert!(write_atomic(path.to_str().unwrap(), "x").is_err());
 }
 
+
+#[test]
+#[cfg(unix)]
+fn write_atomic_writes_through_a_symlink_instead_of_replacing_it() {
+    // A rename replaces a directory entry, so writing to the link's own path
+    // would turn the link into a regular file: every later save would land on
+    // the link's former location and the real file would go permanently stale.
+    // Task lists are documented as living "at any path", and symlinking one
+    // into a synced folder is exactly the setup that invites.
+    let dir = unique_temp_dir("symlink");
+    let real = dir.join("real.json");
+    let link = dir.join("link.json");
+    std::fs::write(&real, "before").unwrap();
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+
+    write_atomic(link.to_str().unwrap(), "after").unwrap();
+
+    assert!(
+        std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink(),
+        "the symlink must survive the save"
+    );
+    assert_eq!(std::fs::read_to_string(&real).unwrap(), "after");
+}
+
+#[test]
+#[cfg(unix)]
+fn write_atomic_keeps_the_target_permissions() {
+    // File::create gives the temp file 0666 & ~umask, and the rename makes that
+    // the surviving mode — so without carrying the old one over, a file the user
+    // had restricted to 0600 came back readable by every local account.
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = unique_temp_dir("perms");
+    let path = dir.join("private.json");
+    std::fs::write(&path, "before").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+    write_atomic(path.to_str().unwrap(), "after").unwrap();
+
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "permissions must survive the save");
+}
