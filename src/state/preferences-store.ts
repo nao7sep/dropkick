@@ -8,6 +8,7 @@
 
 import { create } from "zustand";
 import type { PreferencesDto } from "../models";
+import type { ActionResult } from "./action-result";
 import { createDefaultPreferences } from "../models";
 import type { LoadPreferencesResult } from "../repositories";
 import {
@@ -28,7 +29,7 @@ interface PreferencesState {
 
   // Actions.
   load: (filePath: string) => Promise<LoadPreferencesResult>;
-  update: (changes: Partial<PreferencesDto>) => Promise<void>;
+  update: (changes: Partial<PreferencesDto>) => Promise<ActionResult>;
 }
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
@@ -58,14 +59,29 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     }));
 
     const { filePath } = get();
-    if (!filePath) return;
+    if (!filePath) return { status: "success" };
 
     // Serialized flush. The getter is invoked inside the slot so it captures
-    // the latest state at the moment of the write.
-    const normalized = await flushPreferences(filePath, () => get().preferences);
+    // the latest state at the moment of the write. A rejected write is reported
+    // rather than thrown, the same never-reject contract the task-list store's
+    // actions have: the state transition above has already applied the change
+    // in memory, so an escaping rejection would leave the UI showing settings
+    // that never reached disk — and would strand the Settings modal open with
+    // no message, because its Save handler never reaches onClose(). The write
+    // boundary has already logged the cause.
+    let normalized: PreferencesDto;
+    try {
+      normalized = await flushPreferences(filePath, () => get().preferences);
+    } catch (e) {
+      return {
+        status: "error",
+        message: e instanceof Error ? e.message : String(e),
+      };
+    }
 
     // Absorb any normalization the repository applied (e.g. timezone
     // coercion). Idempotent if nothing was normalized.
     set({ preferences: normalized });
+    return { status: "success" };
   },
 }));

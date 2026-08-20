@@ -17,6 +17,7 @@ import {
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { validateTimezone } from "../../utils/timezone";
+import { showMessage } from "../../repositories";
 import { AppModal } from "../shared/AppModal";
 import {
   hasPrimaryShortcutModifier,
@@ -66,7 +67,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     // dirty and valid, so Cmd+Enter is a no-op when there is nothing to save.
     if (!isDirty || !timezoneValidation.valid) return;
 
-    await update({
+    const result = await update({
       ...draft,
       // Re-affirm the live-applied settings from the current store so a stale
       // draft copy can't revert a dark-mode / zoom / divider change made while
@@ -86,6 +87,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         draft.handledTasksPageSize,
       ),
     });
+    // A failed write leaves the draft on screen with its message, rather than
+    // closing over settings that never reached disk.
+    if (result.status === "error") {
+      await showMessage("Settings Save Failed", result.message);
+      return;
+    }
     onClose();
   };
 

@@ -159,6 +159,44 @@ describe("loadFile", () => {
   });
 });
 
+describe("mutating actions — the never-reject contract", () => {
+  it("reports an error instead of rejecting when the write throws", async () => {
+    // The write can reject outright — a failed atomic rename, a full disk, an
+    // unmounted volume — not just return an error result. The store applies its
+    // state transition synchronously before the flush, so a rejection would
+    // leave the UI showing the edit while nothing reached disk, with no call
+    // site catching it and the rejection vanishing into the global handler.
+    seedFile([makeTask({ id: "a", title: "before" })]);
+    flushTaskList.mockRejectedValue(new Error("disk full"));
+
+    const result = await useTaskListStore
+      .getState()
+      .updateTitle(FILE, "a", "after");
+
+    expect(result).toEqual({ status: "error", message: "disk full" });
+  });
+
+  it("reports an error instead of rejecting when a cross-file move write throws", async () => {
+    useTaskListStore.setState({
+      files: {
+        "/src.json": { data: { version: "1.0.0", id: "S", tasks: [makeTask({ id: "m" })] } },
+        "/dst.json": { data: { version: "1.0.0", id: "D", tasks: [] } },
+      },
+      fileLoadErrors: {},
+      selectedKeys: new Set(),
+      handledVisible: {},
+      handledExpanded: {},
+    });
+    flushMove.mockRejectedValue(new Error("volume gone"));
+
+    const result = await useTaskListStore
+      .getState()
+      .moveTasks("/src.json", "/dst.json", new Set(["m"]));
+
+    expect(result).toEqual({ status: "error", message: "volume gone" });
+  });
+});
+
 describe("reloadFile", () => {
   it("records an error (keeping existing data) instead of rejecting when the read throws", async () => {
     seedFile([makeTask({ id: "old" })]);

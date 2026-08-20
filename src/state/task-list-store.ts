@@ -12,13 +12,20 @@
 // The repository owns the hash internally, so the store no longer tracks one.
 
 import { create } from "zustand";
+import type { ActionResult } from "./action-result";
 import type {
   TaskListDto,
   NoteActionability,
   TaskStatus,
   TaskPriority,
 } from "../models";
-import type { LoadTaskListResult, WriteResult, MoveInputs, LogFields } from "../repositories";
+import type {
+  LoadTaskListResult,
+  WriteResult,
+  MoveResult,
+  MoveInputs,
+  LogFields,
+} from "../repositories";
 import {
   loadTaskList,
   createTaskListFile,
@@ -71,14 +78,6 @@ type FileLoadError =
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
-// Result returned to UI callers of mutating actions.
-export type ActionResult =
-  // `changed` (set by reorder actions like dropkick) reports whether the
-  // operation actually moved anything, so callers can advance selection only on
-  // a real change rather than guessing from the pre-state.
-  | { status: "success"; changed?: boolean }
-  | { status: "validation"; reason: string }
-  | { status: "error"; message: string };
 
 interface TaskListState {
   // Map of file path → loaded task list data.
@@ -263,13 +262,30 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     // mutating action funnels through this flush. No-op actions return before
     // reaching this point, so unchanged edits are not logged.
     log.info(action, { file: filePath, ...fields });
-    const result = await flushTaskList(filePath, () => {
-      const f = get().files[filePath];
-      if (!f) {
-        throw new Error(`File not loaded: ${filePath}`);
-      }
-      return f.data;
-    });
+    // flushTaskList returns explicit results for known failures, but the write
+    // can also reject outright — a failed atomic rename, a full disk, an
+    // unmounted volume, an IPC error. Converting a throw into an error result
+    // gives mutating actions the same never-reject contract loads already have
+    // via safeLoadTaskList. Without it the rejection unwound past every call
+    // site (none of which catch) to the global unhandled-rejection logger,
+    // while the synchronous state transition had already applied the edit — so
+    // the UI showed every change saved and nothing reached disk. The write
+    // boundary has already logged the cause.
+    let result: WriteResult;
+    try {
+      result = await flushTaskList(filePath, () => {
+        const f = get().files[filePath];
+        if (!f) {
+          throw new Error(`File not loaded: ${filePath}`);
+        }
+        return f.data;
+      });
+    } catch (e) {
+      return {
+        status: "error",
+        message: e instanceof Error ? e.message : String(e),
+      };
+    }
 
     if (result.status === "success") return { status: "success" };
     if (result.status === "error") {
@@ -956,22 +972,33 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         count: taskIds.size,
       });
 
-      const result = await flushMove(sourceFilePath, destFilePath, (): MoveInputs | null => {
-        const sourceState = get().files[sourceFilePath];
-        const destState = get().files[destFilePath];
-        if (!sourceState || !destState) return null;
-        const moveResult = prepareMoveOperation(
-          sourceState.data.tasks,
-          destState.data.tasks,
-          taskIds,
-        );
+      // Same never-reject contract as flush() above: a cross-file move writes
+      // two files, and a rejection here would leave the UI showing tasks in a
+      // list they never reached.
+      let result: MoveResult;
+      try {
+        result = await flushMove(sourceFilePath, destFilePath, (): MoveInputs | null => {
+          const sourceState = get().files[sourceFilePath];
+          const destState = get().files[destFilePath];
+          if (!sourceState || !destState) return null;
+          const moveResult = prepareMoveOperation(
+            sourceState.data.tasks,
+            destState.data.tasks,
+            taskIds,
+          );
+          return {
+            sourceDataPreMove: sourceState.data,
+            destDataPreMove: destState.data,
+            sourceTasksPostMove: moveResult.sourceTasks,
+            destTasksPostMove: moveResult.destinationTasks,
+          };
+        });
+      } catch (e) {
         return {
-          sourceDataPreMove: sourceState.data,
-          destDataPreMove: destState.data,
-          sourceTasksPostMove: moveResult.sourceTasks,
-          destTasksPostMove: moveResult.destinationTasks,
+          status: "error",
+          message: e instanceof Error ? e.message : String(e),
         };
-      });
+      }
 
       if (result.status === "success") {
         set((state) => ({
