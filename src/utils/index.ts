@@ -20,6 +20,7 @@ export {
   hasPrimaryShortcutModifier,
   hasPointerCommandModifier,
   shadowsMacTextBinding,
+  noteEditorAction,
   isEditableTarget,
   matchesShortcutKey,
   consumesSpace,

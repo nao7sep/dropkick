@@ -114,6 +114,30 @@ export function isOpenSettingsShortcut(event: KeyChord): boolean {
   );
 }
 
+/** What a keystroke inside an open note editor means, or null to let the
+ *  textarea have it.
+ *
+ *  Kept here rather than inline in the component so the chord table is one
+ *  testable thing: the edit path previously read only the modifier and Enter and
+ *  ignored Shift entirely, so the documented "save as actionable" chord silently
+ *  saved without flagging — a discrepancy no test could see while the decision
+ *  lived inside a JSX handler.
+ *
+ *  IME composition is deliberately NOT considered here. It lives on a ref the
+ *  caller owns, and the caller checks it after this returns, so a composing
+ *  Enter or Escape never reaches an action. */
+export type NoteEditorAction = "save" | "save-actionable" | "cancel";
+
+export function noteEditorAction(event: KeyChord): NoteEditorAction | null {
+  if (event.key === "Escape") return "cancel";
+  if (hasPrimaryShortcutModifier(event) && event.key === "Enter") {
+    // Ctrl+Enter is insertLineBreak: on macOS — leave it to the textarea.
+    if (shadowsMacTextBinding(event)) return null;
+    return event.shiftKey ? "save-actionable" : "save";
+  }
+  return null;
+}
+
 // Cmd/Ctrl+/ or a bare "?" opens the keyboard-shortcuts help. "?" is a
 // printable character, so callers must ignore it while the user is typing; the
 // Cmd/Ctrl+/ form carries a modifier and may fire anywhere, like Cmd+N.

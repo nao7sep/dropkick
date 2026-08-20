@@ -8,6 +8,7 @@ import {
   isEditableTarget,
   isOpenSettingsShortcut,
   isOpenShortcutsHelpShortcut,
+  noteEditorAction,
 } from "../../src/utils/shortcuts";
 import { importWithPlatform } from "../helpers/platform";
 
@@ -283,5 +284,88 @@ describe("isOpenShortcutsHelpShortcut", () => {
     // the "?" branch's own raw !altKey flag rejects it.
     expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, altKey: true, key: "/" }))).toBe(false);
     expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, altKey: true, key: "?" }))).toBe(false);
+  });
+});
+
+describe("noteEditorAction", () => {
+  function chord(opts: {
+    key: string;
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    altKey?: boolean;
+  }) {
+    return {
+      key: opts.key,
+      metaKey: opts.metaKey ?? false,
+      ctrlKey: opts.ctrlKey ?? false,
+      shiftKey: opts.shiftKey ?? false,
+      altKey: opts.altKey ?? false,
+    };
+  }
+
+  // The defect this whole function exists to prevent: the note EDIT path read the
+  // modifier and Enter but never Shift, so the documented "save as actionable"
+  // chord saved the text and silently dropped the flag. Both halves are asserted —
+  // a Shift branch that is never observed distinct from the plain one proves nothing.
+  it("distinguishes plain save from save-as-actionable on Shift", () => {
+    expect(noteEditorAction(chord({ key: "Enter", metaKey: true }))).toBe("save");
+    expect(noteEditorAction(chord({ key: "Enter", metaKey: true, shiftKey: true }))).toBe(
+      "save-actionable",
+    );
+  });
+
+  it("maps Escape to cancel, with or without Shift", () => {
+    expect(noteEditorAction(chord({ key: "Escape" }))).toBe("cancel");
+    expect(noteEditorAction(chord({ key: "Escape", shiftKey: true }))).toBe("cancel");
+  });
+
+  it("claims nothing for keys the textarea should keep", () => {
+    expect(noteEditorAction(chord({ key: "Enter" }))).toBeNull();
+    expect(noteEditorAction(chord({ key: "a", metaKey: true }))).toBeNull();
+    expect(noteEditorAction(chord({ key: "Tab" }))).toBeNull();
+  });
+});
+
+describe("noteEditorAction — platform text bindings", () => {
+  // On macOS Ctrl+Enter is Cocoa's insertLineBreak: inside a text field, so the
+  // editor must yield it rather than saving. Off Apple platforms Ctrl IS the
+  // primary modifier and the same chord must save — the two assertions together
+  // are what make this a platform rule rather than a blanket exclusion.
+  it("yields Ctrl+Enter on macOS but honours it elsewhere", async () => {
+    const mac = await importWithPlatform<ShortcutsModule>("mac", () =>
+      import("../../src/utils/shortcuts"),
+    );
+    expect(
+      mac.noteEditorAction({
+        key: "Enter",
+        ctrlKey: true,
+        metaKey: false,
+        shiftKey: false,
+        altKey: false,
+      }),
+    ).toBeNull();
+
+    const win = await importWithPlatform<ShortcutsModule>("windows", () =>
+      import("../../src/utils/shortcuts"),
+    );
+    expect(
+      win.noteEditorAction({
+        key: "Enter",
+        ctrlKey: true,
+        metaKey: false,
+        shiftKey: false,
+        altKey: false,
+      }),
+    ).toBe("save");
+    expect(
+      win.noteEditorAction({
+        key: "Enter",
+        ctrlKey: true,
+        metaKey: false,
+        shiftKey: true,
+        altKey: false,
+      }),
+    ).toBe("save-actionable");
   });
 });

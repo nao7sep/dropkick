@@ -70,6 +70,7 @@ const shortcutSections: {
       { label: "Focus new note field", keys: `${mod}+Shift+N` },
       { label: "Save note", keys: `${mod}+Enter` },
       { label: "Save note as actionable", keys: `${mod}+Shift+Enter` },
+      { label: "Cancel note editing", keys: "Escape" },
       { kind: "heading", label: "Tabs" },
       { label: "Next tab", keys: "Ctrl+Tab" },
       { label: "Previous tab", keys: "Ctrl+Shift+Tab" },

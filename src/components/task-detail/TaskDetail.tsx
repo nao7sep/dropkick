@@ -20,17 +20,17 @@ import {
   formatDueDate,
   singleLine,
   multiline,
-  hasPrimaryShortcutModifier,
+  noteEditorAction,
   primaryModifierLabel,
   taskKey,
   taskSelectionKey,
-  shadowsMacTextBinding,
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useNoteDraftStore } from "../../state/note-draft-store";
 import { composerDraftKey, editorDraftKey } from "../../services";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
+import { useDirtyClose } from "../../hooks/useDirtyClose";
 
 interface TaskDetailProps {
   task: Task;
@@ -450,15 +450,19 @@ export function TaskDetail({
               autoGrowNewNote();
             }}
             onKeyDown={(e) => {
-              if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
-                // Cmd+Enter is the binding and stays live; the Ctrl half is Cocoa's
-                // insertLineBreak: inside a text field, so it yields there
-                // (keyboard-shortcut-conventions).
-                if (shadowsMacTextBinding(e)) return;
-                if (isComposingKeyboardEvent(noteComposing.composingRef, e)) return;
-                e.preventDefault();
-                handleAddNote(e.shiftKey ? "Actionable" : "Informational");
-              }
+              // Same decider as the editor below, so the two cannot drift apart
+              // again — they already had, which is the whole defect: this path
+              // honoured Shift and the edit path quietly ignored it. Cmd+Enter is
+              // the binding and stays live; the Ctrl half is Cocoa's
+              // insertLineBreak: inside a text field, so the decider yields there
+              // (keyboard-shortcut-conventions).
+              const action = noteEditorAction(e);
+              // "cancel" belongs to an open editor; a composer with nothing typed
+              // has nothing to cancel, so Escape is left to the surrounding UI.
+              if (action !== "save" && action !== "save-actionable") return;
+              if (isComposingKeyboardEvent(noteComposing.composingRef, e)) return;
+              e.preventDefault();
+              handleAddNote(action === "save-actionable" ? "Actionable" : "Informational");
             }}
             {...noteComposing.handlers}
             placeholder={`Add a note... (${primaryModifierLabel}+Enter to save, ${primaryModifierLabel}+Shift+Enter actionable)`}
@@ -549,7 +553,18 @@ function NoteItem({
     if (editing) autoGrowEdit();
   }, [draft, editing, autoGrowEdit]);
 
-  const handleSave = async () => {
+  // `actionability` is passed only by the Shift chord, which saves the text AND
+  // flags the note in one keystroke — the pairing the composer above already
+  // offers on add, and which edit silently dropped. Two separate writes back it,
+  // so the flag is applied only once the text write has actually succeeded:
+  // flagging a note whose edit failed would change what it claims while leaving
+  // what it says stale.
+  //
+  // Deliberately asymmetric with the composer: a plain save here does NOT reset
+  // the note to Informational the way adding one does. By edit time the note
+  // carries an actionability the user may have picked from the dropdown, and
+  // clearing that on an unrelated text save would be a new way to lose work.
+  const handleSave = async (actionability?: NoteActionability) => {
     const cleaned = multiline(draft);
     if (!cleaned) {
       // Revert — don't allow empty notes.
@@ -565,8 +580,30 @@ function NoteItem({
         return;
       }
     }
+    if (actionability && actionability !== note.actionability) {
+      const result = await setActionability(filePath, taskId, note.id, actionability);
+      if (result.status === "error") {
+        // The text is already saved; leave the editor open so the failure is
+        // visible against the note it failed on rather than closing over it.
+        await showMessage("Note Update Failed", result.message);
+        return;
+      }
+    }
     clearDraftIf(draftKey, draft);
   };
+
+  // Every cancel path funnels through one guarded function, per the modal
+  // conventions' rule that no close path may bypass the dirty check — here that
+  // is Escape and the Cancel button, which must not disagree about whether an
+  // edit can vanish. A draft still equal to the saved note closes silently;
+  // one the user actually changed asks first, because the draft store exists
+  // precisely so an edit is never discarded without being asked about.
+  // Compared after `multiline`, so whitespace that saving would strip anyway
+  // does not count as a change worth interrupting the user over.
+  const requestCancel = useDirtyClose(
+    editing && multiline(draft) !== note.content,
+    () => clearDraft(draftKey),
+  );
 
   const handleDeleteNote = async () => {
     const confirmed = await showConfirm(
@@ -645,12 +682,15 @@ function NoteItem({
               autoGrowEdit();
             }}
             onKeyDown={(e) => {
-              if (hasPrimaryShortcutModifier(e) && e.key === "Enter") {
-                if (shadowsMacTextBinding(e)) return; // Ctrl+Enter is insertLineBreak: on macOS
-                if (isComposingKeyboardEvent(composing.composingRef, e)) return;
-                e.preventDefault();
-                handleSave();
-              }
+              const action = noteEditorAction(e);
+              if (!action) return;
+              // After the chord matches, never before: Escape and Enter both mean
+              // something else mid-composition (cancel the conversion, commit it),
+              // so a half-typed Japanese word must not close or save the editor.
+              if (isComposingKeyboardEvent(composing.composingRef, e)) return;
+              e.preventDefault();
+              if (action === "cancel") void requestCancel();
+              else void handleSave(action === "save-actionable" ? "Actionable" : undefined);
             }}
             {...composing.handlers}
             rows={2}
@@ -658,14 +698,18 @@ function NoteItem({
           />
           <div className="mt-1 flex gap-2">
             <button
-              onClick={handleSave}
+              // Wrapped, not passed directly: `handleSave` now takes an optional
+              // actionability, and a bare handler reference would hand it the
+              // click event — truthy, so every mouse Save would try to write a
+              // MouseEvent as the note's actionability.
+              onClick={() => void handleSave()}
               disabled={!draft.trim()}
               className="rounded bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
             >
               Save
             </button>
             <button
-              onClick={() => clearDraft(draftKey)}
+              onClick={() => void requestCancel()}
               className="rounded border border-border px-3 py-1 text-xs text-ink-muted hover:bg-background"
             >
               Cancel
