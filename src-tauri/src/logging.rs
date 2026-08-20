@@ -106,7 +106,7 @@ fn parts_from_millis(ms: i64) -> (i64, u32, u32, u32, u32, u32, u32) {
     (year, month, day, hour, minute, second, milli)
 }
 
-fn iso_millis(ms: i64) -> String {
+pub fn iso_millis(ms: i64) -> String {
     let (y, mo, d, h, mi, s, ms3) = parts_from_millis(ms);
     format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}.{ms3:03}Z")
 }
@@ -121,7 +121,7 @@ pub fn now_iso_millis() -> String {
     iso_millis(now_unix_millis())
 }
 
-fn filename_stamp(ms: i64) -> String {
+pub fn filename_stamp(ms: i64) -> String {
     let (y, mo, d, h, mi, s, ms3) = parts_from_millis(ms);
     format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{ms3:03}-utc")
 }
@@ -142,7 +142,7 @@ pub fn filename_stamp_now() -> String {
 
 // --- Redaction: non-destructive, key-name based, recursive, total ---
 
-fn default_denied() -> HashSet<String> {
+pub fn default_denied() -> HashSet<String> {
     ["apikey", "authorization", "token", "password", "secret"]
         .iter()
         .map(|s| s.to_string())
@@ -152,7 +152,7 @@ fn default_denied() -> HashSet<String> {
 // Replaces the value of any field whose key (lowercased) is denied with the
 // fixed marker; recurses into objects and arrays. Never inspects string content,
 // never edits `message` (it is not a denied key), cannot drop fields or throw.
-fn redact_in_place(value: &mut Value, denied: &HashSet<String>) {
+pub fn redact_in_place(value: &mut Value, denied: &HashSet<String>) {
     match value {
         Value::Object(map) => {
             for (key, child) in map.iter_mut() {
@@ -381,112 +381,16 @@ pub fn emit_forwarded(value: Value) {
 }
 
 #[cfg(test)]
+// These stay in shipped source, which the tests-folder-conventions otherwise
+// forbid, under its one stated exception: they exercise the Logger's own
+// internals — they build a Logger around an injected file handle and assert on
+// `inner.writer` after a failed write — and there is no public seam that could
+// reach that without exposing `Inner` and the struct's fields purely for tests.
+// The module's pure helpers (iso_millis, filename_stamp, default_denied,
+// redact_in_place) promote cleanly and live in tests/logging.rs.
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn iso_epoch() {
-        assert_eq!(iso_millis(0), "1970-01-01T00:00:00.000Z");
-    }
-
-    #[test]
-    fn iso_one_second() {
-        assert_eq!(iso_millis(1_000), "1970-01-01T00:00:01.000Z");
-    }
-
-    #[test]
-    fn iso_end_of_first_day() {
-        assert_eq!(iso_millis(86_399_000), "1970-01-01T23:59:59.000Z");
-    }
-
-    #[test]
-    fn iso_rolls_to_second_day() {
-        assert_eq!(iso_millis(86_400_000), "1970-01-02T00:00:00.000Z");
-    }
-
-    #[test]
-    fn iso_known_vector() {
-        // Unix 1_700_000_000 = 2023-11-14T22:13:20Z.
-        assert_eq!(iso_millis(1_700_000_000_000), "2023-11-14T22:13:20.000Z");
-    }
-
-    #[test]
-    fn iso_preserves_milliseconds() {
-        assert_eq!(iso_millis(1_700_000_000_123), "2023-11-14T22:13:20.123Z");
-    }
-
-    #[test]
-    fn iso_handles_leap_day() {
-        // Unix 951_782_400 = 2000-02-29T00:00:00Z (2000 is a leap year).
-        assert_eq!(iso_millis(951_782_400_000), "2000-02-29T00:00:00.000Z");
-    }
-
-    #[test]
-    fn filename_stamp_matches_known_vector() {
-        assert_eq!(filename_stamp(1_700_000_000_123), "20231114-221320-123-utc");
-    }
-
-    #[test]
-    fn session_filename_is_the_plain_utc_stamp_with_milliseconds() {
-        let filename = session_filename();
-        // Strictly yyyymmdd-hhmmss-fff-utc.log — no pid or id suffix.
-        assert!(
-            filename.ends_with("-utc.log") && !filename.contains("-p"),
-            "filename {filename} must be the plain yyyymmdd-hhmmss-fff-utc.log form"
-        );
-        let stamp = filename.strip_suffix(".log").unwrap();
-        let parts: Vec<&str> = stamp.split('-').collect();
-        assert_eq!(
-            parts.len(),
-            4,
-            "stamp {stamp} must split on '-' into 4 parts: yyyymmdd, hhmmss, fff, utc"
-        );
-        assert_eq!(parts[3], "utc");
-        assert_eq!(parts[2].len(), 3, "millisecond part must be zero-padded to 3 digits");
-    }
-
-    #[test]
-    fn redact_matches_exact_key_case_insensitively() {
-        let denied = default_denied();
-        let mut value = json!({
-            "token": "abc",
-            "tokenCount": 5,
-            "broken": true,
-            "nested": { "PASSWORD": "x", "ok": 1 },
-            "list": [{ "secret": "y" }, { "fine": "z" }],
-        });
-        redact_in_place(&mut value, &denied);
-        assert_eq!(
-            value,
-            json!({
-                "token": "[redacted]",
-                "tokenCount": 5,
-                "broken": true,
-                "nested": { "PASSWORD": "[redacted]", "ok": 1 },
-                "list": [{ "secret": "[redacted]" }, { "fine": "z" }],
-            })
-        );
-    }
-
-    #[test]
-    fn redact_replaces_whole_object_value() {
-        let denied = default_denied();
-        let mut value = json!({ "authorization": { "scheme": "Bearer", "creds": "xyz" } });
-        redact_in_place(&mut value, &denied);
-        assert_eq!(value, json!({ "authorization": "[redacted]" }));
-    }
-
-    #[test]
-    fn redact_never_touches_message_prose() {
-        let denied = default_denied();
-        let mut value = json!({ "message": "token=abc password=def", "level": "info" });
-        redact_in_place(&mut value, &denied);
-        assert_eq!(value["message"], json!("token=abc password=def"));
-    }
-
-    // --- Writer behavior: unbuffered durability, gating, level normalization ---
-
     use std::sync::atomic::{AtomicU32, Ordering};
 
     fn temp_logger(debug_enabled: bool) -> (Logger, std::path::PathBuf) {

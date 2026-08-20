@@ -205,6 +205,12 @@ pub fn close_for_test() {
 }
 
 #[cfg(test)]
+// These stay in shipped source, which the tests-folder-conventions otherwise
+// forbid, under its one stated exception: the store is a process-global
+// singleton, and resetting it between throwaway roots needs `close_for_test`,
+// which is deliberately #[cfg(test)]-gated and therefore absent from the
+// library an integration test would link against. Un-gating it to move these
+// out would ship a reset hook the app must never call.
 mod tests {
     use super::*;
     use serial_test::serial;

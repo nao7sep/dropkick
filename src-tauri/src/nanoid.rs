@@ -16,7 +16,7 @@
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
 
 // Matches the frontend nanoid's default length.
-const LENGTH: usize = 21;
+pub const LENGTH: usize = 21;
 
 // Generates a fresh 21-character nanoid. The only failure mode is the
 // system's random source being unavailable, which is unrecoverable for a
@@ -29,42 +29,4 @@ pub fn generate() -> String {
         .iter()
         .map(|b| ALPHABET[(b & 0x3F) as usize] as char)
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn generate_produces_the_documented_length() {
-        assert_eq!(generate().len(), LENGTH);
-    }
-
-    #[test]
-    fn generate_uses_only_the_documented_alphabet() {
-        let id = generate();
-        assert!(id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'));
-    }
-
-    #[test]
-    fn generate_yields_distinct_values_across_calls() {
-        // Not a proof of uniqueness, just a sanity check that the RNG is
-        // actually wired up rather than, say, always returning zero bytes.
-        let ids: std::collections::HashSet<String> = (0..1000).map(|_| generate()).collect();
-        assert_eq!(ids.len(), 1000);
-    }
-
-    #[test]
-    fn generate_never_produces_a_dot_or_slash() {
-        // These would be significant if embedded in a filename; the alphabet
-        // simply does not contain them, so this should hold trivially.
-        for _ in 0..1000 {
-            let id = generate();
-            assert!(!id.contains('.'));
-            assert!(!id.contains('/'));
-            assert!(!id.contains('\\'));
-        }
-    }
 }

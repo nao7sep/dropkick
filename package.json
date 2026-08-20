@@ -14,7 +14,8 @@
     "check": "npm run typecheck && npm test && cargo test --manifest-path src-tauri/Cargo.toml",
     "test:watch": "vitest",
     "tauri": "tauri",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:rust": "cargo llvm-cov --manifest-path src-tauri/Cargo.toml --html --output-dir coverage/rust"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -39,7 +39,7 @@ pub fn data_root(app: &AppHandle) -> Result<PathBuf, String> {
 // absolute against the home directory. An override that is set but expands to
 // nothing — an unset `$VAR`/`%VAR%`, say — is a reported error, never a silent
 // collapse onto the bare home directory.
-fn resolve_root(home: &Path, override_value: Option<String>) -> Result<PathBuf, String> {
+pub fn resolve_root(home: &Path, override_value: Option<String>) -> Result<PathBuf, String> {
     let Some(raw) = override_value else {
         return Ok(home.join(DATA_DIR_NAME));
     };
@@ -123,72 +123,5 @@ fn absolutize(home: &Path, path: PathBuf) -> PathBuf {
         path
     } else {
         home.join(path)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_root_is_home_dot_dropkick() {
-        let home = PathBuf::from("/home/tester");
-        // Unset / empty / whitespace all fall back to the default root.
-        assert_eq!(resolve_root(&home, None).unwrap(), home.join(".dropkick"));
-        assert_eq!(resolve_root(&home, Some(String::new())).unwrap(), home.join(".dropkick"));
-        assert_eq!(
-            resolve_root(&home, Some("   ".to_string())).unwrap(),
-            home.join(".dropkick")
-        );
-    }
-
-    #[test]
-    fn env_var_relocates_root_to_absolute_path() {
-        let home = PathBuf::from("/home/tester");
-        assert_eq!(
-            resolve_root(&home, Some("/tmp/dk-test".to_string())).unwrap(),
-            PathBuf::from("/tmp/dk-test")
-        );
-    }
-
-    #[test]
-    fn env_var_expands_leading_tilde() {
-        let home = PathBuf::from("/home/tester");
-        assert_eq!(resolve_root(&home, Some("~".to_string())).unwrap(), home);
-        assert_eq!(
-            resolve_root(&home, Some("~/profiles/work".to_string())).unwrap(),
-            home.join("profiles/work")
-        );
-    }
-
-    #[test]
-    fn relative_env_var_resolves_against_home_not_cwd() {
-        let home = PathBuf::from("/home/tester");
-        assert_eq!(
-            resolve_root(&home, Some("alt-root".to_string())).unwrap(),
-            home.join("alt-root")
-        );
-    }
-
-    #[test]
-    fn expands_environment_references_in_the_override() {
-        let home = PathBuf::from("/home/tester");
-        std::env::set_var("DROPKICK_TEST_BASE", "/mnt/disk2");
-        assert_eq!(
-            resolve_root(&home, Some("$DROPKICK_TEST_BASE/dk".to_string())).unwrap(),
-            PathBuf::from("/mnt/disk2/dk")
-        );
-        assert_eq!(
-            resolve_root(&home, Some("${DROPKICK_TEST_BASE}/dk".to_string())).unwrap(),
-            PathBuf::from("/mnt/disk2/dk")
-        );
-        std::env::remove_var("DROPKICK_TEST_BASE");
-    }
-
-    #[test]
-    fn override_that_expands_to_empty_is_rejected() {
-        let home = PathBuf::from("/home/tester");
-        std::env::remove_var("DROPKICK_UNSET_FOR_TEST");
-        assert!(resolve_root(&home, Some("$DROPKICK_UNSET_FOR_TEST".to_string())).is_err());
     }
 }

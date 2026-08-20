@@ -5,10 +5,15 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 
-mod backup_store;
-mod logging;
-mod nanoid;
-mod paths;
+// The modules are `pub` so the integration tests in `tests/` can reach them.
+// This crate's only real consumer is `main.rs`, so the "public API" is a seam
+// for testing rather than a surface anyone depends on — which is the trade the
+// tests-folder-conventions ask for: promote the helper, do not test it through
+// a shell, and keep shipped source free of test modules.
+pub mod backup_store;
+pub mod logging;
+pub mod nanoid;
+pub mod paths;
 
 // --- Command boundary logging ---
 //
@@ -85,51 +90,51 @@ fn install_panic_hook() {
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct NoteDto {
-    id: String,
-    content: String,
-    actionability: String,
-    created_at_utc: String,
+pub struct NoteDto {
+    pub id: String,
+    pub content: String,
+    pub actionability: String,
+    pub created_at_utc: String,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct TaskDto {
-    id: String,
-    title: String,
-    description: String,
-    status: String,
-    priority: String,
-    due_date: Option<String>,
-    created_at_utc: String,
-    updated_at_utc: String,
-    completed_at_utc: Option<String>,
-    notes: Vec<NoteDto>,
+pub struct TaskDto {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub status: String,
+    pub priority: String,
+    pub due_date: Option<String>,
+    pub created_at_utc: String,
+    pub updated_at_utc: String,
+    pub completed_at_utc: Option<String>,
+    pub notes: Vec<NoteDto>,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct TaskListDto {
-    version: String,
+pub struct TaskListDto {
+    pub version: String,
     // A stable identity materialized on load (see task-list-repository.ts). Legacy
     // files predate the field, so it defaults to empty on read; the frontend fills
     // and persists it. It rides through this struct so read_json_file_with_hash —
     // which returns the deserialized DTO, not the raw text — never strips it.
     #[serde(default)]
-    id: String,
-    tasks: Vec<TaskDto>,
+    pub id: String,
+    pub tasks: Vec<TaskDto>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
-enum JsonFileWithHashResult {
+pub enum JsonFileWithHashResult {
     Success { data: TaskListDto, hash: String },
     Missing,
     Invalid { message: String },
     Error { message: String },
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
+pub fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     hex::encode(hasher.finalize())
@@ -221,7 +226,7 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
 // bytes, either parse them into a TaskListDto (Success, with the content hash)
 // or report the parse failure (Invalid). No filesystem access, so it is testable
 // against in-memory bytes.
-fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
+pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
     match serde_json::from_slice::<TaskListDto>(bytes) {
         Ok(data) => JsonFileWithHashResult::Success {
             data,
@@ -249,7 +254,7 @@ fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
 // in a dialog) is open work, tracked in the fleet app-review plan.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
-enum TextReadResult {
+pub enum TextReadResult {
     Success { text: String },
     Missing,
     Error { message: String },
@@ -326,7 +331,7 @@ fn write_text_file_atomic(path: &str, contents: &str) -> Result<String, String> 
 // distinct staging files. That said, the frontend still serializes writes per
 // path (withSerial in file-system.ts) for the unrelated reason of keeping
 // hash-checked reads and writes from interleaving.
-fn atomic_temp_name(file_name: &str) -> String {
+pub fn atomic_temp_name(file_name: &str) -> String {
     let stem = std::path::Path::new(file_name)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -334,7 +339,7 @@ fn atomic_temp_name(file_name: &str) -> String {
     format!("{}-{}.tmp", stem, nanoid::generate())
 }
 
-fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
+pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
     use std::io::Write;
     let target = std::path::Path::new(path);
     let parent = target
@@ -398,7 +403,7 @@ fn file_exists(path: String) -> bool {
 // `<stem>-<yyyymmdd-hhmmss-fff-utc>.invalid` beside the source — the
 // derived-filename grammar with a moment discriminator (storage-path
 // conventions' quarantine name).
-fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
+pub fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -573,9 +578,20 @@ pub fn run() {
 }
 
 #[cfg(test)]
+// These stay in shipped source, which the tests-folder-conventions otherwise
+// forbid, under its one stated exception: their subjects are #[tauri::command]
+// functions, and a command cannot be promoted to `pub` in this crate — the
+// attribute macro emits a #[macro_export] copy of its generated macro, which
+// then collides with the local definition at the crate root (verified: E0255,
+// "the name `__cmd__hash_file` is defined multiple times"). Testing them
+// through the IPC layer instead would be testing through a shell, which the
+// convention rules out for the same reason.
+//
+// Everything that is NOT a command has been promoted and moved out: the digest,
+// the temp-file naming, the JSON classifier, the quarantine name and
+// write_atomic are exercised from tests/atomic_write.rs.
 mod tests {
     use super::*;
-    use serial_test::serial;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     // Unique temp directory per call so parallel tests never collide.
@@ -593,36 +609,12 @@ mod tests {
     }
 
     #[test]
-    fn sha256_hex_matches_known_vectors() {
-        assert_eq!(
-            sha256_hex(b""),
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        );
-        assert_eq!(
-            sha256_hex(b"abc"),
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        );
-    }
-
-    #[test]
     fn hash_file_hashes_actual_bytes() {
         let dir = unique_temp_dir("hash");
         let path = dir.join("f.txt");
         std::fs::write(&path, b"abc").unwrap();
         let result = hash_file(path.to_str().unwrap()).unwrap();
         assert_eq!(result, sha256_hex(b"abc"));
-    }
-
-    #[test]
-    fn quarantine_target_is_stem_stamp_dot_invalid_beside_the_source() {
-        let target = quarantine_target(std::path::Path::new("/data/state.json"));
-        assert_eq!(target.parent(), Some(std::path::Path::new("/data")));
-        let name = target.file_name().and_then(|n| n.to_str()).unwrap();
-        // <stem>-<yyyymmdd-hhmmss-fff-utc>.invalid — one final role extension,
-        // never a suffix dot-appended after the full "state.json".
-        assert!(name.starts_with("state-"), "unexpected name: {name}");
-        assert!(name.ends_with("-utc.invalid"), "unexpected name: {name}");
-        assert!(!name.contains("state.json"), "old shape leaked in: {name}");
     }
 
     #[test]
@@ -679,46 +671,6 @@ mod tests {
     }
 
     #[test]
-    fn classify_json_bytes_success_and_invalid() {
-        let json = br#"{"version":"1.0.0","tasks":[]}"#;
-        match classify_json_bytes(json) {
-            JsonFileWithHashResult::Success { data, hash } => {
-                assert_eq!(data.version, "1.0.0");
-                assert!(data.tasks.is_empty());
-                assert_eq!(hash, sha256_hex(json));
-            }
-            other => panic!("expected Success, got {:?}", serde_json::to_string(&other)),
-        }
-        assert!(matches!(
-            classify_json_bytes(b"{ not json"),
-            JsonFileWithHashResult::Invalid { .. }
-        ));
-    }
-
-    #[test]
-    fn atomic_temp_name_is_stem_plus_nanoid_dot_tmp() {
-        // Grammar: <stem>-<nanoid>.tmp — one final extension, the target's
-        // extension dropped rather than dot-appended after it.
-        let name = atomic_temp_name("tasks.json");
-        assert!(name.starts_with("tasks-"), "{name:?}");
-        assert!(name.ends_with(".tmp"), "{name:?}");
-        let discriminator = &name["tasks-".len()..name.len() - ".tmp".len()];
-        // The discriminator is the Rust-core-generated nanoid: 21 characters
-        // from the URL-safe alphabet (see nanoid.rs), never caller-supplied.
-        assert_eq!(discriminator.len(), 21);
-        assert!(discriminator
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'));
-
-        // Each call generates a fresh nanoid, so even the SAME file name
-        // yields a different temp name every time.
-        assert_ne!(atomic_temp_name("tasks.json"), atomic_temp_name("tasks.json"));
-        // Different file names produce differently-stemmed temp names too.
-        assert!(atomic_temp_name("a.json").starts_with("a-"));
-        assert!(atomic_temp_name("b.json").starts_with("b-"));
-    }
-
-    #[test]
     fn read_text_file_returns_missing_success_states() {
         let dir = unique_temp_dir("read-text");
         let missing = dir.join("nope.txt");
@@ -733,63 +685,6 @@ mod tests {
             TextReadResult::Success { text } => assert_eq!(text, "héllo\nworld"),
             other => panic!("expected Success, got {:?}", serde_json::to_string(&other)),
         }
-    }
-
-    #[test]
-    // Reaches `backup_store::record` through `write_atomic`, so it shares the
-    // process-global store singleton with the backup_store tests. The shared
-    // `backup_store` key serializes it against that group (which resets/reopens the
-    // singleton), so a concurrent `init`/`close_for_test` can never swap the
-    // connection out from under this write's record hook.
-    #[serial(backup_store)]
-    fn write_text_file_atomic_writes_and_replaces() {
-        let dir = unique_temp_dir("write-atomic");
-        let path = dir.join("f.json");
-        let p = path.to_str().unwrap();
-
-        write_text_file_atomic(p, "first").unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "first");
-
-        // Overwriting replaces the content atomically (rename over existing).
-        // Each call generates its own fresh nanoid discriminator.
-        write_text_file_atomic(p, "second longer contents").unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "second longer contents");
-
-        // No stray temp files left behind in the directory.
-        let leftovers: Vec<_> = std::fs::read_dir(&dir)
-            .unwrap()
-            .flatten()
-            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
-            .collect();
-        assert!(leftovers.is_empty(), "temp files left: {leftovers:?}");
-    }
-
-    #[test]
-    #[serial(backup_store)]
-    fn write_text_file_atomic_returns_the_hash_of_what_it_wrote() {
-        // The caller registers this digest as "the file as we last wrote it",
-        // and uses it to detect a later external modification. Returning it
-        // from here is what lets the caller skip reading the whole file back —
-        // and what stops a concurrent writer's bytes being hashed instead.
-        let dir = unique_temp_dir("write-hash");
-        let path = dir.join("f.json");
-        let p = path.to_str().unwrap();
-
-        let hash = write_text_file_atomic(p, "hello").unwrap();
-        assert_eq!(hash, sha256_hex(b"hello"));
-        assert_eq!(hash, hash_file(p).unwrap());
-
-        // A second write reports the new content's hash, not the old one.
-        let next = write_text_file_atomic(p, "goodbye").unwrap();
-        assert_ne!(next, hash);
-        assert_eq!(next, hash_file(p).unwrap());
-    }
-
-    #[test]
-    fn write_text_file_atomic_errors_when_parent_missing() {
-        let dir = unique_temp_dir("write-no-parent");
-        let path = dir.join("missing-subdir").join("f.json");
-        assert!(write_text_file_atomic(path.to_str().unwrap(), "x").is_err());
     }
 
     #[test]
@@ -811,5 +706,5 @@ mod tests {
         // Idempotent: calling again on an existing dir is fine.
         ensure_dir(p).unwrap();
     }
-}
 
+}
