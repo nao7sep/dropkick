@@ -42,6 +42,13 @@ export function normalizeKickDistances(values: unknown): number[] {
   return deduplicated.length > 0 ? deduplicated : [...DEFAULT_KICK_DISTANCES];
 }
 
+// The UI font stack the app falls back to, and the value the default
+// preferences carry. Kept in lock-step with the --font-ui fallback in App.css:
+// a family the user types is appended to this, so an unknown one degrades to a
+// real sans face rather than the engine's serif.
+export const DEFAULT_UI_FONT_STACK =
+  'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
 // Bounds for the two numeric settings. Named here, beside the fields they
 // govern, so the Settings inputs and the normalizers cannot disagree.
 export const DUE_SOON_DAYS_MIN = 1;
@@ -119,7 +126,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     version: "1.0.0",
     id: generateId(),
     name,
-    fontFamily: "system-ui",
+    fontFamily: "",
     darkMode: false,
     timezone: null,
     kickDistances: [...DEFAULT_KICK_DISTANCES],

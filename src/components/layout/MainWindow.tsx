@@ -76,7 +76,6 @@ class ErrorBoundary extends Component<
 }
 
 export function MainWindow() {
-  const preferences = usePreferencesStore((s) => s.preferences);
   const updatePrefs = usePreferencesStore((s) => s.update);
   // Zoom and sidebar width are view state (state.json), not preferences.
   const zoomLevel = useAppConfigStore((s) => s.config.zoomLevel);
@@ -430,12 +429,7 @@ export function MainWindow() {
   }, [showMoveTasks, selectedTasks.length]);
 
   return (
-    <div
-      className="flex h-screen flex-col bg-background"
-      style={{
-        fontFamily: preferences.fontFamily,
-      }}
-    >
+    <div className="flex h-screen flex-col bg-background">
       {/* Tab bar */}
       <TabBar
         onMenuSelect={(item) => {

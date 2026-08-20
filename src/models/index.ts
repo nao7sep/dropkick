@@ -16,6 +16,7 @@ export {
   normalizeHandledTasksPageSize,
   normalizeKickDistances,
   DEFAULT_KICK_DISTANCES,
+  DEFAULT_UI_FONT_STACK,
   DUE_SOON_DAYS_MIN,
   DUE_SOON_DAYS_MAX,
   DUE_SOON_DAYS_DEFAULT,

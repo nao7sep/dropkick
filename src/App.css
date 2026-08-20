@@ -316,7 +316,15 @@ body.divider-dragging * {
 }
 
 :root {
-  font-family: system-ui, -apple-system, sans-serif;
+  /* The user's UI font, set on <html> by App.tsx. Applying it here rather than
+     inside the main window's subtree is what lets it reach the modals, menus,
+     popovers and toasts, all of which portal to <body> and would otherwise
+     inherit only this rule's fallback. The fallback IS the default: the stored
+     default resolves to the same stack, so an empty or unknown family degrades
+     to a real sans stack rather than the engine's serif. */
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

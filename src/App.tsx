@@ -8,6 +8,7 @@ import { computeMinWindowWidth, computeMinWindowHeight } from "./utils";
 import "./App.css";
 import type { LoadPreferencesResult, LoadWorkspaceResult } from "./repositories";
 import { showMessage, log, toErrorFields, loadFailureFields } from "./repositories";
+import { DEFAULT_UI_FONT_STACK } from "./models";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppConfigStore } from "./state/app-config-store";
@@ -32,6 +33,7 @@ function App() {
   const loadNoteDrafts = useNoteDraftStore((s) => s.load);
   const setLastPaths = useAppConfigStore((s) => s.setLastPaths);
   const darkMode = usePreferencesStore((s) => s.preferences.darkMode);
+  const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
   // Guards against a double Launch: phase stays "startup" until the awaited
   // loads finish, so two quick clicks would otherwise both run the sequence.
   const launchingRef = useRef(false);
@@ -49,6 +51,19 @@ function App() {
       .setTheme(darkMode ? "dark" : "light")
       .catch((e) => log.warn("window setTheme failed", { darkMode, ...toErrorFields(e) }));
   }, [darkMode]);
+
+  // Same reason as the theme class: set the UI font on <html> so it reaches
+  // every Radix surface, all of which portal to <body> and sit outside the
+  // React tree. A family the user typed is appended to the default stack rather
+  // than replacing it, so a typo falls back to a real sans face instead of the
+  // engine's serif. Empty means "use the default".
+  useEffect(() => {
+    const chosen = fontFamily.trim();
+    document.documentElement.style.setProperty(
+      "--font-ui",
+      chosen ? `${chosen}, ${DEFAULT_UI_FONT_STACK}` : DEFAULT_UI_FONT_STACK,
+    );
+  }, [fontFamily]);
 
   // Enforce the content-based minimum window size once at startup. The minimum
   // is DERIVED from the pane minimums plus the fixed tab bar (windowSizing.ts),

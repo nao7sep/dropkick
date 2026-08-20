@@ -171,9 +171,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         <input
           type="text"
           value={draft.fontFamily}
+          placeholder="System default"
           onChange={(e) => setField("fontFamily", e.target.value)}
           className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
+        <p className="mt-1 text-xs text-ink-muted">
+          Leave empty for the system font. A name that isn't installed falls
+          back to it.
+        </p>
       </Field>
 
       {/* Timezone */}
