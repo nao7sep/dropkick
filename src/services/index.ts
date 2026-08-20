@@ -55,3 +55,6 @@ export {
   editorDraftKey,
   reconcileDrafts,
 } from "./note-drafts";
+
+export type { LoadFailure, DocumentKind } from "./load-failure";
+export { describeLoadFailure, fileNameWithoutExt } from "./load-failure";

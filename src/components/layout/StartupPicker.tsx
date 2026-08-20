@@ -9,7 +9,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { ArrowLeft, FolderOpen, Plus, X } from "lucide-react";
-import type { LoadPreferencesResult, LoadWorkspaceResult } from "../../repositories";
 import {
   createPreferencesFile,
   createWorkspaceFile,
@@ -18,8 +17,11 @@ import {
   openJsonFileDialog,
   saveJsonFileDialog,
   showMessage,
+  log,
+  toErrorFields,
 } from "../../repositories";
 import { useAppConfigStore } from "../../state/app-config-store";
+import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 
 interface StartupPickerProps {
   onLaunch: (preferencesPath: string, workspacePath: string) => void;
@@ -55,6 +57,27 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
     target?.focus();
   }, [selectedPrefs, selectedWorkspace]);
 
+  // Every write this screen performs — creating a file, or recording the
+  // selection in state.json — goes through here. Without it a failed write left
+  // the rejection to the global unhandled-rejection logger: the button simply
+  // did nothing, with no dialog, no selection change and no clue why. TabBar's
+  // equivalent already wrapped the identical sequence.
+  const guarded = async (
+    title: string,
+    what: string,
+    run: () => Promise<void>,
+  ): Promise<void> => {
+    try {
+      await run();
+    } catch (e) {
+      log.error("startup picker action failed", { action: what, ...toErrorFields(e) });
+      await showMessage(
+        title,
+        `${what} could not be completed:\n\n${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  };
+
   const handleOpenPreferences = async () => {
     const path = await openJsonFileDialog();
     if (!path) return;
@@ -62,20 +85,24 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
     if (loadResult.status !== "success") {
       await showMessage(
         "Preferences Load Failed",
-        preferencesLoadErrorMessage(path, loadResult),
+        describeLoadFailure("preferences", loadResult, path),
       );
       return;
     }
-    await registerPreferences(path);
-    setSelectedPrefs(path);
+    await guarded("Open Preferences Failed", "Opening the preferences file", async () => {
+      await registerPreferences(path);
+      setSelectedPrefs(path);
+    });
   };
 
   const handleNewPreferences = async () => {
     const normalizedPath = await saveJsonFileDialog("preferences.json");
     if (!normalizedPath) return;
-    await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-    await registerPreferences(normalizedPath);
-    setSelectedPrefs(normalizedPath);
+    await guarded("Create Preferences Failed", "Creating the preferences file", async () => {
+      await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
+      await registerPreferences(normalizedPath);
+      setSelectedPrefs(normalizedPath);
+    });
   };
 
   const handleOpenWorkspace = async () => {
@@ -85,20 +112,24 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
     if (loadResult.status !== "success") {
       await showMessage(
         "Workspace Load Failed",
-        workspaceLoadErrorMessage(path, loadResult),
+        describeLoadFailure("workspace", loadResult, path),
       );
       return;
     }
-    await registerWorkspace(path);
-    setSelectedWorkspace(path);
+    await guarded("Open Workspace Failed", "Opening the workspace file", async () => {
+      await registerWorkspace(path);
+      setSelectedWorkspace(path);
+    });
   };
 
   const handleNewWorkspace = async () => {
     const normalizedPath = await saveJsonFileDialog("workspace.json");
     if (!normalizedPath) return;
-    await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-    await registerWorkspace(normalizedPath);
-    setSelectedWorkspace(normalizedPath);
+    await guarded("Create Workspace Failed", "Creating the workspace file", async () => {
+      await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
+      await registerWorkspace(normalizedPath);
+      setSelectedWorkspace(normalizedPath);
+    });
   };
 
   const handleRemovePreferences = async (path: string) => {
@@ -251,28 +282,5 @@ function Section({
 
 // Helpers
 
-function fileNameWithoutExt(path: string): string {
-  const parts = path.split(/[\\/]/);
-  const name = parts[parts.length - 1] ?? "default";
-  return name.replace(/\.json$/, "");
-}
 
-function preferencesLoadErrorMessage(
-  path: string,
-  result: Exclude<LoadPreferencesResult, { status: "success" }>,
-): string {
-  if (result.status === "missing") {
-    return `The preferences file could not be found:\n\n${path}`;
-  }
-  return `The preferences file could not be loaded:\n\n${path}\n\n${result.message}`;
-}
 
-function workspaceLoadErrorMessage(
-  path: string,
-  result: Exclude<LoadWorkspaceResult, { status: "success" }>,
-): string {
-  if (result.status === "missing") {
-    return `The workspace file could not be found:\n\n${path}`;
-  }
-  return `The workspace file could not be loaded:\n\n${path}\n\n${result.message}`;
-}

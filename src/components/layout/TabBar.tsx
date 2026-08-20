@@ -27,6 +27,7 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useAppConfigStore } from "../../state/app-config-store";
+import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 import {
   openJsonFileDialog,
   saveJsonFileDialog,
@@ -156,7 +157,7 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
         // (covers this path and background loads); here we only show the dialog.
         await showMessage(
           "Open Task List Failed",
-          loadFileErrorMessage(path, loaded),
+          describeLoadFailure("task list", loaded, path),
         );
         return;
       }
@@ -180,7 +181,7 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
         // Load-failure warning is emitted once by the task-list store.
         await showMessage(
           "Open Task List Failed",
-          loadFileErrorMessage(path, loaded),
+          describeLoadFailure("task list", loaded, path),
         );
         return;
       }
@@ -667,24 +668,7 @@ function SortableTab({
   );
 }
 
-function fileNameWithoutExt(path: string): string {
-  const parts = path.split(/[\\/]/);
-  const name = parts[parts.length - 1] ?? "tasks";
-  return name.replace(/\.json$/, "");
-}
 
-function loadFileErrorMessage(
-  path: string,
-  result:
-    | { status: "missing" }
-    | { status: "invalid"; message: string }
-    | { status: "error"; message: string },
-): string {
-  if (result.status === "missing") {
-    return `The task list file could not be found:\n\n${path}`;
-  }
-  return `The task list file could not be loaded:\n\n${path}\n\n${result.message}`;
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

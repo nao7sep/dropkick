@@ -46,6 +46,7 @@ import { NewTaskModal } from "./NewTaskModal";
 import { MoveTasksModal } from "./MoveTasksModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
+import { describeLoadFailure } from "../../services";
 
 // Error boundary — catches rendering errors and shows them instead of blank screen.
 class ErrorBoundary extends Component<
@@ -310,7 +311,7 @@ export function MainWindow() {
             // The task-list store emits the load-failure warning; show the dialog.
             await showMessage(
               "Open Task List Failed",
-              loadFileErrorMessage(activeTab.filePath, result),
+              describeLoadFailure("task list", result, activeTab.filePath),
             );
           }
         }
@@ -531,18 +532,6 @@ export function MainWindow() {
   );
 }
 
-function loadFileErrorMessage(
-  path: string,
-  result:
-    | { status: "missing" }
-    | { status: "invalid"; message: string }
-    | { status: "error"; message: string },
-): string {
-  if (result.status === "missing") {
-    return `The task list file could not be found:\n\n${path}`;
-  }
-  return `The task list file could not be loaded:\n\n${path}\n\n${result.message}`;
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

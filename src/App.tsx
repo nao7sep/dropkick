@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { computeMinWindowWidth, computeMinWindowHeight } from "./utils";
 import "./App.css";
-import type { LoadPreferencesResult, LoadWorkspaceResult } from "./repositories";
 import { showMessage, log, toErrorFields, loadFailureFields } from "./repositories";
 import { DEFAULT_UI_FONT_STACK } from "./models";
 import { usePreferencesStore } from "./state/preferences-store";
@@ -18,6 +17,7 @@ import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
 import { AppDialogHost } from "./components/shared/AppDialogHost";
 import { ToastHost } from "./components/shared/ToastHost";
+import { describeLoadFailure } from "./services";
 
 type AppPhase =
   | { kind: "loading" }
@@ -116,7 +116,7 @@ function App() {
         );
         await showMessage(
           "Preferences Load Failed",
-          preferencesLoadErrorMessage(preferencesPath, preferencesResult),
+          describeLoadFailure("preferences", preferencesResult, preferencesPath),
         );
         return;
       }
@@ -129,7 +129,7 @@ function App() {
         );
         await showMessage(
           "Workspace Load Failed",
-          workspaceLoadErrorMessage(workspacePath, workspaceResult),
+          describeLoadFailure("workspace", workspaceResult, workspacePath),
         );
         return;
       }
@@ -207,24 +207,6 @@ function App() {
   );
 }
 
-function preferencesLoadErrorMessage(
-  path: string,
-  result: Exclude<LoadPreferencesResult, { status: "success" }>,
-): string {
-  if (result.status === "missing") {
-    return `The preferences file could not be found:\n\n${path}`;
-  }
-  return `The preferences file could not be loaded:\n\n${path}\n\n${result.message}`;
-}
 
-function workspaceLoadErrorMessage(
-  path: string,
-  result: Exclude<LoadWorkspaceResult, { status: "success" }>,
-): string {
-  if (result.status === "missing") {
-    return `The workspace file could not be found:\n\n${path}`;
-  }
-  return `The workspace file could not be loaded:\n\n${path}\n\n${result.message}`;
-}
 
 export default App;

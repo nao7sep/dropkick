@@ -26,6 +26,7 @@ import {
 } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useViewTasks } from "../../hooks/useViewTasks";
+import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 
 interface TaskListPaneProps {
   filePath: string;
@@ -352,7 +353,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     return (
       <LoadErrorPane
         filePath={filePath}
-        message={loadErrorMessage(fileLoadError)}
+        message={describeLoadFailure("task list", fileLoadError)}
         onRetry={() => loadFile(filePath)}
         onRemove={() => closeTab(activeTabIndex)}
       />
@@ -721,17 +722,6 @@ function LoadErrorPane({
   );
 }
 
-function loadErrorMessage(
-  error:
-    | { status: "missing" }
-    | { status: "invalid"; message: string }
-    | { status: "error"; message: string },
-): string {
-  if (error.status === "missing") {
-    return "The task list file could not be found.";
-  }
-  return `The task list file could not be loaded:\n\n${error.message}`;
-}
 
 /** Look up the tab's display name for a file path; fall back to raw filename.
  * Pure over the passed-in tabs (subscribed by the caller), so a tab rename
@@ -742,6 +732,5 @@ function tabDisplayName(
 ): string {
   const tab = openTabs.find((t) => t.filePath === path);
   if (tab) return tab.displayName;
-  const parts = path.split(/[\\/]/);
-  return (parts[parts.length - 1] ?? "").replace(/\.json$/, "");
+  return fileNameWithoutExt(path);
 }
