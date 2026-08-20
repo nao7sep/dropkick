@@ -1,5 +1,5 @@
-// Pure note-draft rules: the key grammar, and the load-time reconciliation that
-// drops drafts whose subject no longer exists.
+// Pure note-draft rules: the key grammar, and the reconciliation that drops
+// drafts whose subject is provably gone.
 //
 // Keys deliberately omit the file path. Task ids are stable per-entity nanoids,
 // so a draft follows its task when the task is moved to another list.
@@ -17,58 +17,49 @@ export function editorDraftKey(taskId: string, noteId: string): string {
   return `${taskId}:${noteId}`;
 }
 
-// Every draft key the given task lists can justify: one per task (its composer)
-// and one per note (its editor). A draft key outside this set has no subject.
-export function collectDraftSubjects(
-  taskLists: readonly TaskListDto[],
-): Set<string> {
-  const subjects = new Set<string>();
-  for (const list of taskLists) {
-    for (const task of list.tasks) {
-      subjects.add(composerDraftKey(task.id));
-      for (const note of task.notes) {
-        subjects.add(editorDraftKey(task.id, note.id));
-      }
-    }
-  }
-  return subjects;
-}
-
-// Drops every draft whose task or note no longer exists. Drafts persist across
-// sessions, so without this a note deleted (or a task deleted from another tab)
-// leaves its draft behind forever — text the user cannot locate from any
-// surface, growing the store one orphan at a time.
+// Drops only the drafts whose subject is PROVABLY gone, judged against whatever
+// task lists happen to be loaded.
+//
+// An editor draft names both a task and a note. If that task is in front of us
+// and the note is not, the note is genuinely deleted and the draft has nowhere
+// to return to. Everything else is kept: a composer draft's subject is the task
+// itself, and a task we cannot see is a task we cannot judge.
+//
+// That asymmetry is the point. The previous rule collected the subjects of the
+// OPEN lists and dropped every draft outside that set, gated on all of them
+// having loaded. But "open" is not "every list a draft could belong to": a
+// draft key deliberately omits its path so it can follow its task between
+// lists, so a draft for a task in a list the user merely closed was
+// indistinguishable from an orphan — and drafts live in one machine-global file
+// while workspaces are per-file, so opening a second workspace destroyed the
+// first's unsaved text. Judging only what is visible needs no completeness gate
+// at all, and can be run as often as the loaded lists change.
+//
+// The residue is a composer draft for a task deleted outside this app's own
+// delete path (which clears drafts itself). That costs a few unreachable bytes
+// in a JSON file; the rule it replaces cost the user text they had typed.
 //
 // Returns the SAME object when nothing was dropped, so the caller can skip both
 // the state update and the disk write on the overwhelmingly common no-op.
 export function reconcileDrafts(
   drafts: Record<string, string>,
-  subjects: ReadonlySet<string>,
+  loadedLists: readonly TaskListDto[],
 ): Record<string, string> {
-  const kept = Object.entries(drafts).filter(([key]) => subjects.has(key));
+  const notesByTask = new Map<string, Set<string>>();
+  for (const list of loadedLists) {
+    for (const task of list.tasks) {
+      notesByTask.set(task.id, new Set(task.notes.map((n) => n.id)));
+    }
+  }
+
+  const kept = Object.entries(drafts).filter(([key]) => {
+    const separator = key.indexOf(":");
+    if (separator === -1) return true; // composer draft — its subject is the task
+    const notes = notesByTask.get(key.slice(0, separator));
+    if (notes === undefined) return true; // task not visible — not judgeable
+    return notes.has(key.slice(separator + 1));
+  });
+
   if (kept.length === Object.keys(drafts).length) return drafts;
   return Object.fromEntries(kept);
-}
-
-// The safety gate around reconciliation: which subjects may be used, or `null`
-// for "not now".
-//
-// Reconciliation can only DROP drafts, so it must never run against a partial
-// picture. It is allowed exactly when every open task list has loaded — then a
-// draft key outside their union genuinely has no subject to return to. If a
-// list is still loading, failed to load, or no list is open at all, the union
-// would be missing tasks that do exist and the answer is `null`: keep every
-// draft and try again once the picture is complete.
-export function draftReconcileSubjects(
-  openListPaths: readonly string[],
-  files: Readonly<Record<string, { data: TaskListDto }>>,
-): Set<string> | null {
-  if (openListPaths.length === 0) return null;
-  const loaded: TaskListDto[] = [];
-  for (const path of openListPaths) {
-    const file = files[path];
-    if (!file) return null;
-    loaded.push(file.data);
-  }
-  return collectDraftSubjects(loaded);
 }

@@ -24,6 +24,7 @@
 // residual exposure is the coalescing window, not the session.
 
 import { create } from "zustand";
+import type { TaskListDto } from "../models";
 import { flushNoteDrafts, loadNoteDrafts, log, toErrorFields } from "../repositories";
 import { reconcileDrafts } from "../services/note-drafts";
 
@@ -121,7 +122,9 @@ interface NoteDraftState {
   clearTaskDrafts: (taskId: string) => void;
   // Drop drafts whose task or note no longer exists. `subjects` is every key the
   // loaded task lists can justify (services/note-drafts).
-  reconcile: (subjects: ReadonlySet<string>) => void;
+  // Drops drafts whose subject is provably gone, judged against the task
+  // lists currently loaded. Safe to call as often as those change.
+  reconcile: (loadedLists: readonly TaskListDto[]) => void;
 }
 
 export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
@@ -188,9 +191,9 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
       commit(rest);
     },
 
-    reconcile: (subjects) => {
+    reconcile: (loadedLists) => {
       const { drafts } = get();
-      const kept = reconcileDrafts(drafts, subjects);
+      const kept = reconcileDrafts(drafts, loadedLists);
       if (kept === drafts) return;
       log.info("orphaned note drafts dropped", {
         dropped: Object.keys(drafts).length - Object.keys(kept).length,

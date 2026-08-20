@@ -17,6 +17,7 @@ import {
   useNoteDraftStore,
   flushNoteDraftsNow,
 } from "../../src/state/note-draft-store";
+import { makeTask, makeNote } from "../helpers/task";
 
 const invokeMock = invoke as unknown as Mock;
 const ROOT = "/home/u/.dropkick";
@@ -221,16 +222,29 @@ describe("reconcile", () => {
       status: "success",
       text: JSON.stringify({
         version: "1.0.0",
-        drafts: { t1: "still has a task", tGone: "no task any more" },
+        drafts: {
+          "t1:n1": "edit of a live note",
+          "t1:gone": "edit of a deleted note",
+        },
       }),
     };
     await useNoteDraftStore.getState().load();
 
-    useNoteDraftStore.getState().reconcile(new Set(["t1"]));
+    // The task is loaded and note n1 is on it, so only the draft naming a note
+    // that is provably absent is dropped.
+    useNoteDraftStore.getState().reconcile([
+      {
+        version: "1.0.0",
+        id: "L1",
+        tasks: [makeTask({ id: "t1", notes: [makeNote({ id: "n1" })] })],
+      },
+    ]);
     await vi.advanceTimersByTimeAsync(500);
 
-    expect(useNoteDraftStore.getState().drafts).toEqual({ t1: "still has a task" });
-    expect(draftWrites().at(-1)).toEqual({ t1: "still has a task" });
+    expect(useNoteDraftStore.getState().drafts).toEqual({
+      "t1:n1": "edit of a live note",
+    });
+    expect(draftWrites().at(-1)).toEqual({ "t1:n1": "edit of a live note" });
   });
 });
 

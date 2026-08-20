@@ -37,7 +37,6 @@ import {
   DEFAULT_SIDEBAR_WIDTH,
 } from "../../utils";
 import {
-  draftReconcileSubjects,
 } from "../../services";
 import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
@@ -359,23 +358,18 @@ export function MainWindow() {
     }
   }, [openListPathsKey, activeTab?.filePath, activeTab?.isUnifiedView, loadFile]);
 
-  // Reconcile the persisted note drafts once the picture is complete.
+  // Drop note drafts whose subject is provably gone.
   //
-  // Drafts now outlive the session, so a task or note deleted while its draft
-  // was parked would otherwise leave that draft behind for good — text with
-  // nowhere to return to, that the user cannot reach from any surface.
-  // Reconciliation can only DROP, so draftReconcileSubjects answers `null`
-  // until every open list has loaded; this effect just retries until it does
-  // and then runs exactly once for the session.
-  const reconciledRef = useRef(false);
+  // Drafts outlive the session, so a note deleted while its draft was parked
+  // would otherwise leave that draft behind for good — text with nowhere to
+  // return to, that the user cannot reach from any surface. reconcileDrafts
+  // judges only what is loaded and only drops what it can prove, so this needs
+  // no completeness gate and can run whenever the loaded lists change.
   useEffect(() => {
-    if (reconciledRef.current) return;
-    const paths = openListPathsKey ? openListPathsKey.split("\0") : [];
-    const subjects = draftReconcileSubjects(paths, files);
-    if (!subjects) return;
-    reconciledRef.current = true;
-    useNoteDraftStore.getState().reconcile(subjects);
-  }, [openListPathsKey, files]);
+    useNoteDraftStore
+      .getState()
+      .reconcile(Object.values(files).map((f) => f.data));
+  }, [files]);
 
   // File-lifecycle unload. The set of file paths the workspace currently has
   // open drives which files are kept in memory; anything that drops out gets
