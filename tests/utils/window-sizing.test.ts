@@ -16,24 +16,24 @@ import {
 // assert the window minimum tracks it automatically.
 describe("window minimum size derivation", () => {
   it("derives the min width from sidebar + splitter + detail", () => {
-    expect(computeMinWindowWidth()).toBe(
+    expect(computeMinWindowWidth(1)).toBe(
       SIDEBAR_MIN_WIDTH + SPLITTER_WIDTH + DETAIL_MIN_WIDTH,
     );
   });
 
   it("derives the min height from the tab bar + content", () => {
-    expect(computeMinWindowHeight()).toBe(TAB_BAR_MIN_HEIGHT + CONTENT_MIN_HEIGHT);
+    expect(computeMinWindowHeight(1)).toBe(TAB_BAR_MIN_HEIGHT + CONTENT_MIN_HEIGHT);
   });
 
   it("reserves both panes and the splitter in the width — not just one pane", () => {
     // The binding width dimension is the summed content row, so the min must
     // exceed either pane alone.
-    expect(computeMinWindowWidth()).toBeGreaterThan(SIDEBAR_MIN_WIDTH);
-    expect(computeMinWindowWidth()).toBeGreaterThan(DETAIL_MIN_WIDTH);
+    expect(computeMinWindowWidth(1)).toBeGreaterThan(SIDEBAR_MIN_WIDTH);
+    expect(computeMinWindowWidth(1)).toBeGreaterThan(DETAIL_MIN_WIDTH);
   });
 
   it("reserves the fixed tab-bar chrome in the height", () => {
-    expect(computeMinWindowHeight()).toBeGreaterThan(CONTENT_MIN_HEIGHT);
+    expect(computeMinWindowHeight(1)).toBeGreaterThan(CONTENT_MIN_HEIGHT);
   });
 });
 
@@ -91,5 +91,24 @@ describe("clampSidebarWidth", () => {
 
   it("falls back to SIDEBAR_MIN when the container is unmeasured", () => {
     expect(clampSidebarWidth(DEFAULT_SIDEBAR_WIDTH, 0)).toBe(SIDEBAR_MIN_WIDTH);
+  });
+});
+
+describe("window minimum size under zoom", () => {
+  it("scales with the webview zoom, because the pane minimums are CSS pixels", () => {
+    // The OS minimum is in logical pixels. Fixed at 100%, it let a window
+    // zoomed to 200% shrink to half the logical width its content needs,
+    // pushing the detail pane and its action controls past the right edge.
+    expect(computeMinWindowWidth(2)).toBe(computeMinWindowWidth(1) * 2);
+    expect(computeMinWindowHeight(2)).toBe(computeMinWindowHeight(1) * 2);
+  });
+
+  it("shrinks when zoomed out, where the content genuinely needs less", () => {
+    expect(computeMinWindowWidth(0.5)).toBe(computeMinWindowWidth(1) / 2);
+  });
+
+  it("rounds up, so a fractional zoom never leaves the layout a pixel short", () => {
+    // 524 * 1.1 = 576.4 — a 576px window would clip.
+    expect(computeMinWindowWidth(1.1)).toBe(Math.ceil(524 * 1.1));
   });
 });

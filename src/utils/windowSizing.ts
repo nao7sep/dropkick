@@ -40,13 +40,22 @@ export const SPLITTER_WIDTH = 4;
 
 // Minimum window width = the content row at its narrowest: both panes at their
 // minimums plus the splitter between them.
-export function computeMinWindowWidth(): number {
-  return SIDEBAR_MIN_WIDTH + SPLITTER_WIDTH + DETAIL_MIN_WIDTH;
+//
+// Scaled by the webview zoom, because every constant above is in CSS pixels
+// while the OS minimum is in logical ones. At 200% the layout needs twice the
+// logical width, and a minimum fixed at 100% let the window shrink to half of
+// what the panes need — pushing the detail pane and its action controls past
+// the right edge, for the accessibility user the zoom exists to serve.
+export function computeMinWindowWidth(zoomLevel: number): number {
+  return Math.ceil(
+    (SIDEBAR_MIN_WIDTH + SPLITTER_WIDTH + DETAIL_MIN_WIDTH) * zoomLevel,
+  );
 }
 
-// Minimum window height = the fixed tab bar plus the content row at its minimum.
-export function computeMinWindowHeight(): number {
-  return TAB_BAR_MIN_HEIGHT + CONTENT_MIN_HEIGHT;
+// Minimum window height = the fixed tab bar plus the content row at its
+// minimum, scaled by the zoom for the same reason as the width.
+export function computeMinWindowHeight(zoomLevel: number): number {
+  return Math.ceil((TAB_BAR_MIN_HEIGHT + CONTENT_MIN_HEIGHT) * zoomLevel);
 }
 
 // Default sidebar intent width, in pixels. The persisted `sidebarWidth` is the

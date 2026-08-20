@@ -65,18 +65,26 @@ function App() {
     );
   }, [fontFamily]);
 
-  // Enforce the content-based minimum window size once at startup. The minimum
-  // is DERIVED from the pane minimums plus the fixed tab bar (windowSizing.ts),
-  // not a literal in tauri.conf.json, so the window can never shrink below what
-  // its panes need and the two sources can never drift apart. Below this, the
-  // OS refuses to shrink the window, so no pane is ever squeezed out.
+  // Enforce the content-based minimum window size. The minimum is DERIVED from
+  // the pane minimums plus the fixed tab bar (windowSizing.ts), not a literal in
+  // tauri.conf.json, so the window can never shrink below what its panes need
+  // and the two sources can never drift apart. Below this, the OS refuses to
+  // shrink the window, so no pane is ever squeezed out.
+  //
+  // It is re-applied on every zoom change: the pane minimums are CSS pixels and
+  // the OS minimum is logical ones, so a minimum computed once at 100% let a
+  // zoomed-in window shrink to a fraction of what its content needs.
+  const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   useEffect(() => {
     getCurrentWindow()
       .setMinSize(
-        new LogicalSize(computeMinWindowWidth(), computeMinWindowHeight()),
+        new LogicalSize(
+          computeMinWindowWidth(zoomLevel),
+          computeMinWindowHeight(zoomLevel),
+        ),
       )
       .catch((e) => log.warn("window setMinSize failed", toErrorFields(e)));
-  }, []);
+  }, [zoomLevel]);
 
   // Initialize on mount.
   useEffect(() => {
