@@ -4,8 +4,7 @@ import type { PreferencesDto } from "../../src/models";
 import {
   parseKickDistances,
   isPreferencesDraftDirty,
-  liveAppliedPreferences,
-  LIVE_APPLIED_PREFERENCE_KEYS,
+  stagedPreferences,
 } from "../../src/services/preferences-draft";
 
 const committed = (): PreferencesDto => createDefaultPreferences("Default");
@@ -58,30 +57,27 @@ describe("parseKickDistances", () => {
   });
 });
 
-describe("liveAppliedPreferences", () => {
-  it("picks exactly the live-applied keys from the source", () => {
-    const c = committed();
-    c.darkMode = true;
-    const picked = liveAppliedPreferences(c);
-    expect(Object.keys(picked).sort()).toEqual(
-      [...LIVE_APPLIED_PREFERENCE_KEYS].sort(),
-    );
-    // Only darkMode is live-applied now; zoom and sidebar width moved to view state.
-    expect(picked).toEqual({ darkMode: true });
+describe("stagedPreferences", () => {
+  it("omits darkMode, so it cannot be staged in the first place", () => {
+    // The split used to be a runtime list the dirty check filtered and Save
+    // re-affirmed from the store. Expressing it in the type removes both: a
+    // stale draft has no darkMode to revert with.
+    const staged = stagedPreferences(committed());
+    expect("darkMode" in staged).toBe(false);
   });
 
-  it("does not include any staged key (so a Save spread cannot revert them)", () => {
-    const picked = liveAppliedPreferences(committed());
-    for (const key of ["fontFamily", "timezone", "kickDistances", "dueSoonDays"]) {
-      expect(key in picked).toBe(false);
-    }
+  it("carries every other preference through unchanged", () => {
+    const c = committed();
+    const staged = stagedPreferences(c);
+    const { darkMode: _live, ...rest } = c;
+    expect(staged).toEqual(rest);
   });
 });
 
 describe("isPreferencesDraftDirty", () => {
   it("is not dirty when draft equals committed and kick string matches", () => {
     const c = committed();
-    expect(isPreferencesDraftDirty({ ...c }, c, KICK_STRING)).toBe(false);
+    expect(isPreferencesDraftDirty(stagedPreferences(c), c, KICK_STRING)).toBe(false);
   });
 
   it("is dirty when a staged field changes", () => {
@@ -92,33 +88,23 @@ describe("isPreferencesDraftDirty", () => {
 
   it("is dirty when the kick string differs from the committed list", () => {
     const c = committed();
-    expect(isPreferencesDraftDirty({ ...c }, c, "5, 25, 100")).toBe(true);
+    expect(isPreferencesDraftDirty(stagedPreferences(c), c, "5, 25, 100")).toBe(true);
   });
 
   it("treats whitespace-only kick differences as dirty (round-trip is the source of truth)", () => {
     // Closing would re-parse and re-serialize; an unequal raw string still
     // counts as a pending edit until Save normalizes it.
     const c = committed();
-    expect(isPreferencesDraftDirty({ ...c }, c, "5,25")).toBe(true);
+    expect(isPreferencesDraftDirty(stagedPreferences(c), c, "5,25")).toBe(true);
   });
 
-  it.each(LIVE_APPLIED_PREFERENCE_KEYS)(
-    "is NOT dirty when only the live-applied key %s differs",
-    (key) => {
-      const c = committed();
-      // Flip the live-applied value in the draft only; closing never discards
-      // these, so they must not arm the dirty prompt. darkMode is the only
-      // live-applied key now (zoom/sidebar are view state, not preferences).
-      const draft: PreferencesDto = { ...c };
-      if (key === "darkMode") draft.darkMode = !c.darkMode;
-      expect(isPreferencesDraftDirty(draft, c, KICK_STRING)).toBe(false);
-    },
-  );
-
-  it("is dirty when a staged field changes even if a live-applied key also differs", () => {
+  it("ignores a dark-mode difference, which the draft cannot even carry", () => {
+    // committed() may have been toggled live while the modal was open; the
+    // draft has no darkMode, so there is nothing to compare and nothing to
+    // arm the discard prompt with.
     const c = committed();
-    const draft = { ...c, darkMode: !c.darkMode, dueSoonDays: c.dueSoonDays + 1 };
-    expect(isPreferencesDraftDirty(draft, c, KICK_STRING)).toBe(true);
+    const staged = stagedPreferences({ ...c, darkMode: !c.darkMode });
+    expect(isPreferencesDraftDirty(staged, c, KICK_STRING)).toBe(false);
   });
 
   it("detects changes in each staged field", () => {

@@ -3,7 +3,6 @@
 
 import { useMemo, useRef, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
-import type { PreferencesDto } from "../../models";
 import {
   DUE_SOON_DAYS_DEFAULT,
   DUE_SOON_DAYS_MAX,
@@ -28,8 +27,9 @@ import {
 } from "../../utils";
 import {
   isPreferencesDraftDirty,
-  liveAppliedPreferences,
   parseKickDistances,
+  stagedPreferences,
+  type StagedPreferences,
 } from "../../services";
 
 interface SettingsModalProps {
@@ -41,8 +41,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const update = usePreferencesStore((s) => s.update);
   const composing = useComposing();
 
-  // Local draft state — everything is edited locally, saved on "Save".
-  const [draft, setDraft] = useState<PreferencesDto>({ ...preferences });
+  // Local draft state — everything is edited locally, saved on "Save". darkMode
+  // is not in the type: it applies live and closing never discards it.
+  const [draft, setDraft] = useState<StagedPreferences>(() =>
+    stagedPreferences(preferences),
+  );
   const [kickInput, setKickInput] = useState(
     preferences.kickDistances.join(", "),
   );
@@ -53,10 +56,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     ? null
     : "Invalid IANA timezone";
 
-  // The live-applied key (darkMode) is excluded from the dirty check — it is owned
-  // outside this draft and closing never discards it. (zoom and sidebar width are
-  // view state now, not preferences, so they aren't in this draft at all.) See
-  // services/preferences-draft.
+  // darkMode cannot be in the draft (see services/preferences-draft), so the
+  // dirty check needs no exclusion list.
   const isDirty = useMemo(
     () => isPreferencesDraftDirty(draft, preferences, kickInput),
     [draft, preferences, kickInput],
@@ -67,13 +68,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     // dirty and valid, so Cmd+Enter is a no-op when there is nothing to save.
     if (!isDirty || !timezoneValidation.valid) return;
 
+    // darkMode is deliberately absent from the draft's type, so leaving it out
+    // of this partial is what stops a stale copy reverting a live toggle.
     const result = await update({
       ...draft,
-      // Re-affirm the live-applied settings from the current store so a stale
-      // draft copy can't revert a dark-mode change made while this modal was
-      // open. Derived from LIVE_APPLIED_PREFERENCE_KEYS so it
-      // stays in lockstep with the dirty-check exclusion.
-      ...liveAppliedPreferences(preferences),
       fontFamily: singleLine(draft.fontFamily),
       timezone: timezoneValidation.value,
       kickDistances: parseKickDistances(kickInput),
@@ -99,9 +97,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   // Single close guard for every close path (X, Cancel, Escape, backdrop).
   const handleRequestClose = useDirtyClose(isDirty, onClose);
 
-  const setField = <K extends keyof PreferencesDto>(
+  const setField = <K extends keyof StagedPreferences>(
     key: K,
-    value: PreferencesDto[K],
+    value: StagedPreferences[K],
   ) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };

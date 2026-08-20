@@ -44,10 +44,9 @@ export type { MoveSelectionOutcome, MoveSelectionInputs } from "./move-operation
 export { prepareMoveOperation, moveSelectedTasks } from "./move-operations";
 
 export {
-  LIVE_APPLIED_PREFERENCE_KEYS,
-  liveAppliedPreferences,
   parseKickDistances,
   isPreferencesDraftDirty,
+  stagedPreferences,
 } from "./preferences-draft";
 
 export {
@@ -58,3 +57,5 @@ export {
 
 export type { LoadFailure, DocumentKind } from "./load-failure";
 export { describeLoadFailure, fileNameWithoutExt } from "./load-failure";
+
+export type { StagedPreferences } from "./preferences-draft";
