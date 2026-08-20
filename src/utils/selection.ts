@@ -140,3 +140,33 @@ export function planListArrowDown(params: {
   }
   return { kind: "none" };
 }
+
+// The selection a Shift+click produces, or null when no range can be formed and
+// the caller should fall back to a plain click.
+//
+// It anchors on the same key Shift+Arrow does and REPLACES the selection, so
+// the pointer gesture mirrors the keyboard exactly through one rule
+// (composite-control-conventions). Anchoring on the last-inserted key and
+// unioning instead made a range able to grow but never shrink: after selecting
+// rows 1-5, Shift+clicking row 3 to narrow it took row 5 as the anchor and
+// unioned 5..3 back in, leaving 1-5, where Shift+ArrowUp narrows correctly.
+//
+// The anchor falls back to the last-inserted selected key when no anchor is
+// recorded or it has left the visible domain — a collapsed archive, say.
+export function planRangeSelection(
+  visualKeys: string[],
+  anchorKey: string | null,
+  selectedKeys: Set<string>,
+  clickedKey: string,
+): Set<string> | null {
+  if (selectedKeys.size === 0) return null;
+  const anchor =
+    anchorKey && visualKeys.includes(anchorKey)
+      ? anchorKey
+      : [...selectedKeys].pop();
+  if (anchor === undefined) return null;
+  const anchorIndex = visualKeys.indexOf(anchor);
+  const clickIndex = visualKeys.indexOf(clickedKey);
+  if (anchorIndex === -1 || clickIndex === -1) return null;
+  return new Set(rangeKeysBetween(visualKeys, anchorIndex, clickIndex));
+}

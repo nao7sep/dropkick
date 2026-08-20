@@ -9,6 +9,7 @@ import {
   pageStepIndex,
   rangeKeysBetween,
   planListArrowDown,
+  planRangeSelection,
 } from "../../src/utils/selection";
 import { makeTask } from "../helpers/task";
 import type { Task } from "../../src/models";
@@ -202,5 +203,44 @@ describe("planListArrowDown", () => {
     expect(
       planListArrowDown({ ...base, currentIndex: 2, length: 3 }),
     ).toEqual({ kind: "none" });
+  });
+});
+
+describe("planRangeSelection", () => {
+  const keys = ["a", "b", "c", "d", "e"];
+
+  it("replaces the selection with the anchor→click range, so a range can shrink", () => {
+    // The bug this pins: anchoring on the last-inserted key and unioning made a
+    // Shift+click range able to grow but never shrink.
+    const selected = new Set(["a", "b", "c", "d", "e"]);
+    expect(planRangeSelection(keys, "a", selected, "c")).toEqual(
+      new Set(["a", "b", "c"]),
+    );
+  });
+
+  it("extends from the anchor rather than from the last-inserted key", () => {
+    // Insertion order puts "e" last; the anchor is "a", and that is what wins.
+    const selected = new Set(["a", "e"]);
+    expect(planRangeSelection(keys, "a", selected, "b")).toEqual(
+      new Set(["a", "b"]),
+    );
+  });
+
+  it("ranges backwards as well as forwards", () => {
+    expect(planRangeSelection(keys, "d", new Set(["d"]), "b")).toEqual(
+      new Set(["d", "c", "b"]),
+    );
+  });
+
+  it("falls back to the last-inserted key when the anchor left the domain", () => {
+    // The anchor can point into a collapsed archive; the gesture still works.
+    expect(planRangeSelection(keys, "gone", new Set(["b"]), "d")).toEqual(
+      new Set(["b", "c", "d"]),
+    );
+  });
+
+  it("declines when nothing is selected or the clicked row is not in the domain", () => {
+    expect(planRangeSelection(keys, "a", new Set(), "c")).toBeNull();
+    expect(planRangeSelection(keys, "a", new Set(["a"]), "zz")).toBeNull();
   });
 });

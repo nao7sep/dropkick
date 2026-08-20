@@ -68,15 +68,9 @@ function appConfigShapeIssue(value: unknown): string | null {
   return null;
 }
 
-// Returns the app's absolute storage root (~/.dropkick, or DROPKICK_HOME).
-// The Rust core resolves and creates it; the webview never reconstructs it.
-async function getDropkickDir(): Promise<string> {
-  return await appDataRoot();
-}
-
 // Returns the full path to <root>/state.json
 async function getAppConfigPath(): Promise<string> {
-  const dir = await getDropkickDir();
+  const dir = await appDataRoot();
   return joinPath(dir, APP_STATE_FILE);
 }
 
@@ -88,7 +82,7 @@ export async function initializeAppConfig(): Promise<{
   configPath: string;
   quarantinedTo: string | null;
 }> {
-  const dir = await getDropkickDir();
+  const dir = await appDataRoot();
   const configPath = await getAppConfigPath();
   const prefsPath = joinPath(dir, DEFAULT_PREFERENCES_FILE);
   const workspacePath = joinPath(dir, DEFAULT_WORKSPACE_FILE);

@@ -25,15 +25,6 @@ export type JsonReadWithHashResult<T> =
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
-// Reads a JSON file from disk and parses it.
-// Returns null if the file does not exist.
-export async function readJsonFile<T>(path: string): Promise<T | null> {
-  const result = await readJsonFileResult<T>(path);
-  if (result.status === "missing") return null;
-  if (result.status === "success") return result.data;
-  throw new Error(result.message);
-}
-
 // Reads a JSON file from disk and returns an explicit load result.
 export async function readJsonFileResult<T>(
   path: string,

@@ -48,8 +48,7 @@ export function BulkActions({
   const handleBulkStatus = async (status: TaskStatus) => {
     const results: ActionResult[] = [];
     for (const task of selectedTasks) {
-      const taskFile = isUnifiedView ? task.sourceFile : filePath;
-      results.push(await setStatus(taskFile, task.id, status));
+      results.push(await setStatus(task.sourceFile, task.id, status));
     }
     const summary = summarizeBulkStatusResult(results);
 
@@ -75,8 +74,7 @@ export function BulkActions({
   const handleBulkPriority = async (priority: TaskPriority) => {
     let firstError: string | null = null;
     for (const task of selectedTasks) {
-      const taskFile = isUnifiedView ? task.sourceFile : filePath;
-      const result = await setPriority(taskFile, task.id, priority);
+      const result = await setPriority(task.sourceFile, task.id, priority);
       if (result.status === "error" && firstError === null) {
         firstError = result.message;
       }

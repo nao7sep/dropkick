@@ -40,6 +40,7 @@ export {
   stepIndex,
   pageStepIndex,
   rangeKeysBetween,
+  planRangeSelection,
   planListArrowDown,
 } from "./selection";
 export type { ListArrowDownPlan } from "./selection";

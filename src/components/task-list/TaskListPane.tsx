@@ -17,6 +17,7 @@ import {
   stepIndex,
   pageStepIndex,
   rangeKeysBetween,
+  planRangeSelection,
   planListArrowDown,
   type ListArrowDownPlan,
 } from "../../utils";
@@ -164,16 +165,18 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const handleTaskClick = (task: Task, e: React.MouseEvent) => {
     const clickedKey = taskSelectionKey(task);
 
-    if (e.shiftKey && selectedKeys.size > 0) {
+    if (e.shiftKey) {
       // Range select over the same domain the keyboard uses (active tasks, plus
-      // Handled when the archive is expanded), so Shift+click into Handled
-      // behaves like Shift+Arrow rather than collapsing to one task.
-      const lastSelectedKey = [...selectedKeys].pop()!;
-      const lastIdx = visualKeys.indexOf(lastSelectedKey);
-      const clickIdx = visualKeys.indexOf(clickedKey);
-      if (lastIdx !== -1 && clickIdx !== -1) {
-        const rangeKeys = rangeKeysBetween(visualKeys, lastIdx, clickIdx);
-        setSelection(new Set([...selectedKeys, ...rangeKeys]));
+      // Handled when the archive is expanded), from the same anchor and by the
+      // same rule — see planRangeSelection.
+      const range = planRangeSelection(
+        visualKeys,
+        anchorRef.current,
+        selectedKeys,
+        clickedKey,
+      );
+      if (range) {
+        setSelection(range);
         return;
       }
     }
@@ -365,8 +368,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       return;
     }
     if (cleaned !== task.title) {
-      const taskFile = isUnifiedView ? task.sourceFile : filePath;
-      const result = await updateTitle(taskFile, task.id, cleaned);
+      const result = await updateTitle(task.sourceFile, task.id, cleaned);
       if (result.status === "error") {
         await showMessage("Task Update Failed", result.message);
       }

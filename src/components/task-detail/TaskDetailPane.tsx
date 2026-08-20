@@ -36,7 +36,7 @@ export function TaskDetailPane({
       <TaskDetail
         key={`task:${taskSelectionKey(selectedTasks[0])}`}
         task={selectedTasks[0]}
-        filePath={isUnifiedView ? selectedTasks[0].sourceFile : filePath}
+        filePath={selectedTasks[0].sourceFile}
         isUnifiedView={isUnifiedView}
         nextActiveTaskKey={nextActiveTaskKey}
         focusNewNoteSignal={focusNewNoteSignal}
