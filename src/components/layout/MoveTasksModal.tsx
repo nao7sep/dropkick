@@ -7,7 +7,8 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { showMessage } from "../../repositories";
 import { AppModal } from "../shared/AppModal";
-import { hasPrimaryShortcutModifier, taskKey, taskSelectionKey } from "../../utils";
+import { hasPrimaryShortcutModifier, taskSelectionKey } from "../../utils";
+import { moveSelectedTasks } from "../../services";
 
 interface MoveTasksModalProps {
   selectedTasks: Task[];
@@ -59,51 +60,20 @@ export function MoveTasksModal({
     movingRef.current = true;
     setMoving(true);
 
-    if (isUnifiedView) {
-      // Group tasks by source file and move each group.
-      const bySource = new Map<string, Set<string>>();
-      for (const task of selectedTasks) {
-        const ids = bySource.get(task.sourceFile) ?? new Set();
-        ids.add(task.id);
-        bySource.set(task.sourceFile, ids);
-      }
-      let movedAny = false;
-      const movedSources = new Set<string>();
-      for (const [src, ids] of bySource) {
-        const result = await moveTasks(src, moveTarget, ids);
-        if (result.status === "error") {
-          setSelection(
-            new Set(
-              selectedTasks.map((task) =>
-                movedSources.has(task.sourceFile)
-                  ? taskKey(moveTarget, task.id)
-                  : taskSelectionKey(task),
-              ),
-            ),
-          );
-          movingRef.current = false;
-          setMoving(false);
-          const message = movedAny
-            ? `Some selected tasks were moved before the operation stopped.\n\n${result.message}`
-            : result.message;
-          await showMessage("Move Failed", message);
-          return;
-        }
-        movedAny = true;
-        movedSources.add(src);
-      }
-      // Re-select — tasks are still visible in unified view.
-      setSelection(new Set(selectedTasks.map((task) => taskKey(moveTarget, task.id))));
-    } else {
-      const taskIds = new Set(selectedTasks.map((t) => t.id));
-      const result = await moveTasks(sourceFilePath, moveTarget, taskIds);
-      if (result.status === "error") {
-        movingRef.current = false;
-        setMoving(false);
-        await showMessage("Move Failed", result.message);
-        return;
-      }
-      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
+    const outcome = await moveSelectedTasks({
+      selectedTasks,
+      destination: moveTarget,
+      isUnifiedView,
+      sourceFilePath,
+      nextActiveTaskKey,
+      moveTasks,
+    });
+    setSelection(outcome.selection);
+    if (outcome.status === "error") {
+      movingRef.current = false;
+      setMoving(false);
+      await showMessage("Move Failed", outcome.message!);
+      return;
     }
 
     onClose();

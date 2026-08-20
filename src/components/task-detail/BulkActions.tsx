@@ -9,12 +9,11 @@ import { usePreferencesStore } from "../../state/preferences-store";
 import { showMessage } from "../../repositories";
 import type { ActionResult } from "../../state";
 import {
-  groupMoveBySource,
   summarizeBulkStatusResult,
-  taskKey,
   taskSelectionKey,
   statusAdvancesSelection,
 } from "../../utils";
+import { moveSelectedTasks } from "../../services";
 
 interface BulkActionsProps {
   selectedTasks: Task[];
@@ -91,45 +90,20 @@ export function BulkActions({
 
   const handleMove = async () => {
     if (!moveTarget) return;
-    if (isUnifiedView) {
-      // Group tasks by source file and move each group.
-      const bySource = groupMoveBySource(selectedTasks);
-      let movedAny = false;
-      const movedSources = new Set<string>();
-      for (const [src, ids] of bySource) {
-        const result = await moveTasks(src, moveTarget, ids);
-        if (result.status === "error") {
-          const message = movedAny
-            ? `Some selected tasks were moved before the operation stopped.\n\n${result.message}`
-            : result.message;
-          setSelection(
-            new Set(
-              selectedTasks.map((t) =>
-                movedSources.has(t.sourceFile)
-                  ? taskKey(moveTarget, t.id)
-                  : taskSelectionKey(t),
-              ),
-            ),
-          );
-          await showMessage("Move Failed", message);
-          return;
-        }
-        movedAny = true;
-        movedSources.add(src);
-      }
-      // Re-select — tasks are still visible in unified view.
-      setSelection(new Set(selectedTasks.map((t) => taskKey(moveTarget, t.id))));
-      setMoveTarget("");
-    } else {
-      const ids = new Set(selectedTasks.map((t) => t.id));
-      const result = await moveTasks(filePath, moveTarget, ids);
-      if (result.status === "error") {
-        await showMessage("Move Failed", result.message);
-        return;
-      }
-      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
-      setMoveTarget("");
+    const outcome = await moveSelectedTasks({
+      selectedTasks,
+      destination: moveTarget,
+      isUnifiedView,
+      sourceFilePath: filePath,
+      nextActiveTaskKey,
+      moveTasks,
+    });
+    setSelection(outcome.selection);
+    if (outcome.status === "error") {
+      await showMessage("Move Failed", outcome.message!);
+      return;
     }
+    setMoveTarget("");
   };
 
   // Available move destinations (other open task list tabs).

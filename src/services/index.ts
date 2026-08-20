@@ -40,7 +40,8 @@ export {
 } from "./task-operations";
 
 export type { MoveResult } from "./move-operations";
-export { prepareMoveOperation } from "./move-operations";
+export type { MoveSelectionOutcome, MoveSelectionInputs } from "./move-operations";
+export { prepareMoveOperation, moveSelectedTasks } from "./move-operations";
 
 export {
   LIVE_APPLIED_PREFERENCE_KEYS,
