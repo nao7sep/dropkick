@@ -120,6 +120,19 @@ describe("loadWorkspace — merge with defaults", () => {
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
+  it.each([null, [], "workspace", 7])(
+    "rejects a non-object JSON root (%j) instead of throwing",
+    async (data) => {
+      readJsonFileResult.mockResolvedValue({ status: "success", data });
+
+      await expect(loadWorkspace("/not-an-object.json")).resolves.toEqual({
+        status: "invalid",
+        message: "not a workspace document",
+      });
+      expect(writeJsonFile).not.toHaveBeenCalled();
+    },
+  );
+
   it("fills an absent openTabs/recentFiles from the defaults", async () => {
     // Recognizing the document kind is a separate question from field shape: a
     // workspace that carries one of the two lists still heals the other.

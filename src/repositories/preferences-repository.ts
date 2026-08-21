@@ -28,7 +28,7 @@ export type LoadPreferencesResult =
 export async function loadPreferences(
   path: string,
 ): Promise<LoadPreferencesResult> {
-  const result = await readJsonFileResult<Partial<PreferencesDto>>(path);
+  const result = await readJsonFileResult<unknown>(path);
   if (result.status === "missing") {
     return { status: "missing" };
   }

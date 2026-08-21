@@ -6,7 +6,7 @@
 // the field below it got steadily more expensive.
 
 import { describe, it, expect, afterEach } from "vitest";
-import { createElement, act } from "react";
+import { createElement, act, useState } from "react";
 import { mount } from "../../helpers/react-dom";
 import type { Mounted } from "../../helpers/react-dom";
 import { Toolbar } from "../../../src/components/shared/Toolbar";
@@ -78,6 +78,41 @@ describe("Toolbar", () => {
     await press("ArrowRight");
 
     const inTabOrder = buttons().filter((b) => b.tabIndex === 0);
+    expect(inTabOrder).toHaveLength(1);
+    expect(inTabOrder[0].textContent).toBe("+5");
+  });
+
+  it("remembers the active control while focus is elsewhere and the bar rerenders", async () => {
+    function Harness() {
+      const [count, setCount] = useState(0);
+      return createElement(
+        "div",
+        null,
+        createElement(Toolbar, {
+          label: "Task actions",
+          children: ["Tackle", "+5", "+25"].map((text) =>
+            createElement("button", { key: text }, text),
+          ),
+        }),
+        createElement(
+          "button",
+          { onClick: () => setCount((value) => value + 1) },
+          `Outside ${count}`,
+        ),
+      );
+    }
+
+    host = await mount(createElement(Harness));
+    buttons()[0].focus();
+    await press("ArrowRight");
+
+    const outside = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.startsWith("Outside"),
+    )!;
+    outside.focus();
+    await act(async () => outside.click());
+
+    const inTabOrder = buttons().filter((button) => button.tabIndex === 0);
     expect(inTabOrder).toHaveLength(1);
     expect(inTabOrder[0].textContent).toBe("+5");
   });

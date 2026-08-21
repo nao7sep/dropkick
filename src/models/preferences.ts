@@ -108,16 +108,22 @@ export function normalizeHandledTasksPageSize(value: unknown): number {
 // startup picker destroys it. The test is version plus at least one field only
 // this document carries: that rejects a package.json or a workspace while still
 // letting mergeWithDefaults heal a document that predates a newly added field.
-export function isPreferencesDocument(data: Partial<PreferencesDto>): boolean {
-  if (typeof data.version !== "string") {
+export function isPreferencesDocument(
+  data: unknown,
+): data is Partial<PreferencesDto> {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return false;
+  }
+  const candidate = data as Partial<PreferencesDto>;
+  if (typeof candidate.version !== "string") {
     return false;
   }
   return (
-    data.fontFamily !== undefined ||
-    data.darkMode !== undefined ||
-    data.kickDistances !== undefined ||
-    data.dueSoonDays !== undefined ||
-    data.handledTasksPageSize !== undefined
+    candidate.fontFamily !== undefined ||
+    candidate.darkMode !== undefined ||
+    candidate.kickDistances !== undefined ||
+    candidate.dueSoonDays !== undefined ||
+    candidate.handledTasksPageSize !== undefined
   );
 }
 

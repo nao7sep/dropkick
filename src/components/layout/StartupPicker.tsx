@@ -224,6 +224,17 @@ function Section({
   onRemove: (path: string) => void;
   openButtonRef?: RefObject<HTMLButtonElement | null>;
 }) {
+  const listboxRef = useRef<HTMLDivElement>(null);
+
+  // Active-descendant keeps focus on the listbox, so the browser does not
+  // scroll the newly active option for us. Keep keyboard movement visible.
+  useEffect(() => {
+    if (!selected || !items.includes(selected)) return;
+    const option = document.getElementById(optionDomId(label, selected));
+    if (!option || !listboxRef.current?.contains(option)) return;
+    option.scrollIntoView?.({ block: "nearest" });
+  }, [items, label, selected]);
+
   // Selection follows the cursor, which is this list's whole purpose — there is
   // nothing to "open", only a file to choose.
   const handleListKeyDown = (e: React.KeyboardEvent) => {
@@ -252,6 +263,7 @@ function Section({
           the native dialog. One tab stop, arrows to move, selection follows the
           cursor (composite-control-conventions). */}
       <div
+        ref={listboxRef}
         role="listbox"
         aria-label={label}
         aria-activedescendant={selected ? optionDomId(label, selected) : undefined}
@@ -317,8 +329,3 @@ function Section({
     </div>
   );
 }
-
-// Helpers
-
-
-

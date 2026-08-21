@@ -166,7 +166,16 @@ describe("mutating actions — the never-reject contract", () => {
     // state transition synchronously before the flush, so a rejection would
     // leave the UI showing the edit while nothing reached disk, with no call
     // site catching it and the rejection vanishing into the global handler.
-    seedFile([makeTask({ id: "a", title: "before" })]);
+    const original = makeTask({ id: "a", title: "before" });
+    useTaskListStore.setState({ files: {} });
+    loadTaskList.mockResolvedValue({
+      status: "success",
+      taskList: {
+        filePath: FILE,
+        data: { version: "1.0.0", id: "L1", tasks: [original] },
+      },
+    });
+    await useTaskListStore.getState().loadFile(FILE);
     flushTaskList.mockRejectedValue(new Error("disk full"));
 
     const result = await useTaskListStore
@@ -174,6 +183,105 @@ describe("mutating actions — the never-reject contract", () => {
       .updateTitle(FILE, "a", "after");
 
     expect(result).toEqual({ status: "error", message: "disk full" });
+    expect(tasksOf()[0].title).toBe("before");
+  });
+
+  it("rolls an optimistic delete back when its write fails", async () => {
+    // Establish the disk-confirmed snapshot through the public load boundary.
+    useTaskListStore.setState({ files: {} });
+    loadTaskList.mockResolvedValue({
+      status: "success",
+      taskList: {
+        filePath: FILE,
+        data: { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "a" })] },
+      },
+    });
+    await useTaskListStore.getState().loadFile(FILE);
+    flushTaskList.mockRejectedValue(new Error("disk full"));
+
+    await useTaskListStore.getState().removeTask(FILE, "a");
+
+    expect(tasksOf().map((task) => task.id)).toEqual(["a"]);
+  });
+
+  it("rolls all optimistic changes back if every overlapping write fails", async () => {
+    useTaskListStore.setState({ files: {} });
+    loadTaskList.mockResolvedValue({
+      status: "success",
+      taskList: {
+        filePath: FILE,
+        data: { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "a", title: "before" })] },
+      },
+    });
+    await useTaskListStore.getState().loadFile(FILE);
+
+    let rejectFirst!: () => void;
+    let rejectSecond!: () => void;
+    flushTaskList
+      .mockImplementationOnce(
+        async () => await new Promise((_resolve, reject) => {
+          rejectFirst = () => reject(new Error("first failed"));
+        }),
+      )
+      .mockImplementationOnce(
+        async () => await new Promise((_resolve, reject) => {
+          rejectSecond = () => reject(new Error("second failed"));
+        }),
+      );
+
+    const first = useTaskListStore.getState().updateTitle(FILE, "a", "after");
+    const second = useTaskListStore.getState().setPriority(FILE, "a", "Critical");
+    rejectFirst();
+    await first;
+    // The later write is still pending, so its combined optimistic state stays.
+    expect(tasksOf()[0].title).toBe("after");
+    rejectSecond();
+    await second;
+
+    expect(tasksOf()[0].title).toBe("before");
+    expect(tasksOf()[0].priority).toBe("Default");
+  });
+
+  it("keeps the state confirmed by an earlier overlapping write when the later one fails", async () => {
+    useTaskListStore.setState({ files: {} });
+    loadTaskList.mockResolvedValue({
+      status: "success",
+      taskList: {
+        filePath: FILE,
+        data: { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "a", title: "before" })] },
+      },
+    });
+    await useTaskListStore.getState().loadFile(FILE);
+
+    let resolveFirst!: () => void;
+    let rejectSecond!: () => void;
+    flushTaskList
+      .mockImplementationOnce(
+        async (_path, getData: () => TaskListDto) => {
+          getData();
+          return await new Promise((resolve) => {
+            resolveFirst = () => resolve({ status: "success" });
+          });
+        },
+      )
+      .mockImplementationOnce(
+        async (_path, getData: () => TaskListDto) => {
+          getData();
+          return await new Promise((_resolve, reject) => {
+            rejectSecond = () => reject(new Error("second failed"));
+          });
+        },
+      );
+
+    const first = useTaskListStore.getState().updateTitle(FILE, "a", "after");
+    const second = useTaskListStore.getState().setPriority(FILE, "a", "Critical");
+    resolveFirst();
+    await first;
+    rejectSecond();
+    await second;
+
+    expect(tasksOf()[0].title).toBe("after");
+    expect(tasksOf()[0].priority).toBe("Default");
   });
 
   it("reports an error instead of rejecting when a cross-file move write throws", async () => {

@@ -24,6 +24,7 @@ export function Toolbar({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const activeControlRef = useRef<HTMLButtonElement | null>(null);
 
   const controls = () =>
     Array.from(
@@ -36,8 +37,11 @@ export function Toolbar({
   // render because the set changes with the kick distances.
   useEffect(() => {
     const buttons = controls();
-    const focused = buttons.findIndex((b) => b === document.activeElement);
-    const active = focused === -1 ? 0 : focused;
+    let active = buttons.findIndex((button) => button === activeControlRef.current);
+    if (active === -1) {
+      active = 0;
+      activeControlRef.current = buttons[0] ?? null;
+    }
     buttons.forEach((button, i) => {
       button.tabIndex = i === active ? 0 : -1;
     });
@@ -56,6 +60,7 @@ export function Toolbar({
     if (next === null) return;
 
     e.preventDefault();
+    activeControlRef.current = buttons[next];
     buttons.forEach((button, i) => {
       button.tabIndex = i === next ? 0 : -1;
     });
@@ -68,6 +73,11 @@ export function Toolbar({
       role="toolbar"
       aria-label={label}
       onKeyDown={handleKeyDown}
+      onFocusCapture={(e) => {
+        if (e.target instanceof HTMLButtonElement && !e.target.disabled) {
+          activeControlRef.current = e.target;
+        }
+      }}
       className={className}
     >
       {children}

@@ -71,4 +71,67 @@ describe("update", () => {
     expect(flushPreferences).toHaveBeenCalledTimes(1);
     expect(usePreferencesStore.getState().preferences.timezone).toBeNull();
   });
+
+  it("rolls back its optimistic fields after a failed write so Save can retry", async () => {
+    usePreferencesStore.setState({ filePath: "/p.json" });
+    flushPreferences.mockRejectedValue(new Error("disk full"));
+
+    const result = await usePreferencesStore.getState().update({ dueSoonDays: 10 });
+
+    expect(result).toEqual({ status: "error", message: "disk full" });
+    expect(usePreferencesStore.getState().preferences.dueSoonDays).toBe(7);
+  });
+
+  it("does not let an older write completion erase a newer update", async () => {
+    usePreferencesStore.setState({ filePath: "/p.json" });
+    let resolveFirst!: () => void;
+    flushPreferences
+      .mockImplementationOnce(
+        async (_p, getPrefs: () => PreferencesDto) => {
+          const snapshot = getPrefs();
+          return await new Promise<PreferencesDto>((resolve) => {
+            resolveFirst = () => resolve(snapshot);
+          });
+        },
+      )
+      .mockImplementationOnce(async (_p, getPrefs: () => PreferencesDto) =>
+        getPrefs(),
+      );
+
+    const first = usePreferencesStore.getState().update({ dueSoonDays: 10 });
+    const second = usePreferencesStore.getState().update({ darkMode: true });
+    expect(usePreferencesStore.getState().preferences.darkMode).toBe(true);
+
+    resolveFirst();
+    await Promise.all([first, second]);
+
+    const preferences = usePreferencesStore.getState().preferences;
+    expect(preferences.dueSoonDays).toBe(10);
+    expect(preferences.darkMode).toBe(true);
+  });
+
+  it("keeps a later edit already captured by an earlier successful write", async () => {
+    usePreferencesStore.setState({ filePath: "/p.json" });
+    let releaseFirst!: () => void;
+    flushPreferences
+      .mockImplementationOnce(
+        async (_p, getPrefs: () => PreferencesDto) => {
+          await new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+          });
+          return getPrefs();
+        },
+      )
+      .mockRejectedValueOnce(new Error("second write failed"));
+
+    const first = usePreferencesStore.getState().update({ dueSoonDays: 10 });
+    const second = usePreferencesStore.getState().update({ darkMode: true });
+    releaseFirst();
+    await first;
+    await second;
+
+    const preferences = usePreferencesStore.getState().preferences;
+    expect(preferences.dueSoonDays).toBe(10);
+    expect(preferences.darkMode).toBe(true);
+  });
 });

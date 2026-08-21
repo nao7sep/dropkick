@@ -103,4 +103,17 @@ describe("StartupPicker — the file lists are real listboxes", () => {
     await pressOn(preferencesListbox(), "ArrowDown");
     expect(selectedOptionText()).toContain("/b/prefs.json");
   });
+
+  it("scrolls an arrow-selected option into view", async () => {
+    await mountWithKnownFiles();
+    const second = preferencesListbox().querySelectorAll<HTMLElement>(
+      '[role="option"]',
+    )[1];
+    const scrollIntoView = vi.fn();
+    second.scrollIntoView = scrollIntoView;
+
+    await pressOn(preferencesListbox(), "ArrowDown");
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+  });
 });

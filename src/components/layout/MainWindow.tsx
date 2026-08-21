@@ -240,7 +240,7 @@ export function MainWindow() {
   const zoomLevelRef = useRef(zoomLevel);
   useEffect(() => { zoomLevelRef.current = zoomLevel; }, [zoomLevel]);
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const handler = async (e: KeyboardEvent) => {
       // If a focused layer (e.g. the New Task modal, which uses Cmd+0 for
       // priority) already handled this key, don't also zoom. Zoom stays
       // globally available otherwise, even with a menu or modal open.
@@ -280,9 +280,12 @@ export function MainWindow() {
         // through the preferences store — unlike zoom, which is view state. Read the
         // latest value from the store to avoid a stale closure.
         e.preventDefault();
-        updatePrefs({
+        const result = await updatePrefs({
           darkMode: !usePreferencesStore.getState().preferences.darkMode,
         });
+        if (result.status === "error") {
+          await showMessage("Theme Save Failed", result.message);
+        }
       }
     };
     document.addEventListener("keydown", handler);

@@ -8,9 +8,11 @@ vi.mock("../../src/repositories", () => ({
   initializeAppState: () => initializeAppState(),
   flushAppState: (p: string, getConfig: () => AppStateDto) => flushAppState(p, getConfig),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  toErrorFields: (e: unknown) => ({ error: { message: String(e) } }),
 }));
 
 import { useAppStateStore } from "../../src/state/app-state-store";
+import { useToastStore } from "../../src/state/toast-store";
 import { createDefaultAppState } from "../../src/models";
 
 beforeEach(() => {
@@ -22,6 +24,7 @@ beforeEach(() => {
     filePath: "",
     loaded: false,
   });
+  useToastStore.setState({ message: null });
 });
 
 describe("updateViewState", () => {
@@ -61,5 +64,18 @@ describe("updateViewState", () => {
     await useAppStateStore.getState().updateViewState({ zoomLevel: 2 });
     expect(useAppStateStore.getState().appState.zoomLevel).toBe(2);
     expect(flushAppState).not.toHaveBeenCalled();
+  });
+});
+
+describe("saved locations", () => {
+  it("names a failed location write accurately", async () => {
+    useAppStateStore.setState({ filePath: "/state.json" });
+    flushAppState.mockRejectedValueOnce(new Error("disk full"));
+
+    await useAppStateStore.getState().registerPreferences("/prefs.json");
+
+    expect(useToastStore.getState().message).toBe(
+      "Your saved locations could not be saved.",
+    );
   });
 });

@@ -5,7 +5,7 @@
 // order and writes the latest store state at the moment its turn comes up. No
 // hash check is needed — the workspace file is owned exclusively by Dropkick.
 
-import type { PersistedWorkspaceDto, WorkspaceDto } from "../models";
+import type { WorkspaceDto } from "../models";
 import { createDefaultWorkspace, isWorkspaceDocument } from "../models";
 import {
   readJsonFileResult,
@@ -28,9 +28,7 @@ export type LoadWorkspaceResult =
 // corrupted file cannot crash startup, and activeTabIndex is runtime-only and is
 // re-injected after parsing.
 export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> {
-  const result = await readJsonFileResult<
-    Partial<PersistedWorkspaceDto> & { activeTabIndex?: number }
-  >(path);
+  const result = await readJsonFileResult<unknown>(path);
   if (result.status === "missing") {
     return { status: "missing" };
   }

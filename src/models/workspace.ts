@@ -34,11 +34,15 @@ export interface RecentFileDto {
 // workspace carries: that rejects a package.json or a task list while still
 // letting mergeWithDefaults heal a document that predates a newly added field.
 export function isWorkspaceDocument(
-  data: Partial<PersistedWorkspaceDto>,
-): boolean {
+  data: unknown,
+): data is Partial<PersistedWorkspaceDto> {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return false;
+  }
+  const candidate = data as Partial<PersistedWorkspaceDto>;
   return (
-    typeof data.version === "string" &&
-    (data.openTabs !== undefined || data.recentFiles !== undefined)
+    typeof candidate.version === "string" &&
+    (candidate.openTabs !== undefined || candidate.recentFiles !== undefined)
   );
 }
 

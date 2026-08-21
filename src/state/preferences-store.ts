@@ -35,56 +35,117 @@ interface PreferencesState {
   update: (changes: Partial<PreferencesDto>) => Promise<ActionResult>;
 }
 
-export const usePreferencesStore = create<PreferencesState>((set, get) => ({
-  preferences: createDefaultPreferences("Default"),
-  filePath: "",
-  loaded: false,
+export const usePreferencesStore = create<PreferencesState>((set, get) => {
+  // A write resolves after later updates may already have changed the store.
+  // Track the latest update per field so an older completion can normalize
+  // only the fields whose values it actually captured, never overwrite a
+  // newer edit. The confirmed snapshot provides a safe rollback point after
+  // the final outstanding write fails.
+  const fieldRevisions = new Map<keyof PreferencesDto, number>();
+  let nextRevision = 0;
+  let documentRevision = 0;
+  let pendingWrites = 0;
+  let lastPersistedWrite = 0;
+  let persistedPreferences = createDefaultPreferences("Default");
 
-  load: async (filePath: string) => {
-    const result = await loadPreferences(filePath);
-    if (result.status !== "success") return result;
+  return {
+    preferences: createDefaultPreferences("Default"),
+    filePath: "",
+    loaded: false,
 
-    set({ preferences: result.preferences, filePath, loaded: true });
-    return result;
-  },
+    load: async (filePath: string) => {
+      const result = await loadPreferences(filePath);
+      if (result.status !== "success") return result;
 
-  update: async (changes: Partial<PreferencesDto>) => {
-    // The single funnel for every preference change (a Settings save, the
-    // dark-mode toggle): log which keys changed, not the values, to keep the
-    // line stable and free of any future setting's content.
-    log.info("preferences updated", { changed: Object.keys(changes) });
+      // A newly loaded document supersedes any completion still in flight from
+      // the previous one.
+      documentRevision += 1;
+      fieldRevisions.clear();
+      pendingWrites = 0;
+      lastPersistedWrite = 0;
+      persistedPreferences = result.preferences;
+      set({ preferences: result.preferences, filePath, loaded: true });
+      return result;
+    },
 
-    // Sync state transition first — reads the latest store, applies changes
-    // atomically. Concurrent updates queue their own sync transitions and
-    // each sees the prior one's result.
-    set((state) => ({
-      preferences: { ...state.preferences, ...changes },
-    }));
+    update: async (changes: Partial<PreferencesDto>) => {
+      // The single funnel for every preference change (a Settings save, the
+      // dark-mode toggle): log which keys changed, not the values, to keep the
+      // line stable and free of any future setting's content.
+      const changedKeys = Object.keys(changes) as (keyof PreferencesDto)[];
+      log.info("preferences updated", { changed: changedKeys });
 
-    const { filePath } = get();
-    if (!filePath) return { status: "success" };
+      const revision = ++nextRevision;
+      for (const key of changedKeys) fieldRevisions.set(key, revision);
 
-    // Serialized flush. The getter is invoked inside the slot so it captures
-    // the latest state at the moment of the write. A rejected write is reported
-    // rather than thrown, the same never-reject contract the task-list store's
-    // actions have: the state transition above has already applied the change
-    // in memory, so an escaping rejection would leave the UI showing settings
-    // that never reached disk — and would strand the Settings modal open with
-    // no message, because its Save handler never reaches onClose(). The write
-    // boundary has already logged the cause.
-    let normalized: PreferencesDto;
-    try {
-      normalized = await flushPreferences(filePath, () => get().preferences);
-    } catch (e) {
-      return {
-        status: "error",
-        message: e instanceof Error ? e.message : String(e),
-      };
-    }
+      // Sync state transition first — reads the latest store, applies changes
+      // atomically. Concurrent updates queue their own sync transitions and
+      // each sees the prior one's result.
+      set((state) => ({
+        preferences: { ...state.preferences, ...changes },
+      }));
 
-    // Absorb any normalization the repository applied (e.g. timezone
-    // coercion). Idempotent if nothing was normalized.
-    set({ preferences: normalized });
-    return { status: "success" };
-  },
-}));
+      const { filePath } = get();
+      if (!filePath) return { status: "success" };
+      const writeDocumentRevision = documentRevision;
+      pendingWrites += 1;
+
+      // Serialized flush. The getter is invoked inside the slot so it captures
+      // the latest state at the moment of the write. A rejected write is
+      // reported. Once the final queued attempt fails, the last full snapshot
+      // confirmed on disk is restored so an explicit Settings save remains
+      // dirty and retryable.
+      let normalized: PreferencesDto;
+      const writeCapture: {
+        revisions?: Map<keyof PreferencesDto, number>;
+      } = {};
+      try {
+        normalized = await flushPreferences(filePath, () => {
+          writeCapture.revisions = new Map(fieldRevisions);
+          return get().preferences;
+        });
+      } catch (e) {
+        if (documentRevision === writeDocumentRevision) {
+          pendingWrites = Math.max(0, pendingWrites - 1);
+          if (pendingWrites === 0) {
+            set({ preferences: persistedPreferences });
+          }
+        }
+        return {
+          status: "error",
+          message: e instanceof Error ? e.message : String(e),
+        };
+      }
+
+      // A write may capture edits from calls queued behind it, so its complete
+      // result—not merely this call's changed keys—is now confirmed on disk.
+      // Ignore an out-of-order older completion when selecting the rollback
+      // snapshot (the repository serializes these in production; this also
+      // makes the store robust to an equivalent adapter).
+      if (documentRevision !== writeDocumentRevision) {
+        return { status: "success" };
+      }
+      pendingWrites = Math.max(0, pendingWrites - 1);
+      if (revision > lastPersistedWrite) {
+        persistedPreferences = normalized;
+        lastPersistedWrite = revision;
+      }
+
+      // Absorb normalization only for fields whose revisions were captured by
+      // this write. Replacing the whole object would erase a later update that
+      // landed after the repository invoked its getter.
+      const capturedRevisions = writeCapture.revisions;
+      if (!capturedRevisions) return { status: "success" };
+      set((state) => {
+        let preferences = state.preferences;
+        for (const key of Object.keys(normalized) as (keyof PreferencesDto)[]) {
+          if (fieldRevisions.get(key) !== capturedRevisions.get(key)) continue;
+          if (Object.is(preferences[key], normalized[key])) continue;
+          preferences = { ...preferences, [key]: normalized[key] };
+        }
+        return preferences === state.preferences ? state : { preferences };
+      });
+      return { status: "success" };
+    },
+  };
+});

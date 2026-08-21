@@ -45,13 +45,13 @@ interface AppStateStore {
 }
 
 export const useAppStateStore = create<AppStateStore>((set, get) => {
-  async function flush(): Promise<void> {
+  async function flush(what: string): Promise<void> {
     const { filePath } = get();
     if (!filePath) return;
-    // View state persists as a side effect of ordinary interaction (a zoom
-    // shortcut, a divider drag), so a failure is reported rather than thrown —
-    // see guardBackgroundWrite.
-    await guardBackgroundWrite("Your window layout", () =>
+    // App state persists as a side effect of ordinary interaction (a zoom,
+    // divider drag, or saved-location choice), so a failure is reported rather
+    // than thrown — see guardBackgroundWrite. `what` keeps the toast specific.
+    await guardBackgroundWrite(what, () =>
       flushAppState(filePath, () => get().appState),
     );
   }
@@ -72,7 +72,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
       // funnel discipline as the preferences store's update.
       log.info("view state updated", { changed: Object.keys(changes) });
       set((state) => ({ appState: { ...state.appState, ...changes } }));
-      await flush();
+      await flush("Your window layout");
     },
 
     setLastPaths: async (preferencesPath, workspacePath) => {
@@ -83,7 +83,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
           lastWorkspacePath: workspacePath,
         },
       }));
-      await flush();
+      await flush("Your saved locations");
     },
 
     registerPreferences: async (path) => {
@@ -99,7 +99,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
           },
         };
       });
-      await flush();
+      await flush("Your saved locations");
     },
 
     registerWorkspace: async (path) => {
@@ -115,7 +115,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
           },
         };
       });
-      await flush();
+      await flush("Your saved locations");
     },
 
     unregisterPreferences: async (path) => {
@@ -133,7 +133,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
           },
         };
       });
-      await flush();
+      await flush("Your saved locations");
     },
 
     unregisterWorkspace: async (path) => {
@@ -151,7 +151,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
           },
         };
       });
-      await flush();
+      await flush("Your saved locations");
     },
   };
 });

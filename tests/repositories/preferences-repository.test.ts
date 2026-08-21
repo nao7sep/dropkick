@@ -172,6 +172,19 @@ describe("loadPreferences — document kind", () => {
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
+  it.each([null, [], "preferences", 7])(
+    "rejects a non-object JSON root (%j) instead of throwing",
+    async (data) => {
+      readJsonFileResult.mockResolvedValue({ status: "success", data });
+
+      await expect(loadPreferences("/not-an-object.json")).resolves.toEqual({
+        status: "invalid",
+        message: "not a preferences document",
+      });
+      expect(writeJsonFile).not.toHaveBeenCalled();
+    },
+  );
+
   it("mints a stable id when the stored one is an empty string", async () => {
     // mergeWithDefaults deliberately preserves "", so taking the merged value
     // would re-detect and re-persist the empty id on every launch and the

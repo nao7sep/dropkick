@@ -94,6 +94,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     onClose();
   };
 
+  const handleDarkModeChange = async (darkMode: boolean) => {
+    const result = await update({ darkMode });
+    if (result.status === "error") {
+      await showMessage("Theme Save Failed", result.message);
+    }
+  };
+
   // Single close guard for every close path (X, Cancel, Escape, backdrop).
   const handleRequestClose = useDirtyClose(isDirty, onClose);
 
@@ -154,7 +161,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <input
             type="checkbox"
             checked={preferences.darkMode}
-            onChange={(e) => update({ darkMode: e.target.checked })}
+            onChange={(e) => void handleDarkModeChange(e.target.checked)}
             className="rounded border-border-strong"
           />
           Dark mode

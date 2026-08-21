@@ -235,6 +235,33 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   // one promise per path collapses concurrent loads into a single read.
   const inFlightLoads = new Map<string, Promise<LoadFileResult>>();
 
+  // Last data confirmed on disk, plus the number of optimistic writes still
+  // outstanding per file. A failed write cannot leave an optimistic delete,
+  // note, or edit stranded in memory: once the last queued attempt settles
+  // unsuccessfully, restore the last confirmed snapshot. If a later write is
+  // still queued, let it run first — it may persist the combined latest state.
+  const persistedFiles = new Map<string, TaskListDto>();
+  const pendingWrites = new Map<string, number>();
+
+  function beginPendingWrite(filePath: string): void {
+    pendingWrites.set(filePath, (pendingWrites.get(filePath) ?? 0) + 1);
+  }
+
+  function finishPendingWrite(
+    filePath: string,
+    outcome: { persisted?: TaskListDto; failed?: boolean },
+  ): void {
+    if (outcome.persisted) persistedFiles.set(filePath, outcome.persisted);
+    const remaining = Math.max(0, (pendingWrites.get(filePath) ?? 1) - 1);
+    if (remaining === 0) pendingWrites.delete(filePath);
+    else pendingWrites.set(filePath, remaining);
+
+    if (outcome.failed && remaining === 0) {
+      const persisted = persistedFiles.get(filePath);
+      if (persisted) applyData(filePath, persisted);
+    }
+  }
+
   // Helper: replace one file's data via a synchronous state transition. Reads
   // the latest store state so concurrent transitions never overwrite each
   // other's in-memory updates.
@@ -273,26 +300,36 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     // the UI showed every change saved and nothing reached disk. The write
     // boundary has already logged the cause.
     let result: WriteResult;
+    let writtenData: TaskListDto | null = null;
     try {
       result = await flushTaskList(filePath, () => {
         const f = get().files[filePath];
         if (!f) {
           throw new Error(`File not loaded: ${filePath}`);
         }
+        writtenData = f.data;
         return f.data;
       });
     } catch (e) {
+      finishPendingWrite(filePath, { failed: true });
       return {
         status: "error",
         message: e instanceof Error ? e.message : String(e),
       };
     }
 
-    if (result.status === "success") return { status: "success" };
+    if (result.status === "success") {
+      finishPendingWrite(filePath, {
+        persisted: writtenData ?? get().files[filePath]?.data,
+      });
+      return { status: "success" };
+    }
     if (result.status === "error") {
+      finishPendingWrite(filePath, { failed: true });
       return { status: "error", message: result.message };
     }
     // reloaded
+    finishPendingWrite(filePath, { persisted: result.data });
     applyData(filePath, result.data);
     return { status: "error", message: result.message };
   }
@@ -347,6 +384,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     });
     if (!loaded) return { status: "error", message: "File not loaded" };
     if (!changed) return { status: "success", changed: false };
+    beginPendingWrite(filePath);
     const result = await flush(
       filePath,
       action,
@@ -466,6 +504,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
           fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
         }));
+        persistedFiles.set(filePath, loaded.taskList.data);
         return { status: "success" };
       })();
 
@@ -487,6 +526,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         },
         fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
       }));
+      persistedFiles.set(filePath, loaded.data);
     },
 
     unloadFile: async (filePath: string) => {
@@ -496,6 +536,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       // the hash is dropped.
       log.debug("task list unloaded", { path: filePath });
       await forgetTaskList(filePath);
+      persistedFiles.delete(filePath);
+      pendingWrites.delete(filePath);
       set((state) => {
         const { [filePath]: _, ...rest } = state.files;
         const { [filePath]: __, ...restHandled } = state.handledVisible;
@@ -737,6 +779,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       }
 
       if (result.status === "success") {
+        persistedFiles.set(sourceFilePath, result.sourceData);
+        persistedFiles.set(destFilePath, result.destData);
         set((state) => ({
           files: {
             ...state.files,
@@ -775,6 +819,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       if (!fileState) return;
       log.info("force write task list", { path: filePath });
       await forceFlushTaskList(filePath, fileState.data);
+      persistedFiles.set(filePath, fileState.data);
     },
 
     reloadFile: async (filePath: string) => {
@@ -799,6 +844,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
         selectedKeys: new Set(),
       }));
+      persistedFiles.set(filePath, loaded.taskList.data);
     },
   };
 });
