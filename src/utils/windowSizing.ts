@@ -28,13 +28,10 @@ export const DETAIL_MIN_WIDTH = 360;
 // panes need before their own scroll regions take over.
 export const CONTENT_MIN_HEIGHT = 360;
 
-// Tab bar fixed height, in pixels. Its tabs are 36px tall (20px text line plus
-// 8px vertical padding on each side), and the global non-overlay WebKit
-// scrollbar is 10px high. 50px leaves 39px for the tabs after the 1px bottom
-// border, so their labels, focus ring, and close control remain intact. This
-// drives both the rendered row and the window minimum; the geometry test ties
-// it to the shipped scrollbar rule so they cannot drift unnoticed.
-export const TAB_BAR_MIN_HEIGHT = 50;
+// One tab-row minimum, in pixels. The tab bar may grow into additional rows so
+// every open tab stays visible; those rows deliberately take height from the
+// content area rather than increasing the OS-level minimum window size.
+export const TAB_BAR_MIN_HEIGHT = 40;
 
 // Resize divider width, in pixels. Matches the `w-1` splitter between the panes
 // (Tailwind 1 = 0.25rem = 4px).

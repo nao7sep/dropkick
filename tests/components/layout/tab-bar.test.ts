@@ -1,44 +1,73 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+// @vitest-environment happy-dom
 
-const source = readFileSync(
-  fileURLToPath(
-    new URL("../../../src/components/layout/TabBar.tsx", import.meta.url),
-  ),
-  "utf8",
-);
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { mount } from "../../helpers/react-dom";
+import type { Mounted } from "../../helpers/react-dom";
 
-describe("tab bar layout contract", () => {
-  it("keeps one fixed chrome row and scrolls only the tablist horizontally", () => {
-    expect(source).toContain(
-      'className="flex shrink-0 items-center border-b border-border bg-surface"',
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("../../../src/repositories", () => ({
+  openJsonFileDialog: vi.fn(),
+  saveJsonFileDialog: vi.fn(),
+  showMessage: vi.fn(),
+  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  toErrorFields: (error: unknown) => ({ error: { message: String(error) } }),
+}));
+
+import { TabBar } from "../../../src/components/layout/TabBar";
+import {
+  createDefaultAppState,
+  createDefaultPreferences,
+  createDefaultWorkspace,
+  createTab,
+} from "../../../src/models";
+import { useAppStateStore } from "../../../src/state/app-state-store";
+import { usePreferencesStore } from "../../../src/state/preferences-store";
+import { useTaskListStore } from "../../../src/state/task-list-store";
+import { useWorkspaceStore } from "../../../src/state/workspace-store";
+
+let host: Mounted;
+
+afterEach(async () => {
+  await host?.unmount();
+});
+
+describe("TabBar wrapped visibility", () => {
+  it("renders every open tab in the tablist when there are many tabs", async () => {
+    const openTabs = Array.from({ length: 16 }, (_, index) =>
+      createTab(`/fixtures/list-${index}.json`, `List ${index}`),
     );
-    expect(source).toContain("style={{ height: TAB_BAR_MIN_HEIGHT }}");
-    expect(source).toContain(
-      'className="flex h-full min-w-0 shrink overflow-x-auto overflow-y-hidden"',
-    );
-    expect(source).not.toContain("flex-wrap");
-  });
+    useWorkspaceStore.setState({
+      workspace: {
+        ...createDefaultWorkspace("Test"),
+        openTabs,
+        activeTabIndex: 0,
+      },
+      filePath: "",
+      loaded: true,
+    });
+    usePreferencesStore.setState({
+      preferences: createDefaultPreferences("Test"),
+      filePath: "",
+      loaded: true,
+    });
+    useAppStateStore.setState({
+      appState: createDefaultAppState(),
+      filePath: "",
+      loaded: true,
+    });
+    useTaskListStore.setState({ files: {}, fileLoadErrors: {} });
 
-  it("keeps action menus outside the scrolling tablist", () => {
-    const tablist = source.indexOf('role="tablist"');
-    const tablistEnd = source.indexOf(
-      "\n          </div>\n\n          {/* New-list menu */}",
-      tablist,
-    );
-    const newList = source.indexOf('aria-label="New or open task list"');
-    const appMenu = source.indexOf('aria-label="Menu"');
+    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
 
-    expect(tablist).toBeGreaterThan(-1);
-    expect(tablistEnd).toBeGreaterThan(tablist);
-    expect(newList).toBeGreaterThan(tablistEnd);
-    expect(appMenu).toBeGreaterThan(newList);
-  });
+    const tablist = document.querySelector('[role="tablist"]');
+    if (!tablist) throw new Error("tablist not found");
+    const renderedTabs = [...tablist.querySelectorAll('[role="tab"]')];
 
-  it("minimally reveals the active tab when activation changes", () => {
-    expect(source).toMatch(
-      /tabElementAt\(activeTabIndex\)\?\.scrollIntoView\(\{[\s\S]*?block: "nearest",[\s\S]*?inline: "nearest",/,
+    expect(renderedTabs).toHaveLength(openTabs.length);
+    expect(renderedTabs.map((tab) => tab.textContent?.trim())).toEqual(
+      openTabs.map((tab) => tab.displayName),
     );
+    expect(renderedTabs.every((tab) => !tab.hasAttribute("hidden"))).toBe(true);
   });
 });

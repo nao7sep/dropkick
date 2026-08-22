@@ -4,13 +4,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
-import {
-  singleLine,
-  stepZoomIn,
-  stepZoomOut,
-  TAB_BAR_MIN_HEIGHT,
-  ZOOM_DEFAULT,
-} from "../../utils";
+import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -236,24 +230,13 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
 
   // Focus the tab at a given index by its stable data attribute, so arrow
   // navigation and post-close recovery move DOM focus to the right tab.
-  const tabElementAt = (index: number) =>
-    tablistRef.current?.querySelector(
-      `[data-tab-index="${index}"]`,
-    ) as HTMLElement | null;
-
   const focusTabAt = (index: number) => {
-    tabElementAt(index)?.focus();
+    (
+      tablistRef.current?.querySelector(
+        `[data-tab-index="${index}"]`,
+      ) as HTMLElement | null
+    )?.focus();
   };
-
-  // The fixed-height tablist scrolls instead of wrapping. Keep the selected
-  // tab minimally visible when activation comes from restore, pointer, or a
-  // command outside the tablist; keyboard focus already gets the same result.
-  useEffect(() => {
-    tabElementAt(activeTabIndex)?.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
-    });
-  }, [activeTabIndex, workspace.openTabs.length]);
 
   // The tab bar is a tablist: one tab stop (the active tab), Left/Right move and
   // activate immediately (automatic activation — switching is cheap), Home/End
@@ -339,20 +322,17 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
         items={tabIds}
         strategy={horizontalListSortingStrategy}
       >
-        <div
-          className="flex shrink-0 items-center border-b border-border bg-surface"
-          style={{ height: TAB_BAR_MIN_HEIGHT }}
-        >
-          {/* Tabs own the only flexible width in this fixed-height row. The
-              tablist shrinks until it reaches the two fixed menu buttons, then
-              scrolls horizontally. The row reserves the tabs' full intrinsic
-              height plus the non-overlay scrollbar, so neither clips the other. */}
+        <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
+          {/* The tablist wrapper is display:contents (creates no box), so every
+              tab flows directly in this wrapping row alongside the New button.
+              This keeps every open tab visible instead of hiding tabs in a
+              horizontal scroll strip. */}
           <div
             ref={tablistRef}
             role="tablist"
             aria-label="Open task lists"
             onKeyDown={handleTablistKeyDown}
-            className="flex h-full min-w-0 shrink overflow-x-auto overflow-y-hidden"
+            className="contents"
           >
             {workspace.openTabs.map((tab, index) => {
             const hasLoadError =
