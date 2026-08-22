@@ -230,13 +230,24 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
 
   // Focus the tab at a given index by its stable data attribute, so arrow
   // navigation and post-close recovery move DOM focus to the right tab.
+  const tabElementAt = (index: number) =>
+    tablistRef.current?.querySelector(
+      `[data-tab-index="${index}"]`,
+    ) as HTMLElement | null;
+
   const focusTabAt = (index: number) => {
-    (
-      tablistRef.current?.querySelector(
-        `[data-tab-index="${index}"]`,
-      ) as HTMLElement | null
-    )?.focus();
+    tabElementAt(index)?.focus();
   };
+
+  // The fixed-height tablist scrolls instead of wrapping. Keep the selected
+  // tab minimally visible when activation comes from restore, pointer, or a
+  // command outside the tablist; keyboard focus already gets the same result.
+  useEffect(() => {
+    tabElementAt(activeTabIndex)?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [activeTabIndex, workspace.openTabs.length]);
 
   // The tab bar is a tablist: one tab stop (the active tab), Left/Right move and
   // activate immediately (automatic activation — switching is cheap), Home/End
@@ -322,19 +333,17 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
         items={tabIds}
         strategy={horizontalListSortingStrategy}
       >
-        <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
-          {/* The tablist wrapper is display:contents (creates no box), so the
-              tabs flow directly in this flex-wrap row alongside the new-list +
-              button: when tabs overflow they wrap onto additional rows and + stays
-              right after the last tab, instead of the tablist becoming a
-              full-width block that pushes + onto its own row. The wrapper still
-              carries the tablist role + keyboard navigation. */}
+        <div className="flex h-10 shrink-0 items-center border-b border-border bg-surface">
+          {/* Tabs own the only flexible width in this fixed-height row. The
+              tablist shrinks until it reaches the two fixed menu buttons, then
+              scrolls horizontally; it never adds chrome rows or steals the
+              content panes' declared minimum height. */}
           <div
             ref={tablistRef}
             role="tablist"
             aria-label="Open task lists"
             onKeyDown={handleTablistKeyDown}
-            className="contents"
+            className="flex h-full min-w-0 shrink overflow-x-auto overflow-y-hidden"
           >
             {workspace.openTabs.map((tab, index) => {
             const hasLoadError =
