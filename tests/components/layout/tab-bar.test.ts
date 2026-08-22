@@ -62,8 +62,13 @@ describe("TabBar wrapped visibility", () => {
 
     const tablist = document.querySelector('[role="tablist"]');
     if (!tablist) throw new Error("tablist not found");
+    const tabRow = tablist.parentElement;
+    if (!tabRow) throw new Error("tab row not found");
     const renderedTabs = [...tablist.querySelectorAll('[role="tab"]')];
 
+    expect(tabRow.classList.contains("flex-wrap")).toBe(true);
+    expect(tablist.classList.contains("contents")).toBe(true);
+    expect(tablist.classList.contains("overflow-x-auto")).toBe(false);
     expect(renderedTabs).toHaveLength(openTabs.length);
     expect(renderedTabs.map((tab) => tab.textContent?.trim())).toEqual(
       openTabs.map((tab) => tab.displayName),
