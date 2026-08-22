@@ -19,10 +19,12 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
-  horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import {
+  tabDragTransform,
+  wrappedTabSortingStrategy,
+} from "./tab-dnd";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
@@ -320,7 +322,7 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
     >
       <SortableContext
         items={tabIds}
-        strategy={horizontalListSortingStrategy}
+        strategy={wrappedTabSortingStrategy}
       >
         <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
           {/* The tablist wrapper is display:contents (creates no box), so every
@@ -591,7 +593,7 @@ function SortableTab({
   const composing = useComposing();
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: tabDragTransform(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 50 : undefined,
