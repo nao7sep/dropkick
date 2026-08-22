@@ -5,7 +5,23 @@ import { describe, it, expect, vi } from "vitest";
 // the import pure under the node test environment.
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-import { withSerial, withSerialTwo, drainAllSerial } from "../../src/repositories/file-system";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  hashFile,
+  withSerial,
+  withSerialTwo,
+  drainAllSerial,
+} from "../../src/repositories/file-system";
+
+describe("hashFile", () => {
+  it("uses the hash command's explicit missing result without an existence preflight", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(null);
+
+    await expect(hashFile("/missing.json")).resolves.toBeNull();
+    expect(invoke).toHaveBeenCalledOnce();
+    expect(invoke).toHaveBeenCalledWith("hash_file", { path: "/missing.json" });
+  });
+});
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void;

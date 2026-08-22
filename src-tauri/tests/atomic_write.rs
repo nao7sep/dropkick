@@ -63,6 +63,63 @@ fn classify_json_bytes_success_and_invalid() {
     ));
 }
 
+fn task_json(task_id: &str, notes: &[&str]) -> serde_json::Value {
+    serde_json::json!({
+        "id": task_id,
+        "title": "Task",
+        "description": "",
+        "status": "Pending",
+        "priority": "None",
+        "dueDate": null,
+        "createdAtUtc": "2026-08-22T00:00:00.000Z",
+        "updatedAtUtc": "2026-08-22T00:00:00.000Z",
+        "completedAtUtc": null,
+        "notes": notes.iter().map(|id| serde_json::json!({
+            "id": id,
+            "content": "Note",
+            "actionability": "Informational",
+            "createdAtUtc": "2026-08-22T00:00:00.000Z"
+        })).collect::<Vec<_>>()
+    })
+}
+
+fn classify_tasks(tasks: Vec<serde_json::Value>) -> JsonFileWithHashResult {
+    let bytes = serde_json::to_vec(&serde_json::json!({
+        "version": "1.0.0",
+        "id": "list-1",
+        "tasks": tasks
+    }))
+    .unwrap();
+    classify_json_bytes(&bytes)
+}
+
+#[test]
+fn classify_json_bytes_rejects_duplicate_task_ids() {
+    assert!(matches!(
+        classify_tasks(vec![task_json("task-1", &[]), task_json("task-1", &[])]),
+        JsonFileWithHashResult::Invalid { .. }
+    ));
+}
+
+#[test]
+fn classify_json_bytes_rejects_duplicate_note_ids_within_one_task() {
+    assert!(matches!(
+        classify_tasks(vec![task_json("task-1", &["note-1", "note-1"])]),
+        JsonFileWithHashResult::Invalid { .. }
+    ));
+}
+
+#[test]
+fn classify_json_bytes_allows_the_same_note_id_in_different_tasks() {
+    assert!(matches!(
+        classify_tasks(vec![
+            task_json("task-1", &["note-1"]),
+            task_json("task-2", &["note-1"])
+        ]),
+        JsonFileWithHashResult::Success { .. }
+    ));
+}
+
 #[test]
 fn atomic_temp_name_is_stem_plus_nanoid_dot_tmp() {
     // Grammar: <stem>-<nanoid>.tmp — one final extension, the target's

@@ -106,8 +106,7 @@ export async function quarantineFile(path: string): Promise<string> {
 // Computes SHA-256 hash of a file via the Rust backend.
 // Returns null if the file does not exist.
 export async function hashFile(path: string): Promise<string | null> {
-  if (!(await fileExists(path))) return null;
-  return await invoke<string>("hash_file", { path });
+  return await invoke<string | null>("hash_file", { path });
 }
 
 // Checks if a file exists on disk.

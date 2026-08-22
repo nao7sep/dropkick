@@ -29,7 +29,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, TransactionBehavior};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
@@ -143,8 +143,8 @@ fn sha256_hex(bytes: &[u8]) -> String {
 /// `warn` (file + reason), and swallowed. It never panics, never crashes the app,
 /// and never breaks the save.
 pub fn record(absolute_path: &Path, bytes: &[u8]) {
-    let state = lock();
-    let Some(conn) = state.conn.as_ref() else {
+    let mut state = lock();
+    let Some(conn) = state.conn.as_mut() else {
         // Store never opened (open failed at startup, or init hasn't run under a
         // test that doesn't exercise it): disabled for the session, already warned
         // once if it was an open failure. No-op.
@@ -161,12 +161,17 @@ pub fn record(absolute_path: &Path, bytes: &[u8]) {
 
 /// The fallible core of `record`, factored out so the one `warn` site in `record`
 /// catches every failure path uniformly.
-fn try_record(conn: &Connection, path: &str, bytes: &[u8]) -> Result<(), rusqlite::Error> {
+fn try_record(conn: &mut Connection, path: &str, bytes: &[u8]) -> Result<(), rusqlite::Error> {
     let hash = sha256_hex(bytes);
+    // Acquire SQLite's cross-process write reservation before reading the
+    // predecessor. Without one transaction, two app processes can both read
+    // the same latest hash and then append the same next version. WAL and the
+    // busy timeout serialize the inserts, but cannot repair that stale read.
+    let transaction = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     // Compare against the latest row for this same path only — a cheap,
     // append-only check with no full-history scan (served by the (path, id)
     // index). No prior row (QueryReturnedNoRows) means never captured -> record.
-    let latest: Option<String> = match conn.query_row(
+    let latest: Option<String> = match transaction.query_row(
         "SELECT content_sha256 FROM backups WHERE path = ?1 ORDER BY id DESC LIMIT 1",
         [path],
         |row| row.get::<_, String>(0),
@@ -176,13 +181,21 @@ fn try_record(conn: &Connection, path: &str, bytes: &[u8]) -> Result<(), rusqlit
         Err(other) => return Err(other),
     };
     if latest.as_deref() == Some(hash.as_str()) {
+        transaction.commit()?;
         return Ok(()); // unchanged since the last recorded version — dedup skip
     }
-    conn.execute(
+    transaction.execute(
         "INSERT INTO backups (path, content, content_sha256, byte_size, written_at_utc) \
          VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![path, bytes, hash, bytes.len() as i64, logging::now_iso_millis()],
+        rusqlite::params![
+            path,
+            bytes,
+            hash,
+            bytes.len() as i64,
+            logging::now_iso_millis()
+        ],
     )?;
+    transaction.commit()?;
     Ok(())
 }
 

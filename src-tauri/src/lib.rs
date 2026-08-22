@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -157,7 +158,7 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 // Computes SHA-256 hash of a file's raw bytes.
 // Called from TypeScript before every write to detect external modifications.
 #[tauri::command(async)]
-fn hash_file(path: &str) -> Result<String, String> {
+fn hash_file(path: &str) -> Result<Option<String>, String> {
     let started = log_cmd_start("hash_file", json!({ "path": path }));
     match std::fs::read(path) {
         Ok(bytes) => {
@@ -167,7 +168,15 @@ fn hash_file(path: &str) -> Result<String, String> {
                 started,
                 json!({ "path": path, "bytes": bytes.len() }),
             );
-            Ok(hash)
+            Ok(Some(hash))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            log_cmd_ok(
+                "hash_file",
+                started,
+                json!({ "path": path, "outcome": "missing" }),
+            );
+            Ok(None)
         }
         Err(e) => {
             log_cmd_err("hash_file", started, e.to_string());
@@ -228,14 +237,34 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
 // against in-memory bytes.
 pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
     match serde_json::from_slice::<TaskListDto>(bytes) {
-        Ok(data) => JsonFileWithHashResult::Success {
-            data,
-            hash: sha256_hex(bytes),
+        Ok(data) => match validate_task_list_identities(&data) {
+            Ok(()) => JsonFileWithHashResult::Success {
+                data,
+                hash: sha256_hex(bytes),
+            },
+            Err(message) => JsonFileWithHashResult::Invalid { message },
         },
         Err(err) => JsonFileWithHashResult::Invalid {
             message: err.to_string(),
         },
     }
+}
+
+fn validate_task_list_identities(data: &TaskListDto) -> Result<(), String> {
+    let mut task_ids = HashSet::new();
+    for task in &data.tasks {
+        if !task_ids.insert(task.id.as_str()) {
+            return Err("duplicate task id".to_string());
+        }
+
+        let mut note_ids = HashSet::new();
+        for note in &task.notes {
+            if !note_ids.insert(note.id.as_str()) {
+                return Err("duplicate note id within task".to_string());
+            }
+        }
+    }
+    Ok(())
 }
 
 // Generic text read with an explicit missing/success/error union — the
@@ -660,7 +689,14 @@ mod tests {
         let path = dir.join("f.txt");
         std::fs::write(&path, b"abc").unwrap();
         let result = hash_file(path.to_str().unwrap()).unwrap();
-        assert_eq!(result, sha256_hex(b"abc"));
+        assert_eq!(result, Some(sha256_hex(b"abc")));
+    }
+
+    #[test]
+    fn hash_file_returns_missing_for_an_absent_file() {
+        let dir = unique_temp_dir("hash-missing");
+        let path = dir.join("absent.txt");
+        assert_eq!(hash_file(path.to_str().unwrap()).unwrap(), None);
     }
 
     #[test]
