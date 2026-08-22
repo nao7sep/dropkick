@@ -12,8 +12,9 @@ const source = readFileSync(
 describe("tab bar layout contract", () => {
   it("keeps one fixed chrome row and scrolls only the tablist horizontally", () => {
     expect(source).toContain(
-      'className="flex h-10 shrink-0 items-center border-b border-border bg-surface"',
+      'className="flex shrink-0 items-center border-b border-border bg-surface"',
     );
+    expect(source).toContain("style={{ height: TAB_BAR_MIN_HEIGHT }}");
     expect(source).toContain(
       'className="flex h-full min-w-0 shrink overflow-x-auto overflow-y-hidden"',
     );

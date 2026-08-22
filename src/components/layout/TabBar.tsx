@@ -4,7 +4,13 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
-import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
+import {
+  singleLine,
+  stepZoomIn,
+  stepZoomOut,
+  TAB_BAR_MIN_HEIGHT,
+  ZOOM_DEFAULT,
+} from "../../utils";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -333,11 +339,14 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
         items={tabIds}
         strategy={horizontalListSortingStrategy}
       >
-        <div className="flex h-10 shrink-0 items-center border-b border-border bg-surface">
+        <div
+          className="flex shrink-0 items-center border-b border-border bg-surface"
+          style={{ height: TAB_BAR_MIN_HEIGHT }}
+        >
           {/* Tabs own the only flexible width in this fixed-height row. The
               tablist shrinks until it reaches the two fixed menu buttons, then
-              scrolls horizontally; it never adds chrome rows or steals the
-              content panes' declared minimum height. */}
+              scrolls horizontally. The row reserves the tabs' full intrinsic
+              height plus the non-overlay scrollbar, so neither clips the other. */}
           <div
             ref={tablistRef}
             role="tablist"

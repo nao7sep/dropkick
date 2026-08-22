@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   SIDEBAR_MIN_WIDTH,
   DETAIL_MIN_WIDTH,
@@ -10,6 +12,20 @@ import {
   computeMinWindowHeight,
   clampSidebarWidth,
 } from "../../src/utils/windowSizing";
+
+const appCss = readFileSync(
+  fileURLToPath(new URL("../../src/App.css", import.meta.url)),
+  "utf8",
+);
+
+function webkitHorizontalScrollbarHeight(): number {
+  const rule = appCss.match(/::-webkit-scrollbar\s*\{([^}]*)\}/)?.[1];
+  const height = rule?.match(/height:\s*(\d+)px/)?.[1];
+  if (!height) {
+    throw new Error("WebKit scrollbar height is not a fixed pixel value");
+  }
+  return Number(height);
+}
 
 // Derivation guards: the window minimum must fall out of the pane minimums plus
 // the fixed chrome, never a hand-typed literal. If a pane minimum changes, these
@@ -34,6 +50,12 @@ describe("window minimum size derivation", () => {
 
   it("reserves the fixed tab-bar chrome in the height", () => {
     expect(computeMinWindowHeight(1)).toBeGreaterThan(CONTENT_MIN_HEIGHT);
+  });
+
+  it("leaves the 36px tabs unclipped above the non-overlay scrollbar", () => {
+    const usableTabHeight =
+      TAB_BAR_MIN_HEIGHT - webkitHorizontalScrollbarHeight() - 1; // bottom border
+    expect(usableTabHeight).toBeGreaterThanOrEqual(36);
   });
 });
 
