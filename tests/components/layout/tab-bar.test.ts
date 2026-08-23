@@ -36,6 +36,7 @@ let host: Mounted;
 
 afterEach(async () => {
   await host?.unmount();
+  document.body.classList.remove("dnd-dragging");
 });
 
 describe("TabBar wrapped visibility", () => {
@@ -80,6 +81,43 @@ describe("TabBar wrapped visibility", () => {
       openTabs.map((tab) => tab.displayName),
     );
     expect(renderedTabs.every((tab) => !tab.hasAttribute("hidden"))).toBe(true);
+    expect(renderedTabs.every((tab) => tab.classList.contains("cursor-grab"))).toBe(true);
+  });
+
+  it("clears the window-wide drag cursor when the window loses focus", async () => {
+    useWorkspaceStore.setState({
+      workspace: {
+        ...createDefaultWorkspace("Test"),
+        openTabs: [createTab("/fixtures/a.json", "A")],
+        activeTabIndex: 0,
+      },
+      filePath: "",
+      loaded: true,
+    });
+
+    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    document.body.classList.add("dnd-dragging");
+    window.dispatchEvent(new Event("blur"));
+
+    expect(document.body.classList.contains("dnd-dragging")).toBe(false);
+  });
+
+  it("clears the window-wide drag cursor when its tab bar unmounts", async () => {
+    useWorkspaceStore.setState({
+      workspace: {
+        ...createDefaultWorkspace("Test"),
+        openTabs: [createTab("/fixtures/a.json", "A")],
+        activeTabIndex: 0,
+      },
+      filePath: "",
+      loaded: true,
+    });
+
+    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    document.body.classList.add("dnd-dragging");
+    await host.unmount();
+
+    expect(document.body.classList.contains("dnd-dragging")).toBe(false);
   });
 
   it("moves the focused tab durably while selection and focus follow its stable id", async () => {

@@ -2,7 +2,7 @@
 // The [+] button opens a menu to create/open task list files.
 // The hamburger icon opens a menu with Settings, Keyboard Shortcuts, and About.
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
 import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { computeTabUrgencies } from "../../services";
@@ -92,6 +92,21 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
   const tablistRef = useRef<HTMLDivElement>(null);
+
+  const stopTabDrag = useCallback(() => {
+    document.body.classList.remove("dnd-dragging");
+  }, []);
+
+  // dnd-kit normally closes the drag through onDragEnd/onDragCancel. Window
+  // focus loss can strand a pointer session before either event reaches the
+  // renderer, so the body-level cursor owner also cleans up on blur and unmount.
+  useEffect(() => {
+    window.addEventListener("blur", stopTabDrag);
+    return () => {
+      window.removeEventListener("blur", stopTabDrag);
+      stopTabDrag();
+    };
+  }, [stopTabDrag]);
 
   // Focus rename input when editing starts.
   useEffect(() => {
@@ -342,8 +357,8 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={() => document.body.classList.add("dnd-dragging")}
-      onDragEnd={(event) => { void handleDragEnd(event); document.body.classList.remove("dnd-dragging"); }}
-      onDragCancel={() => document.body.classList.remove("dnd-dragging")}
+      onDragEnd={(event) => { void handleDragEnd(event); stopTabDrag(); }}
+      onDragCancel={stopTabDrag}
     >
       <SortableContext
         items={tabIds}
@@ -637,7 +652,7 @@ function SortableTab({
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
       title={hasLoadError ? `Load failed: ${tab.filePath}` : undefined}
-      className={`group flex shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring ${
+      className={`group flex shrink-0 cursor-grab items-center gap-1.5 border-r border-border px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring ${
         isActive
           ? "bg-primary-surface text-primary-hover"
           : "text-ink hover:bg-background"
