@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 // font silently stops at the first dialog. This is a render-free check on the
 // stylesheet and the component, mirroring the scroll-bar guard.
 const read = (rel: string) =>
-  readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+  readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8").replace(/\r\n?/g, "\n");
 
 const css = read("../../src/App.css");
 const mainWindow = read("../../src/components/layout/MainWindow.tsx");

@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 const source = readFileSync(
   fileURLToPath(new URL("../../src-tauri/src/lib.rs", import.meta.url)),
   "utf8",
-);
+).replace(/\r\n?/g, "\n");
 
 // Everything before the test module, so #[cfg(test)] helpers are not scanned.
 const shipped = source.slice(0, source.indexOf("\n#[cfg(test)]"));
