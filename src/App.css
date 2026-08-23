@@ -13,7 +13,7 @@ button:disabled {
 }
 
 /* While a tab drag (reorder) is in progress the whole window shows the closed-hand
-   "grabbing" cursor, overriding the pointer the tabs would otherwise show under the
+   "grabbing" cursor, overriding the open hand the tabs would otherwise show under the
    roaming pointer. The body class is toggled by the DndContext drag handlers. */
 body.dnd-dragging,
 body.dnd-dragging * {
