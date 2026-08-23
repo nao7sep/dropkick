@@ -75,6 +75,7 @@ const shortcutSections: {
       { label: "Next tab", keys: "Ctrl+Tab" },
       { label: "Previous tab", keys: "Ctrl+Shift+Tab" },
       { label: "Switch tabs (tab bar focused)", keys: "Left/Right" },
+      { label: "Move focused tab (tab bar focused)", keys: "Shift+Left/Right" },
       { label: "First / last tab (tab bar focused)", keys: "Home/End" },
       { label: "Close the focused tab", keys: "Delete/Backspace" },
       { label: "Close tab", keys: `${mod}+W` },

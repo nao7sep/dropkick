@@ -22,6 +22,7 @@ import {
 } from "@dnd-kit/sortable";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
+  planTabReorder,
   tabDragTransform,
   wrappedTabSortingStrategy,
 } from "./tab-dnd";
@@ -125,6 +126,21 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
       await reorderTabs(fromIndex, toIndex);
     } catch (e) {
       log.error("reorder tabs failed", { fromIndex, toIndex, ...toErrorFields(e) });
+    }
+  };
+
+  const handleKeyboardReorder = async (focusedId: string, direction: -1 | 1) => {
+    const currentTabIds = useWorkspaceStore.getState().workspace.openTabs.map((tab) =>
+      tab.isUnifiedView ? "__unified__" : tab.filePath,
+    );
+    const plan = planTabReorder(currentTabIds, focusedId, direction);
+    if (!plan) return;
+
+    log.info("reorder tabs", { ...plan });
+    try {
+      await reorderTabs(plan.fromIndex, plan.toIndex);
+    } catch (e) {
+      log.error("reorder tabs failed", { ...plan, ...toErrorFields(e) });
     }
   };
 
@@ -250,6 +266,15 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
     const count = workspace.openTabs.length;
     if (count === 0) return;
     const current = workspace.activeTabIndex;
+    if (e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      e.preventDefault();
+      const focusedId = (e.target as HTMLElement).closest<HTMLElement>("[data-tab-id]")
+        ?.dataset.tabId;
+      if (focusedId) {
+        void handleKeyboardReorder(focusedId, e.key === "ArrowLeft" ? -1 : 1);
+      }
+      return;
+    }
     switch (e.key) {
       case "ArrowRight":
       case "ArrowLeft": {
@@ -586,8 +611,8 @@ function SortableTab({
 }: SortableTabProps) {
   // Spread dnd-kit's `listeners` (pointer drag) but NOT its `attributes`: those
   // set role="button" and a tab index that would fight the tab semantics and the
-  // tablist's roving tabindex. Keyboard reorder isn't enabled (PointerSensor
-  // only), so dropping the keyboard-drag a11y attributes costs nothing.
+  // tablist's roving tabindex. Keyboard reorder belongs to the tablist's
+  // Shift+Left/Right handler, not a second dnd-kit focus model.
   const { listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
   const composing = useComposing();
@@ -608,6 +633,7 @@ function SortableTab({
       aria-selected={isActive}
       tabIndex={isActive ? 0 : -1}
       data-tab-index={index}
+      data-tab-id={id}
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
       title={hasLoadError ? `Load failed: ${tab.filePath}` : undefined}
