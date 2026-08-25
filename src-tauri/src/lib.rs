@@ -12,6 +12,7 @@ use tauri::AppHandle;
 // tests-folder-conventions ask for: promote the helper, do not test it through
 // a shell, and keep shipped source free of test modules.
 pub mod backup_store;
+mod instance_owner;
 pub mod logging;
 pub mod nanoid;
 pub mod paths;
@@ -573,6 +574,7 @@ pub fn run() {
             .unwrap_or(false);
 
     let app = tauri::Builder::default()
+        .plugin(instance_owner::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {

@@ -58,4 +58,4 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 # features (async runtime + logging) are unused here; only the synchronous
 # `#[serial]` attribute is needed.
 serial_test = { version = "3.5", default-features = false }
-
+tempfile = "3.27"
