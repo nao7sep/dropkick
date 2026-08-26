@@ -26,7 +26,7 @@ export {
 
 export {
   addTask,
-  deleteTask,
+  deleteTasks,
   updateTaskTitle,
   updateTaskDescription,
   changeTaskStatus,
@@ -59,3 +59,9 @@ export type { LoadFailure, DocumentKind } from "./load-failure";
 export { describeLoadFailure, fileNameWithoutExt } from "./load-failure";
 
 export type { StagedPreferences } from "./preferences-draft";
+
+export type {
+  DeleteSelectedTasksInputs,
+  DeleteSelectedTasksResult,
+} from "./task-deletion";
+export { deleteSelectedTasks } from "./task-deletion";

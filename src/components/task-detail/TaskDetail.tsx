@@ -14,7 +14,7 @@ import type { ActionResult } from "../../state";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
-import { showConfirm, showMessage } from "../../repositories";
+import { showMessage, showNoteDeletionConfirm } from "../../repositories";
 import {
   formatTimestamp,
   formatDueDate,
@@ -33,6 +33,7 @@ import { useNoteDraftStore } from "../../state/note-draft-store";
 import { composerDraftKey, editorDraftKey } from "../../services";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
+import { useTaskDeletion } from "../../hooks/useTaskDeletion";
 
 interface TaskDetailProps {
   task: Task;
@@ -61,7 +62,6 @@ export function TaskDetail({
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
   const sendToLast = useTaskListStore((s) => s.sendToLast);
   const dropkick = useTaskListStore((s) => s.dropkick);
-  const removeTask = useTaskListStore((s) => s.removeTask);
   const moveTasks = useTaskListStore((s) => s.moveTasks);
   const setSelection = useTaskListStore((s) => s.setSelection);
   const workspace = useWorkspaceStore((s) => s.workspace);
@@ -79,7 +79,7 @@ export function TaskDetail({
   );
   const updateComposerDraft = useNoteDraftStore((s) => s.setDraft);
   const clearComposerDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
-  const clearTaskDrafts = useNoteDraftStore((s) => s.clearTaskDrafts);
+  const deleteTasks = useTaskDeletion();
 
   // Available move destinations (other open task list tabs).
   const moveDestinations = workspace.openTabs.filter(
@@ -206,19 +206,7 @@ export function TaskDetail({
   };
 
   const handleDeleteTask = async () => {
-    const confirmed = await showConfirm(
-      "Delete Task",
-      `Permanently delete "${task.title || "Untitled"}"? This cannot be undone.`,
-    );
-    if (confirmed) {
-      const result = await removeTask(filePath, task.id);
-      if (result.status === "error") {
-        await showMessage("Delete Failed", result.message);
-        return;
-      }
-      clearTaskDrafts(task.id);
-      setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
-    }
+    await deleteTasks([task], nextActiveTaskKey);
   };
 
   const handleAddNote = async (
@@ -611,10 +599,9 @@ function NoteItem({
   );
 
   const handleDeleteNote = async () => {
-    const confirmed = await showConfirm(
-      "Delete Note",
-      "Permanently delete this note?",
-    );
+    const confirmed =
+      !preferences.confirmPermanentDeletions ||
+      (await showNoteDeletionConfirm());
     if (confirmed) {
       const result = await removeNote(filePath, taskId, note.id);
       if (result.status === "error") {

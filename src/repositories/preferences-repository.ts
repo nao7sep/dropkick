@@ -67,6 +67,10 @@ export async function loadPreferences(
     handledTasksPageSize: normalizeHandledTasksPageSize(
       data.handledTasksPageSize,
     ),
+    confirmPermanentDeletions:
+      typeof data.confirmPermanentDeletions === "boolean"
+        ? data.confirmPermanentDeletions
+        : defaults.confirmPermanentDeletions,
   };
   // Materialize a missing stable id by persisting it once, so this document's
   // identity does not change between launches — mergeWithDefaults otherwise mints

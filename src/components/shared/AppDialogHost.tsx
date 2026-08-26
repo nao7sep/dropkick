@@ -44,6 +44,7 @@ export function AppDialogHost() {
   };
 
   const isWarning = current?.tone === "warning";
+  const isDanger = current?.tone === "danger";
 
   // Apply the focus rule to EVERY request this host serves, not just the first.
   //
@@ -96,8 +97,10 @@ export function AppDialogHost() {
               <div className="flex items-center gap-3">
                 <div
                   className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                    isWarning
-                      ? "bg-warning-surface text-warning"
+                    isDanger
+                      ? "bg-danger-surface text-danger"
+                      : isWarning
+                        ? "bg-warning-surface text-warning"
                       : "bg-primary-surface-strong text-primary"
                   }`}
                 >
@@ -106,7 +109,11 @@ export function AppDialogHost() {
 
                 <Dialog.Title
                   className={`text-lg font-semibold ${
-                    isWarning ? "text-warning-strong" : "text-ink-strong"
+                    isDanger
+                      ? "text-danger-fg-strong"
+                      : isWarning
+                        ? "text-warning-strong"
+                        : "text-ink-strong"
                   }`}
                 >
                   {current.title}
@@ -137,7 +144,11 @@ export function AppDialogHost() {
                 ref={confirmRef}
                 onClick={confirmCurrent}
                 className={`rounded-md px-4 py-2 text-sm text-ink-inverted ${
-                  isWarning ? "bg-warning-solid hover:bg-warning-solid-strong" : "bg-primary-solid hover:bg-primary-solid-hover"
+                  isDanger
+                    ? "bg-danger-solid hover:bg-danger-solid-hover"
+                    : isWarning
+                      ? "bg-warning-solid hover:bg-warning-solid-strong"
+                      : "bg-primary-solid hover:bg-primary-solid-hover"
                 }`}
               >
                 {current.confirmLabel}

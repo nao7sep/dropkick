@@ -111,9 +111,13 @@ export function changeNoteActionability(
   };
 }
 
-// Removes a task from the array by ID.
-export function deleteTask(tasks: TaskDto[], taskId: string): TaskDto[] {
-  return tasks.filter((t) => t.id !== taskId);
+// Removes tasks from the array by ID.
+export function deleteTasks(
+  tasks: TaskDto[],
+  taskIds: ReadonlySet<string>,
+): TaskDto[] {
+  if (!tasks.some((task) => taskIds.has(task.id))) return tasks;
+  return tasks.filter((task) => !taskIds.has(task.id));
 }
 
 // Removes a note from a task by note ID.

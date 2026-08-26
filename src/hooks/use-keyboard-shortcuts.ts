@@ -7,7 +7,7 @@ import { useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useToastStore } from "../state/toast-store";
-import { showConfirm, showMessage } from "../repositories";
+import { showMessage } from "../repositories";
 import type { Task, TaskPriority, TaskStatus } from "../models";
 import type { ActionResult } from "../state";
 import {
@@ -26,9 +26,11 @@ import {
   isOpenSettingsShortcut,
   isOpenShortcutsHelpShortcut,
   tabCycleDirection,
+  isTaskDeletionShortcut,
 } from "../utils";
 import { isComposingEvent } from "./useComposing";
 import { useViewTasks } from "./useViewTasks";
+import { useTaskDeletion } from "./useTaskDeletion";
 
 // Toast messages for actions that are silently disabled in unified view. They
 // lead with the view because that is the part users forget — an empty selection
@@ -74,6 +76,7 @@ export function useKeyboardShortcuts(
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
   const sendToLast = useTaskListStore((s) => s.sendToLast);
   const dropkick = useTaskListStore((s) => s.dropkick);
+  const deleteTasks = useTaskDeletion();
 
   const workspace = useWorkspaceStore((s) => s.workspace);
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
@@ -408,24 +411,13 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Delete/Backspace: Dismiss selected tasks ---
-      if (e.key === "Delete" || e.key === "Backspace") {
+      // --- Delete/Backspace: Permanently delete selected tasks ---
+      if (isTaskDeletionShortcut(e)) {
         if (isTyping(e)) return;
         if (selectedTasks.length === 0) return;
         e.preventDefault();
         const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
-        const confirmed = await showConfirm(
-          "Dismiss Tasks",
-          `Dismiss ${selectedTasks.length} selected task(s)?`,
-        );
-        if (!confirmed) return;
-        // Through the shared applier rather than a fourth copy of the loop: the
-        // open-coded one only looked for errors, so a task refused for an
-        // unresolved actionable note was skipped in silence and the selection
-        // advanced as if it had been dismissed.
-        if (await applyStatusToSelection("Dismissed")) {
-          setSelection(nextKey ? new Set([nextKey]) : new Set());
-        }
+        await deleteTasks(selectedTasks, nextKey);
         return;
       }
 
@@ -512,6 +504,7 @@ export function useKeyboardShortcuts(
       sendToFirst,
       sendToLast,
       dropkick,
+      deleteTasks,
       setSelection,
       setActiveTab,
       closeTab,

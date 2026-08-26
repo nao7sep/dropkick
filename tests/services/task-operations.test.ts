@@ -9,7 +9,7 @@ import {
   addNote,
   updateNoteContent,
   changeNoteActionability,
-  deleteTask,
+  deleteTasks,
   deleteNote,
   replaceTask,
 } from "../../src/services/task-operations";
@@ -30,16 +30,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("addTask / deleteTask / replaceTask", () => {
+describe("addTask / deleteTasks / replaceTask", () => {
   it("addTask prepends to the list", () => {
     const tasks = [makeTask({ id: "a" })];
     const result = addTask(tasks, makeTask({ id: "b" }));
     expect(result.map((t) => t.id)).toEqual(["b", "a"]);
   });
 
-  it("deleteTask removes by id", () => {
+  it("deleteTasks removes every requested id", () => {
     const tasks = [makeTask({ id: "a" }), makeTask({ id: "b" })];
-    expect(deleteTask(tasks, "a").map((t) => t.id)).toEqual(["b"]);
+    expect(deleteTasks(tasks, new Set(["a", "b"]))).toEqual([]);
+  });
+
+  it("deleteTasks returns the same array when no id is present", () => {
+    const tasks = [makeTask({ id: "a" })];
+    expect(deleteTasks(tasks, new Set(["missing"]))).toBe(tasks);
   });
 
   it("replaceTask swaps the matching task in place", () => {

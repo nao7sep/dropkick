@@ -19,4 +19,16 @@ describe("KeyboardShortcutsModal tab commands", () => {
     expect(document.body.textContent).toContain("Move focused tab (tab bar focused)");
     expect(document.body.textContent).toContain("Shift+Left/Right");
   });
+
+  it("documents permanent task deletion separately from dismissal", async () => {
+    host = await mount(createElement(KeyboardShortcutsModal, { onClose: () => {} }));
+
+    expect(document.body.textContent).toContain("Set status to DismissedX");
+    expect(document.body.textContent).toContain(
+      "Delete selected tasksDelete/Backspace",
+    );
+    expect(document.body.textContent).not.toContain(
+      "Dismiss selected tasksBackspace/Delete",
+    );
+  });
 });

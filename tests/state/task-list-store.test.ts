@@ -199,9 +199,13 @@ describe("mutating actions — the never-reject contract", () => {
     await useTaskListStore.getState().loadFile(FILE);
     flushTaskList.mockRejectedValue(new Error("disk full"));
 
-    await useTaskListStore.getState().removeTask(FILE, "a");
+    useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
+    await useTaskListStore.getState().removeTasks(FILE, new Set(["a"]));
 
     expect(tasksOf().map((task) => task.id)).toEqual(["a"]);
+    expect(useTaskListStore.getState().selectedKeys).toEqual(
+      new Set([taskKey(FILE, "a")]),
+    );
   });
 
   it("rolls all optimistic changes back if every overlapping write fails", async () => {
@@ -335,15 +339,18 @@ describe("addNewTask", () => {
   });
 });
 
-describe("removeTask", () => {
-  it("deletes the task and clears it from the selection", async () => {
+describe("removeTasks", () => {
+  it("deletes the requested tasks in one write and clears them from the selection", async () => {
     seedFile();
     useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a"), taskKey(FILE, "b")]));
-    const result = await useTaskListStore.getState().removeTask(FILE, "a");
+    const result = await useTaskListStore
+      .getState()
+      .removeTasks(FILE, new Set(["a", "b"]));
     expect(result).toEqual({ status: "success", changed: true });
-    expect(tasksOf().map((t) => t.id)).toEqual(["b"]);
+    expect(tasksOf()).toEqual([]);
+    expect(flushTaskList).toHaveBeenCalledTimes(1);
     expect(useTaskListStore.getState().selectedKeys.has(taskKey(FILE, "a"))).toBe(false);
-    expect(useTaskListStore.getState().selectedKeys.has(taskKey(FILE, "b"))).toBe(true);
+    expect(useTaskListStore.getState().selectedKeys.has(taskKey(FILE, "b"))).toBe(false);
   });
 });
 

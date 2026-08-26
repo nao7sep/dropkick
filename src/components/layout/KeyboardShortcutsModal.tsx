@@ -27,7 +27,7 @@ const shortcutSections: {
       { label: "Set status to Pending", keys: "P" },
       { label: "Set status to Completed", keys: "C" },
       { label: "Set status to Dismissed", keys: "X" },
-      { label: "Dismiss selected tasks", keys: "Backspace/Delete" },
+      { label: "Delete selected tasks", keys: "Delete/Backspace" },
       { kind: "heading", label: "Priority" },
       { label: "Set priority to Default", keys: "0" },
       { label: "Set priority to Urgent", keys: "1" },

@@ -114,6 +114,7 @@ describe("isPreferencesDraftDirty", () => {
       { dueSoonDays: c.dueSoonDays + 1 },
       { handledTasksPageSize: c.handledTasksPageSize + 10 },
       { fontFamily: `${c.fontFamily}-alt` },
+      { confirmPermanentDeletions: !c.confirmPermanentDeletions },
     ];
     for (const change of cases) {
       expect(isPreferencesDraftDirty({ ...c, ...change }, c, KICK_STRING)).toBe(

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type DialogTone = "default" | "warning";
+type DialogTone = "default" | "warning" | "danger";
 
 interface DialogOptions {
   tone?: DialogTone;

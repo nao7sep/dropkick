@@ -48,6 +48,30 @@ describe("loadPreferences — merge with defaults", () => {
     expect(result.preferences.darkMode).toBe(true);
   });
 
+  it("defaults permanent-deletion confirmation on and preserves an explicit opt-out", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Legacy", darkMode: false },
+    });
+    const legacy = await loadPreferences("/prefs.json");
+    expect(legacy.status).toBe("success");
+    if (legacy.status !== "success") return;
+    expect(legacy.preferences.confirmPermanentDeletions).toBe(true);
+
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: {
+        version: "1.0.0",
+        name: "Opted out",
+        confirmPermanentDeletions: false,
+      },
+    });
+    const optedOut = await loadPreferences("/prefs.json");
+    expect(optedOut.status).toBe("success");
+    if (optedOut.status !== "success") return;
+    expect(optedOut.preferences.confirmPermanentDeletions).toBe(false);
+  });
+
   it("propagates a missing file as missing", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
     const result = await loadPreferences("/prefs.json");

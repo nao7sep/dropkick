@@ -37,7 +37,7 @@ import {
   log,
   loadFailureFields,
 } from "../repositories";
-import { createTask, createNote, parseTaskKey, taskKey } from "../utils";
+import { createTask, createNote, parseTaskKey } from "../utils";
 import type { CreateTaskOptions } from "../utils";
 import { usePreferencesStore } from "./preferences-store";
 import {
@@ -50,7 +50,7 @@ import {
   dropkickTasks,
   replaceTask,
   addTask,
-  deleteTask,
+  deleteTasks,
   changeTaskStatus,
   changeTaskPriority,
   changeTaskDueDate,
@@ -122,7 +122,10 @@ interface TaskListState {
     filePath: string,
     options: CreateTaskOptions,
   ) => Promise<ActionResult>;
-  removeTask: (filePath: string, taskId: string) => Promise<ActionResult>;
+  removeTasks: (
+    filePath: string,
+    taskIds: ReadonlySet<string>,
+  ) => Promise<ActionResult>;
   updateTitle: (
     filePath: string,
     taskId: string,
@@ -595,17 +598,30 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       );
     },
 
-    removeTask: async (filePath, taskId) => {
-      return mutateTasks(
+    removeTasks: async (filePath, taskIds) => {
+      const result = await mutateTasks(
         filePath,
-        "delete task",
-        { taskId },
-        (tasks) => deleteTask(tasks, taskId),
-        {
-          selection: (prev) =>
-            new Set([...prev].filter((k) => k !== taskKey(filePath, taskId))),
-        },
+        "delete tasks",
+        { count: taskIds.size },
+        (tasks) => deleteTasks(tasks, taskIds),
       );
+      // Selection follows persistence, not the optimistic task-array update.
+      // A failed write restores the tasks, so it must also leave them selected
+      // for retry. On success, filter against the latest selection so a choice
+      // made while the write was pending is never replaced wholesale.
+      if (result.status === "success" && result.changed) {
+        set((state) => ({
+          selectedKeys: new Set(
+            [...state.selectedKeys].filter((key) => {
+              const parsed = parseTaskKey(key);
+              return !(
+                parsed?.sourceFile === filePath && taskIds.has(parsed.taskId)
+              );
+            }),
+          ),
+        }));
+      }
+      return result;
     },
 
     updateTitle: async (filePath, taskId, title) =>

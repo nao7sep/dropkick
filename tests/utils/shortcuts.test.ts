@@ -9,6 +9,7 @@ import {
   isOpenSettingsShortcut,
   isOpenShortcutsHelpShortcut,
   noteEditorAction,
+  isTaskDeletionShortcut,
 } from "../../src/utils/shortcuts";
 import { importWithPlatform } from "../helpers/platform";
 
@@ -313,6 +314,35 @@ describe("isOpenShortcutsHelpShortcut", () => {
     // the "?" branch's own raw !altKey flag rejects it.
     expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, altKey: true, key: "/" }))).toBe(false);
     expect(isOpenShortcutsHelpShortcut(keyEvent({ ctrlKey: true, altKey: true, key: "?" }))).toBe(false);
+  });
+});
+
+describe("isTaskDeletionShortcut", () => {
+  const event = (overrides: Partial<Parameters<typeof isTaskDeletionShortcut>[0]>) => ({
+    key: "Delete",
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    repeat: false,
+    ...overrides,
+  });
+
+  it("accepts one plain Delete or Backspace keypress", () => {
+    expect(isTaskDeletionShortcut(event({ key: "Delete" }))).toBe(true);
+    expect(isTaskDeletionShortcut(event({ key: "Backspace" }))).toBe(true);
+  });
+
+  it("rejects every modified variant and auto-repeat", () => {
+    expect(isTaskDeletionShortcut(event({ metaKey: true }))).toBe(false);
+    expect(isTaskDeletionShortcut(event({ ctrlKey: true }))).toBe(false);
+    expect(isTaskDeletionShortcut(event({ altKey: true }))).toBe(false);
+    expect(isTaskDeletionShortcut(event({ shiftKey: true }))).toBe(false);
+    expect(isTaskDeletionShortcut(event({ repeat: true }))).toBe(false);
+  });
+
+  it("rejects unrelated keys", () => {
+    expect(isTaskDeletionShortcut(event({ key: "x" }))).toBe(false);
   });
 });
 

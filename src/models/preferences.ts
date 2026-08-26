@@ -20,6 +20,7 @@ export interface PreferencesDto {
   kickDistances: number[];
   dueSoonDays: number;
   handledTasksPageSize: number;
+  confirmPermanentDeletions: boolean;
 }
 
 // Default kick distances — the single source of truth for the "+N" actions.
@@ -123,7 +124,8 @@ export function isPreferencesDocument(
     candidate.darkMode !== undefined ||
     candidate.kickDistances !== undefined ||
     candidate.dueSoonDays !== undefined ||
-    candidate.handledTasksPageSize !== undefined
+    candidate.handledTasksPageSize !== undefined ||
+    candidate.confirmPermanentDeletions !== undefined
   );
 }
 
@@ -138,5 +140,6 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     kickDistances: [...DEFAULT_KICK_DISTANCES],
     dueSoonDays: DUE_SOON_DAYS_DEFAULT,
     handledTasksPageSize: HANDLED_TASKS_PAGE_SIZE_DEFAULT,
+    confirmPermanentDeletions: true,
   };
 }

@@ -270,6 +270,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           className="w-24 rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
       </Field>
+
+      {/* Permanent deletion safety */}
+      <Field label="Deletion">
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={draft.confirmPermanentDeletions}
+            onChange={(e) =>
+              setField("confirmPermanentDeletions", e.target.checked)
+            }
+            className="rounded border-border-strong"
+          />
+          Confirm permanent deletions
+        </label>
+        <p className="mt-1 text-xs text-ink-muted">
+          When off, tasks and notes are deleted immediately and cannot be
+          restored in Dropkick.
+        </p>
+      </Field>
     </AppModal>
   );
 }

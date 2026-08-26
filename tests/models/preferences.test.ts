@@ -54,4 +54,10 @@ describe("createDefaultPreferences", () => {
     expect(a.kickDistances).not.toBe(b.kickDistances);
     expect(a.kickDistances).not.toBe(DEFAULT_KICK_DISTANCES);
   });
+
+  it("confirms permanent deletions by default", () => {
+    expect(createDefaultPreferences("Default").confirmPermanentDeletions).toBe(
+      true,
+    );
+  });
 });

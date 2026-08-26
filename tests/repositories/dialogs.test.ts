@@ -17,7 +17,11 @@ vi.mock("../../src/state/dialog-store", () => ({
   showAppMessage: vi.fn(),
 }));
 
-import { saveJsonFileDialog } from "../../src/repositories/dialogs";
+import {
+  saveJsonFileDialog,
+  showNoteDeletionConfirm,
+  showTaskDeletionConfirm,
+} from "../../src/repositories/dialogs";
 
 beforeEach(() => {
   save.mockReset();
@@ -76,5 +80,48 @@ describe("saveJsonFileDialog", () => {
   it("returns null when the panel is cancelled", async () => {
     save.mockResolvedValue(null);
     expect(await saveJsonFileDialog("tasks.json")).toBeNull();
+  });
+});
+
+describe("permanent deletion confirmations", () => {
+  it("names one task and presents a danger-styled Delete action", async () => {
+    showAppConfirm.mockResolvedValue(true);
+
+    await expect(
+      showTaskDeletionConfirm([{ title: "Write release notes" }]),
+    ).resolves.toBe(true);
+    expect(showAppConfirm).toHaveBeenCalledWith(
+      "Delete Task",
+      'Permanently delete "Write release notes"? This cannot be undone.',
+      {
+        tone: "danger",
+        confirmLabel: "Delete",
+        cancelLabel: "Cancel",
+      },
+    );
+  });
+
+  it("states the selected count for bulk deletion", async () => {
+    showAppConfirm.mockResolvedValue(false);
+
+    await expect(
+      showTaskDeletionConfirm([{ title: "A" }, { title: "B" }]),
+    ).resolves.toBe(false);
+    expect(showAppConfirm).toHaveBeenCalledWith(
+      "Delete Tasks",
+      "Permanently delete 2 selected tasks? This cannot be undone.",
+      expect.objectContaining({ tone: "danger", confirmLabel: "Delete" }),
+    );
+  });
+
+  it("uses the same permanent danger treatment for notes", async () => {
+    showAppConfirm.mockResolvedValue(true);
+
+    await showNoteDeletionConfirm();
+    expect(showAppConfirm).toHaveBeenCalledWith(
+      "Delete Note",
+      "Permanently delete this note? This cannot be undone.",
+      expect.objectContaining({ tone: "danger", confirmLabel: "Delete" }),
+    );
   });
 });

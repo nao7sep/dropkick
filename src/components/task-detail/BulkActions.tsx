@@ -2,6 +2,7 @@
 // Supports status change, priority change, kick, and move to another list.
 
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
@@ -15,6 +16,7 @@ import {
 } from "../../utils";
 import { moveSelectedTasks } from "../../services";
 import { Toolbar } from "../shared/Toolbar";
+import { useTaskDeletion } from "../../hooks/useTaskDeletion";
 
 interface BulkActionsProps {
   selectedTasks: Task[];
@@ -41,6 +43,7 @@ export function BulkActions({
   const workspace = useWorkspaceStore((s) => s.workspace);
 
   const [moveTarget, setMoveTarget] = useState("");
+  const deleteTasks = useTaskDeletion();
 
   const showWriteFailure = async (title: string, result: ActionResult) => {
     if (result.status === "error") {
@@ -260,6 +263,16 @@ export function BulkActions({
           </div>
         </div>
       )}
+
+      <div className="mt-6 border-t border-border pt-4">
+        <button
+          onClick={() => void deleteTasks(selectedTasks, nextActiveTaskKey)}
+          className="flex items-center gap-1 rounded-md border border-danger-border px-3 py-1.5 text-sm text-danger hover:bg-danger-surface"
+        >
+          <Trash2 size={14} />
+          Delete
+        </button>
+      </div>
     </div>
   );
 }

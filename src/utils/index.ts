@@ -25,6 +25,7 @@ export {
   standsDownForMacText,
   matchesShortcutKey,
   consumesSpace,
+  isTaskDeletionShortcut,
   primaryModifierLabel,
   isOpenSettingsShortcut,
   isOpenShortcutsHelpShortcut,

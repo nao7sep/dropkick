@@ -202,3 +202,18 @@ export function consumesSpace(
   const role = target.getAttribute?.("role") ?? null;
   return role !== null && SPACE_CONSUMING_ROLES.has(role);
 }
+
+// The task-level permanent deletion key. Both event values are accepted because
+// the ordinary macOS key labelled Delete arrives in the webview as Backspace.
+// Modified variants belong to the platform or another command, and repeat must
+// not queue confirmations or delete more than the selection the user reviewed.
+export function isTaskDeletionShortcut(event: KeyChord & { repeat: boolean }): boolean {
+  return (
+    (event.key === "Delete" || event.key === "Backspace") &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !event.shiftKey &&
+    !event.repeat
+  );
+}

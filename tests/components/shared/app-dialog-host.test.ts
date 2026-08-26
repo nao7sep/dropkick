@@ -85,6 +85,22 @@ describe("focus on the first request", () => {
 
     expect(focusedControl()).toBe("OK");
   });
+
+  it("keeps Cancel focused while rendering permanent deletion as danger", async () => {
+    await open(() =>
+      void showAppConfirm("Delete Task", "b", {
+        tone: "danger",
+        confirmLabel: "Delete",
+      }),
+    );
+
+    expect(focusedControl()).toBe("Cancel");
+    expect(
+      [...document.querySelectorAll("button")].find(
+        (button) => button.textContent === "Delete",
+      )?.className,
+    ).toContain("bg-danger-solid");
+  });
 });
 
 describe("focus on a queued request", () => {

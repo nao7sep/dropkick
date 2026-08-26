@@ -65,13 +65,34 @@ export async function showMessage(
   await showAppMessage(title, body);
 }
 
-// Shows a confirmation dialog with OK/Cancel.
-// Returns true if the user confirmed.
-export async function showConfirm(
-  title: string,
-  body: string,
+export async function showTaskDeletionConfirm(
+  tasks: readonly { title: string }[],
 ): Promise<boolean> {
-  return await showAppConfirm(title, body);
+  const one = tasks.length === 1 ? tasks[0] : null;
+  const body = one
+    ? `Permanently delete "${one.title || "Untitled"}"? This cannot be undone.`
+    : `Permanently delete ${tasks.length} selected tasks? This cannot be undone.`;
+  return await showAppConfirm(
+    tasks.length === 1 ? "Delete Task" : "Delete Tasks",
+    body,
+    {
+      tone: "danger",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+    },
+  );
+}
+
+export async function showNoteDeletionConfirm(): Promise<boolean> {
+  return await showAppConfirm(
+    "Delete Note",
+    "Permanently delete this note? This cannot be undone.",
+    {
+      tone: "danger",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+    },
+  );
 }
 
 // Shows a conflict dialog for external file modifications.
