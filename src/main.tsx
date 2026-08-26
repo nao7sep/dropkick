@@ -2,6 +2,11 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { log, toErrorFields, initLogging } from "./repositories";
+import { systemPrefersDark } from "./utils";
+
+// The preferences document is loaded asynchronously. Start in the OS theme so
+// a first run and the loading surface never flash Dropkick's old light default.
+document.documentElement.classList.toggle("dark", systemPrefersDark());
 
 // Learn the core's debug gate as early as possible. Fire-and-forget: emit()
 // already works before this resolves (defaulting to the dev-build gate).

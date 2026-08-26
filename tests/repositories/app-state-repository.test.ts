@@ -56,7 +56,7 @@ describe("app-level storage filenames", () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
     fileExists.mockResolvedValue(false);
 
-    const { statePath } = await initializeAppState();
+    const { appState, statePath } = await initializeAppState();
 
     // The single app-level file is state.json (state, not config): one file,
     // one role. There is deliberately no config.json — every field is
@@ -67,6 +67,7 @@ describe("app-level storage filenames", () => {
     expect(writtenPaths).toContain(`${ROOT}/state.json`);
     expect(writtenPaths).not.toContain(`${ROOT}/app.json`);
     expect(writtenPaths).not.toContain(`${ROOT}/config.json`);
+    expect(appState.lastLaunchedPreferencesPath).toBe("");
   });
 
   it("seeds the default user documents without the redundant default- prefix", async () => {
@@ -110,6 +111,9 @@ describe("app-level storage filenames", () => {
     // last selection) is intact — not merged with any durable-config file.
     expect(statePath).toBe(`${ROOT}/state.json`);
     expect(appState.lastPreferencesPath).toBe("/x/preferences.json");
+    expect(appState.lastLaunchedPreferencesPath).toBe(
+      "/x/preferences.json",
+    );
     expect(appState.knownWorkspaces).toEqual(["/x/workspace.json"]);
     // A state.json written before zoom/sidebar became view state has neither
     // field; the load boundary fills both from defaults (mergeWithDefaults), so

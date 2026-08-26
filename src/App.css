@@ -140,7 +140,7 @@ body.divider-dragging * {
 }
 
 /* Dark theme — overrides the same tokens with values tuned for dark surfaces.
-   Activated by the `.dark` class on <html> (set from the darkMode preference).
+   Activated by the `.dark` class on <html> (resolved from the theme preference).
    Accent text uses bright shades for contrast on dark; solid button fills use
    darker shades so inverted (near-white) text stays legible. Group tints are
    dark washes applied at the same /60–/90 opacities as light mode. */

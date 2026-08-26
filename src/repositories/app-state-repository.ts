@@ -36,7 +36,12 @@ function appStateShapeIssue(value: unknown): string | null {
   }
 
   const data = value as Record<string, unknown>;
-  const stringFields = ["version", "lastPreferencesPath", "lastWorkspacePath"] as const;
+  const stringFields = [
+    "version",
+    "lastPreferencesPath",
+    "lastLaunchedPreferencesPath",
+    "lastWorkspacePath",
+  ] as const;
   for (const field of stringFields) {
     if (data[field] !== undefined && typeof data[field] !== "string") {
       return `${field} is not a string`;
@@ -117,10 +122,14 @@ export async function initializeAppState(): Promise<{
     // Fill any newly added fields from defaults and drop keys no longer part of
     // AppStateDto, so a retired field is never re-emitted — the same
     // load-boundary contract as the preferences and workspace repositories.
-    appState = mergeWithDefaults(
-      createDefaultAppState(),
-      configResult.data as Partial<AppStateDto>,
-    );
+    const stored = configResult.data as Partial<AppStateDto>;
+    appState = mergeWithDefaults(createDefaultAppState(), stored);
+    // Before startup theming existed, lastPreferencesPath was the only stored
+    // candidate. Treat it as the last launched document for existing state;
+    // new state starts empty and records this only after a successful launch.
+    if (!("lastLaunchedPreferencesPath" in stored)) {
+      appState.lastLaunchedPreferencesPath = appState.lastPreferencesPath;
+    }
   } else {
     throw new Error(`Failed to load app appState: ${configResult.message}`);
   }

@@ -3,6 +3,8 @@
 
 import { generateId } from "../utils/ids";
 
+export type ThemePreference = "system" | "light" | "dark";
+
 export interface PreferencesDto {
   version: string;
   // Stable identity for this document. Generated once at creation and
@@ -10,10 +12,10 @@ export interface PreferencesDto {
   id: string;
   name: string;
   fontFamily: string;
-  darkMode: boolean; // false = light theme (default), true = dark theme
+  theme: ThemePreference;
   // NOTE: zoomLevel and sidebarWidth used to live here but are VIEW STATE, not
   // preferences — they moved to AppStateDto / state.json (see models/app-state.ts
-  // and persisted-store-separation-conventions). darkMode stays: it is an authored
+  // and persisted-store-separation-conventions). Theme stays: it is an authored
   // appearance SETTING the user chooses, akin to fontFamily, and travels with the
   // portable preferences document.
   timezone: string | null; // IANA timezone e.g. "Asia/Tokyo"; null = system
@@ -49,6 +51,19 @@ export function normalizeKickDistances(values: unknown): number[] {
 // real sans face rather than the engine's serif.
 export const DEFAULT_UI_FONT_STACK =
   'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+export function normalizeThemePreference(
+  value: unknown,
+  legacyDarkMode?: unknown,
+): ThemePreference {
+  if (value === "system" || value === "light" || value === "dark") {
+    return value;
+  }
+  if (typeof legacyDarkMode === "boolean") {
+    return legacyDarkMode ? "dark" : "light";
+  }
+  return "system";
+}
 
 // Bounds for the two numeric settings. Named here, beside the fields they
 // govern, so the Settings inputs and the normalizers cannot disagree.
@@ -115,12 +130,13 @@ export function isPreferencesDocument(
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
     return false;
   }
-  const candidate = data as Partial<PreferencesDto>;
+  const candidate = data as Partial<PreferencesDto> & { darkMode?: unknown };
   if (typeof candidate.version !== "string") {
     return false;
   }
   return (
     candidate.fontFamily !== undefined ||
+    candidate.theme !== undefined ||
     candidate.darkMode !== undefined ||
     candidate.kickDistances !== undefined ||
     candidate.dueSoonDays !== undefined ||
@@ -135,7 +151,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     id: generateId(),
     name,
     fontFamily: "",
-    darkMode: false,
+    theme: "system",
     timezone: null,
     kickDistances: [...DEFAULT_KICK_DISTANCES],
     dueSoonDays: DUE_SOON_DAYS_DEFAULT,

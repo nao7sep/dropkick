@@ -55,7 +55,7 @@ const shortcutSections: {
       { label: "Send to first in group", keys: `${mod}+Home` },
       { label: "Send to last in group", keys: `${mod}+End` },
       { kind: "heading", label: "Display" },
-      { label: "Toggle dark mode", keys: `${mod}+Shift+D` },
+      { label: "Switch light/dark appearance", keys: `${mod}+Shift+D` },
       { label: "Zoom in", keys: `${mod}+Equal/Plus/Semicolon` },
       { label: "Zoom out", keys: `${mod}+Minus` },
       { label: "Reset zoom", keys: `${mod}+0` },

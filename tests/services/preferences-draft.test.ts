@@ -58,18 +58,18 @@ describe("parseKickDistances", () => {
 });
 
 describe("stagedPreferences", () => {
-  it("omits darkMode, so it cannot be staged in the first place", () => {
+  it("omits theme, so it cannot be staged in the first place", () => {
     // The split used to be a runtime list the dirty check filtered and Save
     // re-affirmed from the store. Expressing it in the type removes both: a
-    // stale draft has no darkMode to revert with.
+    // stale draft has no theme to revert with.
     const staged = stagedPreferences(committed());
-    expect("darkMode" in staged).toBe(false);
+    expect("theme" in staged).toBe(false);
   });
 
   it("carries every other preference through unchanged", () => {
     const c = committed();
     const staged = stagedPreferences(c);
-    const { darkMode: _live, ...rest } = c;
+    const { theme: _live, ...rest } = c;
     expect(staged).toEqual(rest);
   });
 });
@@ -98,12 +98,12 @@ describe("isPreferencesDraftDirty", () => {
     expect(isPreferencesDraftDirty(stagedPreferences(c), c, "5,25")).toBe(true);
   });
 
-  it("ignores a dark-mode difference, which the draft cannot even carry", () => {
+  it("ignores a theme difference, which the draft cannot even carry", () => {
     // committed() may have been toggled live while the modal was open; the
-    // draft has no darkMode, so there is nothing to compare and nothing to
+    // draft has no theme, so there is nothing to compare and nothing to
     // arm the discard prompt with.
     const c = committed();
-    const staged = stagedPreferences({ ...c, darkMode: !c.darkMode });
+    const staged = stagedPreferences({ ...c, theme: "dark" });
     expect(isPreferencesDraftDirty(staged, c, KICK_STRING)).toBe(false);
   });
 

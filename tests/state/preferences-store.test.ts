@@ -99,15 +99,15 @@ describe("update", () => {
       );
 
     const first = usePreferencesStore.getState().update({ dueSoonDays: 10 });
-    const second = usePreferencesStore.getState().update({ darkMode: true });
-    expect(usePreferencesStore.getState().preferences.darkMode).toBe(true);
+    const second = usePreferencesStore.getState().update({ theme: "dark" });
+    expect(usePreferencesStore.getState().preferences.theme).toBe("dark");
 
     resolveFirst();
     await Promise.all([first, second]);
 
     const preferences = usePreferencesStore.getState().preferences;
     expect(preferences.dueSoonDays).toBe(10);
-    expect(preferences.darkMode).toBe(true);
+    expect(preferences.theme).toBe("dark");
   });
 
   it("keeps a later edit already captured by an earlier successful write", async () => {
@@ -125,13 +125,13 @@ describe("update", () => {
       .mockRejectedValueOnce(new Error("second write failed"));
 
     const first = usePreferencesStore.getState().update({ dueSoonDays: 10 });
-    const second = usePreferencesStore.getState().update({ darkMode: true });
+    const second = usePreferencesStore.getState().update({ theme: "dark" });
     releaseFirst();
     await first;
     await second;
 
     const preferences = usePreferencesStore.getState().preferences;
     expect(preferences.dueSoonDays).toBe(10);
-    expect(preferences.darkMode).toBe(true);
+    expect(preferences.theme).toBe("dark");
   });
 });

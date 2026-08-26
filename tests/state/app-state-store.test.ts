@@ -68,6 +68,24 @@ describe("updateViewState", () => {
 });
 
 describe("saved locations", () => {
+  it("records a preferences path as launched only after a successful launch", async () => {
+    useAppStateStore.setState({ filePath: "/state.json" });
+
+    await useAppStateStore
+      .getState()
+      .registerPreferences("/selected.json");
+    expect(
+      useAppStateStore.getState().appState.lastLaunchedPreferencesPath,
+    ).toBe("");
+
+    await useAppStateStore
+      .getState()
+      .setLastPaths("/selected.json", "/workspace.json");
+    expect(
+      useAppStateStore.getState().appState.lastLaunchedPreferencesPath,
+    ).toBe("/selected.json");
+  });
+
   it("names a failed location write accurately", async () => {
     useAppStateStore.setState({ filePath: "/state.json" });
     flushAppState.mockRejectedValueOnce(new Error("disk full"));

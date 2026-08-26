@@ -8,6 +8,7 @@ export { createDefaultNoteDrafts } from "./note-drafts";
 
 export type {
   PreferencesDto,
+  ThemePreference,
 } from "./preferences";
 export {
   createDefaultPreferences,
@@ -15,6 +16,7 @@ export {
   normalizeDueSoonDays,
   normalizeHandledTasksPageSize,
   normalizeKickDistances,
+  normalizeThemePreference,
   DEFAULT_KICK_DISTANCES,
   DEFAULT_UI_FONT_STACK,
   DUE_SOON_DAYS_MIN,

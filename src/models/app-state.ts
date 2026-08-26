@@ -13,7 +13,8 @@
 
 export interface AppStateDto {
   version: string;
-  lastPreferencesPath: string;
+  lastPreferencesPath: string; // startup-picker selection
+  lastLaunchedPreferencesPath: string; // last preferences used to enter main; startup-theme source
   lastWorkspacePath: string;
   knownPreferences: string[]; // absolute paths
   knownWorkspaces: string[]; // absolute paths
@@ -25,6 +26,7 @@ export function createDefaultAppState(): AppStateDto {
   return {
     version: "1.0.0",
     lastPreferencesPath: "",
+    lastLaunchedPreferencesPath: "",
     lastWorkspacePath: "",
     knownPreferences: [],
     knownWorkspaces: [],

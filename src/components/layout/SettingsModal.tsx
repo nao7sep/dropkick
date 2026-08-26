@@ -12,6 +12,7 @@ import {
   HANDLED_TASKS_PAGE_SIZE_MIN,
   normalizeDueSoonDays,
   normalizeHandledTasksPageSize,
+  type ThemePreference,
 } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
@@ -41,7 +42,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const update = usePreferencesStore((s) => s.update);
   const composing = useComposing();
 
-  // Local draft state — everything is edited locally, saved on "Save". darkMode
+  // Local draft state — everything is edited locally, saved on "Save". Theme
   // is not in the type: it applies live and closing never discards it.
   const [draft, setDraft] = useState<StagedPreferences>(() =>
     stagedPreferences(preferences),
@@ -56,7 +57,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     ? null
     : "Invalid IANA timezone";
 
-  // darkMode cannot be in the draft (see services/preferences-draft), so the
+  // Theme cannot be in the draft (see services/preferences-draft), so the
   // dirty check needs no exclusion list.
   const isDirty = useMemo(
     () => isPreferencesDraftDirty(draft, preferences, kickInput),
@@ -68,7 +69,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     // dirty and valid, so Cmd+Enter is a no-op when there is nothing to save.
     if (!isDirty || !timezoneValidation.valid) return;
 
-    // darkMode is deliberately absent from the draft's type, so leaving it out
+    // Theme is deliberately absent from the draft's type, so leaving it out
     // of this partial is what stops a stale copy reverting a live toggle.
     const result = await update({
       ...draft,
@@ -94,8 +95,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     onClose();
   };
 
-  const handleDarkModeChange = async (darkMode: boolean) => {
-    const result = await update({ darkMode });
+  const handleThemeChange = async (theme: ThemePreference) => {
+    const result = await update({ theme });
     if (result.status === "error") {
       await showMessage("Theme Save Failed", result.message);
     }
@@ -157,17 +158,21 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           directly rather than the draft, and stays in sync with the global
           {mod}+Shift+D toggle. */}
       <Field label="Theme">
-        <label className="flex items-center gap-2 text-sm text-ink">
-          <input
-            type="checkbox"
-            checked={preferences.darkMode}
-            onChange={(e) => void handleDarkModeChange(e.target.checked)}
-            className="rounded border-border-strong"
-          />
-          Dark mode
-        </label>
+        <select
+          value={preferences.theme}
+          onChange={(e) =>
+            void handleThemeChange(e.target.value as ThemePreference)
+          }
+          className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+        >
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
         <p className="mt-1 text-xs text-ink-muted">
-          Applied immediately. Also toggles with {primaryModifierLabel}+Shift+D.
+          Applied immediately. System follows the OS appearance.{" "}
+          {`${primaryModifierLabel}+Shift+D`} switches to the opposite
+          appearance.
         </p>
       </Field>
 

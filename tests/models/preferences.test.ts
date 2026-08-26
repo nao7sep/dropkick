@@ -1,9 +1,25 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeKickDistances,
+  normalizeThemePreference,
   createDefaultPreferences,
   DEFAULT_KICK_DISTANCES,
 } from "../../src/models";
+
+describe("normalizeThemePreference", () => {
+  it("keeps each supported mode", () => {
+    expect(normalizeThemePreference("system")).toBe("system");
+    expect(normalizeThemePreference("light")).toBe("light");
+    expect(normalizeThemePreference("dark")).toBe("dark");
+  });
+
+  it("preserves released boolean preferences and otherwise follows the system", () => {
+    expect(normalizeThemePreference(undefined, true)).toBe("dark");
+    expect(normalizeThemePreference(undefined, false)).toBe("light");
+    expect(normalizeThemePreference(undefined)).toBe("system");
+    expect(normalizeThemePreference("invalid")).toBe("system");
+  });
+});
 
 describe("normalizeKickDistances", () => {
   it("keeps a clean array unchanged", () => {
@@ -46,6 +62,10 @@ describe("normalizeKickDistances", () => {
 });
 
 describe("createDefaultPreferences", () => {
+  it("follows the OS theme by default", () => {
+    expect(createDefaultPreferences("Default").theme).toBe("system");
+  });
+
   it("uses DEFAULT_KICK_DISTANCES and returns an independent array", () => {
     const a = createDefaultPreferences("A");
     const b = createDefaultPreferences("B");

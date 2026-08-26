@@ -21,8 +21,7 @@ beforeEach(() => {
 });
 
 describe("loadPreferences — merge with defaults", () => {
-  it("fills darkMode with the default (false) when absent from the stored file", async () => {
-    // A preferences file written before dark mode existed: no darkMode field.
+  it("follows the system when no current or legacy theme setting exists", async () => {
     readJsonFileResult.mockResolvedValue({
       status: "success",
       data: { version: "1.0.0", name: "Legacy", dueSoonDays: 3 },
@@ -31,21 +30,36 @@ describe("loadPreferences — merge with defaults", () => {
     const result = await loadPreferences("/prefs.json");
     expect(result.status).toBe("success");
     if (result.status !== "success") return;
-    expect(result.preferences.darkMode).toBe(false);
+    expect(result.preferences.theme).toBe("system");
     // Unrelated stored fields are preserved through the merge.
     expect(result.preferences.dueSoonDays).toBe(3);
   });
 
-  it("preserves darkMode when present in the stored file", async () => {
+  it.each([
+    [true, "dark"],
+    [false, "light"],
+  ] as const)("migrates legacy darkMode %s to %s", async (darkMode, theme) => {
     readJsonFileResult.mockResolvedValue({
       status: "success",
-      data: { version: "1.0.0", name: "Dark", darkMode: true },
+      data: { version: "1.0.0", name: "Legacy", darkMode },
     });
 
     const result = await loadPreferences("/prefs.json");
     expect(result.status).toBe("success");
     if (result.status !== "success") return;
-    expect(result.preferences.darkMode).toBe(true);
+    expect(result.preferences.theme).toBe(theme);
+  });
+
+  it("preserves a current three-state theme", async () => {
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: { version: "1.0.0", name: "Current", theme: "dark" },
+    });
+
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.preferences.theme).toBe("dark");
   });
 
   it("defaults permanent-deletion confirmation on and preserves an explicit opt-out", async () => {
@@ -111,7 +125,8 @@ describe("loadPreferences — drops keys removed from the shape", () => {
     expect("somethingUnknown" in prefs).toBe(false);
     // Known fields still load correctly through the projection.
     expect(result.preferences.name).toBe("Legacy");
-    expect(result.preferences.darkMode).toBe(true);
+    expect(result.preferences.theme).toBe("dark");
+    expect("darkMode" in prefs).toBe(false);
   });
 
   it("heals a null-corrupted scalar field to its default", async () => {
@@ -120,13 +135,13 @@ describe("loadPreferences — drops keys removed from the shape", () => {
     // the DTO.
     readJsonFileResult.mockResolvedValue({
       status: "success",
-      data: { version: "1.0.0", name: "Nulls", darkMode: null, dueSoonDays: null },
+      data: { version: "1.0.0", name: "Nulls", theme: null, dueSoonDays: null },
     });
 
     const result = await loadPreferences("/prefs.json");
     expect(result.status).toBe("success");
     if (result.status !== "success") return;
-    expect(result.preferences.darkMode).toBe(false);
+    expect(result.preferences.theme).toBe("system");
     expect(result.preferences.dueSoonDays).toBe(7);
   });
 });

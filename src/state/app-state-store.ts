@@ -80,6 +80,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
         appState: {
           ...state.appState,
           lastPreferencesPath: preferencesPath,
+          lastLaunchedPreferencesPath: preferencesPath,
           lastWorkspacePath: workspacePath,
         },
       }));
@@ -125,11 +126,16 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
           state.appState.lastPreferencesPath === path
             ? (known[0] ?? "")
             : state.appState.lastPreferencesPath;
+        const lastLaunchedPreferencesPath =
+          state.appState.lastLaunchedPreferencesPath === path
+            ? ""
+            : state.appState.lastLaunchedPreferencesPath;
         return {
           appState: {
             ...state.appState,
             knownPreferences: known,
             lastPreferencesPath,
+            lastLaunchedPreferencesPath,
           },
         };
       });

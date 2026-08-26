@@ -35,6 +35,8 @@ import {
   DETAIL_MIN_WIDTH,
   SPLITTER_WIDTH,
   DEFAULT_SIDEBAR_WIDTH,
+  systemPrefersDark,
+  toggledThemePreference,
 } from "../../utils";
 import {
 } from "../../services";
@@ -274,14 +276,15 @@ export function MainWindow() {
         e.shiftKey &&
         matchesShortcutKey(e, "d")
       ) {
-        // Quick dark-mode toggle. Like zoom, this lives outside
+        // Quick light/dark toggle. Like zoom, this lives outside
         // useKeyboardShortcuts so it stays available even when a menu/modal is
-        // open. darkMode is a preference (authored appearance setting), so it goes
+        // open. Theme is a preference (authored appearance setting), so it goes
         // through the preferences store — unlike zoom, which is view state. Read the
         // latest value from the store to avoid a stale closure.
         e.preventDefault();
+        const currentTheme = usePreferencesStore.getState().preferences.theme;
         const result = await updatePrefs({
-          darkMode: !usePreferencesStore.getState().preferences.darkMode,
+          theme: toggledThemePreference(currentTheme, systemPrefersDark()),
         });
         if (result.status === "error") {
           await showMessage("Theme Save Failed", result.message);

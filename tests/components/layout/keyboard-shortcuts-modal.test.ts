@@ -31,4 +31,13 @@ describe("KeyboardShortcutsModal tab commands", () => {
       "Dismiss selected tasksBackspace/Delete",
     );
   });
+
+  it("describes the theme shortcut without implying that System is binary", async () => {
+    host = await mount(createElement(KeyboardShortcutsModal, { onClose: () => {} }));
+
+    expect(document.body.textContent).toContain(
+      "Switch light/dark appearance",
+    );
+    expect(document.body.textContent).not.toContain("Toggle dark mode");
+  });
 });

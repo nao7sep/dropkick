@@ -12,6 +12,7 @@ import {
   normalizeDueSoonDays,
   normalizeHandledTasksPageSize,
   normalizeKickDistances,
+  normalizeThemePreference,
 } from "../models";
 import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
 import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
@@ -55,12 +56,16 @@ export async function loadPreferences(
   }
   const defaults = createDefaultPreferences(data.name ?? "Default");
   const merged = mergeWithDefaults(defaults, data);
+  const stored = data as Partial<PreferencesDto> & { darkMode?: unknown };
   const preferences: PreferencesDto = {
     ...merged,
     // A stored empty id is as absent as a missing one, and mergeWithDefaults
     // deliberately preserves "" — so take the freshly minted default rather
     // than re-persisting the empty value on every launch.
     id: data.id || defaults.id,
+    // `darkMode` was the released boolean setting. Preserve an explicit legacy
+    // choice while new and genuinely theme-less documents follow the OS.
+    theme: normalizeThemePreference(stored.theme, stored.darkMode),
     timezone: coerceTimezone(data.timezone),
     kickDistances: normalizeKickDistances(data.kickDistances),
     dueSoonDays: normalizeDueSoonDays(data.dueSoonDays),
@@ -99,6 +104,7 @@ export async function flushPreferences(
     const preferences = getPreferences();
     const normalized = {
       ...preferences,
+      theme: normalizeThemePreference(preferences.theme),
       timezone: normalizeTimezoneOrThrow(preferences.timezone),
       kickDistances: normalizeKickDistances(preferences.kickDistances),
       dueSoonDays: normalizeDueSoonDays(preferences.dueSoonDays),

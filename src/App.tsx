@@ -1,10 +1,15 @@
 // App root — orchestrates the startup picker and main window.
-// On launch: initialize app config → show startup picker → load preferences & workspace → show main window.
+// On launch: initialize app state → preview the last theme → show the startup
+// picker → load its selected preferences and workspace → show the main window.
 
 import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { computeMinWindowWidth, computeMinWindowHeight } from "./utils";
+import {
+  computeMinWindowWidth,
+  computeMinWindowHeight,
+  resolveDarkMode,
+} from "./utils";
 import "./App.css";
 import { showMessage, log, toErrorFields, loadFailureFields } from "./repositories";
 import { DEFAULT_UI_FONT_STACK } from "./models";
@@ -18,6 +23,7 @@ import { MainWindow } from "./components/layout/MainWindow";
 import { AppDialogHost } from "./components/shared/AppDialogHost";
 import { ToastHost } from "./components/shared/ToastHost";
 import { describeLoadFailure } from "./services";
+import { useSystemDarkMode } from "./hooks/useSystemDarkMode";
 
 type AppPhase =
   | { kind: "loading" }
@@ -32,25 +38,32 @@ function App() {
   const initializeAppState = useAppStateStore((s) => s.initialize);
   const loadNoteDrafts = useNoteDraftStore((s) => s.load);
   const setLastPaths = useAppStateStore((s) => s.setLastPaths);
-  const darkMode = usePreferencesStore((s) => s.preferences.darkMode);
+  const theme = usePreferencesStore((s) => s.preferences.theme);
   const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
+  const systemDarkMode = useSystemDarkMode();
+  const darkMode = resolveDarkMode(theme, systemDarkMode);
   // Guards against a double Launch: phase stays "startup" until the awaited
   // loads finish, so two quick clicks would otherwise both run the sequence.
   const launchingRef = useRef(false);
 
   // Apply the theme to <html> so it covers the startup picker, main window, and
   // every Radix modal (those portal to <body>, outside the React tree). The
-  // `.dark` class flips the token overrides defined in App.css. Defaults to
-  // light until a preferences file loads.
+  // `.dark` class flips the token overrides defined in App.css. System is the
+  // default, so this is correct even before a preferences file loads.
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     // Also sync the native window theme. The OS paints the window backing with
     // this theme's color during a resize, before the webview repaints — so a
     // dark window theme prevents the white flash when enlarging in dark mode.
     getCurrentWindow()
-      .setTheme(darkMode ? "dark" : "light")
-      .catch((e) => log.warn("window setTheme failed", { darkMode, ...toErrorFields(e) }));
-  }, [darkMode]);
+      .setTheme(theme === "system" ? null : theme)
+      .catch((e) =>
+        log.warn("window setTheme failed", {
+          theme,
+          ...toErrorFields(e),
+        }),
+      );
+  }, [darkMode, theme]);
 
   // Same reason as the theme class: set the UI font on <html> so it reaches
   // every Radix surface, all of which portal to <body> and sit outside the
@@ -91,6 +104,23 @@ function App() {
     (async () => {
       try {
         const quarantinedTo = await initializeAppState();
+
+        // The picker appears before the user chooses a preferences document,
+        // so preview the last successfully opened one. This gives the initial
+        // window the last selected System/Light/Dark policy without duplicating
+        // portable configuration into state.json. A missing or damaged former
+        // selection naturally leaves the in-memory System default in place.
+        const lastPreferencesPath =
+          useAppStateStore.getState().appState.lastLaunchedPreferencesPath;
+        if (lastPreferencesPath) {
+          const previewResult = await loadPreferences(lastPreferencesPath);
+          if (previewResult.status !== "success") {
+            log.warn(
+              "startup theme preferences load failed",
+              loadFailureFields(lastPreferencesPath, previewResult),
+            );
+          }
+        }
         setPhase({ kind: "startup" });
         if (quarantinedTo) {
           await showMessage(
@@ -104,7 +134,7 @@ function App() {
         setPhase({ kind: "error", message });
       }
     })();
-  }, [initializeAppState]);
+  }, [initializeAppState, loadPreferences]);
 
   const handleLaunch = async (
     preferencesPath: string,
