@@ -23,6 +23,7 @@ import {
 } from "../../utils";
 import {
   summarizeUnifiedLoadState,
+  taskListEmptyMessage,
 } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useViewTasks } from "../../hooks/useViewTasks";
@@ -107,6 +108,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     );
   }, [isUnifiedView, openTabs, files, fileLoadErrors]);
   const visibleHandled = grouped.handled.slice(0, handledVisible);
+  const emptyMessage = taskListEmptyMessage(grouped, handledExpanded);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
   // The listbox container is the single tab stop; DOM focus lives here while the
   // list is active, so a row unmounting (e.g. a completed task collapsing into
@@ -440,10 +442,11 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           onKeyDown={handleListKeyDown}
           className="group flex flex-1 flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
         >
-          {/* Empty state — only when there are no active and no handled tasks. */}
-          {grouped.groups.length === 0 && grouped.handledTotal === 0 && (
+          {/* Hidden handled rows do not fill the mandatory list body. Keep its
+              folded archive available below while saying the active list is empty. */}
+          {emptyMessage && (
             <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
-              No tasks yet.
+              {emptyMessage}
             </div>
           )}
 
