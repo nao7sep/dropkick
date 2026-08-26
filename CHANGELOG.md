@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Delete/Backspace now permanently deletes selected tasks instead of dismissing them. Permanent task and note deletion confirmation can be disabled in Settings and remains enabled by default.
-- Theme now defaults to following the operating system, supports explicit Light and Dark choices, and applies the last selected preference to the startup window.
+- Theme now defaults to following the operating system, supports explicit Light and Dark choices, and applies the last successfully launched preferences theme to the startup window.
 
 ## [0.1.0] - 2026-07-08
 

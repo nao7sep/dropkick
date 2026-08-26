@@ -107,7 +107,7 @@ function App() {
 
         // The picker appears before the user chooses a preferences document,
         // so preview the last successfully opened one. This gives the initial
-        // window the last selected System/Light/Dark policy without duplicating
+        // window that document's System/Light/Dark policy without duplicating
         // portable configuration into state.json. A missing or damaged former
         // selection naturally leaves the in-memory System default in place.
         const lastPreferencesPath =

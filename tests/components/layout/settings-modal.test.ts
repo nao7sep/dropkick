@@ -32,6 +32,7 @@ afterEach(async () => {
 describe("SettingsModal theme", () => {
   it("defaults to System and offers all three live theme policies", async () => {
     const select = document.querySelector("select") as HTMLSelectElement;
+    expect(select.getAttribute("aria-label")).toBe("Theme");
     expect(select.value).toBe("system");
     expect([...select.options].map((option) => option.textContent)).toEqual([
       "System",

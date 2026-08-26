@@ -159,6 +159,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           {mod}+Shift+D toggle. */}
       <Field label="Theme">
         <select
+          aria-label="Theme"
           value={preferences.theme}
           onChange={(e) =>
             void handleThemeChange(e.target.value as ThemePreference)
