@@ -19,6 +19,7 @@ describe("UI font (App.css + MainWindow)", () => {
     const root = css.slice(css.indexOf(":root {\n  /*"));
     expect(root).toContain("--font-ui:");
     expect(root).toContain("font-family: var(--font-ui)");
+    expect(css).toMatch(/body\s*{[^}]*font-size:\s*13px/);
   });
 
   it("falls back to a real sans stack, never the engine default", () => {
