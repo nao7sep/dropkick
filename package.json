@@ -2,6 +2,7 @@
   "name": "dropkick",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "npm@12.0.2",
   "author": "Yoshinao Inoguchi <yoshinao@inoguchi.com>",
   "license": "MIT",
   "type": "module",
@@ -50,6 +51,6 @@
     "vitest": "^4.1.11"
   },
   "allowScripts": {
-    "fsevents": false
+    "fsevents@2.3.3": false
   }
 }
