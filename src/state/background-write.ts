@@ -1,10 +1,11 @@
 // What happens when a write the user did not explicitly ask for fails.
 //
-// Tab and view-state changes persist as a side effect of ordinary interaction —
-// clicking a tab, dragging the divider, zooming — so there is no "Save" whose
-// failure could be reported in place. Left unguarded, the rejection escaped to
-// the global unhandled-rejection handler and the change was silently absent at
-// the next launch.
+// View-state changes persist as a side effect of ordinary interaction — dragging
+// the divider or zooming — so there is no "Save" whose failure could be reported
+// in place. Left unguarded, the rejection escaped to the global unhandled-rejection
+// handler and the change was silently absent at the next launch. Workspace writes
+// own a persistent result in workspace-store because a failed tab reorder must
+// also restore the durable order.
 //
 // A modal is the wrong weight for this: it would interrupt a click the user has
 // already moved on from, and a genuinely broken disk would produce one per

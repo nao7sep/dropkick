@@ -63,6 +63,8 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
   const closeTab = useWorkspaceStore((s) => s.closeTab);
   const renameTab = useWorkspaceStore((s) => s.renameTab);
   const reorderTabs = useWorkspaceStore((s) => s.reorderTabs);
+  const workspacePersistenceError = useWorkspaceStore((s) => s.workspacePersistenceError);
+  const dismissWorkspacePersistenceError = useWorkspaceStore((s) => s.dismissWorkspacePersistenceError);
   const addTab = useWorkspaceStore((s) => s.addTab);
   const addUnifiedViewTab = useWorkspaceStore((s) => s.addUnifiedViewTab);
   const addRecentFile = useWorkspaceStore((s) => s.addRecentFile);
@@ -97,16 +99,24 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
     document.body.classList.remove("dnd-dragging");
   }, []);
 
+  const stopTabDragWhenHidden = useCallback(() => {
+    if (document.hidden) stopTabDrag();
+  }, [stopTabDrag]);
+
   // dnd-kit normally closes the drag through onDragEnd/onDragCancel. Window
   // focus loss can strand a pointer session before either event reaches the
   // renderer, so the body-level cursor owner also cleans up on blur and unmount.
   useEffect(() => {
     window.addEventListener("blur", stopTabDrag);
+    window.addEventListener("pagehide", stopTabDrag);
+    document.addEventListener("visibilitychange", stopTabDragWhenHidden);
     return () => {
       window.removeEventListener("blur", stopTabDrag);
+      window.removeEventListener("pagehide", stopTabDrag);
+      document.removeEventListener("visibilitychange", stopTabDragWhenHidden);
       stopTabDrag();
     };
-  }, [stopTabDrag]);
+  }, [stopTabDrag, stopTabDragWhenHidden]);
 
   // Focus rename input when editing starts.
   useEffect(() => {
@@ -571,6 +581,24 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
           </DropdownMenu.Root>
         </div>
       </SortableContext>
+      {workspacePersistenceError ? (
+        <div
+          role="alert"
+          className="flex shrink-0 items-start gap-2 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
+        >
+          <AlertCircle size={14} className="mt-0.5 shrink-0 text-danger" />
+          <span className="min-w-0 flex-1">{workspacePersistenceError}</span>
+          <button
+            type="button"
+            aria-label="Dismiss workspace save error"
+            title="Dismiss"
+            onClick={dismissWorkspacePersistenceError}
+            className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      ) : null}
     </DndContext>
   );
 }

@@ -6,29 +6,31 @@ const flushWorkspace = vi.fn(async (_path: string, getWorkspace: () => unknown) 
   getWorkspace();
 });
 const loadWorkspace = vi.fn();
+const logError = vi.hoisted(() => vi.fn());
 
 vi.mock("../../src/repositories", () => ({
   flushWorkspace: (path: string, getWorkspace: () => unknown) => flushWorkspace(path, getWorkspace),
   loadWorkspace: (path: string) => loadWorkspace(path),
-  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: logError },
   toErrorFields: (e: unknown) => ({ error: { message: String(e) } }),
 }));
 
 import { useWorkspaceStore } from "../../src/state/workspace-store";
 import { createDefaultWorkspace } from "../../src/models";
-import { useToastStore } from "../../src/state/toast-store";
 
 function resetStore(filePath = "/ws.json") {
   useWorkspaceStore.setState({
     workspace: createDefaultWorkspace("Test"),
     filePath,
     loaded: true,
+    workspacePersistenceError: null,
   });
 }
 
 beforeEach(() => {
   flushWorkspace.mockClear();
   loadWorkspace.mockReset();
+  logError.mockClear();
   resetStore();
 });
 
@@ -139,6 +141,37 @@ describe("reorderTabs active-index tracking", () => {
     expect(tabNames()).toEqual(["B", "C", "A"]);
     expect(activeIdx()).toBe(0); // B is now at index 0
   });
+
+  it("restores the prior durable order and keeps a dismissible error when persistence fails", async () => {
+    await useWorkspaceStore.getState().setActiveTab(1); // B active
+    flushWorkspace.mockRejectedValueOnce(new Error("disk unavailable"));
+
+    await useWorkspaceStore.getState().reorderTabs(0, 2);
+
+    expect(tabNames()).toEqual(["A", "B", "C"]);
+    expect(activeIdx()).toBe(1);
+    expect(useWorkspaceStore.getState().workspacePersistenceError).toBe(
+      "The tab order could not be saved. The previous order was restored.",
+    );
+    expect(logError).toHaveBeenCalledWith(
+      "workspace write failed",
+      expect.objectContaining({ what: "Your tab order", error: expect.any(Object) }),
+    );
+
+    useWorkspaceStore.getState().dismissWorkspacePersistenceError();
+    expect(useWorkspaceStore.getState().workspacePersistenceError).toBeNull();
+  });
+
+  it("clears a failed-reorder result after a later reorder is saved", async () => {
+    flushWorkspace.mockRejectedValueOnce(new Error("disk unavailable"));
+    await useWorkspaceStore.getState().reorderTabs(0, 2);
+    expect(useWorkspaceStore.getState().workspacePersistenceError).not.toBeNull();
+
+    await useWorkspaceStore.getState().reorderTabs(0, 2);
+
+    expect(tabNames()).toEqual(["B", "C", "A"]);
+    expect(useWorkspaceStore.getState().workspacePersistenceError).toBeNull();
+  });
 });
 
 describe("addRecentFile", () => {
@@ -195,10 +228,7 @@ describe("load startup tab selection", () => {
 });
 
 describe("a failed write", () => {
-  it("reports instead of rejecting, so a tab change is never silently lost", async () => {
-    // Tab changes persist as a side effect of clicking, so there is no "Save"
-    // whose failure could be shown in place. Unguarded, the rejection escaped
-    // to the global handler and the change was simply absent next launch.
+  it("keeps a persistent result instead of rejecting or losing the failure", async () => {
     resetStore();
     flushWorkspace.mockRejectedValueOnce(new Error("disk full"));
 
@@ -206,6 +236,6 @@ describe("a failed write", () => {
       useWorkspaceStore.getState().addTab("/a.json", "A"),
     ).resolves.not.toThrow();
 
-    expect(useToastStore.getState().message).toContain("could not be saved");
+    expect(useWorkspaceStore.getState().workspacePersistenceError).toContain("could not be saved");
   });
 });

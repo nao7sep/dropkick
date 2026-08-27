@@ -7,11 +7,10 @@
 //      workspace path. Overlapping flushes never land out of order.
 
 import { create } from "zustand";
-import { guardBackgroundWrite } from "./background-write";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
 import type { LoadWorkspaceResult } from "../repositories";
-import { loadWorkspace, flushWorkspace, log } from "../repositories";
+import { loadWorkspace, flushWorkspace, log, toErrorFields } from "../repositories";
 
 // File loading and unloading is owned by the React component tree (MainWindow's
 // file-lifecycle effect), so this store deliberately does NOT import or call
@@ -28,6 +27,11 @@ interface WorkspaceState {
 
   // Whether workspace has been loaded.
   loaded: boolean;
+
+  // A failed structural write remains visible until dismissed or until a later
+  // full workspace write proves the durable state is current again.
+  workspacePersistenceError: string | null;
+  dismissWorkspacePersistenceError: () => void;
 
   // Actions — each persists to disk after updating state.
   load: (filePath: string) => Promise<LoadWorkspaceResult>;
@@ -47,23 +51,34 @@ function startupTabIndex(openTabs: WorkspaceDto["openTabs"]): number {
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
+  let structuralVersion = 0;
+
   // Helper: queue a flush for the current workspace path. `getWorkspace` runs
   // inside the serial slot so it sees the latest store state at the moment of
   // the write.
-  async function flush(): Promise<void> {
+  async function flush(what = "Your open tabs"): Promise<boolean> {
     const { filePath } = get();
-    if (!filePath) return;
-    // Tab changes persist as a side effect of ordinary interaction, so a
-    // failure is reported rather than thrown — see guardBackgroundWrite.
-    await guardBackgroundWrite("Your open tabs", () =>
-      flushWorkspace(filePath, () => get().workspace),
-    );
+    if (!filePath) {
+      set({ workspacePersistenceError: null });
+      return true;
+    }
+    try {
+      await flushWorkspace(filePath, () => get().workspace);
+      set({ workspacePersistenceError: null });
+      return true;
+    } catch (error) {
+      log.error("workspace write failed", { what, ...toErrorFields(error) });
+      set({ workspacePersistenceError: `${what} could not be saved.` });
+      return false;
+    }
   }
 
   return {
     workspace: createDefaultWorkspace("Default"),
     filePath: "",
     loaded: false,
+    workspacePersistenceError: null,
+    dismissWorkspacePersistenceError: () => set({ workspacePersistenceError: null }),
 
     load: async (filePath: string) => {
       const loadResult = await loadWorkspace(filePath);
@@ -76,7 +91,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const startIdx = startupTabIndex(ws.openTabs);
       const updated = { ...ws, activeTabIndex: startIdx };
 
-      set({ workspace: updated, filePath, loaded: true });
+      structuralVersion += 1;
+      set({ workspace: updated, filePath, loaded: true, workspacePersistenceError: null });
       return { status: "success", workspace: updated };
     },
 
@@ -103,7 +119,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           },
         };
       });
-      if (needsFlush) await flush();
+      if (needsFlush) {
+        structuralVersion += 1;
+        await flush();
+      }
     },
 
     addUnifiedViewTab: async () => {
@@ -128,7 +147,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           },
         };
       });
-      if (needsFlush) await flush();
+      if (needsFlush) {
+        structuralVersion += 1;
+        await flush();
+      }
     },
 
     closeTab: async (index: number) => {
@@ -150,6 +172,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           },
         };
       });
+      structuralVersion += 1;
       await flush();
     },
 
@@ -177,10 +200,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           ),
         },
       }));
+      structuralVersion += 1;
       await flush();
     },
 
     reorderTabs: async (fromIndex: number, toIndex: number) => {
+      const previous = get().workspace;
       set((state) => {
         const tabs = [...state.workspace.openTabs];
         const [moved] = tabs.splice(fromIndex, 1);
@@ -195,15 +220,25 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           newActive += 1;
         }
 
-        return {
-          workspace: {
-            ...state.workspace,
-            openTabs: tabs,
-            activeTabIndex: newActive,
-          },
+        const optimistic = {
+          ...state.workspace,
+          openTabs: tabs,
+          activeTabIndex: newActive,
         };
+        return { workspace: optimistic };
       });
-      await flush();
+      const reorderVersion = ++structuralVersion;
+      if (await flush("Your tab order")) return;
+
+      // Restore only when no later structural action superseded this reorder.
+      // Runtime-only tab selection may have changed while the write was in
+      // flight, so preserve the selected tab by stable identity.
+      if (structuralVersion !== reorderVersion) return;
+      structuralVersion += 1;
+      set((state) => ({
+        workspace: restoreTabOrder(previous, state.workspace),
+        workspacePersistenceError: "The tab order could not be saved. The previous order was restored.",
+      }));
     },
 
     addRecentFile: async (taskFilePath: string) => {
@@ -221,7 +256,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           workspace: { ...state.workspace, recentFiles },
         };
       });
+      structuralVersion += 1;
       await flush();
     },
   };
 });
+
+function restoreTabOrder(previous: WorkspaceDto, current: WorkspaceDto): WorkspaceDto {
+  const active = current.openTabs[current.activeTabIndex];
+  const activeIdentity = active ? tabIdentity(active) : null;
+  const restoredActiveIndex = activeIdentity === null
+    ? previous.activeTabIndex
+    : previous.openTabs.findIndex((tab) => tabIdentity(tab) === activeIdentity);
+  return {
+    ...previous,
+    activeTabIndex: restoredActiveIndex >= 0 ? restoredActiveIndex : previous.activeTabIndex,
+  };
+}
+
+function tabIdentity(tab: WorkspaceDto["openTabs"][number]): string {
+  return tab.isUnifiedView ? "__unified__" : tab.filePath;
+}

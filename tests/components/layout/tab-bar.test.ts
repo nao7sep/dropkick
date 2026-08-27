@@ -37,6 +37,8 @@ let host: Mounted;
 afterEach(async () => {
   await host?.unmount();
   document.body.classList.remove("dnd-dragging");
+  Object.defineProperty(document, "hidden", { configurable: true, value: false });
+  useWorkspaceStore.setState({ workspacePersistenceError: null });
 });
 
 describe("TabBar wrapped visibility", () => {
@@ -118,6 +120,49 @@ describe("TabBar wrapped visibility", () => {
     await host.unmount();
 
     expect(document.body.classList.contains("dnd-dragging")).toBe(false);
+  });
+
+  it("clears the window-wide drag cursor when the document becomes hidden", async () => {
+    useWorkspaceStore.setState({
+      workspace: {
+        ...createDefaultWorkspace("Test"),
+        openTabs: [createTab("/fixtures/a.json", "A")],
+        activeTabIndex: 0,
+      },
+      filePath: "",
+      loaded: true,
+    });
+
+    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    document.body.classList.add("dnd-dragging");
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    expect(document.body.classList.contains("dnd-dragging")).toBe(false);
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+  });
+
+  it("keeps a workspace persistence error visible until it is dismissed", async () => {
+    useWorkspaceStore.setState({
+      workspace: {
+        ...createDefaultWorkspace("Test"),
+        openTabs: [createTab("/fixtures/a.json", "A")],
+        activeTabIndex: 0,
+      },
+      filePath: "/fixtures/workspace.json",
+      loaded: true,
+      workspacePersistenceError: "The tab order could not be saved. The previous order was restored.",
+    });
+
+    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("previous order was restored");
+    const dismiss = document.querySelector<HTMLButtonElement>('[aria-label="Dismiss workspace save error"]');
+    if (!dismiss) throw new Error("dismiss button not found");
+    await act(async () => dismiss.click());
+
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(useWorkspaceStore.getState().workspacePersistenceError).toBeNull();
   });
 
   it("moves the focused tab durably while selection and focus follow its stable id", async () => {
