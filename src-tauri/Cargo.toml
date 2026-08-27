@@ -33,19 +33,19 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.6", features = [] }
 
 [dependencies]
-tauri = { version = "2.11", features = [] }
-tauri-plugin-opener = "2.5"
-tauri-plugin-dialog = "2.7"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+tauri = { version = "2.11.5", features = [] }
+tauri-plugin-opener = "2.5.4"
+tauri-plugin-dialog = "2.7.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 sha2 = "0.11"
 hex = "0.4"
-getrandom = "0.4"
+getrandom = "0.4.3"
 # The write-through data-backup store. `bundled` compiles SQLite from source into
 # the binary, so the store needs no system libsqlite3 and adds no packaging churn
 # (the lowest-friction SQLite binding for the Rust core, per the data-backup
 # conventions' "built-in or lowest-friction binding" rule).
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 
 [dev-dependencies]
 # Serializes the tests that share the process-global backup-store singleton
