@@ -2,30 +2,22 @@
 // The [+] button opens a menu to create/open task list files.
 // The hamburger icon opens a menu with Settings, Keyboard Shortcuts, and About.
 
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
 import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
+import { DragDropProvider } from "@dnd-kit/react";
+import type { DragEndEvent } from "@dnd-kit/react";
 import {
-  DndContext,
-  closestCenter,
+  Accessibility,
+  PointerActivationConstraints,
   PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import type { DragEndEvent } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-} from "@dnd-kit/sortable";
+} from "@dnd-kit/dom";
+import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import {
-  planTabReorder,
-  tabDragTransform,
-  wrappedTabSortingStrategy,
-} from "./tab-dnd";
+import { planTabReorder } from "./tab-dnd";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
@@ -40,6 +32,16 @@ import {
 } from "../../repositories";
 
 type MenuItemId = "settings" | "shortcuts" | "about";
+
+const TAB_DRAG_TYPE = "workspace-tab";
+
+// Each tab is also its click-to-activate and double-click-to-rename surface.
+// Immediate pointer activation would steal those ordinary tab interactions.
+const TAB_POINTER_SENSOR = PointerSensor.configure({
+  activationConstraints: [
+    new PointerActivationConstraints.Distance({ value: 5 }),
+  ],
+});
 
 // Shared styling for menu items. `data-[highlighted]` is Radix's active-item
 // state (keyboard arrow focus and pointer hover both set it).
@@ -95,29 +97,6 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
   const editInputRef = useRef<HTMLInputElement>(null);
   const tablistRef = useRef<HTMLDivElement>(null);
 
-  const stopTabDrag = useCallback(() => {
-    document.body.classList.remove("dnd-dragging");
-  }, []);
-
-  const stopTabDragWhenHidden = useCallback(() => {
-    if (document.hidden) stopTabDrag();
-  }, [stopTabDrag]);
-
-  // dnd-kit normally closes the drag through onDragEnd/onDragCancel. Window
-  // focus loss can strand a pointer session before either event reaches the
-  // renderer, so the body-level cursor owner also cleans up on blur and unmount.
-  useEffect(() => {
-    window.addEventListener("blur", stopTabDrag);
-    window.addEventListener("pagehide", stopTabDrag);
-    document.addEventListener("visibilitychange", stopTabDragWhenHidden);
-    return () => {
-      window.removeEventListener("blur", stopTabDrag);
-      window.removeEventListener("pagehide", stopTabDrag);
-      document.removeEventListener("visibilitychange", stopTabDragWhenHidden);
-      stopTabDrag();
-    };
-  }, [stopTabDrag, stopTabDragWhenHidden]);
-
   // Focus rename input when editing starts.
   useEffect(() => {
     if (editingPath !== null && editInputRef.current) {
@@ -128,23 +107,12 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
 
   // --- Drag-and-drop ---
 
-  // Require 5px movement before starting a drag (so clicks still work).
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
-
-  // Build stable sort IDs for each tab.
-  const tabIds = workspace.openTabs.map((tab) =>
-    tab.isUnifiedView ? "__unified__" : tab.filePath,
-  );
-
   const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const fromIndex = tabIds.indexOf(active.id as string);
-    const toIndex = tabIds.indexOf(over.id as string);
-    if (fromIndex === -1 || toIndex === -1) return;
+    if (event.canceled) return;
+    const { source, target } = event.operation;
+    if (target === null || !isSortable(source)) return;
+    const { initialIndex: fromIndex, index: toIndex } = source;
+    if (fromIndex === toIndex) return;
 
     log.info("reorder tabs", { fromIndex, toIndex });
     try {
@@ -363,18 +331,20 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
   );
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={() => document.body.classList.add("dnd-dragging")}
-      onDragEnd={(event) => { void handleDragEnd(event); stopTabDrag(); }}
-      onDragCancel={stopTabDrag}
+    <DragDropProvider
+      // Replacing the defaults removes dnd-kit's KeyboardSensor. The tablist
+      // already owns one roving tab stop and Shift+Arrow reorder through the
+      // same durable operation, so per-tab keyboard drag is a conflicting path.
+      sensors={[TAB_POINTER_SENSOR]}
+      // Accessibility would add button semantics, tabindex, and keyboard-drag
+      // instructions to the sortable tabs. Preserve the tablist's native tab
+      // semantics by retaining every default plugin except that one.
+      plugins={(defaults) =>
+        defaults.filter((plugin) => plugin !== Accessibility)
+      }
+      onDragEnd={(event) => { void handleDragEnd(event); }}
     >
-      <SortableContext
-        items={tabIds}
-        strategy={wrappedTabSortingStrategy}
-      >
-        <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
+      <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
           {/* The tablist wrapper is display:contents (creates no box), so every
               tab flows directly in this wrapping row alongside the New button.
               This keeps every open tab visible instead of hiding tabs in a
@@ -579,8 +549,7 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
-        </div>
-      </SortableContext>
+      </div>
       {workspacePersistenceError ? (
         <div
           role="alert"
@@ -599,7 +568,7 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
           </button>
         </div>
       ) : null}
-    </DndContext>
+    </DragDropProvider>
   );
 }
 
@@ -652,26 +621,26 @@ function SortableTab({
   onEditSubmit,
   onEditCancel,
 }: SortableTabProps) {
-  // Spread dnd-kit's `listeners` (pointer drag) but NOT its `attributes`: those
-  // set role="button" and a tab index that would fight the tab semantics and the
-  // tablist's roving tabindex. Keyboard reorder belongs to the tablist's
-  // Shift+Left/Right handler, not a second dnd-kit focus model.
-  const { listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id });
+  // The current sortable hook registers pointer transport without adding DOM
+  // attributes. The tablist remains the sole owner of role and roving focus.
+  const { ref, isDragging } = useSortable({
+    id,
+    index,
+    type: TAB_DRAG_TYPE,
+    accept: TAB_DRAG_TYPE,
+    group: TAB_DRAG_TYPE,
+  });
   const composing = useComposing();
 
   const style = {
-    transform: tabDragTransform(transform),
-    transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 50 : undefined,
   };
 
   return (
     <div
-      ref={setNodeRef}
+      ref={ref}
       style={style}
-      {...listeners}
       role="tab"
       aria-selected={isActive}
       tabIndex={isActive ? 0 : -1}

@@ -2,8 +2,33 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
+import { Accessibility } from "@dnd-kit/dom";
 import { mount } from "../../helpers/react-dom";
 import type { Mounted } from "../../helpers/react-dom";
+
+const dnd = vi.hoisted(() => ({
+  provider: null as Record<string, any> | null,
+  sortables: [] as Record<string, unknown>[],
+}));
+
+vi.mock("@dnd-kit/react", async () => {
+  const ReactModule = await import("react");
+  return {
+    DragDropProvider: ({ children, ...props }: any) => {
+      dnd.provider = props;
+      return ReactModule.createElement(ReactModule.Fragment, null, children);
+    },
+  };
+});
+
+vi.mock("@dnd-kit/react/sortable", () => ({
+  isSortable: (source: { sortable?: boolean } | null) =>
+    source?.sortable === true,
+  useSortable: (input: Record<string, unknown>) => {
+    dnd.sortables.push(input);
+    return { ref: () => undefined, isDragging: false };
+  },
+}));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const flushWorkspace = vi.fn(async (_path: string, getWorkspace: () => unknown) => {
@@ -36,8 +61,8 @@ let host: Mounted;
 
 afterEach(async () => {
   await host?.unmount();
-  document.body.classList.remove("dnd-dragging");
-  Object.defineProperty(document, "hidden", { configurable: true, value: false });
+  dnd.provider = null;
+  dnd.sortables = [];
   useWorkspaceStore.setState({ workspacePersistenceError: null });
 });
 
@@ -86,11 +111,14 @@ describe("TabBar wrapped visibility", () => {
     expect(renderedTabs.every((tab) => tab.classList.contains("cursor-grab"))).toBe(true);
   });
 
-  it("clears the window-wide drag cursor when the window loses focus", async () => {
+  it("uses the current sortable seam without taking over tab semantics", async () => {
     useWorkspaceStore.setState({
       workspace: {
         ...createDefaultWorkspace("Test"),
-        openTabs: [createTab("/fixtures/a.json", "A")],
+        openTabs: [
+          createTab("/fixtures/a.json", "A"),
+          createTab("/fixtures/b.json", "B"),
+        ],
         activeTabIndex: 0,
       },
       filePath: "",
@@ -98,48 +126,82 @@ describe("TabBar wrapped visibility", () => {
     });
 
     host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
-    document.body.classList.add("dnd-dragging");
-    window.dispatchEvent(new Event("blur"));
 
-    expect(document.body.classList.contains("dnd-dragging")).toBe(false);
+    const provider = dnd.provider as any;
+    expect(provider.sensors).toHaveLength(1);
+    expect(
+      provider.sensors[0].options.activationConstraints[0].options.value,
+    ).toBe(5);
+
+    const retainedPlugin = {};
+    expect(provider.plugins([Accessibility, retainedPlugin])).toEqual([
+      retainedPlugin,
+    ]);
+    expect(dnd.sortables).toEqual([
+      {
+        id: "/fixtures/a.json",
+        index: 0,
+        type: "workspace-tab",
+        accept: "workspace-tab",
+        group: "workspace-tab",
+      },
+      {
+        id: "/fixtures/b.json",
+        index: 1,
+        type: "workspace-tab",
+        accept: "workspace-tab",
+        group: "workspace-tab",
+      },
+    ]);
+    expect(document.querySelectorAll('[role="tab"][tabindex="0"]')).toHaveLength(1);
   });
 
-  it("clears the window-wide drag cursor when its tab bar unmounts", async () => {
+  it("maps a completed pointer sort to the durable reorder and ignores cancellation", async () => {
+    const openTabs = [
+      createTab("/fixtures/a.json", "A"),
+      createTab("/fixtures/b.json", "B"),
+      createTab("/fixtures/c.json", "C"),
+    ];
     useWorkspaceStore.setState({
       workspace: {
         ...createDefaultWorkspace("Test"),
-        openTabs: [createTab("/fixtures/a.json", "A")],
+        openTabs,
         activeTabIndex: 0,
       },
-      filePath: "",
+      filePath: "/fixtures/workspace.json",
       loaded: true,
     });
+    flushWorkspace.mockClear();
 
     host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
-    document.body.classList.add("dnd-dragging");
-    await host.unmount();
+    const provider = dnd.provider as any;
+    const operation = {
+      source: { sortable: true, initialIndex: 0, index: 2 },
+      target: {},
+    };
 
-    expect(document.body.classList.contains("dnd-dragging")).toBe(false);
-  });
-
-  it("clears the window-wide drag cursor when the document becomes hidden", async () => {
-    useWorkspaceStore.setState({
-      workspace: {
-        ...createDefaultWorkspace("Test"),
-        openTabs: [createTab("/fixtures/a.json", "A")],
-        activeTabIndex: 0,
-      },
-      filePath: "",
-      loaded: true,
+    await act(async () => {
+      provider.onDragEnd({ canceled: true, operation });
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
-    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
-    document.body.classList.add("dnd-dragging");
-    Object.defineProperty(document, "hidden", { configurable: true, value: true });
-    document.dispatchEvent(new Event("visibilitychange"));
+    expect(
+      useWorkspaceStore.getState().workspace.openTabs.map((tab) => tab.filePath),
+    ).toEqual(["/fixtures/a.json", "/fixtures/b.json", "/fixtures/c.json"]);
+    expect(flushWorkspace).not.toHaveBeenCalled();
 
-    expect(document.body.classList.contains("dnd-dragging")).toBe(false);
-    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    await act(async () => {
+      provider.onDragEnd({ canceled: false, operation });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      useWorkspaceStore.getState().workspace.openTabs.map((tab) => tab.filePath),
+    ).toEqual(["/fixtures/b.json", "/fixtures/c.json", "/fixtures/a.json"]);
+    expect(useWorkspaceStore.getState().workspace.activeTabIndex).toBe(2);
+    expect(flushWorkspace).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a workspace persistence error visible until it is dismissed", async () => {

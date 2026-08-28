@@ -12,14 +12,6 @@ button:disabled {
   cursor: default;
 }
 
-/* While a tab drag (reorder) is in progress the whole window shows the closed-hand
-   "grabbing" cursor, overriding the open hand the tabs would otherwise show under the
-   roaming pointer. The body class is toggled by the DndContext drag handlers. */
-body.dnd-dragging,
-body.dnd-dragging * {
-  cursor: grabbing !important;
-}
-
 /* While a splitter drag is in progress the whole window shows the col-resize
    cursor — the pointer outruns the thin divider between mousemove events, so
    without this the cursor flickers mid-drag. The body class is toggled by the

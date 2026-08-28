@@ -169,8 +169,8 @@ export function MainWindow() {
     (e: React.MouseEvent) => {
       e.preventDefault();
       draggingRef.current = true;
-      // Window-wide col-resize cursor for the whole drag (same pattern as the
-      // tab drag's dnd-dragging class) — see App.css.
+      // Window-wide col-resize cursor keeps the pointer stable when it outruns
+      // the thin divider between mousemove events — see App.css.
       document.body.classList.add("divider-dragging");
       startXRef.current = e.clientX;
       // The sidebar's displayed pixel width at drag start — the basis for turning
