@@ -4,9 +4,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
   ));
 }
 
-/** Refuse every external drop not already owned by a product target while
- * retaining native non-file text/link editing. Dropkick's tab reorder uses
- * pointer events, so it never enters this HTML drag boundary. */
+/** Tauri's configured native interception owns OS file delivery. This secondary
+ * renderer boundary refuses any external file or URL drop that still reaches
+ * the DOM while retaining native non-file text editing. Dropkick's tab reorder
+ * uses pointer events, so it never enters this HTML drag boundary. */
 export function denyUnhandledExternalDrop(event: DragEvent): void {
   if (event.defaultPrevented) return;
   const hasFiles = Array.from(event.dataTransfer?.types ?? []).includes("Files") ||
