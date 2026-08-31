@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const setTheme = vi.fn();
 const setMinSize = vi.fn();
+const onMoved = vi.fn();
+const onScaleChanged = vi.fn();
 
 vi.mock("@tauri-apps/api/window", () => ({
   LogicalSize: class LogicalSize {
@@ -13,7 +15,13 @@ vi.mock("@tauri-apps/api/window", () => ({
       public height: number,
     ) {}
   },
-  getCurrentWindow: () => ({ setTheme, setMinSize }),
+  currentMonitor: vi.fn().mockResolvedValue(null),
+  getCurrentWindow: () => ({
+    setTheme,
+    setMinSize,
+    onMoved,
+    onScaleChanged,
+  }),
 }));
 
 vi.mock("../src/repositories", () => ({
@@ -59,6 +67,8 @@ let lastLaunchedPreferencesPath: string;
 beforeEach(() => {
   setTheme.mockReset().mockResolvedValue(undefined);
   setMinSize.mockReset().mockResolvedValue(undefined);
+  onMoved.mockReset().mockResolvedValue(() => {});
+  onScaleChanged.mockReset().mockResolvedValue(() => {});
   loadedTheme = "dark";
   lastLaunchedPreferencesPath = LAST_PREFERENCES;
   vi.stubGlobal("matchMedia", () => ({

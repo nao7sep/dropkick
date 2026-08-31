@@ -4,11 +4,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import {
+  currentMonitor,
+  getCurrentWindow,
+  LogicalSize,
+} from "@tauri-apps/api/window";
 import {
   computeMinWindowWidth,
   computeMinWindowHeight,
   TAB_BAR_MIN_HEIGHT,
+  boundNativeMinimumToClient,
   resolveDarkMode,
 } from "./utils";
 import "./App.css";
@@ -90,14 +95,65 @@ function App() {
   // zoomed-in window shrink to a fraction of what its content needs.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   useEffect(() => {
-    getCurrentWindow()
-      .setMinSize(
-        new LogicalSize(
-          computeMinWindowWidth(zoomLevel),
-          computeMinWindowHeight(zoomLevel, mainChromeHeight),
-        ),
-      )
-      .catch((e) => log.warn("window setMinSize failed", toErrorFields(e)));
+    const appWindow = getCurrentWindow();
+    let disposed = false;
+    const unlistens: Array<() => void> = [];
+    const required = {
+      width: computeMinWindowWidth(zoomLevel),
+      height: computeMinWindowHeight(zoomLevel, mainChromeHeight),
+    };
+    const applyMinimum = async () => {
+      try {
+        const monitor = await currentMonitor();
+        let minimum = required;
+        if (monitor !== null) {
+          const [outer, inner] = await Promise.all([
+            appWindow.outerSize(),
+            appWindow.innerSize(),
+          ]);
+          const scale = monitor.scaleFactor || 1;
+          minimum = boundNativeMinimumToClient(required, {
+            width: Math.floor(
+              (monitor.workArea.size.width -
+                Math.max(0, outer.width - inner.width)) /
+                scale,
+            ),
+            height: Math.floor(
+              (monitor.workArea.size.height -
+                Math.max(0, outer.height - inner.height)) /
+                scale,
+            ),
+          });
+        }
+        if (!disposed) {
+          await appWindow.setMinSize(
+            new LogicalSize(minimum.width, minimum.height),
+          );
+        }
+      } catch (error) {
+        log.warn("window setMinSize failed", {
+          required,
+          ...toErrorFields(error),
+        });
+      }
+    };
+    const retain = (registration: Promise<() => void>) => {
+      void registration
+        .then((unlisten) => {
+          if (disposed) unlisten();
+          else unlistens.push(unlisten);
+        })
+        .catch((error) =>
+          log.warn("window metric listener failed", toErrorFields(error)),
+        );
+    };
+    void applyMinimum();
+    retain(appWindow.onMoved(() => void applyMinimum()));
+    retain(appWindow.onScaleChanged(() => void applyMinimum()));
+    return () => {
+      disposed = true;
+      for (const unlisten of unlistens) unlisten();
+    };
   }, [zoomLevel, mainChromeHeight]);
 
   // Initialize on mount.

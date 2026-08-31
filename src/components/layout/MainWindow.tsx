@@ -33,6 +33,7 @@ import {
   clampSidebarWidth,
   SIDEBAR_MIN_WIDTH,
   DETAIL_MIN_WIDTH,
+  CONTENT_MIN_HEIGHT,
   SPLITTER_WIDTH,
   DEFAULT_SIDEBAR_WIDTH,
   systemPrefersDark,
@@ -434,16 +435,22 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   }, [showMoveTasks, selectedTasks.length]);
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      {/* Tab bar */}
-      <TabBar
+    <div className="h-screen overflow-auto bg-background">
+      <div
+        className="flex min-h-full flex-col"
+        style={{
+          minWidth: `${SIDEBAR_MIN_WIDTH + SPLITTER_WIDTH + DETAIL_MIN_WIDTH}px`,
+        }}
+      >
+        {/* Tab bar */}
+        <TabBar
         onChromeHeightChange={onChromeHeightChange}
         onMenuSelect={(item) => {
           if (item === "settings") setShowSettings(true);
           else if (item === "shortcuts") setShowShortcuts(true);
           else if (item === "about") setShowAbout(true);
         }}
-      />
+        />
 
       {/* Content area. A horizontal flex row: the ADJUSTABLE sidebar (a fixed
           pixel width, `shrink-0`), the splitter, then the FILL detail pane
@@ -453,7 +460,11 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
           Because the window minimum (setMinSize) equals the sum of both pane
           minimums plus the splitter, neither pane is ever squeezed below it. */}
       {hasActiveTab ? (
-        <div ref={contentRowRef} className="flex min-h-0 flex-1">
+        <div
+          ref={contentRowRef}
+          className="flex min-h-0 flex-1"
+          style={{ minHeight: `${CONTENT_MIN_HEIGHT}px` }}
+        >
           {/* Left pane — task list. The adjustable pane: fixed displayed pixel
               width, never shrinks below it (clampSidebarWidth floors at
               SIDEBAR_MIN_WIDTH). */}
@@ -506,6 +517,8 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
           </div>
         </div>
       )}
+
+      </div>
 
       {/* Settings modal */}
       {showSettings && (

@@ -65,6 +65,7 @@ export {
   DEFAULT_SIDEBAR_WIDTH,
   computeMinWindowWidth,
   computeMinWindowHeight,
+  boundNativeMinimumToClient,
   clampSidebarWidth,
 } from "./windowSizing";
 

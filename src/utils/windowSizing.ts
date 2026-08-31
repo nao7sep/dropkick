@@ -60,6 +60,17 @@ export function computeMinWindowHeight(
   return Math.ceil((chromeHeight + CONTENT_MIN_HEIGHT) * zoomLevel);
 }
 
+/** Caps only the OS floor; the complete derived floor stays in the UI viewport. */
+export function boundNativeMinimumToClient(
+  required: { width: number; height: number },
+  usableClient: { width: number; height: number },
+): { width: number; height: number } {
+  return {
+    width: Math.min(required.width, Math.max(1, usableClient.width)),
+    height: Math.min(required.height, Math.max(1, usableClient.height)),
+  };
+}
+
 // Default sidebar intent width, in pixels. The persisted `sidebarWidth` is the
 // sidebar's INTENT width — the width the user last dragged it to — in pixels, not
 // a proportion. 320 is a comfortable default a touch narrower than the detail

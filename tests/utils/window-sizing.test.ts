@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  boundNativeMinimumToClient,
   SIDEBAR_MIN_WIDTH,
   DETAIL_MIN_WIDTH,
   CONTENT_MIN_HEIGHT,
@@ -117,5 +118,14 @@ describe("window minimum size under zoom", () => {
   it("rounds up, so a fractional zoom never leaves the layout a pixel short", () => {
     // 524 * 1.1 = 576.4 — a 576px window would clip.
     expect(computeMinWindowWidth(1.1)).toBe(Math.ceil(524 * 1.1));
+  });
+
+  it("caps only the native floor when the scaled content exceeds the work area", () => {
+    expect(
+      boundNativeMinimumToClient({ width: 2620, height: 2000 }, { width: 1400, height: 850 }),
+    ).toEqual({ width: 1400, height: 850 });
+    expect(
+      boundNativeMinimumToClient({ width: 700, height: 600 }, { width: 1400, height: 850 }),
+    ).toEqual({ width: 700, height: 600 });
   });
 });
