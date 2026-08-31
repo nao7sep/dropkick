@@ -8,6 +8,7 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import {
   computeMinWindowWidth,
   computeMinWindowHeight,
+  TAB_BAR_MIN_HEIGHT,
   resolveDarkMode,
 } from "./utils";
 import "./App.css";
@@ -33,6 +34,7 @@ type AppPhase =
 
 function App() {
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
+  const [mainChromeHeight, setMainChromeHeight] = useState(TAB_BAR_MIN_HEIGHT);
   const loadPreferences = usePreferencesStore((s) => s.load);
   const loadWorkspace = useWorkspaceStore((s) => s.load);
   const initializeAppState = useAppStateStore((s) => s.initialize);
@@ -78,11 +80,10 @@ function App() {
     );
   }, [fontFamily]);
 
-  // Enforce the content-based minimum window size. The minimum is DERIVED from
-  // the pane minimums plus the fixed tab bar (windowSizing.ts), not a literal in
-  // tauri.conf.json, so the window can never shrink below what its panes need
-  // and the two sources can never drift apart. Below this, the OS refuses to
-  // shrink the window, so no pane is ever squeezed out.
+  // Enforce the content-based minimum window size. Width is derived from the
+  // pane minima; height is the usable-content floor plus the tab chrome's live
+  // measured height. That measurement includes wrapped rows and a visible
+  // persistent result strip, so chrome growth can never consume usable content.
   //
   // It is re-applied on every zoom change: the pane minimums are CSS pixels and
   // the OS minimum is logical ones, so a minimum computed once at 100% let a
@@ -93,11 +94,11 @@ function App() {
       .setMinSize(
         new LogicalSize(
           computeMinWindowWidth(zoomLevel),
-          computeMinWindowHeight(zoomLevel),
+          computeMinWindowHeight(zoomLevel, mainChromeHeight),
         ),
       )
       .catch((e) => log.warn("window setMinSize failed", toErrorFields(e)));
-  }, [zoomLevel]);
+  }, [zoomLevel, mainChromeHeight]);
 
   // Initialize on mount.
   useEffect(() => {
@@ -232,7 +233,7 @@ function App() {
       break;
 
     case "main":
-      content = <MainWindow />;
+      content = <MainWindow onChromeHeightChange={setMainChromeHeight} />;
       break;
   }
 

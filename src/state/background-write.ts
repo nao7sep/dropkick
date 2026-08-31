@@ -9,12 +9,13 @@
 //
 // A modal is the wrong weight for this: it would interrupt a click the user has
 // already moved on from, and a genuinely broken disk would produce one per
-// interaction. A toast says it once, where the user is looking, without taking
-// the focus — and the log carries the detail.
+// interaction. The app-owned persistent result stays visible without taking
+// focus, and the log carries the detail. A successful retry resolves its own
+// result; unrelated transient no-op feedback cannot erase it.
 //
 // Note drafts deliberately do NOT come through here: they write through every
-// few seconds while the user types, so even a toast would be a firehose, and
-// their own module documents that trade.
+// few seconds while the user types, so a result per failed write would be a
+// firehose, and their own module documents that trade.
 
 import { log, toErrorFields } from "../repositories";
 import { useToastStore } from "./toast-store";
@@ -25,8 +26,11 @@ export async function guardBackgroundWrite(
 ): Promise<void> {
   try {
     await run();
+    useToastStore.getState().clearBackgroundWriteError(what);
   } catch (e) {
     log.error("background write failed", { what, ...toErrorFields(e) });
-    useToastStore.getState().showToast(`${what} could not be saved.`);
+    useToastStore
+      .getState()
+      .showBackgroundWriteError(what, `${what} could not be saved.`);
   }
 }

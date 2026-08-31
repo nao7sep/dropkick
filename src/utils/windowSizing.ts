@@ -6,7 +6,7 @@
 // The layout (MainWindow) is a vertical stack: the tab bar (fixed chrome) on
 // top, then a horizontal content row of [task list | splitter | detail]. So:
 //   min width  = sidebar min + splitter + detail min   (the content row)
-//   min height = tab bar     + content min             (the stack)
+//   min height = live chrome + content min             (the stack)
 //
 // Each constant is a real minimum — the smallest size at which that region's
 // content is still useful — not an arbitrary number.
@@ -28,9 +28,9 @@ export const DETAIL_MIN_WIDTH = 360;
 // panes need before their own scroll regions take over.
 export const CONTENT_MIN_HEIGHT = 360;
 
-// One tab-row minimum, in pixels. The tab bar may grow into additional rows so
-// every open tab stays visible; those rows deliberately take height from the
-// content area rather than increasing the OS-level minimum window size.
+// One tab-row minimum, in pixels. This is the startup fallback before the main
+// window measures its actual tab chrome. Once mounted, every wrapped row and
+// persistent result strip is included in the reported chrome height.
 export const TAB_BAR_MIN_HEIGHT = 40;
 
 // Resize divider width, in pixels. Matches the `w-1` splitter between the panes
@@ -51,10 +51,13 @@ export function computeMinWindowWidth(zoomLevel: number): number {
   );
 }
 
-// Minimum window height = the fixed tab bar plus the content row at its
-// minimum, scaled by the zoom for the same reason as the width.
-export function computeMinWindowHeight(zoomLevel: number): number {
-  return Math.ceil((TAB_BAR_MIN_HEIGHT + CONTENT_MIN_HEIGHT) * zoomLevel);
+// Minimum window height = the currently visible tab chrome plus the content
+// row at its minimum, scaled by the zoom for the same reason as the width.
+export function computeMinWindowHeight(
+  zoomLevel: number,
+  chromeHeight = TAB_BAR_MIN_HEIGHT,
+): number {
+  return Math.ceil((chromeHeight + CONTENT_MIN_HEIGHT) * zoomLevel);
 }
 
 // Default sidebar intent width, in pixels. The persisted `sidebarWidth` is the

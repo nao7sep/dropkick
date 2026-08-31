@@ -52,9 +52,10 @@ const MENU_ITEM_ICON_CLASS =
 
 interface TabBarProps {
   onMenuSelect: (item: MenuItemId) => void;
+  onChromeHeightChange: (height: number) => void;
 }
 
-export function TabBar({ onMenuSelect }: TabBarProps) {
+export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
   // Zoom is view state (state.json), not a preference — read/write via app-appState.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
@@ -96,6 +97,26 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
   const tablistRef = useRef<HTMLDivElement>(null);
+  const chromeRef = useRef<HTMLDivElement>(null);
+
+  // The tab row deliberately wraps so every open list stays visible. Report the
+  // resulting chrome height rather than assuming one row: the app shell adds it
+  // to the content minimum and updates the native window floor. The same
+  // measurement naturally includes the persistent workspace-error strip.
+  useEffect(() => {
+    const chrome = chromeRef.current;
+    if (!chrome) return;
+
+    const reportHeight = () => {
+      const height = Math.ceil(chrome.getBoundingClientRect().height);
+      if (height > 0) onChromeHeightChange(height);
+    };
+
+    reportHeight();
+    const observer = new ResizeObserver(reportHeight);
+    observer.observe(chrome);
+    return () => observer.disconnect();
+  }, [onChromeHeightChange]);
 
   // Focus rename input when editing starts.
   useEffect(() => {
@@ -344,7 +365,8 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
       }
       onDragEnd={(event) => { void handleDragEnd(event); }}
     >
-      <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
+      <div ref={chromeRef} className="shrink-0">
+        <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
           {/* The tablist wrapper is display:contents (creates no box), so every
               tab flows directly in this wrapping row alongside the New button.
               This keeps every open tab visible instead of hiding tabs in a
@@ -549,25 +571,26 @@ export function TabBar({ onMenuSelect }: TabBarProps) {
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
-      </div>
-      {workspacePersistenceError ? (
-        <div
-          role="alert"
-          className="flex shrink-0 items-start gap-2 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
-        >
-          <AlertCircle size={14} className="mt-0.5 shrink-0 text-danger" />
-          <span className="min-w-0 flex-1">{workspacePersistenceError}</span>
-          <button
-            type="button"
-            aria-label="Dismiss workspace save error"
-            title="Dismiss"
-            onClick={dismissWorkspacePersistenceError}
-            className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong"
-          >
-            <X size={13} />
-          </button>
         </div>
-      ) : null}
+        {workspacePersistenceError ? (
+          <div
+            role="alert"
+            className="flex shrink-0 items-start gap-2 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
+          >
+            <AlertCircle size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-danger" />
+            <span className="min-w-0 flex-1">{workspacePersistenceError}</span>
+            <button
+              type="button"
+              aria-label="Dismiss workspace save error"
+              title="Dismiss"
+              onClick={dismissWorkspacePersistenceError}
+              className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        ) : null}
+      </div>
     </DragDropProvider>
   );
 }

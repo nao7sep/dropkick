@@ -1,12 +1,38 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useToastStore } from "../../src/state/toast-store";
 
-// toast-store is pure zustand: it holds the single visible toast message plus a
-// monotonic token. The token lets the host restart its dismiss timer/animation
-// on a repeat message, and lets a stale dismiss timer no-op after a newer toast.
+// toast-store is pure zustand: transient no-op feedback and the persistent
+// background-write result are independent channels.
 
 beforeEach(() => {
-  useToastStore.setState({ message: null, token: 0 });
+  useToastStore.setState({ message: null, token: 0, backgroundWriteError: null });
+});
+
+describe("background-write error", () => {
+  it("survives unrelated transient feedback", () => {
+    useToastStore
+      .getState()
+      .showBackgroundWriteError("Window layout", "Window layout could not be saved.");
+    useToastStore.getState().showToast("This action is unavailable here.");
+
+    expect(useToastStore.getState().backgroundWriteError).toEqual({
+      what: "Window layout",
+      message: "Window layout could not be saved.",
+    });
+    expect(useToastStore.getState().message).toBe(
+      "This action is unavailable here.",
+    );
+  });
+
+  it("is resolved only by a matching successful write or explicit dismissal", () => {
+    const store = useToastStore.getState();
+    store.showBackgroundWriteError("Window layout", "Failed");
+    store.clearBackgroundWriteError("Saved locations");
+    expect(useToastStore.getState().backgroundWriteError).not.toBeNull();
+
+    store.clearBackgroundWriteError("Window layout");
+    expect(useToastStore.getState().backgroundWriteError).toBeNull();
+  });
 });
 
 describe("showToast", () => {

@@ -50,7 +50,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
     if (!filePath) return;
     // App state persists as a side effect of ordinary interaction (a zoom,
     // divider drag, or saved-location choice), so a failure is reported rather
-    // than thrown — see guardBackgroundWrite. `what` keeps the toast specific.
+    // than thrown — see guardBackgroundWrite. `what` keeps the result specific.
     await guardBackgroundWrite(what, () =>
       flushAppState(filePath, () => get().appState),
     );

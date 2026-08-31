@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { Accessibility } from "@dnd-kit/dom";
 import { mount } from "../../helpers/react-dom";
@@ -58,12 +58,28 @@ import { useTaskListStore } from "../../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
 
 let host: Mounted;
+let resizeCallback: ResizeObserverCallback;
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    },
+  );
+});
 
 afterEach(async () => {
   await host?.unmount();
   dnd.provider = null;
   dnd.sortables = [];
   useWorkspaceStore.setState({ workspacePersistenceError: null });
+  vi.unstubAllGlobals();
 });
 
 describe("TabBar wrapped visibility", () => {
@@ -92,7 +108,10 @@ describe("TabBar wrapped visibility", () => {
     });
     useTaskListStore.setState({ files: {}, fileLoadErrors: {} });
 
-    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    const onChromeHeightChange = vi.fn();
+    host = await mount(
+      createElement(TabBar, { onMenuSelect: vi.fn(), onChromeHeightChange }),
+    );
 
     const tablist = document.querySelector('[role="tablist"]');
     if (!tablist) throw new Error("tablist not found");
@@ -109,6 +128,22 @@ describe("TabBar wrapped visibility", () => {
     );
     expect(renderedTabs.every((tab) => !tab.hasAttribute("hidden"))).toBe(true);
     expect(renderedTabs.every((tab) => tab.classList.contains("cursor-grab"))).toBe(true);
+
+    const chrome = tabRow.parentElement;
+    if (!chrome) throw new Error("tab chrome not found");
+    vi.spyOn(chrome, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      width: 524,
+      height: 120,
+      top: 0,
+      right: 524,
+      bottom: 120,
+      left: 0,
+      toJSON: () => ({}),
+    });
+    await act(async () => resizeCallback([], {} as ResizeObserver));
+    expect(onChromeHeightChange).toHaveBeenLastCalledWith(120);
   });
 
   it("uses the current sortable seam without taking over tab semantics", async () => {
@@ -125,7 +160,12 @@ describe("TabBar wrapped visibility", () => {
       loaded: true,
     });
 
-    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    host = await mount(
+      createElement(TabBar, {
+        onMenuSelect: vi.fn(),
+        onChromeHeightChange: vi.fn(),
+      }),
+    );
 
     const provider = dnd.provider as any;
     expect(provider.sensors).toHaveLength(1);
@@ -173,7 +213,12 @@ describe("TabBar wrapped visibility", () => {
     });
     flushWorkspace.mockClear();
 
-    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    host = await mount(
+      createElement(TabBar, {
+        onMenuSelect: vi.fn(),
+        onChromeHeightChange: vi.fn(),
+      }),
+    );
     const provider = dnd.provider as any;
     const operation = {
       source: { sortable: true, initialIndex: 0, index: 2 },
@@ -216,7 +261,12 @@ describe("TabBar wrapped visibility", () => {
       workspacePersistenceError: "The tab order could not be saved. The previous order was restored.",
     });
 
-    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    host = await mount(
+      createElement(TabBar, {
+        onMenuSelect: vi.fn(),
+        onChromeHeightChange: vi.fn(),
+      }),
+    );
 
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("previous order was restored");
     const dismiss = document.querySelector<HTMLButtonElement>('[aria-label="Dismiss workspace save error"]');
@@ -255,7 +305,12 @@ describe("TabBar wrapped visibility", () => {
     useTaskListStore.setState({ files: {}, fileLoadErrors: {} });
     flushWorkspace.mockClear();
 
-    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    host = await mount(
+      createElement(TabBar, {
+        onMenuSelect: vi.fn(),
+        onChromeHeightChange: vi.fn(),
+      }),
+    );
     const focused = document.querySelector<HTMLElement>('[data-tab-id="/fixtures/b.json"]');
     if (!focused) throw new Error("focused tab not found");
     focused.focus();
@@ -292,7 +347,12 @@ describe("TabBar wrapped visibility", () => {
     });
     flushWorkspace.mockClear();
 
-    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn() }));
+    host = await mount(
+      createElement(TabBar, {
+        onMenuSelect: vi.fn(),
+        onChromeHeightChange: vi.fn(),
+      }),
+    );
     const first = document.querySelector<HTMLElement>('[data-tab-id="/fixtures/a.json"]');
     if (!first) throw new Error("first tab not found");
     first.focus();

@@ -77,7 +77,11 @@ class ErrorBoundary extends Component<
   }
 }
 
-export function MainWindow() {
+interface MainWindowProps {
+  onChromeHeightChange: (height: number) => void;
+}
+
+export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   const updatePrefs = usePreferencesStore((s) => s.update);
   // Zoom and sidebar width are view state (state.json), not preferences.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
@@ -433,6 +437,7 @@ export function MainWindow() {
     <div className="flex h-screen flex-col bg-background">
       {/* Tab bar */}
       <TabBar
+        onChromeHeightChange={onChromeHeightChange}
         onMenuSelect={(item) => {
           if (item === "settings") setShowSettings(true);
           else if (item === "shortcuts") setShowShortcuts(true);

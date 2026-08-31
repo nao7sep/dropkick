@@ -35,6 +35,13 @@ describe("window minimum size derivation", () => {
   it("reserves the fixed tab-bar chrome in the height", () => {
     expect(computeMinWindowHeight(1)).toBeGreaterThan(CONTENT_MIN_HEIGHT);
   });
+
+  it("reserves every measured row of growing tab chrome", () => {
+    const wrappedChromeHeight = TAB_BAR_MIN_HEIGHT * 3;
+    expect(computeMinWindowHeight(1, wrappedChromeHeight)).toBe(
+      wrappedChromeHeight + CONTENT_MIN_HEIGHT,
+    );
+  });
 });
 
 // The sidebar is the ADJUSTABLE pane: a fixed pixel width set by dragging. Its

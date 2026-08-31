@@ -24,7 +24,7 @@ beforeEach(() => {
     filePath: "",
     loaded: false,
   });
-  useToastStore.setState({ message: null });
+  useToastStore.setState({ message: null, backgroundWriteError: null });
 });
 
 describe("updateViewState", () => {
@@ -92,8 +92,20 @@ describe("saved locations", () => {
 
     await useAppStateStore.getState().registerPreferences("/prefs.json");
 
-    expect(useToastStore.getState().message).toBe(
-      "Your saved locations could not be saved.",
-    );
+    expect(useToastStore.getState().backgroundWriteError).toEqual({
+      what: "Your saved locations",
+      message: "Your saved locations could not be saved.",
+    });
+  });
+
+  it("clears a matching save error after a successful retry", async () => {
+    useAppStateStore.setState({ filePath: "/state.json" });
+    flushAppState.mockRejectedValueOnce(new Error("disk full"));
+
+    await useAppStateStore.getState().updateViewState({ zoomLevel: 1.5 });
+    expect(useToastStore.getState().backgroundWriteError).not.toBeNull();
+
+    await useAppStateStore.getState().updateViewState({ sidebarWidth: 420 });
+    expect(useToastStore.getState().backgroundWriteError).toBeNull();
   });
 });
