@@ -11,11 +11,11 @@ import { showMessage } from "../../repositories";
 import type { ActionResult } from "../../state";
 import {
   summarizeBulkStatusResult,
-  taskSelectionKey,
   statusAdvancesSelection,
 } from "../../utils";
 import { moveSelectedTasks } from "../../services";
 import { Toolbar } from "../shared/Toolbar";
+import { SelectedTaskTitleList } from "../shared/SelectedTaskTitleList";
 import { useTaskDeletion } from "../../hooks/useTaskDeletion";
 
 interface BulkActionsProps {
@@ -125,13 +125,7 @@ export function BulkActions({
         {selectedTasks.length} tasks selected
       </h3>
 
-      <div className="space-y-1 text-sm text-ink-muted">
-        {selectedTasks.map((t) => (
-          <div key={taskSelectionKey(t)} className="truncate">
-            • {t.title || "Untitled"}
-          </div>
-        ))}
-      </div>
+      <SelectedTaskTitleList tasks={selectedTasks} />
 
       {/* Status */}
       <div className="mt-6">

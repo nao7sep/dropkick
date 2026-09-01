@@ -7,7 +7,8 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { showMessage } from "../../repositories";
 import { AppModal } from "../shared/AppModal";
-import { hasPrimaryShortcutModifier, taskSelectionKey } from "../../utils";
+import { SelectedTaskTitleList } from "../shared/SelectedTaskTitleList";
+import { hasPrimaryShortcutModifier } from "../../utils";
 import { moveSelectedTasks } from "../../services";
 
 interface MoveTasksModalProps {
@@ -127,14 +128,10 @@ export function MoveTasksModal({
         },
       }}
     >
-      {/* Task list */}
-      <div className="mb-4 max-h-32 space-y-1 overflow-y-auto text-sm text-ink-muted">
-        {selectedTasks.map((t) => (
-          <div key={taskSelectionKey(t)} className="truncate">
-            • {t.title || "Untitled"}
-          </div>
-        ))}
-      </div>
+      <SelectedTaskTitleList
+        tasks={selectedTasks}
+        className="mb-4 max-h-32 overflow-y-auto"
+      />
 
       {destinations.length === 0 ? (
         <p className="text-sm text-ink-muted">
