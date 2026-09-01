@@ -9,6 +9,7 @@ import { mount } from "../../helpers/react-dom";
 import type { Mounted } from "../../helpers/react-dom";
 
 const update = vi.fn();
+const onClose = vi.fn();
 let host: Mounted;
 
 beforeEach(async () => {
@@ -22,7 +23,8 @@ beforeEach(async () => {
     preferences: createDefaultPreferences("Default"),
     update,
   });
-  host = await mount(createElement(SettingsModal, { onClose: () => {} }));
+  onClose.mockReset();
+  host = await mount(createElement(SettingsModal, { onClose }));
 });
 
 afterEach(async () => {
@@ -46,5 +48,38 @@ describe("SettingsModal theme", () => {
     });
 
     expect(update).toHaveBeenCalledWith({ theme: "dark" });
+  });
+
+  it("keeps a failed live theme save inside the open modal", async () => {
+    update.mockResolvedValueOnce({ status: "error", message: "Theme could not be saved." });
+    const select = document.querySelector('[aria-label="Theme"]') as HTMLSelectElement;
+
+    await act(async () => {
+      select.value = "dark";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "Theme could not be saved.",
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed settings save inline and retains the edited draft", async () => {
+    update.mockResolvedValueOnce({ status: "error", message: "Settings could not be saved." });
+    const detect = [...document.querySelectorAll("button")]
+      .find((button) => button.textContent === "Detect")!;
+    await act(async () => detect.click());
+    const timezone = document.querySelector('input[placeholder="System default"]') as HTMLInputElement;
+    const retainedTimezone = timezone.value;
+    const save = [...document.querySelectorAll("button")]
+      .find((button) => button.textContent === "Save")!;
+    await act(async () => save.click());
+
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "Settings could not be saved.",
+    );
+    expect(timezone.value).toBe(retainedTimezone);
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

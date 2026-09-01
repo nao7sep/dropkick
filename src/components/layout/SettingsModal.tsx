@@ -17,7 +17,6 @@ import {
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { validateTimezone } from "../../utils/timezone";
-import { showMessage } from "../../repositories";
 import { AppModal } from "../shared/AppModal";
 import {
   hasPrimaryShortcutModifier,
@@ -51,6 +50,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     preferences.kickDistances.join(", "),
   );
   const timezoneRef = useRef<HTMLInputElement>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const timezoneValidation = validateTimezone(draft.timezone);
   const timezoneError = timezoneValidation.valid
@@ -68,6 +68,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     // Mirror the Save button's disabled state: an explicit commit requires both
     // dirty and valid, so Cmd+Enter is a no-op when there is nothing to save.
     if (!isDirty || !timezoneValidation.valid) return;
+    setActionError(null);
 
     // Theme is deliberately absent from the draft's type, so leaving it out
     // of this partial is what stops a stale copy reverting a live toggle.
@@ -89,16 +90,17 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     // A failed write leaves the draft on screen with its message, rather than
     // closing over settings that never reached disk.
     if (result.status === "error") {
-      await showMessage("Settings Save Failed", result.message);
+      setActionError(result.message);
       return;
     }
     onClose();
   };
 
   const handleThemeChange = async (theme: ThemePreference) => {
+    setActionError(null);
     const result = await update({ theme });
     if (result.status === "error") {
-      await showMessage("Theme Save Failed", result.message);
+      setActionError(result.message);
     }
   };
 
@@ -154,6 +156,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         ...composing.handlers,
       }}
     >
+      {actionError ? (
+        <p role="alert" className="text-sm text-danger">
+          {actionError}
+        </p>
+      ) : null}
+
       {/* Theme — applied live (like zoom), so it reads and writes the store
           directly rather than the draft, and stays in sync with the global
           {mod}+Shift+D toggle. */}

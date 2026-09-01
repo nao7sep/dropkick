@@ -5,7 +5,6 @@ import { useRef, useState } from "react";
 import type { Task } from "../../models";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
-import { showMessage } from "../../repositories";
 import { AppModal } from "../shared/AppModal";
 import { SelectedTaskTitleList } from "../shared/SelectedTaskTitleList";
 import { hasPrimaryShortcutModifier } from "../../utils";
@@ -39,6 +38,7 @@ export function MoveTasksModal({
   const movingRef = useRef(false);
   const [moving, setMoving] = useState(false);
   const [destError, setDestError] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const destinationRef = useRef<HTMLSelectElement>(null);
 
   // In unified view, tasks may come from different files — collect all unique source files.
@@ -60,6 +60,7 @@ export function MoveTasksModal({
     }
     movingRef.current = true;
     setMoving(true);
+    setActionError(null);
 
     const outcome = await moveSelectedTasks({
       selectedTasks,
@@ -73,7 +74,7 @@ export function MoveTasksModal({
     if (outcome.status === "error") {
       movingRef.current = false;
       setMoving(false);
-      await showMessage("Move Failed", outcome.message!);
+      setActionError(outcome.message!);
       return;
     }
 
@@ -128,6 +129,12 @@ export function MoveTasksModal({
         },
       }}
     >
+      {actionError ? (
+        <p role="alert" className="mb-4 text-sm text-danger">
+          {actionError}
+        </p>
+      ) : null}
+
       <SelectedTaskTitleList
         tasks={selectedTasks}
         className="mb-4 max-h-32 overflow-y-auto"
@@ -148,6 +155,7 @@ export function MoveTasksModal({
             onChange={(e) => {
               setMoveTarget(e.target.value);
               setDestError(false);
+              setActionError(null);
             }}
             className={`w-full rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft outline-none focus:border-primary-ring ${destError ? "bg-danger-surface" : ""}`}
           >

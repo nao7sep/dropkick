@@ -20,7 +20,6 @@ import { AppModal } from "../shared/AppModal";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
-import { showMessage } from "../../repositories";
 
 interface NewTaskModalProps {
   currentFilePath: string;
@@ -54,6 +53,7 @@ export function NewTaskModal({
   const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [targetError, setTargetError] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
@@ -89,6 +89,7 @@ export function NewTaskModal({
 
     submittingRef.current = true;
     setSubmitting(true);
+    setActionError(null);
     try {
       const result = await addNewTask(targetFile, {
         title: singleLine(title, { minify: true }),
@@ -100,7 +101,7 @@ export function NewTaskModal({
       if (result.status === "success") {
         onClose();
       } else if (result.status === "error") {
-        await showMessage("Create Task Failed", result.message);
+        setActionError(result.message);
       }
     } finally {
       submittingRef.current = false;
@@ -202,6 +203,12 @@ export function NewTaskModal({
         },
       }}
     >
+      {actionError ? (
+        <p role="alert" className="text-sm text-danger">
+          {actionError}
+        </p>
+      ) : null}
+
       {/* Target list */}
       {fileTabs.length > 0 && (
         <div>
