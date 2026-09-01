@@ -51,7 +51,7 @@ describe("SettingsModal theme", () => {
   });
 
   it("keeps a failed live theme save inside the open modal", async () => {
-    update.mockResolvedValueOnce({ status: "error", message: "Theme could not be saved." });
+    update.mockResolvedValueOnce({ status: "error", message: "Permission denied (os error 13)" });
     const select = document.querySelector('[aria-label="Theme"]') as HTMLSelectElement;
 
     await act(async () => {
@@ -60,13 +60,13 @@ describe("SettingsModal theme", () => {
     });
 
     expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-      "Theme could not be saved.",
+      "Theme could not be saved. The previous theme is still active; try again.",
     );
     expect(onClose).not.toHaveBeenCalled();
   });
 
   it("keeps a failed settings save inline and retains the edited draft", async () => {
-    update.mockResolvedValueOnce({ status: "error", message: "Settings could not be saved." });
+    update.mockResolvedValueOnce({ status: "error", message: "Permission denied (os error 13)" });
     const detect = [...document.querySelectorAll("button")]
       .find((button) => button.textContent === "Detect")!;
     await act(async () => detect.click());
@@ -77,7 +77,7 @@ describe("SettingsModal theme", () => {
     await act(async () => save.click());
 
     expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-      "Settings could not be saved.",
+      "Settings could not be saved. Your changes are still here; try again.",
     );
     expect(timezone.value).toBe(retainedTimezone);
     expect(onClose).not.toHaveBeenCalled();

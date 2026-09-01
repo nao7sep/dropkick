@@ -90,7 +90,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     // A failed write leaves the draft on screen with its message, rather than
     // closing over settings that never reached disk.
     if (result.status === "error") {
-      setActionError(result.message);
+      setActionError("Settings could not be saved. Your changes are still here; try again.");
       return;
     }
     onClose();
@@ -100,7 +100,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setActionError(null);
     const result = await update({ theme });
     if (result.status === "error") {
-      setActionError(result.message);
+      setActionError("Theme could not be saved. The previous theme is still active; try again.");
     }
   };
 
