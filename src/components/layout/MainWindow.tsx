@@ -437,7 +437,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   return (
     <div className="h-screen overflow-auto bg-background">
       <div
-        className="flex min-h-full flex-col"
+        className="flex h-full min-h-full flex-col"
         style={{
           minWidth: `${SIDEBAR_MIN_WIDTH + SPLITTER_WIDTH + DETAIL_MIN_WIDTH}px`,
         }}
