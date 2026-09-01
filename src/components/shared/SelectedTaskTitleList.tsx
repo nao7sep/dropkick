@@ -12,7 +12,7 @@ export function SelectedTaskTitleList({
 }: SelectedTaskTitleListProps) {
   return (
     <ul
-      className={`list-disc space-y-1 pl-5 text-sm text-ink-muted ${className}`.trim()}
+      className={`list-inside list-disc space-y-1 text-sm text-ink-muted ${className}`.trim()}
     >
       {tasks.map((task) => (
         <li key={taskSelectionKey(task)} className="truncate">
