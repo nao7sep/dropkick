@@ -43,6 +43,8 @@ describe("about links", () => {
     await act(async () => github?.click());
 
     expect(document.body.textContent).toContain("GitHub not opened");
+    expect(document.body.textContent).toContain("Open the project page in your browser and try again.");
+    expect(document.body.textContent).not.toContain("GitHub could not be opened");
     expect(document.body.textContent).not.toContain("EACCES");
     expect(document.body.textContent).not.toContain("/private/tmp");
     expect(document.body.textContent).not.toContain("HOSTILE-SENTINEL");
@@ -69,6 +71,8 @@ describe("about links", () => {
 
     await act(async () => issues?.click());
     expect(document.body.textContent).toContain("Report Issue not opened");
+    expect(document.body.textContent).toContain("Open the issues page in your browser and try again.");
+    expect(document.body.textContent).not.toContain("Report Issue could not be opened");
   });
 
   it("shows an authored stable fact when the app version cannot be read", async () => {

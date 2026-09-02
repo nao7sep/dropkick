@@ -42,8 +42,8 @@ export function AboutModal({ onClose }: AboutModalProps) {
       setLinkErrors((current) => ({
         ...current,
         [owner]: owner === "repository"
-          ? "GitHub could not be opened. Open the project page in your browser and try again."
-          : "Report Issue could not be opened. Open the project page in your browser and try again.",
+          ? "Open the project page in your browser and try again."
+          : "Open the issues page in your browser and try again.",
       }));
     }
   };
