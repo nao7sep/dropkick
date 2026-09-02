@@ -1,7 +1,6 @@
 // Main window — tab bar + two-panel layout (task list | task detail).
 
-import { useEffect, useState, useRef, useCallback, useMemo, Component } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -48,44 +47,7 @@ import { NewTaskModal } from "./NewTaskModal";
 import { MoveTasksModal } from "./MoveTasksModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
-
-// Error boundary — catches rendering errors and leaves one safe recovery action
-// instead of a blank or inert failed tree.
-export class MainWindowErrorBoundary extends Component<
-  { children: ReactNode; onReload?: () => void },
-  { failed: boolean }
-> {
-  constructor(props: { children: ReactNode; onReload?: () => void }) {
-    super(props);
-    this.state = { failed: false };
-  }
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  componentDidCatch(error: unknown) {
-    log.error("main window render failed", toErrorFields(error));
-  }
-  render() {
-    if (this.state.failed) {
-      return (
-        <div className="flex h-full items-center justify-center p-8">
-          <div className="max-w-md rounded-lg bg-danger-surface p-6">
-            <h3 className="mb-2 font-bold text-danger">This view couldn’t be drawn</h3>
-            <p className="text-sm text-danger">Reload Dropkick to restore the view. Your saved task lists were not changed.</p>
-            <button
-              type="button"
-              className="mt-4 rounded-md bg-danger px-3 py-2 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
-              onClick={this.props.onReload ?? (() => window.location.reload())}
-            >
-              Reload
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+import { AppErrorBoundary } from "../shared/AppErrorBoundary";
 
 interface MainWindowProps {
   onChromeHeightChange: (height: number) => void;
@@ -484,14 +446,14 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
             className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-surface"
             style={{ width: `${sidebarWidth}px` }}
           >
-            <MainWindowErrorBoundary>
+            <AppErrorBoundary>
               <TaskListPane
                 key={activePaneKey}
                 filePath={filePath}
                 isUnifiedView={isUnifiedView}
                 onNewTask={() => setShowNewTask(true)}
               />
-            </MainWindowErrorBoundary>
+            </AppErrorBoundary>
           </div>
 
           {/* Resize divider — a fixed-width flex item. */}
@@ -509,7 +471,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
             className="h-full flex-1 min-w-0 overflow-hidden bg-surface"
             style={{ minWidth: `${DETAIL_MIN_WIDTH}px` }}
           >
-            <MainWindowErrorBoundary>
+            <AppErrorBoundary>
               <TaskDetailPane
                 key={activePaneKey}
                 filePath={filePath}
@@ -519,7 +481,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
                 onDismissExternalIssue={dismissTaskActionFailure}
                 onReportExternalIssue={reportTaskActionFailure}
               />
-            </MainWindowErrorBoundary>
+            </AppErrorBoundary>
           </div>
         </div>
       ) : (

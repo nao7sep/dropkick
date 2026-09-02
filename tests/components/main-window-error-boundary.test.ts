@@ -3,7 +3,8 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MainWindowErrorBoundary } from "../../src/components/layout/MainWindow";
+import { AppErrorBoundary } from "../../src/components/shared/AppErrorBoundary";
+import { log } from "../../src/repositories";
 
 vi.mock("../../src/repositories", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../src/repositories")>();
@@ -18,7 +19,9 @@ vi.mock("../../src/repositories", async (importOriginal) => {
 let root: Root | null = null;
 
 function BrokenView(): never {
-  throw new Error("render sentinel");
+  throw new Error("IPC EACCES /private/tmp/render sentinel", {
+    cause: new TypeError("root cause sentinel"),
+  });
 }
 
 afterEach(async () => {
@@ -37,7 +40,7 @@ describe("main-window render failure", () => {
     await act(async () => {
       root?.render(
         React.createElement(
-          MainWindowErrorBoundary,
+          AppErrorBoundary,
           { onReload: reload, children: React.createElement(BrokenView) },
         ),
       );
@@ -48,5 +51,15 @@ describe("main-window render failure", () => {
     button?.click();
     expect(reload).toHaveBeenCalledOnce();
     expect(host.textContent).not.toContain("render sentinel");
+    expect(host.textContent).not.toContain("EACCES");
+    expect(log.error).toHaveBeenCalledWith(
+      "renderer view failed",
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.stringContaining("EACCES"),
+          cause: expect.objectContaining({ message: "root cause sentinel" }),
+        }),
+      }),
+    );
   });
 });

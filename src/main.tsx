@@ -4,6 +4,7 @@ import App from "./App";
 import { log, toErrorFields, initLogging } from "./repositories";
 import { systemPrefersDark } from "./utils";
 import { denyUnhandledExternalDrop } from "./utils/externalDropBoundary";
+import { AppErrorBoundary } from "./components/shared/AppErrorBoundary";
 
 // The preferences document is loaded asynchronously. Start in the OS theme so
 // a first run and the loading surface never flash Dropkick's old light default.
@@ -34,6 +35,8 @@ window.addEventListener("unhandledrejection", (event) => {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </React.StrictMode>,
 );
