@@ -49,12 +49,13 @@ import { MoveTasksModal } from "./MoveTasksModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
 
-// Error boundary — catches rendering errors and shows them instead of blank screen.
-class ErrorBoundary extends Component<
-  { children: ReactNode },
+// Error boundary — catches rendering errors and leaves one safe recovery action
+// instead of a blank or inert failed tree.
+export class MainWindowErrorBoundary extends Component<
+  { children: ReactNode; onReload?: () => void },
   { failed: boolean }
 > {
-  constructor(props: { children: ReactNode }) {
+  constructor(props: { children: ReactNode; onReload?: () => void }) {
     super(props);
     this.state = { failed: false };
   }
@@ -71,6 +72,13 @@ class ErrorBoundary extends Component<
           <div className="max-w-md rounded-lg bg-danger-surface p-6">
             <h3 className="mb-2 font-bold text-danger">This view couldn’t be drawn</h3>
             <p className="text-sm text-danger">Reload Dropkick to restore the view. Your saved task lists were not changed.</p>
+            <button
+              type="button"
+              className="mt-4 rounded-md bg-danger px-3 py-2 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+              onClick={this.props.onReload ?? (() => window.location.reload())}
+            >
+              Reload
+            </button>
           </div>
         </div>
       );
@@ -476,14 +484,14 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
             className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-surface"
             style={{ width: `${sidebarWidth}px` }}
           >
-            <ErrorBoundary>
+            <MainWindowErrorBoundary>
               <TaskListPane
                 key={activePaneKey}
                 filePath={filePath}
                 isUnifiedView={isUnifiedView}
                 onNewTask={() => setShowNewTask(true)}
               />
-            </ErrorBoundary>
+            </MainWindowErrorBoundary>
           </div>
 
           {/* Resize divider — a fixed-width flex item. */}
@@ -501,7 +509,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
             className="h-full flex-1 min-w-0 overflow-hidden bg-surface"
             style={{ minWidth: `${DETAIL_MIN_WIDTH}px` }}
           >
-            <ErrorBoundary>
+            <MainWindowErrorBoundary>
               <TaskDetailPane
                 key={activePaneKey}
                 filePath={filePath}
@@ -511,7 +519,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
                 onDismissExternalIssue={dismissTaskActionFailure}
                 onReportExternalIssue={reportTaskActionFailure}
               />
-            </ErrorBoundary>
+            </MainWindowErrorBoundary>
           </div>
         </div>
       ) : (
