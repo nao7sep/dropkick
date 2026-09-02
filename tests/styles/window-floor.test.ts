@@ -8,8 +8,16 @@ const mainWindow = readFileSync(
   ),
   "utf8",
 );
+const appCss = readFileSync(
+  fileURLToPath(new URL("../../src/App.css", import.meta.url)),
+  "utf8",
+);
 
 describe("main-window height chain", () => {
+  it("gives root recovery surfaces a definite viewport height", () => {
+    expect(appCss).toMatch(/html,\s*body,\s*#root\s*{[^}]*height:\s*100%/s);
+  });
+
   it("gives the flex stack a definite ordinary viewport height", () => {
     expect(mainWindow).toContain('className="h-screen overflow-auto bg-background"');
     expect(mainWindow).toContain('className="flex h-full min-h-full flex-col"');

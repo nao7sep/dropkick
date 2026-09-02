@@ -323,6 +323,12 @@ body.divider-dragging * {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   font-size: 13px;
 }
