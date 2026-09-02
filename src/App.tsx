@@ -186,7 +186,7 @@ function App() {
         if (quarantinedTo) {
           await showMessage(
             "Saved Locations Were Reset",
-            describeAppStateRecovery(),
+            describeAppStateRecovery(quarantinedTo),
           );
         }
       } catch (e) {
@@ -266,7 +266,7 @@ function App() {
       if (draftsQuarantinedTo) {
         await showMessage(
           "Unsaved Note Drafts Were Reset",
-          describeNoteDraftRecovery(),
+          describeNoteDraftRecovery(draftsQuarantinedTo),
         );
       }
     } finally {
