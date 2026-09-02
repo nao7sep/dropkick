@@ -28,7 +28,11 @@ import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
 import { AppDialogHost } from "./components/shared/AppDialogHost";
 import { ToastHost } from "./components/shared/ToastHost";
-import { describeLoadFailure } from "./services";
+import {
+  describeAppStateRecovery,
+  describeLoadFailure,
+  describeNoteDraftRecovery,
+} from "./services";
 import { useSystemDarkMode } from "./hooks/useSystemDarkMode";
 
 type AppPhase =
@@ -182,7 +186,7 @@ function App() {
         if (quarantinedTo) {
           await showMessage(
             "Saved Locations Were Reset",
-            `Dropkick could not read its saved workspace and preferences list. The file was set aside here:\n\n${quarantinedTo}\n\nThe underlying workspace and preferences files were not changed; reopen any non-default ones you still use.`,
+            describeAppStateRecovery(),
           );
         }
       } catch (e) {
@@ -262,7 +266,7 @@ function App() {
       if (draftsQuarantinedTo) {
         await showMessage(
           "Unsaved Note Drafts Were Reset",
-          `Dropkick could not read the note text you had typed but not yet saved. The file was set aside here:\n\n${draftsQuarantinedTo}\n\nYour task lists were not affected.`,
+          describeNoteDraftRecovery(),
         );
       }
     } finally {

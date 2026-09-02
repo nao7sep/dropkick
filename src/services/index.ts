@@ -59,6 +59,10 @@ export {
 
 export type { LoadFailure, DocumentKind } from "./load-failure";
 export { describeLoadFailure, fileNameWithoutExt } from "./load-failure";
+export {
+  describeAppStateRecovery,
+  describeNoteDraftRecovery,
+} from "./recovery-presentation";
 
 export type { StagedPreferences } from "./preferences-draft";
 

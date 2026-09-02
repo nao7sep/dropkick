@@ -23,8 +23,8 @@ export interface LoadNoteDraftsResult {
   // failed to read (storage-path conventions: never reset defaults over bytes
   // that may carry the user's work).
   filePath: string;
-  // Set when a present-but-unreadable file was renamed aside, so the caller can
-  // name the `.invalid` path to the user.
+  // Set when a present-but-unreadable file was renamed aside. The caller uses
+  // this only to decide whether to show recovery copy; the path stays in logs.
   quarantinedTo: string | null;
 }
 
