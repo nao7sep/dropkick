@@ -72,4 +72,5 @@ export type { TaskActionFailure } from "./task-action-results";
 export {
   collectTaskActionFailures,
   describeTaskActionFailures,
+  taskActionOwnerKey,
 } from "./task-action-results";

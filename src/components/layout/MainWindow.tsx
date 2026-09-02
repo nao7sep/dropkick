@@ -39,8 +39,7 @@ import {
   systemPrefersDark,
   toggledThemePreference,
 } from "../../utils";
-import {
-} from "../../services";
+import { taskActionOwnerKey } from "../../services";
 import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
 import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
@@ -110,7 +109,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   >({});
   const reportTaskActionFailure = useCallback(
     (ownerKeys: readonly string[], title: string, message: string) => {
-      const ownerKey = JSON.stringify(ownerKeys);
+      const ownerKey = taskActionOwnerKey(ownerKeys);
       setTaskActionIssues((issues) => ({
         ...issues,
         [ownerKey]: { title, message },

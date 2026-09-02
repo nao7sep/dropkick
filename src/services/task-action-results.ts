@@ -6,6 +6,10 @@ export interface TaskActionFailure {
   reason: string;
 }
 
+export function taskActionOwnerKey(ownerKeys: readonly string[]): string {
+  return JSON.stringify([...new Set(ownerKeys)].sort());
+}
+
 export function collectTaskActionFailures(
   tasks: readonly Task[],
   results: readonly ActionResult[],

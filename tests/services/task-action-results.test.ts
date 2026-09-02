@@ -3,6 +3,7 @@ import type { Task } from "../../src/models";
 import {
   collectTaskActionFailures,
   describeTaskActionFailures,
+  taskActionOwnerKey,
 } from "../../src/services/task-action-results";
 import { makeTask } from "../helpers/task";
 
@@ -19,6 +20,18 @@ function task(id: string, title: string): Task {
 }
 
 describe("task action results", () => {
+  it("uses one owner key for the same surviving selection in any order", () => {
+    const first = "/one.json\u0000a";
+    const second = "/two.json\u0000b";
+
+    expect(taskActionOwnerKey([first, second])).toBe(
+      taskActionOwnerKey([second, first]),
+    );
+    expect(taskActionOwnerKey([second, first, second])).toBe(
+      taskActionOwnerKey([first, second]),
+    );
+  });
+
   it("keeps each partial failure with the affected task", () => {
     const tasks = [task("a", "Alpha"), task("b", "Beta"), task("c", "Gamma")];
     const failures = collectTaskActionFailures(tasks, [

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useTaskListStore } from "../../state/task-list-store";
 import { pickNextActiveKey, taskSelectionKey } from "../../utils";
 import { useViewTasks } from "../../hooks/useViewTasks";
+import { taskActionOwnerKey } from "../../services";
 import { TaskDetail } from "./TaskDetail";
 import { TaskSummary } from "./TaskSummary";
 import { BulkActions } from "./BulkActions";
@@ -36,7 +37,7 @@ export function TaskDetailPane({
   const selectedTasks = tasks.filter((t) => selectedKeys.has(taskSelectionKey(t)));
   const selectedTaskKeys = selectedTasks.map((t) => taskSelectionKey(t));
   const selectionKey = selectedTaskKeys.join("|");
-  const selectionOwnerKey = JSON.stringify(selectedTaskKeys);
+  const selectionOwnerKey = taskActionOwnerKey(selectedTaskKeys);
   const activeIssue = externalIssues?.[selectionOwnerKey] ?? null;
   const dismissActiveIssue = onDismissExternalIssue
     ? () => onDismissExternalIssue(selectionOwnerKey)
