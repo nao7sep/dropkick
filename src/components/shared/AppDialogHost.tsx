@@ -1,5 +1,4 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { AlertTriangle, Info } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useDialogStore } from "../../state/dialog-store";
 import type { DialogRequest } from "../../state/dialog-store";
@@ -94,19 +93,7 @@ export function AppDialogHost() {
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
             <div className="border-b border-border px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                    isDanger
-                      ? "bg-danger-surface text-danger"
-                      : isWarning
-                        ? "bg-warning-surface text-warning"
-                      : "bg-primary-surface-strong text-primary"
-                  }`}
-                >
-                  {isWarning ? <AlertTriangle size={18} /> : <Info size={18} />}
-                </div>
-
+              <div className="flex items-center">
                 <Dialog.Title
                   className={`text-lg font-semibold ${
                     isDanger

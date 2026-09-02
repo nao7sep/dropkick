@@ -3,7 +3,7 @@
 // lower-severity toast cannot replace.
 
 import { useEffect } from "react";
-import { AlertCircle, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useToastStore } from "../../state/toast-store";
 
 const DISMISS_MS = 2500;
@@ -32,9 +32,7 @@ export function ToastHost() {
           role="alert"
           className="pointer-events-auto flex max-w-[90vw] items-start gap-2 rounded-md border border-danger-border bg-danger-surface px-4 py-2 text-sm text-danger-fg-strong shadow-lg"
         >
-          <AlertCircle size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-danger" />
           <div className="min-w-0 flex-1">
-            <div className="font-semibold">Save error</div>
             <div>{backgroundWriteError.message}</div>
           </div>
           <button

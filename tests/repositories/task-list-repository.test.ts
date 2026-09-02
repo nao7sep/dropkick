@@ -115,7 +115,7 @@ describe("flushTaskList — happy path and registration", () => {
   it("errors when the file was never loaded", async () => {
     expect(await repo.flushTaskList("/unknown.json", () => data())).toEqual({
       status: "error",
-      message: "File not loaded",
+      message: "This task list is no longer loaded. Close its tab and open it again.",
     });
   });
 
@@ -162,7 +162,10 @@ describe("flushTaskList — conflict resolution", () => {
     expect(result.status).toBe("error");
     // Hash dropped -> the next flush reports "File not loaded" instead of re-prompting.
     const next = await repo.flushTaskList("/f.json", () => data());
-    expect(next).toEqual({ status: "error", message: "File not loaded" });
+    expect(next).toEqual({
+      status: "error",
+      message: "This task list is no longer loaded. Close its tab and open it again.",
+    });
   });
 
   it("errors when reload fails to parse the file", async () => {
@@ -170,7 +173,10 @@ describe("flushTaskList — conflict resolution", () => {
     readJsonFileWithHash.mockResolvedValueOnce({ status: "invalid", message: "bad json" });
     const result = await repo.flushTaskList("/f.json", () => data());
     expect(result.status).toBe("error");
-    expect(result).toMatchObject({ message: expect.stringContaining("bad json") });
+    expect(result).toMatchObject({
+      message:
+        "The file changed outside Dropkick but could not be reloaded. Your in-app change was not saved.",
+    });
   });
 });
 
@@ -196,7 +202,10 @@ describe("flushTaskList — deleted resolution", () => {
     const result = await repo.flushTaskList("/f.json", () => data());
     expect(result.status).toBe("error");
     const next = await repo.flushTaskList("/f.json", () => data());
-    expect(next).toEqual({ status: "error", message: "File not loaded" });
+    expect(next).toEqual({
+      status: "error",
+      message: "This task list is no longer loaded. Close its tab and open it again.",
+    });
   });
 });
 
@@ -206,7 +215,7 @@ describe("forgetTaskList", () => {
     await repo.forgetTaskList("/f.json");
     expect(await repo.flushTaskList("/f.json", () => data())).toEqual({
       status: "error",
-      message: "File not loaded",
+      message: "This task list is no longer loaded. Close its tab and open it again.",
     });
   });
 });
@@ -244,13 +253,20 @@ describe("flushMove", () => {
   it("errors when the source is not loaded", async () => {
     await register(DST, "D0");
     const result = await repo.flushMove(SRC, DST, inputs);
-    expect(result).toEqual({ status: "error", message: "Source file not loaded" });
+    expect(result).toEqual({
+      status: "error",
+      message: "The source task list is no longer loaded. Reopen it before moving tasks.",
+    });
   });
 
   it("errors when the destination is not loaded", async () => {
     await register(SRC, "S0");
     const result = await repo.flushMove(SRC, DST, inputs);
-    expect(result).toEqual({ status: "error", message: "Destination file not loaded" });
+    expect(result).toEqual({
+      status: "error",
+      message:
+        "The destination task list is no longer loaded. Reopen it before moving tasks.",
+    });
   });
 
   it("aborts without touching disk when compute returns null", async () => {

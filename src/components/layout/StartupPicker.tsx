@@ -74,7 +74,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
       log.error("startup picker action failed", { action: what, ...toErrorFields(e) });
       await showMessage(
         title,
-        `${what} could not be completed:\n\n${e instanceof Error ? e.message : String(e)}`,
+        `${what} could not be completed. Check that the selected location is available and try again.`,
       );
     }
   };

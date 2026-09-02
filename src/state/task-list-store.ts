@@ -204,7 +204,10 @@ async function safeLoadTaskList(filePath: string): Promise<LoadTaskListResult> {
   try {
     return await loadTaskList(filePath);
   } catch (e) {
-    return { status: "error", message: e instanceof Error ? e.message : String(e) };
+    return {
+      status: "error",
+      message: "The task list could not be read. Check that it is still available and that Dropkick has access, then try again.",
+    };
   }
 }
 

@@ -185,7 +185,7 @@ async function resolveConflict(
     knownHashes.delete(filePath);
     return {
       status: "error",
-      message: `The file changed outside Dropkick but could not be reloaded: ${loaded.message}`,
+      message: "The file changed outside Dropkick but could not be reloaded. Your in-app change was not saved.",
     };
   }
   rememberHash(filePath, loaded.hash);
@@ -230,7 +230,7 @@ export async function flushTaskList(
 ): Promise<WriteResult> {
   return withSerial(filePath, async () => {
     if (knownHashes.get(filePath) === undefined) {
-      return { status: "error", message: "File not loaded" };
+      return { status: "error", message: "This task list is no longer loaded. Close its tab and open it again." };
     }
 
     const data = getData();
@@ -268,10 +268,10 @@ export async function flushMove(
 ): Promise<MoveResult> {
   return withSerialTwo(sourceFilePath, destFilePath, async () => {
     if (knownHashes.get(sourceFilePath) === undefined) {
-      return { status: "error", message: "Source file not loaded" };
+      return { status: "error", message: "The source task list is no longer loaded. Reopen it before moving tasks." };
     }
     if (knownHashes.get(destFilePath) === undefined) {
-      return { status: "error", message: "Destination file not loaded" };
+      return { status: "error", message: "The destination task list is no longer loaded. Reopen it before moving tasks." };
     }
 
     const inputs = compute();

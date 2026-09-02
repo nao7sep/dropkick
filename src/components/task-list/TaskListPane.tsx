@@ -413,8 +413,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           whole picture. Each affected list's own tab also shows a red icon and a
           retry pane when opened. */}
       {isUnifiedView && unifiedLoad.failedNames.length > 0 && (
-        <div className="flex shrink-0 items-start gap-2 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong">
-          <AlertCircle size={14} className="mt-0.5 shrink-0 text-danger" />
+        <div className="flex shrink-0 items-start border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong">
           <span>
             {unifiedLoad.failedNames.length === 1
               ? `"${unifiedLoad.failedNames[0]}" could not be loaded and is not included here. Open its tab to retry.`
@@ -732,8 +731,7 @@ function LoadErrorPane({
   return (
     <div className="flex flex-1 items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-lg border border-danger-border bg-danger-surface p-5 text-sm">
-        <div className="mb-3 flex items-center gap-2 font-semibold text-danger-fg-strong">
-          <AlertCircle size={16} />
+        <div className="mb-3 font-semibold text-danger-fg-strong">
           Task list could not be loaded
         </div>
         <p className="whitespace-pre-wrap text-danger-fg-strong">{message}</p>

@@ -27,7 +27,10 @@ export function describeLoadFailure(
   if (result.status === "missing") {
     return `The ${kind} file could not be found${path ? `:\n\n${path}` : "."}`;
   }
-  return `The ${kind} file could not be loaded${path ? `:\n\n${path}` : ":"}\n\n${result.message}`;
+  if (result.status === "invalid") {
+    return `The ${kind} file does not contain valid Dropkick data${path ? `:\n\n${path}` : "."}`;
+  }
+  return `The ${kind} file could not be read${path ? `:\n\n${path}` : "."} Check that it is still available and that Dropkick has access, then try again.`;
 }
 
 // A file path's base name without its .json extension, used as a document's

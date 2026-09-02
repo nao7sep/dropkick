@@ -52,22 +52,25 @@ import { TaskDetailPane } from "../task-detail/TaskDetailPane";
 // Error boundary — catches rendering errors and shows them instead of blank screen.
 class ErrorBoundary extends Component<
   { children: ReactNode },
-  { error: string | null }
+  { failed: boolean }
 > {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { error: null };
+    this.state = { failed: false };
   }
-  static getDerivedStateFromError(error: Error) {
-    return { error: error.message };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    log.error("main window render failed", toErrorFields(error));
   }
   render() {
-    if (this.state.error) {
+    if (this.state.failed) {
       return (
         <div className="flex h-full items-center justify-center p-8">
           <div className="max-w-md rounded-lg bg-danger-surface p-6">
-            <h3 className="mb-2 font-bold text-danger">Rendering Error</h3>
-            <p className="text-sm text-danger">{this.state.error}</p>
+            <h3 className="mb-2 font-bold text-danger">This view couldn’t be drawn</h3>
+            <p className="text-sm text-danger">Reload Dropkick to restore the view. Your saved task lists were not changed.</p>
           </div>
         </div>
       );

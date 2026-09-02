@@ -186,9 +186,11 @@ function App() {
           );
         }
       } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
         log.error("app initialization failed", toErrorFields(e));
-        setPhase({ kind: "error", message });
+        setPhase({
+          kind: "error",
+          message: "Dropkick could not read its saved application state. Your workspace and preferences files were not changed. Quit, check the log, and try again.",
+        });
       }
     })();
   }, [initializeAppState, loadPreferences]);

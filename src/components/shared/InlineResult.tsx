@@ -1,4 +1,4 @@
-import { AlertCircle, X } from "lucide-react";
+import { X } from "lucide-react";
 
 interface InlineResultProps {
   title: string;
@@ -21,7 +21,6 @@ export function InlineResult({
       id={id}
       className={`flex items-start gap-2 rounded-md border border-danger-border bg-danger-surface px-3 py-2 text-sm text-danger-fg-strong ${className}`}
     >
-      <AlertCircle size={16} className="mt-0.5 shrink-0 text-danger" />
       <div className="min-w-0 flex-1">
         <div className="font-semibold">{title}</div>
         <div className="whitespace-pre-wrap">{message}</div>
@@ -31,7 +30,7 @@ export function InlineResult({
           type="button"
           onClick={onDismiss}
           aria-label={`Dismiss ${title.toLowerCase()}`}
-          className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong"
+          className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong focus-visible:bg-danger-surface-strong"
         >
           <X size={14} />
         </button>

@@ -113,7 +113,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
         }
         return {
           status: "error",
-          message: e instanceof Error ? e.message : String(e),
+          message: "Preferences could not be saved. Your previous settings are still in use; try again.",
         };
       }
 

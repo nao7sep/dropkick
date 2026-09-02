@@ -33,9 +33,8 @@ describe("ToastHost result channels", () => {
 
     const alert = document.querySelector('[role="alert"]');
     const status = document.querySelector('[role="status"]');
-    expect(alert?.textContent).toContain("Save error");
     expect(alert?.textContent).toContain("could not be saved");
-    expect(alert?.querySelector("svg")).not.toBeNull();
+    expect(alert?.querySelectorAll("svg")).toHaveLength(1);
     expect(status?.textContent).toContain("unavailable");
 
     await act(async () => {

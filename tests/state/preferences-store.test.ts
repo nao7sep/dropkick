@@ -78,7 +78,11 @@ describe("update", () => {
 
     const result = await usePreferencesStore.getState().update({ dueSoonDays: 10 });
 
-    expect(result).toEqual({ status: "error", message: "disk full" });
+    expect(result).toEqual({
+      status: "error",
+      message:
+        "Preferences could not be saved. Your previous settings are still in use; try again.",
+    });
     expect(usePreferencesStore.getState().preferences.dueSoonDays).toBe(7);
   });
 

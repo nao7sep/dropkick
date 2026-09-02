@@ -173,7 +173,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       log.error("create task list failed", toErrorFields(e));
       await showMessage(
         "Create Task List Failed",
-        `The task list file could not be created:\n\n${errorMessage(e)}`,
+        "The task list file could not be created. Check the selected location and available storage, then try again.",
       );
     }
   };
@@ -200,7 +200,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       log.error("open task list threw", toErrorFields(e));
       await showMessage(
         "Open Task List Failed",
-        `The task list file could not be opened:\n\n${errorMessage(e)}`,
+        "The task list file could not be opened. Check that it is still available and that Dropkick has access, then try again.",
       );
     }
   };
@@ -224,7 +224,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       log.error("open recent task list threw", { path, ...toErrorFields(e) });
       await showMessage(
         "Open Recent File Failed",
-        `The recent task list file could not be opened:\n\n${errorMessage(e)}`,
+        "The recent task list file could not be opened. Check that it is still available and that Dropkick has access, then try again.",
       );
     }
   };
@@ -237,7 +237,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       log.error("open unified view failed", toErrorFields(e));
       await showMessage(
         "Open Unified View Failed",
-        `The unified view could not be opened:\n\n${errorMessage(e)}`,
+        "The unified view could not be opened. Your task lists were not changed; try again.",
       );
     }
   };
@@ -577,7 +577,6 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
             role="alert"
             className="flex shrink-0 items-start gap-2 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
           >
-            <AlertCircle size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-danger" />
             <span className="min-w-0 flex-1">{workspacePersistenceError}</span>
             <button
               type="button"
@@ -594,7 +593,6 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
     </DragDropProvider>
   );
 }
-
 // --- Sortable tab item ---
 
 // Deadline dot shown on a tab: red when the list holds an overdue task, orange
@@ -727,10 +725,4 @@ function SortableTab({
       </button>
     </div>
   );
-}
-
-
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

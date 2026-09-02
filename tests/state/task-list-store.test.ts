@@ -108,10 +108,15 @@ describe("loadFile", () => {
     // surfaces inline rather than vanishing into an unhandled rejection.
     loadTaskList.mockRejectedValue(new Error("backend boom"));
     const result = await useTaskListStore.getState().loadFile(FILE);
-    expect(result).toEqual({ status: "error", message: "backend boom" });
+    expect(result).toEqual({
+      status: "error",
+      message:
+        "The task list could not be read. Check that it is still available and that Dropkick has access, then try again.",
+    });
     expect(useTaskListStore.getState().fileLoadErrors[FILE]).toEqual({
       status: "error",
-      message: "backend boom",
+      message:
+        "The task list could not be read. Check that it is still available and that Dropkick has access, then try again.",
     });
   });
 
@@ -324,7 +329,8 @@ describe("reloadFile", () => {
     await useTaskListStore.getState().reloadFile(FILE);
     expect(useTaskListStore.getState().fileLoadErrors[FILE]).toEqual({
       status: "error",
-      message: "gone",
+      message:
+        "The task list could not be read. Check that it is still available and that Dropkick has access, then try again.",
     });
     // The previously loaded data is retained so the user doesn't lose the view.
     expect(tasksOf().map((t) => t.id)).toEqual(["old"]);

@@ -28,7 +28,7 @@ export function StartupErrorScreen({ message }: StartupErrorScreenProps) {
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="max-w-md rounded-lg bg-surface p-6 shadow-lg">
-        <h2 className="mb-2 text-lg font-bold text-danger">Startup Error</h2>
+        <h2 className="mb-2 text-lg font-bold text-danger">Dropkick couldn’t start</h2>
         <p className="whitespace-pre-wrap text-sm text-ink-soft">{message}</p>
         <div className="mt-5 flex justify-end">
           <button
