@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getVersion } from "@tauri-apps/api/app";
 import { AppModal } from "../shared/AppModal";
+import { InlineResult } from "../shared/InlineResult";
 import { log, toErrorFields } from "../../repositories";
 
 interface AboutModalProps {
@@ -13,11 +14,22 @@ interface AboutModalProps {
 
 export function AboutModal({ onClose }: AboutModalProps) {
   const [version, setVersion] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
   useEffect(() => {
     getVersion()
       .then(setVersion)
       .catch((e) => log.warn("get app version failed", toErrorFields(e)));
   }, []);
+
+  const openProjectLink = (url: string) => {
+    setLinkError(null);
+    void openUrl(url).catch((error) => {
+      log.warn("open url failed", { url, ...toErrorFields(error) });
+      setLinkError(
+        "The link could not be opened. Copy it from the application log or open the project page in your browser.",
+      );
+    });
+  };
 
   return (
     <AppModal
@@ -44,34 +56,28 @@ export function AboutModal({ onClose }: AboutModalProps) {
       </p>
       <div className="mt-4 flex justify-center gap-4">
         <button
-          onClick={() =>
-            openUrl("https://github.com/nao7sep/dropkick").catch((e) =>
-              log.warn("open url failed", {
-                url: "https://github.com/nao7sep/dropkick",
-                ...toErrorFields(e),
-              }),
-            )
-          }
+          onClick={() => openProjectLink("https://github.com/nao7sep/dropkick")}
           className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
         >
           GitHub
           <ExternalLink size={12} />
         </button>
         <button
-          onClick={() =>
-            openUrl("https://github.com/nao7sep/dropkick/issues").catch((e) =>
-              log.warn("open url failed", {
-                url: "https://github.com/nao7sep/dropkick/issues",
-                ...toErrorFields(e),
-              }),
-            )
-          }
+          onClick={() => openProjectLink("https://github.com/nao7sep/dropkick/issues")}
           className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
         >
           Report Issue
           <ExternalLink size={12} />
         </button>
       </div>
+      {linkError !== null ? (
+        <InlineResult
+          title="Link not opened"
+          message={linkError}
+          className="mt-4 text-left"
+          onDismiss={() => setLinkError(null)}
+        />
+      ) : null}
       <p className="mt-4 text-xs text-ink-muted">
         &copy; 2026 Yoshinao Inoguchi
       </p>
