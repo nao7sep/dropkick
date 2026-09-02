@@ -182,7 +182,11 @@ describe("mutating actions — the never-reject contract", () => {
       .getState()
       .updateTitle(FILE, "a", "after");
 
-    expect(result).toEqual({ status: "error", message: "disk full" });
+    expect(result).toEqual({
+      status: "error",
+      message:
+        "The task list could not be saved. Your change was not saved; try again.",
+    });
     expect(tasksOf()[0].title).toBe("before");
   });
 
@@ -305,7 +309,11 @@ describe("mutating actions — the never-reject contract", () => {
       .getState()
       .moveTasks("/src.json", "/dst.json", new Set(["m"]));
 
-    expect(result).toEqual({ status: "error", message: "volume gone" });
+    expect(result).toEqual({
+      status: "error",
+      message:
+        "The tasks could not be moved. They remain in their current lists; try again.",
+    });
   });
 });
 

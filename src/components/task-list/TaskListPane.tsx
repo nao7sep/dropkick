@@ -7,7 +7,6 @@ import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
-import { showMessage } from "../../repositories";
 import {
   singleLine,
   hasPointerCommandModifier,
@@ -206,6 +205,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   };
 
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
+  const [renameErrors, setRenameErrors] = useState<Record<string, string>>({});
 
   // Keyboard-first: focus the list on tab load so arrows work without a click,
   // but only when nothing else holds focus — never steal from an input or a tab
@@ -363,21 +363,35 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   }
 
   const handleRename = async (task: Task, newTitle: string) => {
+    const selectionKey = taskSelectionKey(task);
     const cleaned = singleLine(newTitle, { minify: true });
     if (!cleaned) {
       // Don't allow empty titles — just cancel the rename.
       setEditingTaskKey(null);
+      setRenameErrors((errors) => {
+        const { [selectionKey]: _removed, ...rest } = errors;
+        return rest;
+      });
       focusList();
-      return;
+      return true;
     }
     if (cleaned !== task.title) {
       const result = await updateTitle(task.sourceFile, task.id, cleaned);
       if (result.status === "error") {
-        await showMessage("Task Update Failed", result.message);
+        setRenameErrors((errors) => ({
+          ...errors,
+          [selectionKey]: result.message,
+        }));
+        return false;
       }
     }
     setEditingTaskKey(null);
+    setRenameErrors((errors) => {
+      const { [selectionKey]: _removed, ...rest } = errors;
+      return rest;
+    });
     focusList();
+    return true;
   };
 
   return (
@@ -474,6 +488,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                     sourceLabel={
                       isUnifiedView ? tabDisplayName(task.sourceFile, openTabs) : undefined
                     }
+                    renameError={renameErrors[selectionKey]}
                     onClick={(e) => handleTaskClick(task, e)}
                     onDoubleClick={() => setEditingTaskKey(selectionKey)}
                     onRename={(title) => handleRename(task, title)}
@@ -522,6 +537,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                         sourceLabel={
                           isUnifiedView ? tabDisplayName(task.sourceFile, openTabs) : undefined
                         }
+                        renameError={renameErrors[selectionKey]}
                         onClick={(e) => handleTaskClick(task, e)}
                         onDoubleClick={() => setEditingTaskKey(selectionKey)}
                         onRename={(title) => handleRename(task, title)}
@@ -562,6 +578,7 @@ function TaskRow({
   isEditing,
   isUnifiedView,
   sourceLabel,
+  renameError,
   onClick,
   onDoubleClick,
   onRename,
@@ -583,14 +600,20 @@ function TaskRow({
   // Resolved source-list label, shown in unified view. Computed by the parent
   // from the subscribed open tabs so a tab rename updates the row immediately.
   sourceLabel?: string;
+  renameError?: string;
   onClick: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
-  onRename: (title: string) => void;
+  onRename: (title: string) => Promise<boolean>;
   onCancelRename: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(task.title);
   const composing = useComposing();
+
+  const commitRename = async () => {
+    const succeeded = await onRename(draft);
+    if (!succeeded) inputRef.current?.focus();
+  };
 
   // Reset draft and focus when entering edit mode.
   useEffect(() => {
@@ -612,7 +635,7 @@ function TaskRow({
       aria-selected={asOption ? isSelected : undefined}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
-      className={`flex cursor-pointer items-center gap-2 border-b border-l-4 border-b-border-subtle px-3 py-2 transition-colors ${GROUP_BORDERS[group]} ${
+      className={`flex cursor-pointer flex-wrap items-center gap-2 border-b border-l-4 border-b-border-subtle px-3 py-2 transition-colors ${GROUP_BORDERS[group]} ${
         isSelected
           ? "bg-primary-surface-strong"
           : `${GROUP_BGS[group]} hover:bg-background`
@@ -636,14 +659,16 @@ function TaskRow({
       {isEditing ? (
         <input
           ref={inputRef}
+          aria-invalid={renameError !== undefined}
+          aria-describedby={renameError ? `rename-error-${task.id}` : undefined}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => onRename(draft)}
+          onBlur={() => void commitRename()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               if (isComposingKeyboardEvent(composing.composingRef, e)) return;
               e.preventDefault();
-              onRename(draft);
+              void commitRename();
             }
             if (e.key === "Escape") {
               if (isComposingKeyboardEvent(composing.composingRef, e)) return;
@@ -680,6 +705,15 @@ function TaskRow({
           {sourceLabel}
         </span>
       )}
+      {renameError ? (
+        <span
+          id={`rename-error-${task.id}`}
+          role="alert"
+          className="w-full pl-6 text-xs text-danger"
+        >
+          {renameError}
+        </span>
+      ) : null}
     </div>
   );
 }

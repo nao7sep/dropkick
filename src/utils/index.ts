@@ -69,5 +69,4 @@ export {
   clampSidebarWidth,
 } from "./windowSizing";
 
-export { summarizeBulkStatusResult, groupMoveBySource } from "./bulk-status";
-export type { BulkStatusSummary } from "./bulk-status";
+export { groupMoveBySource } from "./bulk-status";

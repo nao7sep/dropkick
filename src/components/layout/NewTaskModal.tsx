@@ -217,6 +217,8 @@ export function NewTaskModal({
           </label>
           <select
             ref={targetSelectRef}
+            aria-invalid={targetError}
+            aria-describedby={targetError ? "new-task-target-error" : undefined}
             value={targetFile}
             onChange={(e) => {
               setTargetFile(e.target.value);
@@ -235,6 +237,11 @@ export function NewTaskModal({
               </option>
             ))}
           </select>
+          {targetError ? (
+            <p id="new-task-target-error" role="alert" className="mt-1 text-xs text-danger">
+              Select the task list that should receive this task.
+            </p>
+          ) : null}
         </div>
       )}
 

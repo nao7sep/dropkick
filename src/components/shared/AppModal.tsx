@@ -108,7 +108,7 @@ export function AppModal({
           {...escapeAndOutsideHandlers}
           {...restContentProps}
         >
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
             <Dialog.Title className="text-lg font-semibold text-ink-strong">
               {title}
             </Dialog.Title>
@@ -134,9 +134,9 @@ export function AppModal({
             )}
           </div>
 
-          <div className={bodyClassName}>{children}</div>
+          <div className={`min-h-0 ${bodyClassName}`}>{children}</div>
 
-          {footer && <div className={footerClassName}>{footer}</div>}
+          {footer && <div className={`shrink-0 ${footerClassName}`}>{footer}</div>}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

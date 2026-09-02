@@ -12,12 +12,22 @@ interface TaskDetailPaneProps {
   filePath: string;
   isUnifiedView: boolean;
   focusNewNoteSignal: number;
+  externalIssues?: Record<string, { title: string; message: string }>;
+  onDismissExternalIssue?: (ownerKey: string) => void;
+  onReportExternalIssue?: (
+    ownerKeys: readonly string[],
+    title: string,
+    message: string,
+  ) => void;
 }
 
 export function TaskDetailPane({
   filePath,
   isUnifiedView,
   focusNewNoteSignal,
+  externalIssues,
+  onDismissExternalIssue,
+  onReportExternalIssue,
 }: TaskDetailPaneProps) {
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
 
@@ -26,6 +36,11 @@ export function TaskDetailPane({
   const selectedTasks = tasks.filter((t) => selectedKeys.has(taskSelectionKey(t)));
   const selectedTaskKeys = selectedTasks.map((t) => taskSelectionKey(t));
   const selectionKey = selectedTaskKeys.join("|");
+  const selectionOwnerKey = JSON.stringify(selectedTaskKeys);
+  const activeIssue = externalIssues?.[selectionOwnerKey] ?? null;
+  const dismissActiveIssue = onDismissExternalIssue
+    ? () => onDismissExternalIssue(selectionOwnerKey)
+    : undefined;
   const nextActiveTaskKey = useMemo(
     () => pickNextActiveKey(selectedKeys, visualTasks),
     [selectedKeys, visualTasks],
@@ -40,6 +55,8 @@ export function TaskDetailPane({
         isUnifiedView={isUnifiedView}
         nextActiveTaskKey={nextActiveTaskKey}
         focusNewNoteSignal={focusNewNoteSignal}
+        externalIssue={activeIssue}
+        onDismissExternalIssue={dismissActiveIssue}
       />
     );
   }
@@ -52,6 +69,9 @@ export function TaskDetailPane({
         filePath={filePath}
         isUnifiedView={isUnifiedView}
         nextActiveTaskKey={nextActiveTaskKey}
+        externalIssue={activeIssue}
+        onDismissExternalIssue={dismissActiveIssue}
+        onReportExternalIssue={onReportExternalIssue}
       />
     );
   }

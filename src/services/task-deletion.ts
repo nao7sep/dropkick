@@ -13,7 +13,7 @@ export interface DeleteSelectedTasksInputs {
 export interface DeleteSelectedTasksResult {
   deletedTasks: Task[];
   failedTasks: Task[];
-  firstError: string | null;
+  failures: Array<{ task: Task; reason: string }>;
 }
 
 // Deletes one selection with at most one write per source list. A source-file
@@ -33,7 +33,7 @@ export async function deleteSelectedTasks({
 
   const deletedTasks: Task[] = [];
   const failedTasks: Task[] = [];
-  let firstError: string | null = null;
+  const failures: Array<{ task: Task; reason: string }> = [];
 
   for (const [sourceFile, tasks] of bySource) {
     const result = await removeTasks(
@@ -47,10 +47,11 @@ export async function deleteSelectedTasks({
     }
 
     failedTasks.push(...tasks);
-    if (firstError === null) {
-      firstError = result.status === "error" ? result.message : result.reason;
+    const reason = result.status === "error" ? result.message : result.reason;
+    for (const task of tasks) {
+      failures.push({ task, reason });
     }
   }
 
-  return { deletedTasks, failedTasks, firstError };
+  return { deletedTasks, failedTasks, failures };
 }

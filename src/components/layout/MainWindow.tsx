@@ -49,7 +49,6 @@ import { NewTaskModal } from "./NewTaskModal";
 import { MoveTasksModal } from "./MoveTasksModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
-import { describeLoadFailure } from "../../services";
 
 // Error boundary — catches rendering errors and shows them instead of blank screen.
 class ErrorBoundary extends Component<
@@ -106,6 +105,26 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   const [showNewTask, setShowNewTask] = useState(false);
   const [showMoveTasks, setShowMoveTasks] = useState(false);
   const [focusNewNoteSignal, setFocusNewNoteSignal] = useState(0);
+  const [taskActionIssues, setTaskActionIssues] = useState<
+    Record<string, { title: string; message: string }>
+  >({});
+  const reportTaskActionFailure = useCallback(
+    (ownerKeys: readonly string[], title: string, message: string) => {
+      const ownerKey = JSON.stringify(ownerKeys);
+      setTaskActionIssues((issues) => ({
+        ...issues,
+        [ownerKey]: { title, message },
+      }));
+    },
+    [],
+  );
+  const dismissTaskActionFailure = useCallback((ownerKey: string) => {
+    setTaskActionIssues((issues) => {
+      if (!(ownerKey in issues)) return issues;
+      const { [ownerKey]: _removed, ...rest } = issues;
+      return rest;
+    });
+  }, []);
 
   const hasActiveTab = activeTab !== null;
   const isUnifiedView = activeTab?.isUnifiedView ?? false;
@@ -227,6 +246,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
     () => setFocusNewNoteSignal((value) => value + 1),
     () => setShowSettings(true),
     () => setShowShortcuts(true),
+    reportTaskActionFailure,
   );
 
   // Apply saved zoom level on startup and when changed.
@@ -312,32 +332,14 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   // which exits this can and cannot see).
   useWindowClose();
 
-  // Load the active tab's file when the active tab changes.
+  // Load the active tab's file when the active tab changes. loadFile owns the
+  // failed-load record; TaskListPane renders that record with retry/removal, so
+  // this effect must not add a second dialog for the same attempt.
   useEffect(() => {
-    (async () => {
-      try {
-        if (activeTab && !activeTab.isUnifiedView) {
-          const result = await loadFile(activeTab.filePath);
-          if (result.status !== "success") {
-            // The task-list store emits the load-failure warning; show the dialog.
-            await showMessage(
-              "Open Task List Failed",
-              describeLoadFailure("task list", result, activeTab.filePath),
-            );
-          }
-        }
-        clearSelection();
-      } catch (e) {
-        log.error("active tab open threw", {
-          path: activeTab?.filePath,
-          ...toErrorFields(e),
-        });
-        await showMessage(
-          "Open Task List Failed",
-          `The task list file could not be opened:\n\n${errorMessage(e)}`,
-        );
-      }
-    })();
+    if (activeTab && !activeTab.isUnifiedView) {
+      void loadFile(activeTab.filePath);
+    }
+    clearSelection();
   }, [activeTab?.filePath, activeTab?.isUnifiedView]);
 
   // The set of open list file paths, order-independent, as a stable key. The
@@ -503,6 +505,9 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
                 filePath={filePath}
                 isUnifiedView={isUnifiedView}
                 focusNewNoteSignal={focusNewNoteSignal}
+                externalIssues={taskActionIssues}
+                onDismissExternalIssue={dismissTaskActionFailure}
+                onReportExternalIssue={reportTaskActionFailure}
               />
             </ErrorBoundary>
           </div>
@@ -554,9 +559,4 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
       )}
     </div>
   );
-}
-
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

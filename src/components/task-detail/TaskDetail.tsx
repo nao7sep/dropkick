@@ -14,7 +14,7 @@ import type { ActionResult } from "../../state";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
-import { showMessage, showNoteDeletionConfirm } from "../../repositories";
+import { showNoteDeletionConfirm } from "../../repositories";
 import {
   formatTimestamp,
   formatDueDate,
@@ -34,6 +34,12 @@ import { composerDraftKey, editorDraftKey } from "../../services";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { useTaskDeletion } from "../../hooks/useTaskDeletion";
+import { InlineResult } from "../shared/InlineResult";
+
+interface PaneIssue {
+  title: string;
+  message: string;
+}
 
 interface TaskDetailProps {
   task: Task;
@@ -41,6 +47,8 @@ interface TaskDetailProps {
   isUnifiedView: boolean;
   nextActiveTaskKey: string | null;
   focusNewNoteSignal: number;
+  externalIssue?: PaneIssue | null;
+  onDismissExternalIssue?: () => void;
 }
 
 export function TaskDetail({
@@ -49,6 +57,8 @@ export function TaskDetail({
   isUnifiedView,
   nextActiveTaskKey,
   focusNewNoteSignal,
+  externalIssue,
+  onDismissExternalIssue,
 }: TaskDetailProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const updateTitle = useTaskListStore((s) => s.updateTitle);
@@ -69,6 +79,13 @@ export function TaskDetail({
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description);
   const [moveTarget, setMoveTarget] = useState("");
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [noteComposerError, setNoteComposerError] = useState<string | null>(null);
+  const [actionErrors, setActionErrors] = useState<
+    Record<string, PaneIssue>
+  >({});
 
   // The new-note composer draft lives in the draft store, keyed by task id, so
   // it survives this component unmounting (task switch, tab cycle, bulk action),
@@ -105,11 +122,28 @@ export function TaskDetail({
   const autoGrowDesc = useAutoGrow(descRef);
   const autoGrowNewNote = useAutoGrow(newNoteRef);
 
-  const showWriteFailure = async (title: string, result: ActionResult) => {
+  const reportActionError = (operation: string, title: string, message: string) => {
+    setActionErrors((errors) => ({ ...errors, [operation]: { title, message } }));
+  };
+
+  const clearActionError = (operation: string) => {
+    setActionErrors((errors) => {
+      if (!(operation in errors)) return errors;
+      const { [operation]: _removed, ...rest } = errors;
+      return rest;
+    });
+  };
+
+  const handleActionResult = (
+    operation: string,
+    title: string,
+    result: ActionResult,
+  ) => {
     if (result.status === "error") {
-      await showMessage(title, result.message);
+      reportActionError(operation, title, result.message);
       return true;
     }
+    clearActionError(operation);
     return false;
   };
 
@@ -152,15 +186,18 @@ export function TaskDetail({
     if (!cleaned) {
       // Revert — don't allow empty titles.
       setTitleDraft(task.title);
+      setTitleError(null);
       return;
     }
     if (cleaned !== task.title) {
       const result = await updateTitle(filePath, task.id, cleaned);
-      if (await showWriteFailure("Task Update Failed", result)) {
-        setTitleDraft(task.title);
+      if (result.status === "error") {
+        setTitleError(result.message);
+        setTitleDraft(cleaned);
         return;
       }
     }
+    setTitleError(null);
     setTitleDraft(cleaned);
   };
 
@@ -168,24 +205,27 @@ export function TaskDetail({
     const cleaned = multiline(descDraft);
     if (cleaned !== task.description) {
       const result = await updateDescription(filePath, task.id, cleaned);
-      if (await showWriteFailure("Task Update Failed", result)) {
-        setDescDraft(task.description);
+      if (result.status === "error") {
+        setDescriptionError(result.message);
+        setDescDraft(cleaned);
         return;
       }
     }
+    setDescriptionError(null);
     setDescDraft(cleaned);
   };
 
   const handleStatusChange = async (status: TaskStatus) => {
     const result = await setStatusAction(filePath, task.id, status);
     if (result.status === "validation") {
-      await showMessage("Task Update Failed", result.reason);
+      setStatusError(result.reason);
       return;
     }
     if (result.status === "error") {
-      await showMessage("Task Update Failed", result.message);
+      setStatusError(result.message);
       return;
     }
+    setStatusError(null);
 
     // Pointer rule: advance only when the change moves the task out of the
     // active list. The keyboard advances after every change instead — see
@@ -197,16 +237,25 @@ export function TaskDetail({
 
   const handlePriorityChange = async (priority: TaskPriority) => {
     const result = await setPriority(filePath, task.id, priority);
-    await showWriteFailure("Task Update Failed", result);
+    handleActionResult("priority", "Priority could not be changed", result);
   };
 
   const handleDueDateChange = async (value: string) => {
     const result = await setDueDate(filePath, task.id, value || null);
-    await showWriteFailure("Task Update Failed", result);
+    handleActionResult("due-date", "Due date could not be changed", result);
   };
 
   const handleDeleteTask = async () => {
-    await deleteTasks([task], nextActiveTaskKey);
+    const result = await deleteTasks([task], nextActiveTaskKey);
+    if (!result || result.failedTasks.length === 0) {
+      clearActionError("delete");
+      return;
+    }
+    reportActionError(
+      "delete",
+      "Task could not be deleted",
+      result.failures[0]?.reason ?? "The task is still here; try again.",
+    );
   };
 
   const handleAddNote = async (
@@ -220,7 +269,11 @@ export function TaskDetail({
       cleaned,
       actionability,
     );
-    if (await showWriteFailure("Note Update Failed", result)) return;
+    if (result.status === "error") {
+      setNoteComposerError(result.message);
+      return;
+    }
+    setNoteComposerError(null);
     clearComposerDraftIf(composerDraftKey(task.id), newNoteContent);
   };
 
@@ -229,9 +282,10 @@ export function TaskDetail({
     const ids = new Set([task.id]);
     const result = await moveTasks(filePath, moveTarget, ids);
     if (result.status === "error") {
-      await showMessage("Move Failed", result.message);
+      reportActionError("move", "Task could not be moved", result.message);
       return;
     }
+    clearActionError("move");
     if (isUnifiedView) {
       setSelection(new Set([taskKey(moveTarget, task.id)]));
     } else {
@@ -242,9 +296,28 @@ export function TaskDetail({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto px-4 pt-4">
+      {externalIssue ? (
+        <InlineResult
+          title={externalIssue.title}
+          message={externalIssue.message}
+          onDismiss={onDismissExternalIssue}
+          className="mb-3 shrink-0"
+        />
+      ) : null}
+      {Object.entries(actionErrors).map(([operation, issue]) => (
+        <InlineResult
+          key={operation}
+          title={issue.title}
+          message={issue.message}
+          onDismiss={() => clearActionError(operation)}
+          className="mb-3 shrink-0"
+        />
+      ))}
       {/* Title */}
       <textarea
         ref={titleRef}
+        aria-invalid={titleError !== null}
+        aria-describedby={titleError ? `task-title-error-${task.id}` : undefined}
         value={titleDraft}
         onChange={(e) => setTitleDraft(e.target.value)}
         onBlur={handleTitleBlur}
@@ -260,6 +333,11 @@ export function TaskDetail({
         rows={1}
         className="mb-4 w-full shrink-0 resize-none text-lg font-semibold text-ink-strong outline-none placeholder:text-ink-muted"
       />
+      {titleError ? (
+        <p id={`task-title-error-${task.id}`} role="alert" className="-mt-3 mb-4 text-xs text-danger">
+          {titleError}
+        </p>
+      ) : null}
 
       {/* Status, Priority, Due Date row */}
       <div className="mb-4 flex flex-wrap gap-3">
@@ -267,6 +345,8 @@ export function TaskDetail({
         <div>
           <label className="mb-1 block text-xs text-ink-muted">Status</label>
           <select
+            aria-invalid={statusError !== null}
+            aria-describedby={statusError ? `task-status-error-${task.id}` : undefined}
             value={task.status}
             onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
             className="rounded-md border border-border px-2 py-1 text-sm text-ink"
@@ -277,6 +357,11 @@ export function TaskDetail({
             </option>
             <option value="Dismissed">Dismissed</option>
           </select>
+          {statusError ? (
+            <p id={`task-status-error-${task.id}`} role="alert" className="mt-1 max-w-48 text-xs text-danger">
+              {statusError}
+            </p>
+          ) : null}
         </div>
 
         {/* Priority */}
@@ -315,7 +400,7 @@ export function TaskDetail({
             <button
               onClick={async () => {
                 const result = await sendToFirst(filePath);
-                await showWriteFailure("Task Reorder Failed", result);
+                handleActionResult("reorder", "Task could not be reordered", result);
               }}
               className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
@@ -326,7 +411,7 @@ export function TaskDetail({
                 key={d}
                 onClick={async () => {
                   const result = await kick(filePath, d);
-                  await showWriteFailure("Task Reorder Failed", result);
+                  handleActionResult("reorder", "Task could not be reordered", result);
                 }}
                 className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
               >
@@ -336,7 +421,7 @@ export function TaskDetail({
             <button
               onClick={async () => {
                 const result = await sendToLast(filePath);
-                await showWriteFailure("Task Reorder Failed", result);
+                handleActionResult("reorder", "Task could not be reordered", result);
               }}
               className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
@@ -345,7 +430,7 @@ export function TaskDetail({
             <button
               onClick={async () => {
                 const result = await dropkick(filePath);
-                await showWriteFailure("Task Reorder Failed", result);
+                handleActionResult("reorder", "Task could not be reordered", result);
               }}
               className="rounded border border-danger-border px-2 py-1 text-xs text-danger hover:bg-danger-surface"
             >
@@ -394,6 +479,8 @@ export function TaskDetail({
         <label className="mb-1 block text-xs text-ink-muted">Description</label>
         <textarea
           ref={descRef}
+          aria-invalid={descriptionError !== null}
+          aria-describedby={descriptionError ? `task-description-error-${task.id}` : undefined}
           value={descDraft}
           onChange={(e) => {
             setDescDraft(e.target.value);
@@ -404,6 +491,11 @@ export function TaskDetail({
           placeholder="Add a description..."
           className="w-full resize-none rounded-md border border-border p-2 text-sm text-ink outline-none focus:border-primary-ring"
         />
+        {descriptionError ? (
+          <p id={`task-description-error-${task.id}`} role="alert" className="mt-1 text-xs text-danger">
+            {descriptionError}
+          </p>
+        ) : null}
       </div>
 
       {/* Timestamps */}
@@ -437,6 +529,8 @@ export function TaskDetail({
         <div className="mb-3">
           <textarea
             ref={newNoteRef}
+            aria-invalid={noteComposerError !== null}
+            aria-describedby={noteComposerError ? `new-note-error-${task.id}` : undefined}
             value={newNoteContent}
             onChange={(e) => {
               updateComposerDraft(composerDraftKey(task.id), e.target.value);
@@ -462,6 +556,11 @@ export function TaskDetail({
             rows={2}
             className="w-full resize-none rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           />
+          {noteComposerError ? (
+            <p id={`new-note-error-${task.id}`} role="alert" className="mt-1 text-xs text-danger">
+              {noteComposerError}
+            </p>
+          ) : null}
           <div className="mt-1 flex justify-end">
             <button
               onClick={() => handleAddNote()}
@@ -527,6 +626,7 @@ function NoteItem({
   const clearJustOpened = useNoteDraftStore((s) => s.clearJustOpened);
   const editing = entry !== undefined;
   const draft = entry ?? "";
+  const [noteError, setNoteError] = useState<string | null>(null);
   const composing = useComposing();
   const editRef = useRef<HTMLTextAreaElement>(null);
   const autoGrowEdit = useAutoGrow(editRef);
@@ -569,7 +669,7 @@ function NoteItem({
       if (result.status === "error") {
         // Keep the draft as typed so the user can retry or Cancel; a failed
         // write is no reason to discard their text.
-        await showMessage("Note Update Failed", result.message);
+        setNoteError(result.message);
         return;
       }
     }
@@ -578,10 +678,11 @@ function NoteItem({
       if (result.status === "error") {
         // The text is already saved; leave the editor open so the failure is
         // visible against the note it failed on rather than closing over it.
-        await showMessage("Note Update Failed", result.message);
+        setNoteError(result.message);
         return;
       }
     }
+    setNoteError(null);
     clearDraftIf(draftKey, draft);
   };
 
@@ -605,7 +706,7 @@ function NoteItem({
     if (confirmed) {
       const result = await removeNote(filePath, taskId, note.id);
       if (result.status === "error") {
-        await showMessage("Note Update Failed", result.message);
+        setNoteError(result.message);
         return;
       }
       // The note is gone; a parked edit draft for it must not linger.
@@ -616,8 +717,10 @@ function NoteItem({
   const handleActionabilityChange = async (actionability: NoteActionability) => {
     const result = await setActionability(filePath, taskId, note.id, actionability);
     if (result.status === "error") {
-      await showMessage("Note Update Failed", result.message);
+      setNoteError(result.message);
+      return;
     }
+    setNoteError(null);
   };
 
   const borderColor =
@@ -638,9 +741,20 @@ function NoteItem({
 
   return (
     <div className={`rounded-md border-l-4 border ${borderColor} p-3`}>
+      {noteError ? (
+        <InlineResult
+          id={`note-error-${note.id}`}
+          title="Note could not be updated"
+          message={noteError}
+          onDismiss={() => setNoteError(null)}
+          className="mb-2"
+        />
+      ) : null}
       <div className="mb-1 flex items-center gap-2">
         {icon}
         <select
+          aria-invalid={noteError !== null}
+          aria-describedby={noteError ? `note-error-${note.id}` : undefined}
           value={note.actionability}
           onChange={(e) =>
             handleActionabilityChange(e.target.value as NoteActionability)
@@ -668,6 +782,8 @@ function NoteItem({
         <div>
           <textarea
             ref={editRef}
+            aria-invalid={noteError !== null}
+            aria-describedby={noteError ? `note-error-${note.id}` : undefined}
             value={draft}
             onChange={(e) => {
               setDraft(draftKey, e.target.value);

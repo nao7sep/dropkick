@@ -43,7 +43,8 @@ describe("AppModal — Escape during an IME composition", () => {
         title: "New Task",
         onClose: () => {},
         onRequestClose,
-        children: null,
+        children: createElement("div", null, "Body"),
+        footer: createElement("button", null, "Save"),
       }),
     );
   });
@@ -56,5 +57,17 @@ describe("AppModal — Escape during an IME composition", () => {
   it("closes on a plain Escape", async () => {
     await pressEscape(false);
     expect(onRequestClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps result growth in the scrollable body with fixed header and footer", () => {
+    const dialog = document.querySelector('[role="dialog"]')!;
+    const bands = [...dialog.children] as HTMLElement[];
+
+    expect(dialog.className).toContain("max-h-[90vh]");
+    expect(dialog.className).toContain("flex-col");
+    expect(bands[0].className).toContain("shrink-0");
+    expect(bands[1].className).toContain("min-h-0");
+    expect(bands[1].className).toContain("overflow-y-auto");
+    expect(bands[2].className).toContain("shrink-0");
   });
 });

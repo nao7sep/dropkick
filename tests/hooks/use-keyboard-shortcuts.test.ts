@@ -18,6 +18,7 @@ const FILE = "/tasks.json";
 const removeTasks = vi.fn();
 const setStatus = vi.fn();
 const clearTaskDrafts = vi.fn();
+const taskActionFailure = vi.fn();
 let host: Mounted;
 
 function Harness() {
@@ -29,6 +30,7 @@ function Harness() {
     () => {},
     () => {},
     () => {},
+    taskActionFailure,
   );
   return null;
 }
@@ -56,6 +58,7 @@ beforeEach(async () => {
     changed: true,
   });
   clearTaskDrafts.mockReset();
+  taskActionFailure.mockReset();
 
   usePreferencesStore.setState({
     preferences: {
@@ -116,6 +119,18 @@ describe("task deletion dispatch", () => {
 
     expect(setStatus).toHaveBeenCalledWith(FILE, "a", "Dismissed");
     expect(removeTasks).not.toHaveBeenCalled();
+  });
+
+  it("returns a deletion failure to the selected task surface", async () => {
+    removeTasks.mockResolvedValueOnce({ status: "error", message: "Disk full" });
+
+    await press("Delete");
+
+    expect(taskActionFailure).toHaveBeenCalledWith(
+      [taskKey(FILE, "a")],
+      "Tasks could not be deleted",
+      "A: Disk full",
+    );
   });
 
   it("leaves Backspace to an editable field", async () => {

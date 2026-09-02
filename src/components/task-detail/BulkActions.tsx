@@ -7,22 +7,38 @@ import type { Task, TaskStatus, TaskPriority } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
-import { showMessage } from "../../repositories";
 import type { ActionResult } from "../../state";
 import {
-  summarizeBulkStatusResult,
   statusAdvancesSelection,
+  taskSelectionKey,
 } from "../../utils";
-import { moveSelectedTasks } from "../../services";
+import {
+  collectTaskActionFailures,
+  describeTaskActionFailures,
+  moveSelectedTasks,
+} from "../../services";
 import { Toolbar } from "../shared/Toolbar";
 import { SelectedTaskTitleList } from "../shared/SelectedTaskTitleList";
 import { useTaskDeletion } from "../../hooks/useTaskDeletion";
+import { InlineResult } from "../shared/InlineResult";
+
+interface PaneIssue {
+  title: string;
+  message: string;
+}
 
 interface BulkActionsProps {
   selectedTasks: Task[];
   filePath: string;
   isUnifiedView: boolean;
   nextActiveTaskKey: string | null;
+  externalIssue?: PaneIssue | null;
+  onDismissExternalIssue?: () => void;
+  onReportExternalIssue?: (
+    ownerKeys: readonly string[],
+    title: string,
+    message: string,
+  ) => void;
 }
 
 export function BulkActions({
@@ -30,6 +46,9 @@ export function BulkActions({
   filePath,
   isUnifiedView,
   nextActiveTaskKey,
+  externalIssue,
+  onDismissExternalIssue,
+  onReportExternalIssue,
 }: BulkActionsProps) {
   const kickDistances = usePreferencesStore((s) => s.preferences.kickDistances);
   const kick = useTaskListStore((s) => s.kick);
@@ -43,13 +62,33 @@ export function BulkActions({
   const workspace = useWorkspaceStore((s) => s.workspace);
 
   const [moveTarget, setMoveTarget] = useState("");
+  const [actionErrors, setActionErrors] = useState<
+    Record<string, PaneIssue>
+  >({});
   const deleteTasks = useTaskDeletion();
 
-  const showWriteFailure = async (title: string, result: ActionResult) => {
+  const reportActionError = (operation: string, title: string, message: string) => {
+    setActionErrors((errors) => ({ ...errors, [operation]: { title, message } }));
+  };
+
+  const clearActionError = (operation: string) => {
+    setActionErrors((errors) => {
+      if (!(operation in errors)) return errors;
+      const { [operation]: _removed, ...rest } = errors;
+      return rest;
+    });
+  };
+
+  const handleActionResult = (
+    operation: string,
+    title: string,
+    result: ActionResult,
+  ) => {
     if (result.status === "error") {
-      await showMessage(title, result.message);
+      reportActionError(operation, title, result.message);
       return true;
     }
+    clearActionError(operation);
     return false;
   };
 
@@ -58,37 +97,38 @@ export function BulkActions({
     for (const task of selectedTasks) {
       results.push(await setStatus(task.sourceFile, task.id, status));
     }
-    const summary = summarizeBulkStatusResult(results);
-
-    if (summary.hasIssues) {
-      const details: string[] = [];
-      if (summary.skippedCount > 0) {
-        details.push(`Skipped ${summary.skippedCount} task(s): ${summary.reasonsText}.`);
-      }
-      if (summary.firstError !== null) {
-        details.push(`First error: ${summary.firstError}`);
-      }
-      await showMessage("Some Tasks Were Not Updated", details.join("\n\n"));
+    const failures = collectTaskActionFailures(selectedTasks, results);
+    if (failures.length > 0) {
+      reportActionError(
+        "status",
+        "Some tasks were not updated",
+        describeTaskActionFailures(failures),
+      );
+    } else {
+      clearActionError("status");
     }
 
     // Same pointer rule as the detail pane, plus: a partially applied bulk
     // change keeps the selection so the user can see what was skipped.
-    if (!summary.hasIssues && statusAdvancesSelection(status)) {
+    if (failures.length === 0 && statusAdvancesSelection(status)) {
       setSelection(nextActiveTaskKey ? new Set([nextActiveTaskKey]) : new Set());
     }
   };
 
   const handleBulkPriority = async (priority: TaskPriority) => {
-    let firstError: string | null = null;
+    const results: ActionResult[] = [];
     for (const task of selectedTasks) {
-      const result = await setPriority(task.sourceFile, task.id, priority);
-      if (result.status === "error" && firstError === null) {
-        firstError = result.message;
-      }
+      results.push(await setPriority(task.sourceFile, task.id, priority));
     }
-
-    if (firstError !== null) {
-      await showMessage("Task Update Failed", firstError);
+    const failures = collectTaskActionFailures(selectedTasks, results);
+    if (failures.length > 0) {
+      reportActionError(
+        "priority",
+        "Some tasks were not updated",
+        describeTaskActionFailures(failures),
+      );
+    } else {
+      clearActionError("priority");
     }
   };
 
@@ -104,10 +144,39 @@ export function BulkActions({
     });
     setSelection(outcome.selection);
     if (outcome.status === "error") {
-      await showMessage("Move Failed", outcome.message!);
+      if (onReportExternalIssue) {
+        onReportExternalIssue(
+          [...outcome.selection],
+          "Some tasks could not be moved",
+          outcome.message!,
+        );
+      } else {
+        reportActionError("move", "Some tasks could not be moved", outcome.message!);
+      }
       return;
     }
+    clearActionError("move");
     setMoveTarget("");
+  };
+
+  const handleDelete = async () => {
+    const result = await deleteTasks(selectedTasks, nextActiveTaskKey);
+    if (!result || result.failedTasks.length === 0) {
+      clearActionError("delete");
+      return;
+    }
+    const title =
+      result.deletedTasks.length > 0
+        ? "Some tasks were not deleted"
+        : "Tasks could not be deleted";
+    const message = result.failures
+      .map(({ task, reason }) => `${task.title || "Untitled"}: ${reason}`)
+      .join("\n");
+    if (onReportExternalIssue) {
+      onReportExternalIssue(result.failedTasks.map(taskSelectionKey), title, message);
+    } else {
+      reportActionError("delete", title, message);
+    }
   };
 
   // Available move destinations (other open task list tabs).
@@ -121,6 +190,23 @@ export function BulkActions({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-6">
+      {externalIssue ? (
+        <InlineResult
+          title={externalIssue.title}
+          message={externalIssue.message}
+          onDismiss={onDismissExternalIssue}
+          className="mb-3 shrink-0"
+        />
+      ) : null}
+      {Object.entries(actionErrors).map(([operation, issue]) => (
+        <InlineResult
+          key={operation}
+          title={issue.title}
+          message={issue.message}
+          onDismiss={() => clearActionError(operation)}
+          className="mb-3 shrink-0"
+        />
+      ))}
       <h3 className="mb-4 text-lg font-medium text-ink">
         {selectedTasks.length} tasks selected
       </h3>
@@ -188,7 +274,7 @@ export function BulkActions({
             <button
               onClick={async () => {
                 const result = await sendToFirst(filePath);
-                await showWriteFailure("Task Reorder Failed", result);
+                handleActionResult("reorder", "Tasks could not be reordered", result);
               }}
               className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
@@ -199,7 +285,7 @@ export function BulkActions({
                 key={d}
                 onClick={async () => {
                   const result = await kick(filePath, d);
-                  await showWriteFailure("Task Reorder Failed", result);
+                  handleActionResult("reorder", "Tasks could not be reordered", result);
                 }}
                 className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
               >
@@ -209,7 +295,7 @@ export function BulkActions({
             <button
               onClick={async () => {
                 const result = await sendToLast(filePath);
-                await showWriteFailure("Task Reorder Failed", result);
+                handleActionResult("reorder", "Tasks could not be reordered", result);
               }}
               className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
@@ -218,7 +304,7 @@ export function BulkActions({
             <button
               onClick={async () => {
                 const result = await dropkick(filePath);
-                await showWriteFailure("Task Reorder Failed", result);
+                handleActionResult("reorder", "Tasks could not be reordered", result);
               }}
               className="rounded-md border border-danger-border px-3 py-1.5 text-sm text-danger hover:bg-danger-surface"
             >
@@ -260,7 +346,7 @@ export function BulkActions({
 
       <div className="mt-6 border-t border-border pt-4">
         <button
-          onClick={() => void deleteTasks(selectedTasks, nextActiveTaskKey)}
+          onClick={() => void handleDelete()}
           className="flex items-center gap-1 rounded-md border border-danger-border px-3 py-1.5 text-sm text-danger hover:bg-danger-surface"
         >
           <Trash2 size={14} />

@@ -75,9 +75,9 @@ async function persist(): Promise<void> {
   } catch (e) {
     // A failed draft write is logged, not raised. The text is still on screen
     // and still in memory, and every write the user actually asked for (adding
-    // a note, editing a task) reports its own failure through the existing
-    // dialogs — so a broken disk is never silent, and a modal per keystroke
-    // would be.
+    // a note, editing a task) reports its own failure at the affected field or
+    // pane — so a broken disk is never silent, and an alert per keystroke would
+    // be disruptive.
     log.warn("note drafts write failed", { filePath, ...toErrorFields(e) });
   }
 }

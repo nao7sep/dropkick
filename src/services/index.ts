@@ -67,3 +67,9 @@ export type {
   DeleteSelectedTasksResult,
 } from "./task-deletion";
 export { deleteSelectedTasks } from "./task-deletion";
+
+export type { TaskActionFailure } from "./task-action-results";
+export {
+  collectTaskActionFailures,
+  describeTaskActionFailures,
+} from "./task-action-results";

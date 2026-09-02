@@ -151,6 +151,8 @@ export function MoveTasksModal({
           </label>
           <select
             ref={destinationRef}
+            aria-invalid={destError}
+            aria-describedby={destError ? "move-tasks-destination-error" : undefined}
             value={moveTarget}
             onChange={(e) => {
               setMoveTarget(e.target.value);
@@ -166,6 +168,11 @@ export function MoveTasksModal({
               </option>
             ))}
           </select>
+          {destError ? (
+            <p id="move-tasks-destination-error" role="alert" className="mt-1 text-xs text-danger">
+              Select the task list that should receive these tasks.
+            </p>
+          ) : null}
         </div>
       )}
     </AppModal>

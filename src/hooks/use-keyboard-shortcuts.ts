@@ -7,7 +7,6 @@ import { useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useToastStore } from "../state/toast-store";
-import { showMessage } from "../repositories";
 import type { Task, TaskPriority, TaskStatus } from "../models";
 import type { ActionResult } from "../state";
 import {
@@ -15,8 +14,11 @@ import {
   taskSelectionKey,
   todayInTimezone,
   tomorrowInTimezone,
-  summarizeBulkStatusResult,
 } from "../utils";
+import {
+  collectTaskActionFailures,
+  describeTaskActionFailures,
+} from "../services";
 import {
   hasPrimaryShortcutModifier,
   standsDownForMacText,
@@ -64,6 +66,11 @@ export function useKeyboardShortcuts(
   onFocusNewNote: () => void,
   onOpenSettings: () => void,
   onOpenShortcutsHelp: () => void,
+  onTaskActionFailure: (
+    ownerKeys: readonly string[],
+    title: string,
+    message: string,
+  ) => void,
 ) {
   const preferences = usePreferencesStore((s) => s.preferences);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
@@ -112,24 +119,19 @@ export function useKeyboardShortcuts(
       for (const task of selectedTasks) {
         results.push(await setStatus(task.sourceFile, task.id, status));
       }
-      const summary = summarizeBulkStatusResult(results);
-
-      if (summary.skippedCount > 0) {
-        await showMessage(
-          "Some Tasks Were Skipped",
-          `Skipped ${summary.skippedCount} task(s): ${summary.reasonsText}.`,
+      const failures = collectTaskActionFailures(selectedTasks, results);
+      if (failures.length > 0) {
+        onTaskActionFailure(
+          selectedTasks.map(taskSelectionKey),
+          "Some tasks were not updated",
+          describeTaskActionFailures(failures),
         );
-        return false;
-      }
-
-      if (summary.firstError !== null) {
-        await showMessage("Task Update Failed", summary.firstError);
         return false;
       }
 
       return changed;
     },
-    [selectedTasks, setStatus],
+    [selectedTasks, setStatus, onTaskActionFailure],
   );
 
   // Applies one field across the selection. Priority and due date shared this
@@ -149,22 +151,23 @@ export function useKeyboardShortcuts(
       if (selectedTasks.length === 0) return false;
       const changed = selectedTasks.some((task) => task[field] !== value);
 
-      let firstError: string | null = null;
+      const results: ActionResult[] = [];
       for (const task of selectedTasks) {
-        const result = await apply(task.sourceFile, task.id, value);
-        if (result.status === "error" && firstError === null) {
-          firstError = result.message;
-        }
+        results.push(await apply(task.sourceFile, task.id, value));
       }
-
-      if (firstError !== null) {
-        await showMessage("Task Update Failed", firstError);
+      const failures = collectTaskActionFailures(selectedTasks, results);
+      if (failures.length > 0) {
+        onTaskActionFailure(
+          selectedTasks.map(taskSelectionKey),
+          "Some tasks were not updated",
+          describeTaskActionFailures(failures),
+        );
         return false;
       }
 
       return changed;
     },
-    [selectedTasks],
+    [selectedTasks, onTaskActionFailure],
   );
 
   const applyPriorityToSelection = useCallback(
@@ -195,10 +198,14 @@ export function useKeyboardShortcuts(
       }
       const result = await action(filePath);
       if (result.status === "error") {
-        await showMessage("Task Reorder Failed", result.message);
+        onTaskActionFailure(
+          selectedTasks.map(taskSelectionKey),
+          "Tasks could not be reordered",
+          result.message,
+        );
       }
     },
-    [selectedKeys, isUnifiedView, filePath],
+    [selectedKeys, selectedTasks, isUnifiedView, filePath, onTaskActionFailure],
   );
 
   const handler = useCallback(
@@ -400,7 +407,11 @@ export function useKeyboardShortcuts(
         const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
         const result = await dropkick(filePath);
         if (result.status === "error") {
-          await showMessage("Task Reorder Failed", result.message);
+          onTaskActionFailure(
+            selectedTasks.map(taskSelectionKey),
+            "Tasks could not be reordered",
+            result.message,
+          );
           return;
         }
         // Advance only when the reorder actually moved something (the store
@@ -417,7 +428,18 @@ export function useKeyboardShortcuts(
         if (selectedTasks.length === 0) return;
         e.preventDefault();
         const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
-        await deleteTasks(selectedTasks, nextKey);
+        const result = await deleteTasks(selectedTasks, nextKey);
+        if (result && result.failedTasks.length > 0) {
+          onTaskActionFailure(
+            result.failedTasks.map(taskSelectionKey),
+            result.deletedTasks.length > 0
+              ? "Some tasks were not deleted"
+              : "Tasks could not be deleted",
+            result.failures
+              .map(({ task, reason }) => `${task.title || "Untitled"}: ${reason}`)
+              .join("\n"),
+          );
+        }
         return;
       }
 
@@ -496,6 +518,7 @@ export function useKeyboardShortcuts(
       onFocusNewNote,
       onOpenSettings,
       onOpenShortcutsHelp,
+      onTaskActionFailure,
       setStatus,
       setPriority,
       setDueDate,

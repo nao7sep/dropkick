@@ -45,7 +45,7 @@ describe("deleteSelectedTasks", () => {
     expect(result).toEqual({
       deletedTasks: selectedTasks,
       failedTasks: [],
-      firstError: null,
+      failures: [],
     });
   });
 
@@ -67,9 +67,29 @@ describe("deleteSelectedTasks", () => {
     expect(result).toEqual({
       deletedTasks: [deleted],
       failedTasks: failed,
-      firstError: "disk full",
+      failures: failed.map((task) => ({ task, reason: "disk full" })),
     });
     expect(clearTaskDrafts).toHaveBeenCalledOnce();
     expect(clearTaskDrafts).toHaveBeenCalledWith("c");
+  });
+
+  it("keeps each failed task with its own source failure", async () => {
+    const removeTasks = vi
+      .fn()
+      .mockResolvedValueOnce({ status: "error", message: "First disk full" })
+      .mockResolvedValueOnce({ status: "error", message: "Second read-only" });
+    const first = task("a", "/one.json");
+    const second = task("b", "/two.json");
+
+    const result = await deleteSelectedTasks({
+      selectedTasks: [first, second],
+      removeTasks,
+      clearTaskDrafts: vi.fn(),
+    });
+
+    expect(result.failures).toEqual([
+      { task: first, reason: "First disk full" },
+      { task: second, reason: "Second read-only" },
+    ]);
   });
 });

@@ -313,11 +313,12 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         writtenData = f.data;
         return f.data;
       });
-    } catch (e) {
+    } catch {
       finishPendingWrite(filePath, { failed: true });
       return {
         status: "error",
-        message: e instanceof Error ? e.message : String(e),
+        message:
+          "The task list could not be saved. Your change was not saved; try again.",
       };
     }
 
@@ -787,10 +788,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             destTasksPostMove: moveResult.destinationTasks,
           };
         });
-      } catch (e) {
+      } catch {
         return {
           status: "error",
-          message: e instanceof Error ? e.message : String(e),
+          message:
+            "The tasks could not be moved. They remain in their current lists; try again.",
         };
       }
 
