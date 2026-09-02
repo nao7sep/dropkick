@@ -1,6 +1,6 @@
 // About dialog — shows app name, version, author, and license.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getVersion } from "@tauri-apps/api/app";
@@ -13,22 +13,39 @@ interface AboutModalProps {
 }
 
 export function AboutModal({ onClose }: AboutModalProps) {
-  const [version, setVersion] = useState("");
-  const [linkError, setLinkError] = useState<string | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
+  const [versionUnavailable, setVersionUnavailable] = useState(false);
+  const [linkErrors, setLinkErrors] = useState<Partial<Record<"repository" | "issues", string>>>({});
+  const linkAttempts = useRef<Record<"repository" | "issues", number>>({ repository: 0, issues: 0 });
   useEffect(() => {
     getVersion()
-      .then(setVersion)
-      .catch((e) => log.warn("get app version failed", toErrorFields(e)));
+      .then((value) => setVersion(value))
+      .catch((error) => {
+        log.warn("get app version failed", toErrorFields(error));
+        setVersionUnavailable(true);
+      });
   }, []);
 
-  const openProjectLink = (url: string) => {
-    setLinkError(null);
-    void openUrl(url).catch((error) => {
+  const openProjectLink = async (owner: "repository" | "issues", url: string): Promise<void> => {
+    const attempt = ++linkAttempts.current[owner];
+    try {
+      await openUrl(url);
+      if (linkAttempts.current[owner] !== attempt) return;
+      setLinkErrors((current) => {
+        const next = { ...current };
+        delete next[owner];
+        return next;
+      });
+    } catch (error) {
       log.warn("open url failed", { url, ...toErrorFields(error) });
-      setLinkError(
-        "The link could not be opened. Copy it from the application log or open the project page in your browser.",
-      );
-    });
+      if (linkAttempts.current[owner] !== attempt) return;
+      setLinkErrors((current) => ({
+        ...current,
+        [owner]: owner === "repository"
+          ? "GitHub could not be opened. Open the project page in your browser and try again."
+          : "Report Issue could not be opened. Open the project page in your browser and try again.",
+      }));
+    }
   };
 
   return (
@@ -49,33 +66,51 @@ export function AboutModal({ onClose }: AboutModalProps) {
       }
     >
       <p className="text-2xl font-bold text-ink-strong">Dropkick</p>
-      <p className="mt-1 text-sm text-ink-muted">{version && `Version ${version}`}</p>
+      <p className="mt-1 text-sm text-ink-muted">
+        {version ? `Version ${version}` : versionUnavailable ? "Version unavailable" : "Loading version…"}
+      </p>
       <p id="about-modal-description" className="mt-4 text-sm text-ink-soft">
         A local-first task manager for working with plain JSON task lists
         across multiple files. Your data stays on your machine.
       </p>
       <div className="mt-4 flex justify-center gap-4">
         <button
-          onClick={() => openProjectLink("https://github.com/nao7sep/dropkick")}
+          onClick={() => void openProjectLink("repository", "https://github.com/nao7sep/dropkick")}
           className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
         >
           GitHub
           <ExternalLink size={12} />
         </button>
         <button
-          onClick={() => openProjectLink("https://github.com/nao7sep/dropkick/issues")}
+          onClick={() => void openProjectLink("issues", "https://github.com/nao7sep/dropkick/issues")}
           className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
         >
           Report Issue
           <ExternalLink size={12} />
         </button>
       </div>
-      {linkError !== null ? (
+      {linkErrors.repository ? (
         <InlineResult
-          title="Link not opened"
-          message={linkError}
+          title="GitHub not opened"
+          message={linkErrors.repository}
           className="mt-4 text-left"
-          onDismiss={() => setLinkError(null)}
+          onDismiss={() => setLinkErrors((current) => {
+            const next = { ...current };
+            delete next.repository;
+            return next;
+          })}
+        />
+      ) : null}
+      {linkErrors.issues ? (
+        <InlineResult
+          title="Report Issue not opened"
+          message={linkErrors.issues}
+          className="mt-4 text-left"
+          onDismiss={() => setLinkErrors((current) => {
+            const next = { ...current };
+            delete next.issues;
+            return next;
+          })}
         />
       ) : null}
       <p className="mt-4 text-xs text-ink-muted">
