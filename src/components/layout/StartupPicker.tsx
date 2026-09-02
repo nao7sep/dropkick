@@ -80,26 +80,26 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   };
 
   const handleOpenPreferences = async () => {
-    const path = await openJsonFileDialog();
-    if (!path) return;
-    const loadResult = await loadPreferences(path);
-    if (loadResult.status !== "success") {
-      await showMessage(
-        "Preferences Load Failed",
-        describeLoadFailure("preferences", loadResult, path),
-      );
-      return;
-    }
     await guarded("Open Preferences Failed", "Opening the preferences file", async () => {
+      const path = await openJsonFileDialog();
+      if (!path) return;
+      const loadResult = await loadPreferences(path);
+      if (loadResult.status !== "success") {
+        await showMessage(
+          "Preferences Load Failed",
+          describeLoadFailure("preferences", loadResult, path),
+        );
+        return;
+      }
       await registerPreferences(path);
       setSelectedPrefs(path);
     });
   };
 
   const handleNewPreferences = async () => {
-    const normalizedPath = await saveJsonFileDialog("preferences.json");
-    if (!normalizedPath) return;
     await guarded("Create Preferences Failed", "Creating the preferences file", async () => {
+      const normalizedPath = await saveJsonFileDialog("preferences.json");
+      if (!normalizedPath) return;
       await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
       await registerPreferences(normalizedPath);
       setSelectedPrefs(normalizedPath);
@@ -107,26 +107,26 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   };
 
   const handleOpenWorkspace = async () => {
-    const path = await openJsonFileDialog();
-    if (!path) return;
-    const loadResult = await loadWorkspace(path);
-    if (loadResult.status !== "success") {
-      await showMessage(
-        "Workspace Load Failed",
-        describeLoadFailure("workspace", loadResult, path),
-      );
-      return;
-    }
     await guarded("Open Workspace Failed", "Opening the workspace file", async () => {
+      const path = await openJsonFileDialog();
+      if (!path) return;
+      const loadResult = await loadWorkspace(path);
+      if (loadResult.status !== "success") {
+        await showMessage(
+          "Workspace Load Failed",
+          describeLoadFailure("workspace", loadResult, path),
+        );
+        return;
+      }
       await registerWorkspace(path);
       setSelectedWorkspace(path);
     });
   };
 
   const handleNewWorkspace = async () => {
-    const normalizedPath = await saveJsonFileDialog("workspace.json");
-    if (!normalizedPath) return;
     await guarded("Create Workspace Failed", "Creating the workspace file", async () => {
+      const normalizedPath = await saveJsonFileDialog("workspace.json");
+      if (!normalizedPath) return;
       await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
       await registerWorkspace(normalizedPath);
       setSelectedWorkspace(normalizedPath);

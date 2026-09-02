@@ -11,14 +11,19 @@ import { mount } from "../../helpers/react-dom";
 import type { Mounted } from "../../helpers/react-dom";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-vi.mock("../../../src/repositories", () => ({
+const repositories = vi.hoisted(() => ({
   openJsonFileDialog: vi.fn(),
   saveJsonFileDialog: vi.fn(),
+  showMessage: vi.fn(),
+}));
+vi.mock("../../../src/repositories", () => ({
+  openJsonFileDialog: repositories.openJsonFileDialog,
+  saveJsonFileDialog: repositories.saveJsonFileDialog,
   createPreferencesFile: vi.fn(),
   createWorkspaceFile: vi.fn(),
   loadPreferences: vi.fn(),
   loadWorkspace: vi.fn(),
-  showMessage: vi.fn(),
+  showMessage: repositories.showMessage,
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   toErrorFields: (e: unknown) => ({ error: { message: String(e) } }),
 }));
@@ -31,6 +36,7 @@ let host: Mounted;
 
 afterEach(async () => {
   await host?.unmount();
+  vi.clearAllMocks();
 });
 
 async function mountWithKnownFiles() {
@@ -115,5 +121,49 @@ describe("StartupPicker — the file lists are real listboxes", () => {
     await pressOn(preferencesListbox(), "ArrowDown");
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+  });
+});
+
+describe("StartupPicker — native picker failures", () => {
+  it("retains authored copy when the Open picker rejects", async () => {
+    await mountWithKnownFiles();
+    repositories.openJsonFileDialog.mockRejectedValueOnce(
+      new TypeError("EACCES /private/tmp/HOSTILE-SENTINEL IPC wrapper"),
+    );
+
+    const open = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Open",
+    );
+    expect(open).toBeTruthy();
+    await act(async () => open!.click());
+
+    expect(repositories.showMessage).toHaveBeenCalledWith(
+      "Open Preferences Failed",
+      "Opening the preferences file could not be completed. Check that the selected location is available and try again.",
+    );
+    expect(JSON.stringify(repositories.showMessage.mock.calls)).not.toMatch(
+      /EACCES|HOSTILE-SENTINEL|TypeError|IPC|private\/tmp/,
+    );
+  });
+
+  it("retains authored copy when the Save picker rejects", async () => {
+    await mountWithKnownFiles();
+    repositories.saveJsonFileDialog.mockRejectedValueOnce(
+      new Error("EACCES /private/tmp/HOSTILE-SENTINEL"),
+    );
+
+    const create = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "New",
+    );
+    expect(create).toBeTruthy();
+    await act(async () => create!.click());
+
+    expect(repositories.showMessage).toHaveBeenCalledWith(
+      "Create Preferences Failed",
+      "Creating the preferences file could not be completed. Check that the selected location is available and try again.",
+    );
+    expect(JSON.stringify(repositories.showMessage.mock.calls)).not.toMatch(
+      /EACCES|HOSTILE-SENTINEL|private\/tmp/,
+    );
   });
 });
