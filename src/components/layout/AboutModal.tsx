@@ -116,7 +116,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
       <p className="mt-4 text-xs text-ink-muted">
         &copy; 2026 Yoshinao Inoguchi
       </p>
-      <p className="mt-1 text-xs text-ink-muted">MIT License</p>
+      <p className="mt-1 text-xs text-ink-muted">GNU GPL v3 or later</p>
     </AppModal>
   );
 }
