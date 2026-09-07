@@ -27,7 +27,25 @@ linker_messages = "allow"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "dropkick_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
+
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "off"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.test]
+debug = "line-tables-only"
+split-debuginfo = "off"
+
+[profile.test.package."*"]
+debug = false
+
+[profile.debugging]
+inherits = "dev"
+debug = true
 
 [build-dependencies]
 tauri-build = { version = "2.6", features = [] }
