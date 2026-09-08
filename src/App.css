@@ -52,6 +52,8 @@ body.divider-dragging * {
   --ink-muted: var(--color-gray-500);
   --ink-faint: var(--color-gray-400);
   --ink-inverted: var(--color-white); /* text on solid accent fills */
+  --scrollbar-thumb: #6b7280;
+  --scrollbar-thumb-hover: #4b5563;
 
   /* Primary — actions, focus, selection.
      `primary`/`primary-hover` are the ACCENT (text, icons, links, active tab);
@@ -156,6 +158,8 @@ body.divider-dragging * {
   --ink-muted: #a3a3a3; /* neutral-400 */
   --ink-faint: #737373; /* neutral-500 */
   --ink-inverted: #fafafa; /* text on solid accent fills */
+  --scrollbar-thumb: #a3a3a3;
+  --scrollbar-thumb-hover: #d4d4d4;
 
   --primary: #38bdf8; /* sky-400 — accent text */
   --primary-hover: #7dd3fc; /* sky-300 */
@@ -333,26 +337,24 @@ body {
   font-size: 13px;
 }
 
-/* Scroll bars — thin, rounded, themed (window-chrome-conventions). The
-   `color-scheme` declarations above already paint native form controls in the
+/* Scroll bars — easy to acquire, rounded, and themed (app-chrome-conventions).
+   The `color-scheme` declarations above already paint native form controls in the
    right palette, but on some platforms they leave the OS scroll bar thick and
    square; this block styles the bar itself. One global rule covers every
    overflow container — task list, detail pane, modals (which portal to <body>)
-   — and both themes, because the palette tokens (`--border-strong` thumb,
-   `--ink-faint` hover) already differ per theme.
+   — and both themes, because the scrollbar palette tokens differ per theme.
 
-   WebKit/Blink (Tauri's macOS/Windows webview): a slim ~10px gutter with a
+   WebKit/Blink (Tauri's macOS/Windows webview): a 16px hit gutter with a
    transparent track and a pill thumb inset from the gutter edge via a
-   transparent border clipped to the padding box, brightening a notch on hover.
-   Firefox/standards: `scrollbar-width: thin` + `scrollbar-color` give the same
-   slim, themed bar. */
+   transparent border clipped to the padding box, strengthening on hover or focus.
+   Firefox/standards keeps its normal-width bar and receives the same palette. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: auto;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 16px;
+  height: 16px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -360,14 +362,30 @@ body {
 ::-webkit-scrollbar-thumb {
   border-radius: 9999px;
   border: 3px solid transparent;
-  background-color: var(--border-strong);
+  background-color: var(--scrollbar-thumb);
   background-clip: padding-box;
 }
-::-webkit-scrollbar-thumb:hover {
-  background-color: var(--ink-faint);
+::-webkit-scrollbar-thumb:hover,
+*:hover::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-hover);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+*:hover,
+*:focus-within {
+  scrollbar-color: var(--scrollbar-thumb-hover) transparent;
+}
+
+[data-passive-scroll-region] {
+  scrollbar-gutter: stable;
+}
+
+[data-passive-scroll-region]:focus-visible {
+  outline: 2px solid var(--primary-ring);
+  outline-offset: -2px;
 }
 
 /* Toast (ToastHost): fade in, hold, fade out across one duration that matches

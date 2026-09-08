@@ -92,7 +92,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
           align="start"
           sideOffset={4}
           collisionPadding={8}
-          className="z-[60] rounded-lg border border-border bg-surface p-2 text-ink shadow-lg"
+          className="z-[60] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-lg border border-border bg-surface p-2 text-ink shadow-lg"
         >
           {/* react-day-picker ships its own blue accent and inherits text color
               from the page (black) — both fail in dark mode. Map its accent vars

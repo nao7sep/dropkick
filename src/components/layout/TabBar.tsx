@@ -430,7 +430,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 data-dropkick-interactive-layer=""
                 align="start"
                 sideOffset={4}
-                className="z-50 w-64 rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
+                className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-64 overflow-y-auto rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
               >
                 <DropdownMenu.Item
                   onSelect={handleNewTaskList}
@@ -498,7 +498,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 data-dropkick-interactive-layer=""
                 align="end"
                 sideOffset={4}
-                className="z-50 w-52 rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
+                className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-52 overflow-y-auto rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
               >
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("settings")}

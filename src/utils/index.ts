@@ -48,6 +48,13 @@ export {
 export type { ListArrowDownPlan } from "./selection";
 
 export {
+  handlePassiveScrollKey,
+  passiveScrollRegionProps,
+  planPassiveScrollTop,
+} from "./passiveScroll";
+export type { PassiveScrollPlanInput } from "./passiveScroll";
+
+export {
   SYSTEM_DARK_THEME_QUERY,
   resolveDarkMode,
   toggledThemePreference,

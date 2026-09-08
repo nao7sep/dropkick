@@ -7,7 +7,10 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { AppModal } from "../shared/AppModal";
 import { SelectedTaskTitleList } from "../shared/SelectedTaskTitleList";
-import { hasPrimaryShortcutModifier } from "../../utils";
+import {
+  hasPrimaryShortcutModifier,
+  passiveScrollRegionProps,
+} from "../../utils";
 import { moveSelectedTasks } from "../../services";
 
 interface MoveTasksModalProps {
@@ -135,10 +138,12 @@ export function MoveTasksModal({
         </p>
       ) : null}
 
-      <SelectedTaskTitleList
-        tasks={selectedTasks}
+      <div
+        {...passiveScrollRegionProps("Selected tasks")}
         className="mb-4 max-h-32 overflow-y-auto"
-      />
+      >
+        <SelectedTaskTitleList tasks={selectedTasks} />
+      </div>
 
       {destinations.length === 0 ? (
         <p className="text-sm text-ink-muted">

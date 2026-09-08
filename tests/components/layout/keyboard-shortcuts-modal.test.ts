@@ -13,6 +13,18 @@ afterEach(async () => {
 });
 
 describe("KeyboardShortcutsModal tab commands", () => {
+  it("uses one reachable passive scroll owner for the whole catalogue", async () => {
+    host = await mount(createElement(KeyboardShortcutsModal, { onClose: () => {} }));
+
+    const owners = document.querySelectorAll("[data-passive-scroll-region]");
+    expect(owners).toHaveLength(1);
+    expect(owners[0].getAttribute("aria-label")).toBe("Keyboard shortcuts");
+    expect(owners[0].getAttribute("tabindex")).toBe("0");
+    expect(owners[0].className).toContain("overflow-y-auto");
+    expect(owners[0].querySelector(".overflow-y-auto")).toBeNull();
+    expect(document.activeElement).toBe(owners[0]);
+  });
+
   it("documents the keyboard-equivalent tab reorder", async () => {
     host = await mount(createElement(KeyboardShortcutsModal, { onClose: () => {} }));
 

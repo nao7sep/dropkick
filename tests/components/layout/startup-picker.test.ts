@@ -101,6 +101,14 @@ describe("StartupPicker — the file lists are real listboxes", () => {
     expect(selectedOptionText()).toContain("/a/prefs.json");
   });
 
+  it("moves by a page with PageUp and PageDown", async () => {
+    await mountWithKnownFiles();
+    await pressOn(preferencesListbox(), "PageDown");
+    expect(selectedOptionText()).toContain("/b/prefs.json");
+    await pressOn(preferencesListbox(), "PageUp");
+    expect(selectedOptionText()).toContain("/a/prefs.json");
+  });
+
   it("does not wrap past the ends", async () => {
     await mountWithKnownFiles();
     await pressOn(preferencesListbox(), "ArrowUp");

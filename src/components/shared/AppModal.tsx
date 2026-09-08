@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useRef } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { isComposingEvent } from "../../hooks/useComposing";
+import { passiveScrollRegionProps } from "../../utils";
 
 type DialogContentProps = Omit<
   ComponentPropsWithoutRef<typeof Dialog.Content>,
@@ -28,6 +29,9 @@ interface AppModalProps {
   footerClassName?: string;
   contentClassName?: string;
   contentProps?: DialogContentProps;
+  // Informational bodies opt in to the shared keyboard-scroll owner. Forms keep
+  // their fields as the focus and keyboard owners.
+  passiveBodyLabel?: string;
 }
 
 export function AppModal({
@@ -42,8 +46,10 @@ export function AppModal({
   footerClassName = "flex justify-end gap-2 border-t border-border px-6 py-4",
   contentClassName = "",
   contentProps,
+  passiveBodyLabel,
 }: AppModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const { onOpenAutoFocus, ...restContentProps } = contentProps ?? {};
 
   // When a close guard is active, Escape and outside-click are intercepted and
@@ -103,7 +109,8 @@ export function AppModal({
             onOpenAutoFocus?.(e);
             if (e.defaultPrevented) return;
             e.preventDefault();
-            contentRef.current?.focus();
+            if (passiveBodyLabel) bodyRef.current?.focus();
+            else contentRef.current?.focus();
           }}
           {...escapeAndOutsideHandlers}
           {...restContentProps}
@@ -134,7 +141,15 @@ export function AppModal({
             )}
           </div>
 
-          <div className={`min-h-0 ${bodyClassName}`}>{children}</div>
+          <div
+            ref={bodyRef}
+            {...(passiveBodyLabel
+              ? passiveScrollRegionProps(passiveBodyLabel)
+              : {})}
+            className={`min-h-0 ${bodyClassName}`}
+          >
+            {children}
+          </div>
 
           {footer && <div className={`shrink-0 ${footerClassName}`}>{footer}</div>}
         </Dialog.Content>

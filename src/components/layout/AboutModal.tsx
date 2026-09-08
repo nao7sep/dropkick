@@ -54,6 +54,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
       onClose={onClose}
       describedById="about-modal-description"
       maxWidth={320}
+      passiveBodyLabel="About Dropkick"
       bodyClassName="overflow-y-auto px-6 py-5 text-center"
       footerClassName="flex justify-end border-t border-border px-6 py-4"
       footer={

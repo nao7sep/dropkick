@@ -22,7 +22,9 @@ import {
 } from "../../repositories";
 import { useAppStateStore } from "../../state/app-state-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
-import { rowDomId, stepIndex } from "../../utils";
+import { pageStepIndex, rowDomId, stepIndex } from "../../utils";
+
+const STARTUP_LIST_PAGE = 4;
 
 interface StartupPickerProps {
   onLaunch: (preferencesPath: string, workspacePath: string) => void;
@@ -243,7 +245,11 @@ function Section({
     let next: number | null = null;
     if (e.key === "ArrowDown") next = stepIndex(current, 1, items.length);
     else if (e.key === "ArrowUp") next = stepIndex(current, -1, items.length);
-    else if (e.key === "Home") next = 0;
+    else if (e.key === "PageDown") {
+      next = pageStepIndex(current, 1, STARTUP_LIST_PAGE, items.length);
+    } else if (e.key === "PageUp") {
+      next = pageStepIndex(current, -1, STARTUP_LIST_PAGE, items.length);
+    } else if (e.key === "Home") next = 0;
     else if (e.key === "End") next = items.length - 1;
     if (next === null) return;
     e.preventDefault();

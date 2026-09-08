@@ -113,7 +113,8 @@ export function KeyboardShortcutsModal({
       onClose={onClose}
       describedById="shortcuts-modal-description"
       maxWidth={1160}
-      bodyClassName="flex max-h-[70vh] min-h-0 flex-col overflow-hidden px-6 py-4"
+      passiveBodyLabel="Keyboard shortcuts"
+      bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-4"
       footerClassName="flex justify-end border-t border-border px-6 py-4"
       footer={
           <button
@@ -128,16 +129,16 @@ export function KeyboardShortcutsModal({
         <p>Shortcuts can change meaning by context; modal shortcuts apply only inside that modal.</p>
         <p>On macOS, Cmd+Tab is reserved by the system for app switching.</p>
       </div>
-      <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {shortcutSections.map((section) => (
           <section
             key={section.title}
-            className="flex min-h-0 flex-col rounded-lg border border-border-subtle bg-background/60"
+            className="rounded-lg border border-border-subtle bg-background/60"
           >
-            <h3 className="shrink-0 border-b border-border-subtle px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted">
+            <h3 className="border-b border-border-subtle px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted">
               {section.title}
             </h3>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
+            <div className="space-y-2 px-4 py-3">
               {section.shortcuts.map((item) =>
                 "kind" in item ? (
                   <div
