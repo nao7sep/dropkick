@@ -2,7 +2,8 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-const host = process.env.TAURI_DEV_HOST;
+const remoteHost = process.env.TAURI_DEV_HOST;
+const host = remoteHost ?? "127.0.0.1";
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
@@ -14,16 +15,16 @@ export default defineConfig(() => ({
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available.
   //    Bumped from the 1420/1421 scaffold default so it never collides with a
-  //    sibling Tauri app's launcher port-kill (quickdeck uses 1621).
+  //    sibling app's fixed development endpoint.
   server: {
-    port: 1521,
+    port: 29327,
     strictPort: true,
-    host: host || false,
-    hmr: host
+    host,
+    hmr: remoteHost
       ? {
           protocol: "ws",
-          host,
-          port: 1522,
+          host: remoteHost,
+          port: 22853,
         }
       : undefined,
     watch: {
