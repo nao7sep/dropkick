@@ -10,6 +10,11 @@ import {
   LogicalSize,
 } from "@tauri-apps/api/window";
 import {
+  initializeMainWindowPlacement,
+  showMainWindowWithoutPlacement,
+  withWindowPlacementSuppressed,
+} from "./services/window-placement";
+import {
   computeMinWindowWidth,
   computeMinWindowHeight,
   TAB_BAR_MIN_HEIGHT,
@@ -130,9 +135,9 @@ function App() {
           });
         }
         if (!disposed) {
-          await appWindow.setMinSize(
+          await withWindowPlacementSuppressed(() => appWindow.setMinSize(
             new LogicalSize(minimum.width, minimum.height),
-          );
+          ));
         }
       } catch (error) {
         log.warn("window setMinSize failed", {
@@ -165,6 +170,16 @@ function App() {
     (async () => {
       try {
         const quarantinedTo = await initializeAppState();
+        const loadedState = useAppStateStore.getState();
+        const minimum = {
+          width: computeMinWindowWidth(loadedState.appState.zoomLevel),
+          height: computeMinWindowHeight(loadedState.appState.zoomLevel, mainChromeHeight),
+        };
+        await initializeMainWindowPlacement(
+          loadedState.appState.windowPlacements.main,
+          minimum,
+          (placement) => useAppStateStore.getState().updateWindowPlacement(placement),
+        );
 
         // The picker appears before the user chooses a preferences document,
         // so preview the last successfully opened one. This gives the initial
@@ -190,6 +205,7 @@ function App() {
           );
         }
       } catch (e) {
+        void showMainWindowWithoutPlacement();
         log.error("app initialization failed", toErrorFields(e));
         setPhase({
           kind: "error",

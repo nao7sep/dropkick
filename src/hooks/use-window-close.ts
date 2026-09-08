@@ -19,6 +19,7 @@ import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { drainAllSerial, log, toErrorFields } from "../repositories";
 import { flushNoteDraftsNow } from "../state/note-draft-store";
+import { flushMainWindowPlacement } from "../services/window-placement";
 
 // The work that must finish before the window is destroyed. Exported so the
 // close path can be exercised without driving a real window.
@@ -33,6 +34,7 @@ export async function prepareWindowClose(): Promise<void> {
   // close lose nothing at all. There is no prompt here: nothing is held back to
   // ask about.
   await flushNoteDraftsNow();
+  await flushMainWindowPlacement();
   await drainAllSerial();
 }
 

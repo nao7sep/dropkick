@@ -20,7 +20,12 @@ export interface AppStateDto {
   knownWorkspaces: string[]; // absolute paths
   zoomLevel: number; // 0.5–5.0 (1.0 = 100%); kept in sync with ZOOM_DEFAULT (utils/zoom)
   sidebarWidth: number; // sidebar intent width in PIXELS — the width the user last dragged it to; the displayed width is clamp(SIDEBAR_MIN, intent, maxFit) — see DEFAULT_SIDEBAR_WIDTH / clampSidebarWidth in utils/windowSizing
+  windowPlacements: { main: WindowPlacementRecord | null };
 }
+
+export type WindowPlacementMode = "normal" | "maximized";
+export type WindowBounds = { x: number; y: number; width: number; height: number };
+export type WindowPlacementRecord = { normalBounds: WindowBounds | null; mode: WindowPlacementMode };
 
 export function createDefaultAppState(): AppStateDto {
   return {
@@ -32,5 +37,6 @@ export function createDefaultAppState(): AppStateDto {
     knownWorkspaces: [],
     zoomLevel: 1.0, // kept in sync with ZOOM_DEFAULT (utils/zoom)
     sidebarWidth: 320, // sidebar intent width in px; kept in sync with DEFAULT_SIDEBAR_WIDTH (utils/windowSizing)
+    windowPlacements: { main: null },
   };
 }

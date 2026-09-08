@@ -150,6 +150,38 @@ describe("app-level storage filenames", () => {
     expect(appState.zoomLevel).toBe(1.5);
     expect(appState.sidebarWidth).toBe(440);
   });
+
+  it("heals malformed window placement without resetting sibling state", async () => {
+    fileExists.mockResolvedValue(true);
+    readJsonFileResult.mockResolvedValue({
+      status: "success",
+      data: {
+        version: "1.0.0",
+        lastPreferencesPath: "/x/preferences.json",
+        lastWorkspacePath: "/x/workspace.json",
+        knownPreferences: ["/x/preferences.json"],
+        knownWorkspaces: ["/x/workspace.json"],
+        zoomLevel: 1.5,
+        sidebarWidth: 440,
+        windowPlacements: {
+          main: {
+            mode: "maximized",
+            normalBounds: { x: 20, y: 30, width: "wide", height: 800 },
+          },
+        },
+      },
+    });
+
+    const { appState } = await initializeAppState();
+
+    expect(appState.windowPlacements.main).toEqual({
+      mode: "maximized",
+      normalBounds: null,
+    });
+    expect(appState.zoomLevel).toBe(1.5);
+    expect(appState.sidebarWidth).toBe(440);
+    expect(quarantineFile).not.toHaveBeenCalled();
+  });
 });
 
 describe("corrupt state.json", () => {

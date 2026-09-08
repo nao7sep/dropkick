@@ -9,7 +9,7 @@
 
 import { create } from "zustand";
 import { guardBackgroundWrite } from "./background-write";
-import type { AppStateDto } from "../models";
+import type { AppStateDto, WindowPlacementRecord } from "../models";
 import { createDefaultAppState } from "../models";
 import { initializeAppState, flushAppState, log } from "../repositories";
 
@@ -34,6 +34,7 @@ interface AppStateStore {
   // funnel for zoom shortcuts, the hamburger-menu zoom, and the divider drag — the
   // state-store analogue of the preferences store's `update`.
   updateViewState: (changes: ViewStateChanges) => Promise<void>;
+  updateWindowPlacement: (placement: WindowPlacementRecord) => Promise<void>;
   setLastPaths: (
     preferencesPath: string,
     workspacePath: string,
@@ -73,6 +74,13 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
       log.info("view state updated", { changed: Object.keys(changes) });
       set((state) => ({ appState: { ...state.appState, ...changes } }));
       await flush("Your window layout");
+    },
+
+    updateWindowPlacement: async (placement) => {
+      set((state) => ({
+        appState: { ...state.appState, windowPlacements: { main: placement } },
+      }));
+      await flush("Your window placement");
     },
 
     setLastPaths: async (preferencesPath, workspacePath) => {
