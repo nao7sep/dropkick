@@ -33,6 +33,17 @@ function scopedPermission(identifier: string) {
 }
 
 describe("Tauri window capability (src-tauri/capabilities/default.json)", () => {
+  it("grants the mutating window calls used by placement restoration", () => {
+    for (const permission of [
+      "core:window:allow-set-size",
+      "core:window:allow-set-position",
+      "core:window:allow-maximize",
+      "core:window:allow-show",
+    ]) {
+      expect(permissions).toContain(permission);
+    }
+  });
+
   it("does not grant a plugin's whole default set for the opener", () => {
     expect(permissions).not.toContain("opener:default");
     expect(permissions).not.toContain("opener:allow-reveal-item-in-dir");
