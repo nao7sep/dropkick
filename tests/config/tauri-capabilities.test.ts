@@ -33,12 +33,12 @@ function scopedPermission(identifier: string) {
 }
 
 describe("Tauri window capability (src-tauri/capabilities/default.json)", () => {
-  it("grants the mutating window calls used by placement restoration", () => {
+  it("grants the mutating window calls used by the frontend", () => {
     for (const permission of [
-      "core:window:allow-set-size",
-      "core:window:allow-set-position",
-      "core:window:allow-maximize",
-      "core:window:allow-show",
+      "core:window:allow-destroy",
+      "core:window:allow-set-title",
+      "core:window:allow-set-theme",
+      "core:window:allow-set-min-size",
     ]) {
       expect(permissions).toContain(permission);
     }

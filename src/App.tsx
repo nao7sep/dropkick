@@ -176,7 +176,6 @@ function App() {
     (async () => {
       try {
         const quarantinedTo = await initializeAppState();
-        await getCurrentWindow().show();
 
         // The picker appears before the user chooses a preferences document,
         // so preview the last successfully opened one. This gives the initial
@@ -202,7 +201,6 @@ function App() {
           );
         }
       } catch (e) {
-        void getCurrentWindow().show();
         log.error("app initialization failed", toErrorFields(e));
         setPhase({
           kind: "error",
