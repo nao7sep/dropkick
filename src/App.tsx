@@ -44,6 +44,7 @@ type AppPhase =
 
 function App() {
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
+  const [placementReady, setPlacementReady] = useState(false);
   const [mainChromeHeight, setMainChromeHeight] = useState(TAB_BAR_MIN_HEIGHT);
   const loadPreferences = usePreferencesStore((s) => s.load);
   const loadWorkspace = useWorkspaceStore((s) => s.load);
@@ -100,6 +101,7 @@ function App() {
   // zoomed-in window shrink to a fraction of what its content needs.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   useEffect(() => {
+    if (!placementReady) return;
     const appWindow = getCurrentWindow();
     let disposed = false;
     const unlistens: Array<() => void> = [];
@@ -170,7 +172,7 @@ function App() {
       disposed = true;
       for (const unlisten of unlistens) unlisten();
     };
-  }, [zoomLevel, mainChromeHeight]);
+  }, [placementReady, zoomLevel, mainChromeHeight]);
 
   // Initialize on mount.
   useEffect(() => {
@@ -183,6 +185,7 @@ function App() {
           log.warn("window state restore failed", toErrorFields(e));
         }
         await getCurrentWindow().show();
+        setPlacementReady(true);
 
         // The picker appears before the user chooses a preferences document,
         // so preview the last successfully opened one. This gives the initial
@@ -209,6 +212,7 @@ function App() {
         }
       } catch (e) {
         void getCurrentWindow().show();
+        setPlacementReady(true);
         log.error("app initialization failed", toErrorFields(e));
         setPhase({
           kind: "error",
