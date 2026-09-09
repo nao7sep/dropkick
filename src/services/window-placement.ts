@@ -67,12 +67,24 @@ export async function initializeMainWindowPlacement(
   if (!isTauri() || flushPlacement) return;
   const win = getCurrentWindow();
   const restoration = resolveWindowRestoration(saved, minimum, await availableMonitors());
-  const [openingPosition, openingSize] = await Promise.all([win.outerPosition(), win.outerSize()]);
+  const [openingPosition, openingSize, openingInnerSize] = await Promise.all([
+    win.outerPosition(),
+    win.outerSize(),
+    win.innerSize(),
+  ]);
+  // Windows can ignore positioning and maximization requests made while the
+  // native HWND is still hidden. Make it visible before applying either state.
+  await win.show();
   if (restoration.normalBounds) {
     const bounds = restoration.normalBounds;
     try {
       await withWindowPlacementSuppressed(async () => {
-        await win.setSize(new PhysicalSize(bounds.width, bounds.height));
+        // Tauri setSize() accepts an inner/client size, while the placement
+        // record stores outer bounds. Preserve the current native frame delta.
+        await win.setSize(new PhysicalSize(
+          Math.max(1, bounds.width - Math.max(0, openingSize.width - openingInnerSize.width)),
+          Math.max(1, bounds.height - Math.max(0, openingSize.height - openingInnerSize.height)),
+        ));
         await win.setPosition(new PhysicalPosition(bounds.x, bounds.y));
       });
       const [position, size] = await Promise.all([win.outerPosition(), win.outerSize()]);
@@ -81,7 +93,7 @@ export async function initializeMainWindowPlacement(
       }
     } catch {
       await withWindowPlacementSuppressed(async () => {
-        await win.setSize(openingSize);
+        await win.setSize(openingInnerSize);
         await win.setPosition(openingPosition);
       });
     }
@@ -123,11 +135,31 @@ export async function initializeMainWindowPlacement(
     cancel();
     await eventQueue;
     if (!enabled) return;
-    if (await win.isMaximized() && !await win.isMinimized() && !await win.isFullscreen()) mode = "maximized";
+    const [minimized, fullscreen, maximized] = await Promise.all([
+      win.isMinimized(), win.isFullscreen(), win.isMaximized(),
+    ]);
+    if (!minimized && !fullscreen) {
+      if (maximized) {
+        mode = "maximized";
+      } else {
+        const [nextPosition, nextSize] = await Promise.all([win.outerPosition(), win.outerSize()]);
+        normalBounds = {
+          x: nextPosition.x,
+          y: nextPosition.y,
+          width: nextSize.width,
+          height: nextSize.height,
+        };
+        mode = "normal";
+      }
+    }
     await save();
   };
-  if (restoration.mode === "maximized") await withWindowPlacementSuppressed(() => win.maximize());
-  await win.show();
+  if (restoration.mode === "maximized") {
+    // Give Windows one browser event-loop turn after show() so maximize reaches
+    // the titled HWND rather than being lost during native-window creation.
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    await withWindowPlacementSuppressed(() => win.maximize());
+  }
   await new Promise((resolve) => window.setTimeout(resolve, 500));
   enabled = true;
   if (restoration.mode === "maximized" && !await win.isMaximized()) mode = "normal";

@@ -113,6 +113,11 @@ function App() {
     };
     const applyMinimum = async () => {
       try {
+        const [maximized, fullscreen] = await Promise.all([
+          appWindow.isMaximized(),
+          appWindow.isFullscreen(),
+        ]);
+        if (maximized || fullscreen) return;
         const monitor = await currentMonitor();
         let minimum = required;
         if (monitor !== null) {
@@ -156,9 +161,14 @@ function App() {
           log.warn("window metric listener failed", toErrorFields(error)),
         );
     };
-    void applyMinimum();
-    retain(appWindow.onMoved(() => void applyMinimum()));
-    retain(appWindow.onScaleChanged(() => void applyMinimum()));
+    // On Windows, setMinSize during a maximize transition can interrupt the
+    // transition and leave a work-area-sized normal window. Install geometry
+    // listeners only after the initial minimum has settled.
+    void applyMinimum().then(() => {
+      if (disposed) return;
+      retain(appWindow.onMoved(() => void applyMinimum()));
+      retain(appWindow.onScaleChanged(() => void applyMinimum()));
+    });
     return () => {
       disposed = true;
       for (const unlisten of unlistens) unlisten();
