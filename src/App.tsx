@@ -12,7 +12,6 @@ import {
 import {
   initializeMainWindowPlacement,
   showMainWindowWithoutPlacement,
-  withWindowPlacementSuppressed,
 } from "./services/window-placement";
 import {
   computeMinWindowWidth,
@@ -113,11 +112,12 @@ function App() {
     };
     const applyMinimum = async () => {
       try {
-        const [maximized, fullscreen] = await Promise.all([
+        const [maximized, fullscreen, minimized] = await Promise.all([
           appWindow.isMaximized(),
           appWindow.isFullscreen(),
+          appWindow.isMinimized(),
         ]);
-        if (maximized || fullscreen) return;
+        if (maximized || fullscreen || minimized) return;
         const monitor = await currentMonitor();
         let minimum = required;
         if (monitor !== null) {
@@ -140,9 +140,9 @@ function App() {
           });
         }
         if (!disposed) {
-          await withWindowPlacementSuppressed(() => appWindow.setMinSize(
+          await appWindow.setMinSize(
             new LogicalSize(minimum.width, minimum.height),
-          ));
+          );
         }
       } catch (error) {
         log.warn("window setMinSize failed", {
@@ -181,13 +181,8 @@ function App() {
       try {
         const quarantinedTo = await initializeAppState();
         const loadedState = useAppStateStore.getState();
-        const minimum = {
-          width: computeMinWindowWidth(loadedState.appState.zoomLevel),
-          height: computeMinWindowHeight(loadedState.appState.zoomLevel, mainChromeHeight),
-        };
         await initializeMainWindowPlacement(
           loadedState.appState.windowPlacements.main,
-          minimum,
           (placement) => useAppStateStore.getState().updateWindowPlacement(placement),
         );
 
