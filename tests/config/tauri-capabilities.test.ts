@@ -36,9 +36,11 @@ describe("Tauri window capability (src-tauri/capabilities/default.json)", () => 
   it("grants the mutating window calls used by the frontend", () => {
     for (const permission of [
       "core:window:allow-destroy",
+      "core:window:allow-show",
       "core:window:allow-set-title",
       "core:window:allow-set-theme",
       "core:window:allow-set-min-size",
+      "window-state:allow-restore-state",
     ]) {
       expect(permissions).toContain(permission);
     }

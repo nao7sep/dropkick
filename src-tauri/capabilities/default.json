@@ -13,9 +13,11 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "core:window:allow-destroy",
+    "core:window:allow-show",
     "core:window:allow-set-title",
     "core:window:allow-set-theme",
     "core:window:allow-set-min-size",
+    "window-state:allow-restore-state",
     "core:webview:allow-set-webview-zoom"
   ]
 }
