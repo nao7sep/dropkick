@@ -1,8 +1,5 @@
 export type {
   AppStateDto,
-  WindowBounds,
-  WindowPlacementMode,
-  WindowPlacementRecord,
 } from "./app-state";
 export { createDefaultAppState } from "./app-state";
 

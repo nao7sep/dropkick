@@ -151,7 +151,7 @@ describe("app-level storage filenames", () => {
     expect(appState.sidebarWidth).toBe(440);
   });
 
-  it("heals malformed window placement without resetting sibling state", async () => {
+  it("drops retired placement state without resetting sibling state", async () => {
     fileExists.mockResolvedValue(true);
     readJsonFileResult.mockResolvedValue({
       status: "success",
@@ -174,10 +174,7 @@ describe("app-level storage filenames", () => {
 
     const { appState } = await initializeAppState();
 
-    expect(appState.windowPlacements.main).toEqual({
-      mode: "maximized",
-      normalBounds: null,
-    });
+    expect(appState).not.toHaveProperty("windowPlacements");
     expect(appState.zoomLevel).toBe(1.5);
     expect(appState.sidebarWidth).toBe(440);
     expect(quarantineFile).not.toHaveBeenCalled();

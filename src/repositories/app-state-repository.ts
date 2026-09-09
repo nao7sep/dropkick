@@ -13,7 +13,7 @@
 // repositories. The actual data manipulation (register/unregister) lives in
 // useAppStateStore; this module owns I/O only.
 
-import type { AppStateDto, WindowBounds } from "../models";
+import type { AppStateDto } from "../models";
 import { createDefaultAppState } from "../models";
 import {
   readJsonFileResult,
@@ -124,7 +124,6 @@ export async function initializeAppState(): Promise<{
     // load-boundary contract as the preferences and workspace repositories.
     const stored = configResult.data as Partial<AppStateDto>;
     appState = mergeWithDefaults(createDefaultAppState(), stored);
-    appState.windowPlacements = normalizeWindowPlacements(stored.windowPlacements);
     // Before startup theming existed, lastPreferencesPath was the only stored
     // candidate. Treat it as the last launched document for existing state;
     // new state starts empty and records this only after a successful launch.
@@ -156,25 +155,6 @@ export async function initializeAppState(): Promise<{
 
   log.info("app state initialized", { statePath, created });
   return { appState, statePath, quarantinedTo };
-}
-
-function normalizeWindowPlacements(raw: unknown): AppStateDto["windowPlacements"] {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { main: null };
-  const main = (raw as Record<string, unknown>).main;
-  if (!main || typeof main !== "object" || Array.isArray(main)) return { main: null };
-  const source = main as Record<string, unknown>;
-  const mode = source.mode === "maximized" ? "maximized" : "normal";
-  const candidate = source.normalBounds;
-  if (candidate === null) return { main: { normalBounds: null, mode } };
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
-    return { main: { normalBounds: null, mode } };
-  }
-  const bounds = candidate as Record<string, unknown>;
-  const values = [bounds.x, bounds.y, bounds.width, bounds.height];
-  if (!values.every((value) => typeof value === "number" && Number.isFinite(value))) {
-    return { main: { normalBounds: null, mode } };
-  }
-  return { main: { normalBounds: bounds as WindowBounds, mode } };
 }
 
 // Flushes the latest app state to disk. Calls are serialized per path,

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const setTheme = vi.fn();
 const setMinSize = vi.fn();
+const show = vi.fn();
 const onMoved = vi.fn();
 const onScaleChanged = vi.fn();
 
@@ -19,6 +20,7 @@ vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
     setTheme,
     setMinSize,
+    show,
     onMoved,
     onScaleChanged,
   }),
@@ -67,6 +69,7 @@ let lastLaunchedPreferencesPath: string;
 beforeEach(() => {
   setTheme.mockReset().mockResolvedValue(undefined);
   setMinSize.mockReset().mockResolvedValue(undefined);
+  show.mockReset().mockResolvedValue(undefined);
   onMoved.mockReset().mockResolvedValue(() => {});
   onScaleChanged.mockReset().mockResolvedValue(() => {});
   loadedTheme = "dark";

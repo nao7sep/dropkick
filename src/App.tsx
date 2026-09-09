@@ -10,10 +10,6 @@ import {
   LogicalSize,
 } from "@tauri-apps/api/window";
 import {
-  initializeMainWindowPlacement,
-  showMainWindowWithoutPlacement,
-} from "./services/window-placement";
-import {
   computeMinWindowWidth,
   computeMinWindowHeight,
   TAB_BAR_MIN_HEIGHT,
@@ -180,11 +176,7 @@ function App() {
     (async () => {
       try {
         const quarantinedTo = await initializeAppState();
-        const loadedState = useAppStateStore.getState();
-        await initializeMainWindowPlacement(
-          loadedState.appState.windowPlacements.main,
-          (placement) => useAppStateStore.getState().updateWindowPlacement(placement),
-        );
+        await getCurrentWindow().show();
 
         // The picker appears before the user chooses a preferences document,
         // so preview the last successfully opened one. This gives the initial
@@ -210,7 +202,7 @@ function App() {
           );
         }
       } catch (e) {
-        void showMainWindowWithoutPlacement();
+        void getCurrentWindow().show();
         log.error("app initialization failed", toErrorFields(e));
         setPhase({
           kind: "error",

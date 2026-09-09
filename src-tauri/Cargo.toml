@@ -77,3 +77,6 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 # `#[serial]` attribute is needed.
 serial_test = { version = "3.5", default-features = false }
 tempfile = "3.27"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-window-state = "2.4.1"
