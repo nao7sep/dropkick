@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tauri::AppHandle;
+use tauri_plugin_window_state::StateFlags;
 
 // The modules are `pub` so the integration tests in `tests/` can reach them.
 // This crate's only real consumer is `main.rs`, so the "public API" is a seam
@@ -577,6 +578,11 @@ pub fn run() {
         .plugin(instance_owner::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::POSITION | StateFlags::SIZE)
+                .build(),
+        )
         .setup(move |app| {
             // Open the per-session log file under the app's own data dir. The Rust
             // core has filesystem access even though the webview is sandboxed, and

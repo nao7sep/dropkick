@@ -72,4 +72,43 @@ describe("Tauri window capability (src-tauri/capabilities/default.json)", () => 
       expect(identifiers.filter((id) => id.startsWith(prefix))).toEqual([]);
     }
   });
+
+  it("keeps window-state operations outside the frontend capability", () => {
+    const identifiers = permissions.map((p) =>
+      typeof p === "string" ? p : (p as { identifier?: string }).identifier ?? "",
+    );
+    expect(identifiers.filter((id) => id.startsWith("window-state:"))).toEqual([]);
+  });
+});
+
+describe("durable window-state boundary", () => {
+  const core = readFileSync(
+    fileURLToPath(new URL("../../src-tauri/src/lib.rs", import.meta.url)),
+    "utf8",
+  );
+  const appRoot = readFileSync(
+    fileURLToPath(new URL("../../src/App.tsx", import.meta.url)),
+    "utf8",
+  );
+  const tauriConfig = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL("../../src-tauri/tauri.conf.json", import.meta.url),
+      ),
+      "utf8",
+    ),
+  ) as { app: { windows: Array<{ visible?: boolean }> } };
+
+  it("lets the Rust plugin automatically track only position and size", () => {
+    expect(core).toContain("StateFlags::POSITION | StateFlags::SIZE");
+    expect(core).not.toContain("skip_initial_state");
+    expect(core).not.toContain("StateFlags::MAXIMIZED");
+    expect(core).not.toContain("StateFlags::FULLSCREEN");
+    expect(core).not.toContain("StateFlags::VISIBLE");
+  });
+
+  it("keeps placement out of the frontend and creates the window visible", () => {
+    expect(appRoot).not.toMatch(/plugin-window-state|restoreState|saveWindowState/);
+    expect(tauriConfig.app.windows[0]?.visible).not.toBe(false);
+  });
 });

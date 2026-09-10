@@ -65,6 +65,9 @@ getrandom = "0.4.3"
 # conventions' "built-in or lowest-friction binding" rule).
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-window-state = "2.4.1"
+
 [dev-dependencies]
 # Serializes the tests that share the process-global backup-store singleton
 # (`static STORE` in backup_store.rs). `cargo test` runs tests in parallel threads
