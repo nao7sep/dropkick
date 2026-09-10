@@ -2,8 +2,8 @@
 //!
 //! The app owns whole-file task and workspace snapshots, so two GUI processes
 //! must never open the same storage root concurrently. An OS file lock is the
-//! authority; a loopback endpoint only asks the established owner to restore
-//! and focus its window. Scoping both files to `DROPKICK_HOME` keeps disposable
+//! authority; a loopback endpoint only asks the established owner to show and
+//! focus its window. Scoping both files to `DROPKICK_HOME` keeps disposable
 //! test homes independent from the normal profile.
 
 use std::fs::{File, OpenOptions, TryLockError};

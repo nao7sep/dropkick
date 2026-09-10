@@ -11,9 +11,6 @@ const isFullscreen = vi.fn();
 const isMinimized = vi.fn();
 const onMoved = vi.fn();
 const onScaleChanged = vi.fn();
-const { restoreStateCurrent } = vi.hoisted(() => ({
-  restoreStateCurrent: vi.fn(),
-}));
 
 vi.mock("@tauri-apps/api/window", () => ({
   LogicalSize: class LogicalSize {
@@ -34,8 +31,6 @@ vi.mock("@tauri-apps/api/window", () => ({
     onScaleChanged,
   }),
 }));
-
-vi.mock("@tauri-apps/plugin-window-state", () => ({ restoreStateCurrent }));
 
 vi.mock("../src/repositories", () => ({
   showMessage: vi.fn(),
@@ -86,7 +81,6 @@ beforeEach(() => {
   isMinimized.mockReset().mockResolvedValue(false);
   onMoved.mockReset().mockResolvedValue(() => {});
   onScaleChanged.mockReset().mockResolvedValue(() => {});
-  restoreStateCurrent.mockReset().mockResolvedValue(undefined);
   loadedTheme = "dark";
   lastLaunchedPreferencesPath = LAST_PREFERENCES;
   vi.stubGlobal("matchMedia", () => ({
@@ -179,34 +173,5 @@ describe("startup theme", () => {
 
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(setTheme).toHaveBeenLastCalledWith(null);
-  });
-});
-
-describe("startup window placement", () => {
-  it("does not apply the minimum until restore and show have completed", async () => {
-    let finishRestore: () => void = () => {};
-    restoreStateCurrent.mockImplementation(
-      () => new Promise<void>((resolve) => {
-        finishRestore = resolve;
-      }),
-    );
-
-    host = await mount(createElement(App));
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(setMinSize).not.toHaveBeenCalled();
-
-    await act(async () => {
-      finishRestore();
-      await Promise.resolve();
-    });
-
-    expect(show).toHaveBeenCalledOnce();
-    expect(setMinSize).toHaveBeenCalledOnce();
-    expect(show.mock.invocationCallOrder[0]).toBeLessThan(
-      setMinSize.mock.invocationCallOrder[0],
-    );
   });
 });

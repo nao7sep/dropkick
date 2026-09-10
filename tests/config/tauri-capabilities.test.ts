@@ -40,7 +40,6 @@ describe("Tauri window capability (src-tauri/capabilities/default.json)", () => 
       "core:window:allow-set-title",
       "core:window:allow-set-theme",
       "core:window:allow-set-min-size",
-      "window-state:allow-restore-state",
     ]) {
       expect(permissions).toContain(permission);
     }

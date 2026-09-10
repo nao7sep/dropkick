@@ -72,7 +72,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
       // funnel discipline as the preferences store's update.
       log.info("view state updated", { changed: Object.keys(changes) });
       set((state) => ({ appState: { ...state.appState, ...changes } }));
-      await flush("Your window layout");
+      await flush("Your view settings");
     },
 
     setLastPaths: async (preferencesPath, workspacePath) => {

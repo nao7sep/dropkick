@@ -12,12 +12,12 @@ describe("background-write error", () => {
   it("survives unrelated transient feedback", () => {
     useToastStore
       .getState()
-      .showBackgroundWriteError("Window layout", "Window layout could not be saved.");
+      .showBackgroundWriteError("View settings", "View settings could not be saved.");
     useToastStore.getState().showToast("This action is unavailable here.");
 
     expect(useToastStore.getState().backgroundWriteError).toEqual({
-      what: "Window layout",
-      message: "Window layout could not be saved.",
+      what: "View settings",
+      message: "View settings could not be saved.",
     });
     expect(useToastStore.getState().message).toBe(
       "This action is unavailable here.",
@@ -26,11 +26,11 @@ describe("background-write error", () => {
 
   it("is resolved only by a matching successful write or explicit dismissal", () => {
     const store = useToastStore.getState();
-    store.showBackgroundWriteError("Window layout", "Failed");
+    store.showBackgroundWriteError("View settings", "Failed");
     store.clearBackgroundWriteError("Saved locations");
     expect(useToastStore.getState().backgroundWriteError).not.toBeNull();
 
-    store.clearBackgroundWriteError("Window layout");
+    store.clearBackgroundWriteError("View settings");
     expect(useToastStore.getState().backgroundWriteError).toBeNull();
   });
 });

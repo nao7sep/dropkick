@@ -24,8 +24,8 @@ afterEach(async () => {
 describe("ToastHost result channels", () => {
   it("keeps a persistent structural alert beside transient no-op feedback", async () => {
     useToastStore.getState().showBackgroundWriteError(
-      "Your window layout",
-      "Your window layout could not be saved.",
+      "Your view settings",
+      "Your view settings could not be saved.",
     );
     useToastStore.getState().showToast("This action is unavailable here.");
 
