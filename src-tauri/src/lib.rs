@@ -4,8 +4,8 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tauri::AppHandle;
-use tauri_plugin_window_state::StateFlags;
+use tauri::{AppHandle, Manager};
+use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 // The modules are `pub` so the integration tests in `tests/` can reach them.
 // This crate's only real consumer is `main.rs`, so the "public API" is a seam
@@ -580,7 +580,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_window_state::Builder::default()
-                .with_state_flags(StateFlags::POSITION | StateFlags::SIZE)
+                // Windows emits a transient move while maximizing. Track that
+                // mode so the plugin preserves the prior coordinates, but
+                // restore only normal geometry during setup below.
+                .with_state_flags(
+                    StateFlags::POSITION | StateFlags::SIZE | StateFlags::MAXIMIZED,
+                )
+                .skip_initial_state("main")
                 .build(),
         )
         .setup(move |app| {
@@ -634,6 +640,14 @@ pub fn run() {
                     // a terminal launch; the user sees the error in the window.
                     install_panic_hook();
                     eprintln!("dropkick: storage root unavailable: {message}");
+                }
+            }
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(error) = window.restore_state(StateFlags::POSITION | StateFlags::SIZE) {
+                    logging::warn(
+                        "normal window state could not be restored",
+                        json!({ "error": error.to_string() }),
+                    );
                 }
             }
             Ok(())

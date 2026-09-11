@@ -98,10 +98,13 @@ describe("durable window-state boundary", () => {
     ),
   ) as { app: { windows: Array<{ visible?: boolean }> } };
 
-  it("lets the Rust plugin automatically track only position and size", () => {
+  it("tracks the transient maximize event but restores only normal geometry", () => {
     expect(core).toContain("StateFlags::POSITION | StateFlags::SIZE");
-    expect(core).not.toContain("skip_initial_state");
-    expect(core).not.toContain("StateFlags::MAXIMIZED");
+    expect(core).toContain("StateFlags::MAXIMIZED");
+    expect(core).toContain('.skip_initial_state("main")');
+    expect(core).toContain(
+      "window.restore_state(StateFlags::POSITION | StateFlags::SIZE)",
+    );
     expect(core).not.toContain("StateFlags::FULLSCREEN");
     expect(core).not.toContain("StateFlags::VISIBLE");
   });
