@@ -18,6 +18,12 @@ describe("launcher process identity", () => {
     expect(ownsProcess({
       pid: 11,
       parentPid: 1,
+      executablePath: `${REPO_ROOT}/src-tauri/target/release/bundle/macos/Dropkick.app/Contents/MacOS/dropkick`,
+      commandLine: "",
+    }, identity)).toBe(true);
+    expect(ownsProcess({
+      pid: 12,
+      parentPid: 1,
       executablePath: "/another/repo/src-tauri/target/debug/dropkick",
       commandLine: "",
     }, identity)).toBe(false);
