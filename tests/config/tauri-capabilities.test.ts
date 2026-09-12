@@ -85,6 +85,10 @@ describe("durable window-state boundary", () => {
     fileURLToPath(new URL("../../src-tauri/src/lib.rs", import.meta.url)),
     "utf8",
   );
+  const placement = readFileSync(
+    fileURLToPath(new URL("../../src-tauri/src/window_placement.rs", import.meta.url)),
+    "utf8",
+  );
   const appRoot = readFileSync(
     fileURLToPath(new URL("../../src/App.tsx", import.meta.url)),
     "utf8",
@@ -98,19 +102,16 @@ describe("durable window-state boundary", () => {
     ),
   ) as { app: { windows: Array<{ visible?: boolean }> } };
 
-  it("tracks the transient maximize event but restores only normal geometry", () => {
-    expect(core).toContain("StateFlags::POSITION | StateFlags::SIZE");
-    expect(core).toContain("StateFlags::MAXIMIZED");
-    expect(core).toContain('.skip_initial_state("main")');
-    expect(core).toContain(
-      "window.restore_state(StateFlags::POSITION | StateFlags::SIZE)",
-    );
-    expect(core).not.toContain("StateFlags::FULLSCREEN");
-    expect(core).not.toContain("StateFlags::VISIBLE");
+  it("restores the atomic native record before showing Main", () => {
+    expect(core).toContain("window_placement::restore(");
+    expect(core).toContain("window.show()?");
+    expect(core.indexOf("window_placement::restore(")).toBeLessThan(core.indexOf("window.show()?"));
+    expect(core).not.toContain("tauri_plugin_window_state");
+    expect(placement).not.toMatch(/Moved|Resized|debounce|prev_[xy]/i);
   });
 
-  it("keeps placement out of the frontend and creates the window visible", () => {
+  it("keeps placement out of the frontend and creates Main hidden", () => {
     expect(appRoot).not.toMatch(/plugin-window-state|restoreState|saveWindowState/);
-    expect(tauriConfig.app.windows[0]?.visible).not.toBe(false);
+    expect(tauriConfig.app.windows[0]?.visible).toBe(false);
   });
 });

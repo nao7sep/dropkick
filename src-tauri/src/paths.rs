@@ -136,6 +136,7 @@ fn absolutize(home: &Path, path: PathBuf) -> PathBuf {
 // meant finding five unrelated files, and the sandboxed half was composing
 // absolute paths with a hand-rolled separator guess.
 const STATE_FILE: &str = "state.json";
+pub const WINDOW_FILE_NAME: &str = "window.json";
 const PREFERENCES_FILE: &str = "preferences.json";
 const WORKSPACE_FILE: &str = "workspace.json";
 const NOTE_DRAFTS_FILE: &str = "note-drafts.json";

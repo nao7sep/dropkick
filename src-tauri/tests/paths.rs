@@ -7,13 +7,15 @@
 use dropkick_lib::paths::{app_paths, resolve_root};
 use std::path::PathBuf;
 
-
 #[test]
 fn default_root_is_home_dot_dropkick() {
     let home = PathBuf::from("/home/tester");
     // Unset / empty / whitespace all fall back to the default root.
     assert_eq!(resolve_root(&home, None).unwrap(), home.join(".dropkick"));
-    assert_eq!(resolve_root(&home, Some(String::new())).unwrap(), home.join(".dropkick"));
+    assert_eq!(
+        resolve_root(&home, Some(String::new())).unwrap(),
+        home.join(".dropkick")
+    );
     assert_eq!(
         resolve_root(&home, Some("   ".to_string())).unwrap(),
         home.join(".dropkick")
@@ -107,4 +109,9 @@ fn app_paths_names_each_store_distinctly() {
     ];
     let unique: std::collections::HashSet<&String> = names.iter().collect();
     assert_eq!(unique.len(), names.len(), "two stores share a path");
+}
+
+#[test]
+fn native_window_state_has_its_own_file_name() {
+    assert_eq!(dropkick_lib::paths::WINDOW_FILE_NAME, "window.json");
 }

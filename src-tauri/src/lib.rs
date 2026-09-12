@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
-use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 // The modules are `pub` so the integration tests in `tests/` can reach them.
 // This crate's only real consumer is `main.rs`, so the "public API" is a seam
@@ -17,6 +16,7 @@ mod instance_owner;
 pub mod logging;
 pub mod nanoid;
 pub mod paths;
+pub mod window_placement;
 
 // --- Command boundary logging ---
 //
@@ -574,21 +574,16 @@ pub fn run() {
             .map(|v| v == "1")
             .unwrap_or(false);
 
+    let placement_state = window_placement::new_state();
+    let event_placement_state = placement_state.clone();
+    let setup_placement_state = placement_state.clone();
     let app = tauri::Builder::default()
         .plugin(instance_owner::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(
-            tauri_plugin_window_state::Builder::default()
-                // Windows emits a transient move while maximizing. Track that
-                // mode so the plugin preserves the prior coordinates, but
-                // restore only normal geometry during setup below.
-                .with_state_flags(
-                    StateFlags::POSITION | StateFlags::SIZE | StateFlags::MAXIMIZED,
-                )
-                .skip_initial_state("main")
-                .build(),
-        )
+        .on_window_event(move |window, event| {
+            window_placement::on_window_event(window, event, &event_placement_state);
+        })
         .setup(move |app| {
             // Open the per-session log file under the app's own data dir. The Rust
             // core has filesystem access even though the webview is sandboxed, and
@@ -643,12 +638,12 @@ pub fn run() {
                 }
             }
             if let Some(window) = app.get_webview_window("main") {
-                if let Err(error) = window.restore_state(StateFlags::POSITION | StateFlags::SIZE) {
-                    logging::warn(
-                        "normal window state could not be restored",
-                        json!({ "error": error.to_string() }),
-                    );
-                }
+                window_placement::restore(
+                    app.handle(),
+                    &window.as_ref().window(),
+                    &setup_placement_state,
+                );
+                window.show()?;
             }
             Ok(())
         })
@@ -667,8 +662,14 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|_app_handle, event| {
+    app.run(move |app_handle, event| {
+        if let tauri::RunEvent::ExitRequested { .. } = event {
+            if let Some(window) = app_handle.get_webview_window("main") {
+                window_placement::capture(&window.as_ref().window(), &placement_state);
+            }
+        }
         if let tauri::RunEvent::Exit = event {
+            window_placement::save(app_handle, &placement_state);
             logging::info("app shutdown", json!({ "reason": "exit" }));
         }
     });
