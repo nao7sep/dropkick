@@ -31,6 +31,12 @@ import {
   type StagedPreferences,
 } from "../../services";
 
+const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
 interface SettingsModalProps {
   onClose: () => void;
 }
@@ -148,22 +154,31 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         </p>
       ) : null}
 
-      {/* Theme — staged and applied on Save like every other field here. */}
-      <Field label="Theme">
-        <select
-          aria-label="Theme"
-          value={draft.theme}
-          onChange={(e) => setField("theme", e.target.value as ThemePreference)}
-          className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
-        >
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
+      {/* Theme — a native radio group (one tab stop, arrow keys move and
+          select; composite-control conventions), staged and applied on Save
+          like every other field here. */}
+      <fieldset className="min-w-0">
+        <legend className="mb-1 block text-xs font-medium text-ink-muted">
+          Theme
+        </legend>
+        <div className="flex flex-wrap gap-x-5 gap-y-1">
+          {THEME_OPTIONS.map(({ value, label }) => (
+            <label key={value} className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="radio"
+                name="theme"
+                value={value}
+                checked={draft.theme === value}
+                onChange={() => setField("theme", value)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
         <p className="mt-1 text-xs text-ink-muted">
           System follows the OS appearance.
         </p>
-      </Field>
+      </fieldset>
 
       {/* Font family */}
       <Field label="Font family">

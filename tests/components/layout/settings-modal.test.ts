@@ -32,22 +32,24 @@ afterEach(async () => {
 });
 
 describe("SettingsModal theme", () => {
-  it("defaults to System and stages the theme until Save, like every other field", async () => {
-    const select = document.querySelector("select") as HTMLSelectElement;
-    expect(select.getAttribute("aria-label")).toBe("Theme");
-    expect(select.value).toBe("system");
-    expect([...select.options].map((option) => option.textContent)).toEqual([
+  it("offers System, Light, and Dark as one radio group, System by default", () => {
+    const group = document.querySelector("fieldset") as HTMLFieldSetElement;
+    expect(group.querySelector("legend")?.textContent?.trim()).toBe("Theme");
+    const radios = [...group.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+    expect(radios.map((radio) => radio.parentElement?.textContent?.trim())).toEqual([
       "System",
       "Light",
       "Dark",
     ]);
+    expect(new Set(radios.map((radio) => radio.name))).toEqual(new Set(["theme"]));
+    expect(radios.find((radio) => radio.checked)?.value).toBe("system");
+  });
 
-    await act(async () => {
-      select.value = "dark";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+  it("stages the theme until Save, like every other field", async () => {
+    const dark = document.querySelector('input[type="radio"][value="dark"]') as HTMLInputElement;
+    await act(async () => dark.click());
 
-    expect(select.value).toBe("dark");
+    expect(dark.checked).toBe(true);
     expect(update).not.toHaveBeenCalled();
     expect(usePreferencesStore.getState().preferences.theme).toBe("system");
 
