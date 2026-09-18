@@ -69,9 +69,9 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
     },
 
     update: async (changes: Partial<PreferencesDto>) => {
-      // The single funnel for every preference change (a Settings save, the
-      // theme shortcut): log which keys changed, not the values, to keep the
-      // line stable and free of any future setting's content.
+      // The single funnel for every preference change: log which keys changed,
+      // not the values, to keep the line stable and free of any future
+      // setting's content.
       const changedKeys = Object.keys(changes) as (keyof PreferencesDto)[];
       log.info("preferences updated", { changed: changedKeys });
 

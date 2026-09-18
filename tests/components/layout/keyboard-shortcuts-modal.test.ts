@@ -44,12 +44,9 @@ describe("KeyboardShortcutsModal tab commands", () => {
     );
   });
 
-  it("describes the theme shortcut without implying that System is binary", async () => {
+  it("lists no theme shortcut; the theme changes only in Settings", async () => {
     host = await mount(createElement(KeyboardShortcutsModal, { onClose: () => {} }));
 
-    expect(document.body.textContent).toContain(
-      "Switch light/dark appearance",
-    );
-    expect(document.body.textContent).not.toContain("Toggle dark mode");
+    expect(document.body.textContent).not.toMatch(/appearance|dark mode|theme/i);
   });
 });

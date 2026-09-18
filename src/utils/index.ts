@@ -54,13 +54,6 @@ export {
 } from "./passiveScroll";
 export type { PassiveScrollPlanInput } from "./passiveScroll";
 
-export {
-  SYSTEM_DARK_THEME_QUERY,
-  resolveDarkMode,
-  toggledThemePreference,
-  systemPrefersDark,
-} from "./theme";
-
 export { isZoomIn, isZoomOut, isZoomReset, stepZoomIn, stepZoomOut, ZOOM_LEVELS, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX } from "./zoom";
 
 export {

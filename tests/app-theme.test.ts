@@ -3,7 +3,7 @@
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const setTheme = vi.fn();
+const applyWindowTheme = vi.fn();
 const setMinSize = vi.fn();
 const show = vi.fn();
 const isMaximized = vi.fn();
@@ -21,7 +21,6 @@ vi.mock("@tauri-apps/api/window", () => ({
   },
   currentMonitor: vi.fn().mockResolvedValue(null),
   getCurrentWindow: () => ({
-    setTheme,
     setMinSize,
     show,
     isMaximized,
@@ -33,6 +32,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 vi.mock("../src/repositories", () => ({
+  applyWindowTheme: (...args: unknown[]) => applyWindowTheme(...args),
   showMessage: vi.fn(),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   toErrorFields: vi.fn(() => ({})),
@@ -73,7 +73,7 @@ let loadedTheme: ThemePreference;
 let lastLaunchedPreferencesPath: string;
 
 beforeEach(() => {
-  setTheme.mockReset().mockResolvedValue(undefined);
+  applyWindowTheme.mockReset().mockResolvedValue(undefined);
   setMinSize.mockReset().mockResolvedValue(undefined);
   show.mockReset().mockResolvedValue(undefined);
   isMaximized.mockReset().mockResolvedValue(false);
@@ -83,12 +83,6 @@ beforeEach(() => {
   onScaleChanged.mockReset().mockResolvedValue(() => {});
   loadedTheme = "dark";
   lastLaunchedPreferencesPath = LAST_PREFERENCES;
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }));
-
   const appState = {
     ...createDefaultAppState(),
     lastPreferencesPath: LAST_PREFERENCES,
@@ -121,57 +115,62 @@ beforeEach(() => {
 
 afterEach(async () => {
   await host.unmount();
-  document.documentElement.classList.remove("dark");
-  vi.unstubAllGlobals();
 });
 
-describe("startup theme", () => {
-  it("uses the OS when no preferences document has launched the main window", async () => {
-    lastLaunchedPreferencesPath = "";
-    vi.stubGlobal("matchMedia", () => ({
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
+async function mountApp() {
+  host = await mount(createElement(App));
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
 
-    host = await mount(createElement(App));
-    await act(async () => {
-      await Promise.resolve();
-    });
+// The Rust core applies the previewed document's theme before the window is
+// shown; the page re-applies only once it knows the same answer.
+describe("startup theme", () => {
+  it("applies System when no preferences document has launched the main window", async () => {
+    lastLaunchedPreferencesPath = "";
+    await mountApp();
 
     expect(usePreferencesStore.getState().load).not.toHaveBeenCalled();
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(setTheme).toHaveBeenLastCalledWith(null);
+    expect(applyWindowTheme.mock.calls).toEqual([["system"]]);
   });
 
-  it("loads the last preferences theme before showing the startup picker", async () => {
-    host = await mount(createElement(App));
-    await act(async () => {
-      await Promise.resolve();
-    });
+  it("applies the previewed document's theme, never the pre-load default", async () => {
+    await mountApp();
 
     expect(usePreferencesStore.getState().load).toHaveBeenCalledWith(
       LAST_PREFERENCES,
     );
     expect(document.body.textContent).toContain("Startup picker");
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(setTheme).toHaveBeenLastCalledWith("dark");
+    expect(applyWindowTheme.mock.calls).toEqual([["dark"]]);
   });
 
-  it("lets the OS own native chrome while System controls the startup picker", async () => {
-    loadedTheme = "system";
-    vi.stubGlobal("matchMedia", () => ({
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
+  it("sends nothing while initialization is still running", async () => {
+    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<null>(() => {})) });
+    await mountApp();
 
-    host = await mount(createElement(App));
+    expect(applyWindowTheme).not.toHaveBeenCalled();
+  });
+
+  it("leaves the natively applied theme alone when initialization fails", async () => {
+    useAppStateStore.setState({
+      initialize: vi.fn(async () => {
+        throw new Error("state unreadable");
+      }),
+    });
+    await mountApp();
+
+    expect(document.body.textContent).toContain("Startup error");
+    expect(applyWindowTheme).not.toHaveBeenCalled();
+  });
+
+  it("applies a changed theme once the app is running", async () => {
+    await mountApp();
     await act(async () => {
-      await Promise.resolve();
+      const { preferences } = usePreferencesStore.getState();
+      usePreferencesStore.setState({ preferences: { ...preferences, theme: "light" } });
     });
 
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(setTheme).toHaveBeenLastCalledWith(null);
+    expect(applyWindowTheme).toHaveBeenLastCalledWith("light");
   });
 });

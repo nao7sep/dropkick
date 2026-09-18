@@ -324,7 +324,7 @@ export function BulkActions({
             <select
               value={moveTarget}
               onChange={(e) => setMoveTarget(e.target.value)}
-              className="flex-1 rounded-md border border-border px-2 py-1.5 text-sm text-ink-soft"
+              className="flex-1 rounded-md border border-input-border px-2 py-1.5 text-sm text-ink-soft"
             >
               <option value="">Select destination...</option>
               {moveDestinations.map((t) => (

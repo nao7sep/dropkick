@@ -224,7 +224,7 @@ export function NewTaskModal({
               setTargetFile(e.target.value);
               setTargetError(false);
             }}
-            className={`w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring ${targetError ? "bg-danger-surface" : ""}`}
+            className={`w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring ${targetError ? "bg-danger-surface" : ""}`}
           >
             {!targetFile && (
               <option value="" disabled>
@@ -273,7 +273,7 @@ export function NewTaskModal({
           {...composing.handlers}
           placeholder="Task title (optional)"
           rows={1}
-          className="w-full resize-none rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
       </div>
 
@@ -291,7 +291,7 @@ export function NewTaskModal({
           }}
           placeholder="Optional details..."
           rows={2}
-          className="w-full resize-none rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
       </div>
 
@@ -304,7 +304,7 @@ export function NewTaskModal({
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value as TaskPriority)}
-            className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+            className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           >
             <option value="Default">Default</option>
             <option value="Urgent">Urgent</option>

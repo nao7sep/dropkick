@@ -164,7 +164,7 @@ export function MoveTasksModal({
               setDestError(false);
               setActionError(null);
             }}
-            className={`w-full rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft outline-none focus:border-primary-ring ${destError ? "bg-danger-surface" : ""}`}
+            className={`w-full rounded-md border border-input-border px-3 py-1.5 text-sm text-ink-soft outline-none focus:border-primary-ring ${destError ? "bg-danger-surface" : ""}`}
           >
             <option value="">Select destination...</option>
             {destinations.map((t) => (

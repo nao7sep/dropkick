@@ -36,6 +36,7 @@ export {
 } from "./app-state-repository";
 
 export { loadNoteDrafts, flushNoteDrafts } from "./note-draft-repository";
+export { applyWindowTheme } from "./window-theme";
 export type { LoadNoteDraftsResult } from "./note-draft-repository";
 
 export {

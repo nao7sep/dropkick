@@ -4,11 +4,9 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
-  showMessage,
   log,
   toErrorFields,
 } from "../../repositories";
-import { usePreferencesStore } from "../../state/preferences-store";
 import { useAppStateStore } from "../../state/app-state-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -26,17 +24,13 @@ import {
   stepZoomIn,
   stepZoomOut,
   ZOOM_DEFAULT,
-  hasPrimaryShortcutModifier,
   standsDownForMacText,
-  matchesShortcutKey,
   clampSidebarWidth,
   SIDEBAR_MIN_WIDTH,
   DETAIL_MIN_WIDTH,
   CONTENT_MIN_HEIGHT,
   SPLITTER_WIDTH,
   DEFAULT_SIDEBAR_WIDTH,
-  systemPrefersDark,
-  toggledThemePreference,
 } from "../../utils";
 import { taskActionOwnerKey } from "../../services";
 import { TabBar } from "./TabBar";
@@ -54,7 +48,6 @@ interface MainWindowProps {
 }
 
 export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
-  const updatePrefs = usePreferencesStore((s) => s.update);
   // Zoom and sidebar width are view state (state.json), not preferences.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   const sidebarIntent = useAppStateStore((s) => s.appState.sidebarWidth);
@@ -239,7 +232,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   const zoomLevelRef = useRef(zoomLevel);
   useEffect(() => { zoomLevelRef.current = zoomLevel; }, [zoomLevel]);
   useEffect(() => {
-    const handler = async (e: KeyboardEvent) => {
+    const handler = (e: KeyboardEvent) => {
       // If a focused layer (e.g. the New Task modal, which uses Cmd+0 for
       // priority) already handled this key, don't also zoom. Zoom stays
       // globally available otherwise, even with a menu or modal open.
@@ -253,9 +246,9 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
       // text field it belongs to the text system whatever the key is. This is
       // the same blanket test the main dispatcher and the note editor make; the
       // convention requires it at every site that matches a dual-bound chord,
-      // not only the main one. Without it Ctrl+Minus/Equal/Semicolon/0 and
-      // Ctrl+Shift+D were swallowed while the caret sat in a note or a Settings
-      // field (keyboard-shortcut-conventions).
+      // not only the main one. Without it Ctrl+Minus/Equal/Semicolon/0 were
+      // swallowed while the caret sat in a note or a Settings field
+      // (keyboard-shortcut-conventions).
       if (standsDownForMacText(e, e.target as HTMLElement | null)) {
         return;
       }
@@ -268,29 +261,11 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
       } else if (isZoomReset(e)) {
         e.preventDefault();
         updateViewState({ zoomLevel: ZOOM_DEFAULT });
-      } else if (
-        hasPrimaryShortcutModifier(e) &&
-        e.shiftKey &&
-        matchesShortcutKey(e, "d")
-      ) {
-        // Quick light/dark toggle. Like zoom, this lives outside
-        // useKeyboardShortcuts so it stays available even when a menu/modal is
-        // open. Theme is a preference (authored appearance setting), so it goes
-        // through the preferences store — unlike zoom, which is view state. Read the
-        // latest value from the store to avoid a stale closure.
-        e.preventDefault();
-        const currentTheme = usePreferencesStore.getState().preferences.theme;
-        const result = await updatePrefs({
-          theme: toggledThemePreference(currentTheme, systemPrefersDark()),
-        });
-        if (result.status === "error") {
-          await showMessage("Theme Save Failed", result.message);
-        }
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [updateViewState, updatePrefs]);
+  }, [updateViewState]);
 
   useEffect(() => {
     const title = activeTab ? `${activeTab.displayName} - Dropkick` : "Dropkick";

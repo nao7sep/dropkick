@@ -32,7 +32,7 @@ afterEach(async () => {
 });
 
 describe("SettingsModal theme", () => {
-  it("defaults to System and offers all three live theme policies", async () => {
+  it("defaults to System and stages the theme until Save, like every other field", async () => {
     const select = document.querySelector("select") as HTMLSelectElement;
     expect(select.getAttribute("aria-label")).toBe("Theme");
     expect(select.value).toBe("system");
@@ -47,22 +47,20 @@ describe("SettingsModal theme", () => {
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    expect(update).toHaveBeenCalledWith({ theme: "dark" });
+    expect(select.value).toBe("dark");
+    expect(update).not.toHaveBeenCalled();
+    expect(usePreferencesStore.getState().preferences.theme).toBe("system");
+
+    const save = [...document.querySelectorAll("button")]
+      .find((button) => button.textContent === "Save")!;
+    await act(async () => save.click());
+
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ theme: "dark" }));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("keeps a failed live theme save inside the open modal", async () => {
-    update.mockResolvedValueOnce({ status: "error", message: "Permission denied (os error 13)" });
-    const select = document.querySelector('[aria-label="Theme"]') as HTMLSelectElement;
-
-    await act(async () => {
-      select.value = "dark";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-
-    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-      "Theme could not be saved. The previous theme is still active; try again.",
-    );
-    expect(onClose).not.toHaveBeenCalled();
+  it("no longer advertises a theme shortcut", () => {
+    expect(document.body.textContent).not.toMatch(/Shift\+D|opposite/);
   });
 
   it("keeps a failed settings save inline and retains the edited draft", async () => {

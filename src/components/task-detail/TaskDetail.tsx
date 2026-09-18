@@ -349,7 +349,7 @@ export function TaskDetail({
             aria-describedby={statusError ? `task-status-error-${task.id}` : undefined}
             value={task.status}
             onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
-            className="rounded-md border border-border px-2 py-1 text-sm text-ink"
+            className="rounded-md border border-input-border px-2 py-1 text-sm text-ink"
           >
             <option value="Pending">Pending</option>
             <option value="Completed" disabled={!task.canComplete}>
@@ -455,7 +455,7 @@ export function TaskDetail({
           <select
             value={moveTarget}
             onChange={(e) => setMoveTarget(e.target.value)}
-            className="flex-1 rounded-md border border-border px-2 py-1 text-sm text-ink-soft"
+            className="flex-1 rounded-md border border-input-border px-2 py-1 text-sm text-ink-soft"
           >
             <option value="">Select destination...</option>
             {moveDestinations.map((t) => (
@@ -489,7 +489,7 @@ export function TaskDetail({
           onBlur={handleDescBlur}
           rows={2}
           placeholder="Add a description..."
-          className="w-full resize-none rounded-md border border-border p-2 text-sm text-ink outline-none focus:border-primary-ring"
+          className="w-full resize-none rounded-md border border-input-border p-2 text-sm text-ink outline-none focus:border-primary-ring"
         />
         {descriptionError ? (
           <p id={`task-description-error-${task.id}`} role="alert" className="mt-1 text-xs text-danger">
@@ -554,7 +554,7 @@ export function TaskDetail({
             {...noteComposing.handlers}
             placeholder={`Add a note... (${primaryModifierLabel}+Enter to save, ${primaryModifierLabel}+Shift+Enter actionable)`}
             rows={2}
-            className="w-full resize-none rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+            className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           />
           {noteComposerError ? (
             <p id={`new-note-error-${task.id}`} role="alert" className="mt-1 text-xs text-danger">
@@ -759,7 +759,7 @@ function NoteItem({
           onChange={(e) =>
             handleActionabilityChange(e.target.value as NoteActionability)
           }
-          className="rounded border border-border px-1 py-0.5 text-xs text-ink"
+          className="rounded border border-input-border px-1 py-0.5 text-xs text-ink"
         >
           <option value="Informational">Informational</option>
           <option value="Actionable">Actionable</option>
@@ -802,7 +802,7 @@ function NoteItem({
             }}
             {...composing.handlers}
             rows={2}
-            className="w-full resize-none rounded border border-border p-2 text-sm outline-none focus:border-primary-ring"
+            className="w-full resize-none rounded border border-input-border p-2 text-sm outline-none focus:border-primary-ring"
           />
           <div className="mt-1 flex gap-2">
             <button
@@ -846,6 +846,6 @@ function prioritySelectStyle(priority: string): string {
     case "Important":
       return "border-group-important-border-strong text-group-important-fg";
     default:
-      return "border-border text-ink";
+      return "border-input-border text-ink";
   }
 }

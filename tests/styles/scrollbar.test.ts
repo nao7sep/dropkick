@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { contrast, resolveRgb, themeBlock } from "../helpers/theme-css";
 
 // Read the shipped stylesheet as text and assert the app-chrome scroll-bar
 // rules are present. A render-free check: it guards that the global scroll-bar
@@ -18,78 +19,6 @@ const tailwindTheme = readFileSync(
   fileURLToPath(new URL("../../node_modules/tailwindcss/theme.css", import.meta.url)),
   "utf8",
 );
-
-type Rgb = [number, number, number];
-
-function selectorBlock(selector: string): string {
-  const start = css.search(new RegExp(`^${selector.replace(".", "\\.")}\\s*\\{`, "m"));
-  expect(start, `${selector} must exist`).toBeGreaterThanOrEqual(0);
-  const open = css.indexOf("{", start);
-  const close = css.indexOf("\n}", open);
-  return css.slice(open, close);
-}
-
-function tokenValue(source: string, token: string): string {
-  const match = source.match(new RegExp(`${token.replaceAll("-", "\\-")}\\s*:\\s*([^;]+);`));
-  expect(match, `${token} must be defined`).toBeTruthy();
-  return match![1]!.trim();
-}
-
-function resolveRgb(block: string, token: string): Rgb {
-  let value = tokenValue(block, token);
-  const sources = `${css}\n${tailwindTheme}`;
-  for (let depth = 0; depth < 4; depth += 1) {
-    const reference = value.match(/^var\((--[^)]+)\)$/)?.[1];
-    if (reference === undefined) break;
-    value = tokenValue(sources, reference);
-  }
-  const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
-  if (hex !== undefined) {
-    const expanded = hex.length === 3
-      ? [...hex].map((part) => `${part}${part}`).join("")
-      : hex;
-    return [0, 2, 4].map(
-      (offset) => Number.parseInt(expanded.slice(offset, offset + 2), 16),
-    ) as Rgb;
-  }
-
-  const oklch = value.match(/^oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)\)$/);
-  expect(oklch, `${token} must resolve to an opaque hex or OKLCH color`).toBeTruthy();
-  const lightness = Number(oklch![1]) / 100;
-  const chroma = Number(oklch![2]);
-  const hue = Number(oklch![3]) * Math.PI / 180;
-  const a = chroma * Math.cos(hue);
-  const b = chroma * Math.sin(hue);
-  const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
-  const m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
-  const s = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
-  const linear = [
-    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ];
-  return linear.map((channel) => {
-    const clipped = Math.min(1, Math.max(0, channel));
-    const srgb = clipped <= 0.0031308
-      ? 12.92 * clipped
-      : 1.055 * clipped ** (1 / 2.4) - 0.055;
-    return srgb * 255;
-  }) as Rgb;
-}
-
-function luminance(rgb: Rgb): number {
-  const [red, green, blue] = rgb.map((channel) => {
-    const value = channel / 255;
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-}
-
-function contrast(first: Rgb, second: Rgb): number {
-  const a = luminance(first);
-  const b = luminance(second);
-  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-}
 
 describe("App.css scroll-bar styling (app-chrome-conventions)", () => {
   it("styles the WebKit scroll-bar pseudo-element globally", () => {
@@ -133,13 +62,14 @@ describe("App.css scroll-bar styling (app-chrome-conventions)", () => {
 
   it("keeps the resting thumb at least 3:1 against every base surface in both themes", () => {
     const surfaceTokens = ["--background", "--surface", "--surface-muted", "--surface-sunken"];
-    for (const selector of [":root", ".dark"]) {
-      const block = selectorBlock(selector);
-      const thumb = resolveRgb(block, "--scrollbar-thumb");
+    const sources = `${css}\n${tailwindTheme}`;
+    for (const theme of ["light", "dark"] as const) {
+      const block = themeBlock(css, theme);
+      const thumb = resolveRgb(block, "--scrollbar-thumb", sources);
       for (const surfaceToken of surfaceTokens) {
         expect(
-          contrast(thumb, resolveRgb(block, surfaceToken)),
-          `${selector} ${surfaceToken}`,
+          contrast(thumb, resolveRgb(block, surfaceToken, sources)),
+          `${theme} ${surfaceToken}`,
         ).toBeGreaterThanOrEqual(3);
       }
     }

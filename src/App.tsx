@@ -1,5 +1,5 @@
 // App root — orchestrates the startup picker and main window.
-// On launch: initialize app state → preview the last theme → show the startup
+// On launch: initialize app state → preview the last preferences → show the startup
 // picker → load its selected preferences and workspace → show the main window.
 
 import { useState, useEffect, useRef } from "react";
@@ -14,10 +14,15 @@ import {
   computeMinWindowHeight,
   TAB_BAR_MIN_HEIGHT,
   boundNativeMinimumToClient,
-  resolveDarkMode,
 } from "./utils";
 import "./App.css";
-import { showMessage, log, toErrorFields, loadFailureFields } from "./repositories";
+import {
+  applyWindowTheme,
+  showMessage,
+  log,
+  toErrorFields,
+  loadFailureFields,
+} from "./repositories";
 import { DEFAULT_UI_FONT_STACK } from "./models";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
@@ -33,7 +38,6 @@ import {
   describeLoadFailure,
   describeNoteDraftRecovery,
 } from "./services";
-import { useSystemDarkMode } from "./hooks/useSystemDarkMode";
 
 type AppPhase =
   | { kind: "loading" }
@@ -51,34 +55,29 @@ function App() {
   const setLastPaths = useAppStateStore((s) => s.setLastPaths);
   const theme = usePreferencesStore((s) => s.preferences.theme);
   const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
-  const systemDarkMode = useSystemDarkMode();
-  const darkMode = resolveDarkMode(theme, systemDarkMode);
   // Guards against a double Launch: phase stays "startup" until the awaited
   // loads finish, so two quick clicks would otherwise both run the sequence.
   const launchingRef = useRef(false);
 
-  // Apply the theme to <html> so it covers the startup picker, main window, and
-  // every Radix modal (those portal to <body>, outside the React tree). The
-  // `.dark` class flips the token overrides defined in App.css. System is the
-  // default, so this is correct even before a preferences file loads.
+  // The window theme is the one theme authority: it paints the title bar, and
+  // App.css's tokens follow it through prefers-color-scheme, which reaches the
+  // startup picker, the main window, and every portaled Radix surface alike.
+  // The Rust core already applied the last-launched document's theme before
+  // showing the window, so nothing is sent while the app is still loading (or
+  // failed to): the in-memory default would replace that choice with System.
+  const themeSettled = phase.kind === "startup" || phase.kind === "main";
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-    // Also sync the native window theme. The OS paints the window backing with
-    // this theme's color during a resize, before the webview repaints — so a
-    // dark window theme prevents the white flash when enlarging in dark mode.
-    getCurrentWindow()
-      .setTheme(theme === "system" ? null : theme)
-      .catch((e) =>
-        log.warn("window setTheme failed", {
-          theme,
-          ...toErrorFields(e),
-        }),
-      );
-  }, [darkMode, theme]);
+    if (!themeSettled) return;
+    applyWindowTheme(theme).catch((e) =>
+      log.warn("window theme apply failed", {
+        theme,
+        ...toErrorFields(e),
+      }),
+    );
+  }, [themeSettled, theme]);
 
-  // Same reason as the theme class: set the UI font on <html> so it reaches
-  // every Radix surface, all of which portal to <body> and sit outside the
-  // React tree. A family the user typed is appended to the default stack rather
+  // Set the UI font on <html> so it reaches every Radix surface, all of which
+  // portal to <body> and sit outside the React tree. A family the user typed is appended to the default stack rather
   // than replacing it, so a typo falls back to a real sans face instead of the
   // engine's serif. Empty means "use the default".
   useEffect(() => {

@@ -20,7 +20,6 @@ import { validateTimezone } from "../../utils/timezone";
 import { AppModal } from "../shared/AppModal";
 import {
   hasPrimaryShortcutModifier,
-  primaryModifierLabel,
   singleLine,
   shadowsMacTextBinding,
   isEditableTarget,
@@ -41,8 +40,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const update = usePreferencesStore((s) => s.update);
   const composing = useComposing();
 
-  // Local draft state — everything is edited locally, saved on "Save". Theme
-  // is not in the type: it applies live and closing never discards it.
+  // Local draft state — everything is edited locally, saved on "Save".
   const [draft, setDraft] = useState<StagedPreferences>(() =>
     stagedPreferences(preferences),
   );
@@ -57,8 +55,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     ? null
     : "Invalid IANA timezone";
 
-  // Theme cannot be in the draft (see services/preferences-draft), so the
-  // dirty check needs no exclusion list.
   const isDirty = useMemo(
     () => isPreferencesDraftDirty(draft, preferences, kickInput),
     [draft, preferences, kickInput],
@@ -70,8 +66,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (!isDirty || !timezoneValidation.valid) return;
     setActionError(null);
 
-    // Theme is deliberately absent from the draft's type, so leaving it out
-    // of this partial is what stops a stale copy reverting a live toggle.
     const result = await update({
       ...draft,
       fontFamily: singleLine(draft.fontFamily),
@@ -94,14 +88,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       return;
     }
     onClose();
-  };
-
-  const handleThemeChange = async (theme: ThemePreference) => {
-    setActionError(null);
-    const result = await update({ theme });
-    if (result.status === "error") {
-      setActionError("Theme could not be saved. The previous theme is still active; try again.");
-    }
   };
 
   // Single close guard for every close path (X, Cancel, Escape, backdrop).
@@ -162,26 +148,20 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         </p>
       ) : null}
 
-      {/* Theme — applied live (like zoom), so it reads and writes the store
-          directly rather than the draft, and stays in sync with the global
-          {mod}+Shift+D toggle. */}
+      {/* Theme — staged and applied on Save like every other field here. */}
       <Field label="Theme">
         <select
           aria-label="Theme"
-          value={preferences.theme}
-          onChange={(e) =>
-            void handleThemeChange(e.target.value as ThemePreference)
-          }
-          className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          value={draft.theme}
+          onChange={(e) => setField("theme", e.target.value as ThemePreference)}
+          className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         >
           <option value="system">System</option>
           <option value="light">Light</option>
           <option value="dark">Dark</option>
         </select>
         <p className="mt-1 text-xs text-ink-muted">
-          Applied immediately. System follows the OS appearance.{" "}
-          {`${primaryModifierLabel}+Shift+D`} switches to the opposite
-          appearance.
+          System follows the OS appearance.
         </p>
       </Field>
 
@@ -192,7 +172,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           value={draft.fontFamily}
           placeholder="System default"
           onChange={(e) => setField("fontFamily", e.target.value)}
-          className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
         <p className="mt-1 text-xs text-ink-muted">
           Leave empty for the system font. A name that isn't installed falls
@@ -209,7 +189,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             value={draft.timezone ?? ""}
             onChange={(e) => setField("timezone", e.target.value || null)}
             placeholder="System default"
-            className="flex-1 rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+            className="flex-1 rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           />
           <button
             onClick={() =>
@@ -241,7 +221,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           value={kickInput}
           onChange={(e) => setKickInput(e.target.value)}
           placeholder="5, 25"
-          className="w-full rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
         <p className="mt-1 text-xs text-ink-muted">
           Comma-separated numbers (e.g. 5, 25). "Kick" is always available.
@@ -261,7 +241,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               parseInt(e.target.value, 10) || DUE_SOON_DAYS_DEFAULT,
             )
           }
-          className="w-24 rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="w-24 rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
         <p className="mt-1 text-xs text-ink-muted">
           Tasks due within this many days from tomorrow appear in the Due Soon group.
@@ -281,7 +261,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               parseInt(e.target.value, 10) || HANDLED_TASKS_PAGE_SIZE_DEFAULT,
             )
           }
-          className="w-24 rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="w-24 rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
       </Field>
 

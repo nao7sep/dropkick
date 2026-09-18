@@ -16,6 +16,7 @@ mod instance_owner;
 pub mod logging;
 pub mod nanoid;
 pub mod paths;
+pub mod theme;
 pub mod window_placement;
 
 // --- Command boundary logging ---
@@ -551,6 +552,24 @@ fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
     }
 }
 
+// Applies a saved theme preference to the calling window: the window theme,
+// which the page follows through prefers-color-scheme, and the matching window
+// background, together (app-chrome conventions, Theme).
+#[tauri::command]
+fn apply_theme(window: tauri::WebviewWindow, preference: String) -> Result<(), String> {
+    let started = log_cmd_start("apply_theme", json!({ "preference": preference }));
+    match theme::apply(&window, theme::window_theme_for(&preference)) {
+        Ok(()) => {
+            log_cmd_ok("apply_theme", started, json!({}));
+            Ok(())
+        }
+        Err(message) => {
+            log_cmd_err("apply_theme", started, message.clone());
+            Err(message)
+        }
+    }
+}
+
 // Receives a structured log object from the webview frontend and writes it to
 // the session file (the frontend has no filesystem access of its own).
 #[tauri::command]
@@ -583,6 +602,19 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(move |window, event| {
             window_placement::on_window_event(window, event, &event_placement_state);
+            // Under System the OS appearance can change while the app runs; keep
+            // the backing behind the page in step. (macOS reports only OS
+            // changes here, which is why apply_theme sets the background itself.)
+            if let tauri::WindowEvent::ThemeChanged(changed) = event {
+                if let Err(error) =
+                    window.set_background_color(Some(theme::window_background(*changed)))
+                {
+                    logging::warn(
+                        "window background update failed",
+                        json!({ "error": error.to_string() }),
+                    );
+                }
+            }
         })
         .setup(move |app| {
             // Open the per-session log file under the app's own data dir. The Rust
@@ -638,6 +670,18 @@ pub fn run() {
                 }
             }
             if let Some(window) = app.get_webview_window("main") {
+                // The theme of the preferences document the startup picker will
+                // preview is applied before the window is shown, so the first
+                // frame and title bar already match it; the frontend re-applies
+                // the theme whenever a document loads or Settings are saved.
+                let saved_theme = paths::data_root(app.handle()).ok().and_then(|root| {
+                    theme::read_saved_window_theme(std::path::Path::new(
+                        &paths::app_paths(&root).state_file,
+                    ))
+                });
+                if let Err(error) = theme::apply(&window, saved_theme) {
+                    logging::warn("apply saved window theme failed", json!({ "error": error }));
+                }
                 window_placement::restore(
                     app.handle(),
                     &window.as_ref().window(),
@@ -648,6 +692,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            apply_theme,
             hash_file,
             read_json_file_with_hash,
             read_text_file,

@@ -55,7 +55,6 @@ const shortcutSections: {
       { label: "Send to first in group", keys: `${mod}+Home` },
       { label: "Send to last in group", keys: `${mod}+End` },
       { kind: "heading", label: "Display" },
-      { label: "Switch light/dark appearance", keys: `${mod}+Shift+D` },
       { label: "Zoom in", keys: `${mod}+Equal/Plus/Semicolon` },
       { label: "Zoom out", keys: `${mod}+Minus` },
       { label: "Reset zoom", keys: `${mod}+0` },
@@ -143,7 +142,7 @@ export function KeyboardShortcutsModal({
                 "kind" in item ? (
                   <div
                     key={item.label}
-                    className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint first:pt-0"
+                    className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted first:pt-0"
                   >
                     {item.label}
                   </div>

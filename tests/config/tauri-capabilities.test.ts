@@ -37,11 +37,14 @@ describe("Tauri window capability (src-tauri/capabilities/default.json)", () => 
     for (const permission of [
       "core:window:allow-destroy",
       "core:window:allow-set-title",
-      "core:window:allow-set-theme",
       "core:window:allow-set-min-size",
     ]) {
       expect(permissions).toContain(permission);
     }
+  });
+
+  it("leaves the window theme to the Rust core's apply_theme command", () => {
+    expect(permissions).not.toContain("core:window:allow-set-theme");
   });
 
   it("does not grant a plugin's whole default set for the opener", () => {

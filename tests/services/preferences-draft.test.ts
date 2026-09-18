@@ -58,19 +58,11 @@ describe("parseKickDistances", () => {
 });
 
 describe("stagedPreferences", () => {
-  it("omits theme, so it cannot be staged in the first place", () => {
-    // The split used to be a runtime list the dirty check filtered and Save
-    // re-affirmed from the store. Expressing it in the type removes both: a
-    // stale draft has no theme to revert with.
-    const staged = stagedPreferences(committed());
-    expect("theme" in staged).toBe(false);
-  });
-
-  it("carries every other preference through unchanged", () => {
+  it("stages every preference, theme included, as a fresh copy", () => {
     const c = committed();
     const staged = stagedPreferences(c);
-    const { theme: _live, ...rest } = c;
-    expect(staged).toEqual(rest);
+    expect(staged).toEqual(c);
+    expect(staged).not.toBe(c);
   });
 });
 
@@ -98,13 +90,10 @@ describe("isPreferencesDraftDirty", () => {
     expect(isPreferencesDraftDirty(stagedPreferences(c), c, "5,25")).toBe(true);
   });
 
-  it("ignores a theme difference, which the draft cannot even carry", () => {
-    // committed() may have been toggled live while the modal was open; the
-    // draft has no theme, so there is nothing to compare and nothing to
-    // arm the discard prompt with.
+  it("is dirty when only the theme changes, since it applies on Save", () => {
     const c = committed();
-    const staged = stagedPreferences({ ...c, theme: "dark" });
-    expect(isPreferencesDraftDirty(staged, c, KICK_STRING)).toBe(false);
+    const draft = { ...stagedPreferences(c), theme: c.theme === "dark" ? "light" as const : "dark" as const };
+    expect(isPreferencesDraftDirty(draft, c, KICK_STRING)).toBe(true);
   });
 
   it("detects changes in each staged field", () => {
