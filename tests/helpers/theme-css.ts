@@ -1,4 +1,4 @@
-// Pure helpers for reading App.css's theme token blocks and measuring WCAG
+// Pure helpers for reading App.css's theme token blocks and measuring
 // contrast. The light tokens live in the first top-level :root block; the dark
 // tokens live in the :root block inside @media (prefers-color-scheme: dark).
 // Light tokens alias Tailwind's palette, so `var(--color-*)` references resolve
