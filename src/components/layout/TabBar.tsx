@@ -49,9 +49,9 @@ const TAB_POINTER_SENSOR = PointerSensor.configure({
 // Shared styling for menu items. `data-[highlighted]` is Radix's active-item
 // state (keyboard arrow focus and pointer hover both set it).
 const MENU_ITEM_CLASS =
-  "cursor-pointer px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
+  "cursor-pointer whitespace-nowrap px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
 const MENU_ITEM_ICON_CLASS =
-  "flex cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
+  "flex cursor-pointer items-center gap-2 whitespace-nowrap px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
 
 interface TabBarProps {
   onMenuSelect: (item: MenuItemId) => void;
@@ -423,7 +423,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 data-dropkick-interactive-layer=""
                 align="start"
                 sideOffset={4}
-                className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-64 overflow-y-auto rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
+                className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-64 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
               >
                 <DropdownMenu.Item
                   onSelect={handleNewTaskList}
@@ -458,10 +458,10 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         onSelect={() => handleOpenRecent(r.filePath)}
                         className="cursor-pointer px-4 py-1.5 text-left text-sm text-ink-soft outline-none data-[highlighted]:bg-background"
                       >
-                        <span className="block truncate" title={r.filePath}>
+                        <span className="block w-0 min-w-full truncate" title={r.filePath}>
                           {fileNameWithoutExt(r.filePath)}
                         </span>
-                        <span className="block truncate text-xs text-ink-muted">
+                        <span className="block w-0 min-w-full truncate text-xs text-ink-muted">
                           {r.filePath}
                         </span>
                       </DropdownMenu.Item>
@@ -491,7 +491,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 data-dropkick-interactive-layer=""
                 align="end"
                 sideOffset={4}
-                className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-52 overflow-y-auto rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
+                className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-52 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
               >
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("settings")}
