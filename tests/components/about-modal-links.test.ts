@@ -43,7 +43,7 @@ describe("about links", () => {
     await act(async () => github?.click());
 
     expect(document.body.textContent).toContain("GitHub not opened");
-    expect(document.body.textContent).toContain("Open the project page in your browser and try again.");
+    expect(document.body.textContent).toContain("The project page could not be opened in your browser. Try again.");
     expect(document.body.textContent).not.toContain("GitHub could not be opened");
     expect(document.body.textContent).not.toContain("EACCES");
     expect(document.body.textContent).not.toContain("/private/tmp");
@@ -71,7 +71,7 @@ describe("about links", () => {
 
     await act(async () => issues?.click());
     expect(document.body.textContent).toContain("Report Issue not opened");
-    expect(document.body.textContent).toContain("Open the issues page in your browser and try again.");
+    expect(document.body.textContent).toContain("The issues page could not be opened in your browser. Try again.");
     expect(document.body.textContent).not.toContain("Report Issue could not be opened");
   });
 

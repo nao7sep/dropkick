@@ -194,9 +194,9 @@
   "about.tagline": "Ein Local-first-Aufgabenmanager für Aufgabenlisten in reinem JSON, verteilt auf mehrere Dateien. Ihre Daten bleiben auf Ihrem Rechner.",
   "about.reportIssue": "Problem melden",
   "about.githubFailed.title": "GitHub wurde nicht geöffnet",
-  "about.githubFailed.body": "Öffnen Sie die Projektseite in Ihrem Browser und versuchen Sie es erneut.",
+  "about.githubFailed.body": "Die Projektseite konnte nicht im Browser geöffnet werden. Versuchen Sie es erneut.",
   "about.issuesFailed.title": "„Problem melden“ wurde nicht geöffnet",
-  "about.issuesFailed.body": "Öffnen Sie die Seite für Problemmeldungen in Ihrem Browser und versuchen Sie es erneut.",
+  "about.issuesFailed.body": "Die Seite für Problemmeldungen konnte nicht im Browser geöffnet werden. Versuchen Sie es erneut.",
   "about.license": "GNU GPL v3 oder neuer",
 
   "date.none": "Kein Fälligkeitsdatum",

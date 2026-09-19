@@ -194,9 +194,9 @@
   "about.tagline": "複数のファイルに分かれたプレーンな JSON のタスクリストを扱う、ローカルファーストのタスクマネージャーです。データがお使いのコンピューターの外に出ることはありません。",
   "about.reportIssue": "問題を報告",
   "about.githubFailed.title": "GitHub を開けませんでした",
-  "about.githubFailed.body": "ブラウザでプロジェクトページを開いて、もう一度お試しください。",
+  "about.githubFailed.body": "プロジェクトページをブラウザで開けませんでした。もう一度お試しください。",
   "about.issuesFailed.title": "「問題を報告」を開けませんでした",
-  "about.issuesFailed.body": "ブラウザで問題の報告ページを開いて、もう一度お試しください。",
+  "about.issuesFailed.body": "問題の報告ページをブラウザで開けませんでした。もう一度お試しください。",
   "about.license": "GNU GPL v3 以降",
 
   "date.none": "期限なし",

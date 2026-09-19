@@ -194,9 +194,9 @@
   "about.tagline": "Um gerenciador de tarefas local para trabalhar com listas de tarefas em JSON simples, distribuídas em vários arquivos. Seus dados ficam no seu computador.",
   "about.reportIssue": "Relatar Problema",
   "about.githubFailed.title": "Não foi possível abrir o GitHub",
-  "about.githubFailed.body": "Abra a página do projeto no seu navegador e tente novamente.",
+  "about.githubFailed.body": "Não foi possível abrir a página do projeto no seu navegador. Tente novamente.",
   "about.issuesFailed.title": "Não foi possível abrir “Relatar Problema”",
-  "about.issuesFailed.body": "Abra a página de problemas no seu navegador e tente novamente.",
+  "about.issuesFailed.body": "Não foi possível abrir a página de problemas no seu navegador. Tente novamente.",
   "about.license": "GNU GPL v3 ou posterior",
 
   "date.none": "Sem data de vencimento",

@@ -194,9 +194,9 @@
   "about.tagline": "一款本地优先的任务管理器，用于处理分散在多个文件中的纯 JSON 任务列表。你的数据只保存在你的电脑上。",
   "about.reportIssue": "报告问题",
   "about.githubFailed.title": "未能打开 GitHub",
-  "about.githubFailed.body": "请在浏览器中打开项目页面，然后重试。",
+  "about.githubFailed.body": "无法在浏览器中打开项目页面，请重试。",
   "about.issuesFailed.title": "未能打开“报告问题”",
-  "about.issuesFailed.body": "请在浏览器中打开问题页面，然后重试。",
+  "about.issuesFailed.body": "无法在浏览器中打开问题页面，请重试。",
   "about.license": "GNU GPL v3 或更高版本",
 
   "date.none": "无截止日期",

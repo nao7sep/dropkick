@@ -194,9 +194,9 @@
   "about.tagline": "Un gestore di attività che funziona prima di tutto in locale, per lavorare con semplici liste di attività in JSON distribuite su più file. I tuoi dati restano sul tuo computer.",
   "about.reportIssue": "Segnala un problema",
   "about.githubFailed.title": "Impossibile aprire GitHub",
-  "about.githubFailed.body": "Apri la pagina del progetto nel browser e riprova.",
+  "about.githubFailed.body": "Impossibile aprire la pagina del progetto nel browser. Riprova.",
   "about.issuesFailed.title": "Impossibile aprire «Segnala un problema»",
-  "about.issuesFailed.body": "Apri la pagina delle segnalazioni nel browser e riprova.",
+  "about.issuesFailed.body": "Impossibile aprire la pagina delle segnalazioni nel browser. Riprova.",
   "about.license": "GNU GPL v3 o successiva",
 
   "date.none": "Nessuna scadenza",

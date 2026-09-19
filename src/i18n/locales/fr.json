@@ -194,9 +194,9 @@
   "about.tagline": "Un gestionnaire de tâches qui privilégie le stockage local, pour travailler avec des listes de tâches en JSON brut réparties sur plusieurs fichiers. Vos données restent sur votre machine.",
   "about.reportIssue": "Signaler un problème",
   "about.githubFailed.title": "Impossible d’ouvrir GitHub",
-  "about.githubFailed.body": "Ouvrez la page du projet dans votre navigateur et réessayez.",
+  "about.githubFailed.body": "La page du projet n’a pas pu être ouverte dans votre navigateur. Réessayez.",
   "about.issuesFailed.title": "Impossible d’ouvrir «\u00a0Signaler un problème\u00a0»",
-  "about.issuesFailed.body": "Ouvrez la page de signalement des problèmes dans votre navigateur et réessayez.",
+  "about.issuesFailed.body": "La page de signalement des problèmes n’a pas pu être ouverte dans votre navigateur. Réessayez.",
   "about.license": "GNU GPL v3 ou ultérieure",
 
   "date.none": "Aucune échéance",

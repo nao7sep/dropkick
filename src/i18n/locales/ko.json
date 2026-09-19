@@ -194,9 +194,9 @@
   "about.tagline": "여러 파일에 걸친 일반 JSON 할 일 목록을 다루는 로컬 우선 할 일 관리자입니다. 데이터는 사용자의 컴퓨터를 벗어나지 않습니다.",
   "about.reportIssue": "문제 보고",
   "about.githubFailed.title": "GitHub을 열지 못함",
-  "about.githubFailed.body": "브라우저에서 프로젝트 페이지를 열고 다시 시도하십시오.",
+  "about.githubFailed.body": "브라우저에서 프로젝트 페이지를 열 수 없습니다. 다시 시도하십시오.",
   "about.issuesFailed.title": "‘문제 보고’를 열지 못함",
-  "about.issuesFailed.body": "브라우저에서 이슈 페이지를 열고 다시 시도하십시오.",
+  "about.issuesFailed.body": "브라우저에서 이슈 페이지를 열 수 없습니다. 다시 시도하십시오.",
   "about.license": "GNU GPL v3 이상",
 
   "date.none": "마감일 없음",
