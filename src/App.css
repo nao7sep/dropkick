@@ -329,8 +329,7 @@ body.divider-dragging * {
      inherit only this rule's fallback. The fallback IS the default: the stored
      default resolves to the same stack, so an empty or unknown family degrades
      to a real sans stack rather than the engine's serif. */
-  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  --font-ui: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;

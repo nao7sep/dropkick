@@ -55,7 +55,7 @@ export function normalizeKickDistances(values: unknown): number[] {
 // a family the user types is appended to this, so an unknown one degrades to a
 // real sans face rather than the engine's serif.
 export const DEFAULT_UI_FONT_STACK =
-  'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 export function normalizeThemePreference(
   value: unknown,
