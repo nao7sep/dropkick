@@ -10,6 +10,7 @@
 // conventions), so nothing they do can reach this file.
 
 import { create } from "zustand";
+import { message } from "../i18n/translate";
 import type { PreferencesDto } from "../models";
 import type { ActionResult } from "./action-result";
 import { createDefaultPreferences } from "../models";
@@ -113,7 +114,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
         }
         return {
           status: "error",
-          message: "Preferences could not be saved. Your previous settings are still in use; try again.",
+          message: message("write.preferences"),
         };
       }
 

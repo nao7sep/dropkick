@@ -1,5 +1,6 @@
 import type { Task } from "../models";
 import type { ActionResult } from "../state";
+import type { Message } from "../i18n/translate";
 
 export interface DeleteSelectedTasksInputs {
   selectedTasks: readonly Task[];
@@ -13,7 +14,7 @@ export interface DeleteSelectedTasksInputs {
 export interface DeleteSelectedTasksResult {
   deletedTasks: Task[];
   failedTasks: Task[];
-  failures: Array<{ task: Task; reason: string }>;
+  failures: Array<{ task: Task; reason: Message }>;
 }
 
 // Deletes one selection with at most one write per source list. A source-file
@@ -33,7 +34,7 @@ export async function deleteSelectedTasks({
 
   const deletedTasks: Task[] = [];
   const failedTasks: Task[] = [];
-  const failures: Array<{ task: Task; reason: string }> = [];
+  const failures: Array<{ task: Task; reason: Message }> = [];
 
   for (const [sourceFile, tasks] of bySource) {
     const result = await removeTasks(

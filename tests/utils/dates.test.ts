@@ -8,6 +8,7 @@ import {
   isOverdue,
   isDueInDayRange,
 } from "../../src/utils/dates";
+import { createTranslator } from "../../src/i18n/translate";
 
 // Pin "now" to a moment where UTC and Asia/Tokyo (UTC+9) fall on different
 // calendar dates, so timezone handling is actually exercised:
@@ -88,38 +89,39 @@ describe("isDueInDayRange", () => {
 });
 
 describe("formatDueDate", () => {
-  it("formats a date-only string as yyyy-mm-dd", () => {
-    expect(formatDueDate("2026-06-04")).toBe("2026-06-04");
+  it("formats a date-only string with the language's calendar format", () => {
+    expect(formatDueDate("2026-06-04", createTranslator("en", "en-US").calendarDate)).toBe("Jun 4, 2026");
+    expect(formatDueDate("2026-06-04", createTranslator("ja").calendarDate)).toBe("2026/06/04");
+    expect(formatDueDate("2026-06-04", createTranslator("de").calendarDate)).toBe("04.06.2026");
   });
 
-  it("zero-pads single-digit month and day", () => {
-    expect(formatDueDate("2026-01-02")).toBe("2026-01-02");
+  it("never shifts the calendar date by a time zone", () => {
+    expect(formatDueDate("2026-01-01", createTranslator("en", "en-US").calendarDate)).toBe("Jan 1, 2026");
   });
 
   it("passes through an unparseable string unchanged", () => {
-    expect(formatDueDate("not-a-date")).toBe("not-a-date");
+    expect(formatDueDate("not-a-date", createTranslator("en").calendarDate)).toBe("not-a-date");
   });
 });
 
 describe("formatTimestamp", () => {
-  it("converts an instant into the target timezone as local yyyy-mm-dd HH:mm (24h)", () => {
+  const { dateTime } = createTranslator("en", "en-US");
+
+  it("converts an instant into the target timezone, in the language's format", () => {
     // 2026-06-04T20:00Z is 2026-06-05 05:00 in Tokyo.
-    expect(formatTimestamp(FIXED_NOW, "Asia/Tokyo")).toBe("2026-06-05 05:00");
+    expect(formatTimestamp(FIXED_NOW, "Asia/Tokyo", dateTime)).toBe("Jun 5, 2026, 5:00 AM");
+    expect(formatTimestamp(FIXED_NOW, "Asia/Tokyo", createTranslator("ja").dateTime)).toBe("2026/06/05 5:00");
   });
 
   it("renders the instant unchanged when the zone is UTC", () => {
-    expect(formatTimestamp(FIXED_NOW, "UTC")).toBe("2026-06-04 20:00");
-  });
-
-  it("zero-pads single-digit month, day, hour, and minute", () => {
-    expect(formatTimestamp("2026-01-02T03:04:00.000Z", "UTC")).toBe("2026-01-02 03:04");
+    expect(formatTimestamp(FIXED_NOW, "UTC", dateTime)).toBe("Jun 4, 2026, 8:00 PM");
   });
 
   it("falls back to the system timezone for an invalid zone (no throw)", () => {
-    expect(formatTimestamp(FIXED_NOW, "Not/AZone")).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+    expect(formatTimestamp(FIXED_NOW, "Not/AZone", dateTime)).toMatch(/2026/);
   });
 
   it("passes through an invalid timestamp unchanged", () => {
-    expect(formatTimestamp("nonsense", "UTC")).toBe("nonsense");
+    expect(formatTimestamp("nonsense", "UTC", dateTime)).toBe("nonsense");
   });
 });

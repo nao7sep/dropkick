@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { message } from "../../../src/i18n/translate";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { act, createElement } from "react";
 import { ToastHost } from "../../../src/components/shared/ToastHost";
@@ -24,10 +25,10 @@ afterEach(async () => {
 describe("ToastHost result channels", () => {
   it("keeps a persistent structural alert beside transient no-op feedback", async () => {
     useToastStore.getState().showBackgroundWriteError(
-      "Your view settings",
-      "Your view settings could not be saved.",
+      "viewSettings",
+      message("write.viewSettings"),
     );
-    useToastStore.getState().showToast("This action is unavailable here.");
+    useToastStore.getState().showToast(message("toast.unifiedReorder"));
 
     host = await mount(createElement(ToastHost));
 
@@ -35,7 +36,7 @@ describe("ToastHost result channels", () => {
     const status = document.querySelector('[role="status"]');
     expect(alert?.textContent).toContain("could not be saved");
     expect(alert?.querySelectorAll("svg")).toHaveLength(1);
-    expect(status?.textContent).toContain("unavailable");
+    expect(status?.textContent).toContain("unified view");
 
     await act(async () => {
       (alert?.querySelector("button") as HTMLButtonElement).click();

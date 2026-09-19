@@ -1,3 +1,4 @@
+import { inEnglish } from "../helpers/i18n";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // Mock the repository barrel so the store never touches the filesystem.
@@ -150,12 +151,12 @@ describe("reorderTabs active-index tracking", () => {
 
     expect(tabNames()).toEqual(["A", "B", "C"]);
     expect(activeIdx()).toBe(1);
-    expect(useWorkspaceStore.getState().workspacePersistenceError).toBe(
+    expect(inEnglish(useWorkspaceStore.getState().workspacePersistenceError)).toBe(
       "The tab order could not be saved. The previous order was restored.",
     );
     expect(logError).toHaveBeenCalledWith(
       "workspace write failed",
-      expect.objectContaining({ what: "Your tab order", error: expect.any(Object) }),
+      expect.objectContaining({ what: "tabOrder", error: expect.any(Object) }),
     );
 
     useWorkspaceStore.getState().dismissWorkspacePersistenceError();
@@ -236,6 +237,6 @@ describe("a failed write", () => {
       useWorkspaceStore.getState().addTab("/a.json", "A"),
     ).resolves.not.toThrow();
 
-    expect(useWorkspaceStore.getState().workspacePersistenceError).toContain("could not be saved");
+    expect(inEnglish(useWorkspaceStore.getState().workspacePersistenceError)).toContain("could not be saved");
   });
 });

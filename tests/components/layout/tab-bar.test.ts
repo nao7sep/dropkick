@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { message } from "../../../src/i18n/translate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { Accessibility } from "@dnd-kit/dom";
@@ -258,7 +259,7 @@ describe("TabBar wrapped visibility", () => {
       },
       filePath: "/fixtures/workspace.json",
       loaded: true,
-      workspacePersistenceError: "The tab order could not be saved. The previous order was restored.",
+      workspacePersistenceError: message("write.tabOrderRestored"),
     });
 
     host = await mount(

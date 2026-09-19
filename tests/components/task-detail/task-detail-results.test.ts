@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { message } from "../../../src/i18n/translate";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Task } from "../../../src/models";
@@ -66,7 +67,7 @@ afterEach(async () => {
 
 describe("TaskDetail operation results", () => {
   it("retains a failed title draft beside its field for retry", async () => {
-    updateTitle.mockResolvedValueOnce({ status: "error", message: "Title write failed" });
+    updateTitle.mockResolvedValueOnce({ status: "error", message: message("write.taskList") });
     const title = document.querySelector('textarea[placeholder="Task title..."]')! as HTMLTextAreaElement;
 
     await act(async () => {
@@ -85,12 +86,12 @@ describe("TaskDetail operation results", () => {
     expect(title.value).toBe("Retained title");
     expect(title.getAttribute("aria-invalid")).toBe("true");
     expect(document.getElementById(title.getAttribute("aria-describedby")!)?.textContent).toBe(
-      "Title write failed",
+      "The task list could not be saved. Your change was not saved; try again.",
     );
   });
 
   it("keeps a failed status change with the Status field", async () => {
-    setStatus.mockResolvedValueOnce({ status: "error", message: "Disk full" });
+    setStatus.mockResolvedValueOnce({ status: "error", message: message("write.fileGone") });
     const status = [...document.querySelectorAll("select")].find(
       (select) => select.previousElementSibling?.textContent === "Status",
     )!;
@@ -102,12 +103,14 @@ describe("TaskDetail operation results", () => {
 
     expect(status.getAttribute("aria-invalid")).toBe("true");
     const errorId = status.getAttribute("aria-describedby")!;
-    expect(document.getElementById(errorId)?.textContent).toBe("Disk full");
+    expect(document.getElementById(errorId)?.textContent).toBe(
+      "The file no longer exists. Your in-app change was not saved.",
+    );
     expect(document.getElementById(errorId)?.getAttribute("role")).toBe("alert");
   });
 
   it("keeps a reorder failure in the task detail pane", async () => {
-    sendToFirst.mockResolvedValueOnce({ status: "error", message: "Permission denied" });
+    sendToFirst.mockResolvedValueOnce({ status: "error", message: message("write.notLoaded") });
     const tackle = [...document.querySelectorAll("button")].find(
       (button) => button.textContent === "Tackle",
     )!;
@@ -117,14 +120,14 @@ describe("TaskDetail operation results", () => {
     const alert = [...document.querySelectorAll('[role="alert"]')].find(
       (element) => element.textContent?.includes("Task could not be reordered"),
     );
-    expect(alert?.textContent).toContain("Permission denied");
+    expect(alert?.textContent).toContain("no longer loaded");
   });
 
   it("keeps a note failure on the affected note", async () => {
     await host?.unmount();
     setNoteActionability.mockResolvedValueOnce({
       status: "error",
-      message: "Note write failed",
+      message: message("write.reloaded"),
     });
     host = await mount(
       createElement(TaskDetail, {
@@ -147,7 +150,7 @@ describe("TaskDetail operation results", () => {
     const alert = [...document.querySelectorAll('[role="alert"]')].find(
       (element) => element.textContent?.includes("Note could not be updated"),
     );
-    expect(alert?.textContent).toContain("Note write failed");
+    expect(alert?.textContent).toContain("reloaded from disk");
     expect(noteSelect.parentElement?.parentElement?.contains(alert ?? null)).toBe(true);
   });
 });

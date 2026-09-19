@@ -1,5 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { log, toErrorFields } from "../../repositories";
+import { useI18n } from "../../i18n/I18nContext";
+import type { Message } from "../../i18n/translate";
 
 // Non-dismissible halt shown when startup fails (app-state init, or a
 // preferences/workspace load error). The app must not fall through to the main
@@ -12,10 +14,11 @@ import { log, toErrorFields } from "../../repositories";
 // labelled exit (Quit) so the user is never stuck with zero buttons.
 
 type StartupErrorScreenProps = {
-  message: string;
+  message: Message;
 };
 
 export function StartupErrorScreen({ message }: StartupErrorScreenProps) {
+  const { t, text } = useI18n();
   function quit() {
     void getCurrentWindow()
       .destroy()
@@ -28,15 +31,15 @@ export function StartupErrorScreen({ message }: StartupErrorScreenProps) {
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="max-w-md rounded-lg bg-surface p-6 shadow-lg">
-        <h2 className="mb-2 text-lg font-bold text-danger">Dropkick couldn’t start</h2>
-        <p className="whitespace-pre-wrap text-sm text-ink-soft">{message}</p>
+        <h2 className="mb-2 text-lg font-bold text-danger">{t("startup.errorTitle")}</h2>
+        <p className="whitespace-pre-wrap text-sm text-ink-soft">{text(message)}</p>
         <div className="mt-5 flex justify-end">
           <button
             type="button"
             className="rounded-md bg-primary-solid px-4 py-2 text-sm font-medium text-ink-inverted transition-colors hover:bg-primary-solid-hover"
             onClick={quit}
           >
-            Quit
+            {t("startup.quit")}
           </button>
         </div>
       </div>

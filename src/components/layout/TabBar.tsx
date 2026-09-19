@@ -30,6 +30,9 @@ import {
   log,
   toErrorFields,
 } from "../../repositories";
+import { useI18n } from "../../i18n/I18nContext";
+import type { MessageKey } from "../../i18n/catalogues";
+import { message } from "../../i18n/translate";
 
 type MenuItemId = "settings" | "shortcuts" | "about";
 
@@ -56,6 +59,8 @@ interface TabBarProps {
 }
 
 export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
+  const i18n = useI18n();
+  const { t } = i18n;
   const preferences = usePreferencesStore((s) => s.preferences);
   // Zoom is view state (state.json), not a preference — read/write via app-appState.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
@@ -171,10 +176,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       await addRecentFile(normalizedPath);
     } catch (e) {
       log.error("create task list failed", toErrorFields(e));
-      await showMessage(
-        "Create Task List Failed",
-        "The task list file could not be created. Check the selected location and available storage, then try again.",
-      );
+      await showMessage(message("tabs.createFailed.title"), message("tabs.createFailed.body"));
     }
   };
 
@@ -188,8 +190,8 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
         // The load-failure warning is emitted once by the task-list store
         // (covers this path and background loads); here we only show the dialog.
         await showMessage(
-          "Open Task List Failed",
-          describeLoadFailure("task list", loaded, path),
+          message("tabs.openFailed.title"),
+          describeLoadFailure("taskList", loaded, path),
         );
         return;
       }
@@ -198,10 +200,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       await addRecentFile(path);
     } catch (e) {
       log.error("open task list threw", toErrorFields(e));
-      await showMessage(
-        "Open Task List Failed",
-        "The task list file could not be opened. Check that it is still available and that Dropkick has access, then try again.",
-      );
+      await showMessage(message("tabs.openFailed.title"), message("tabs.openFailed.body"));
     }
   };
 
@@ -212,8 +211,8 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       if (loaded.status !== "success") {
         // Load-failure warning is emitted once by the task-list store.
         await showMessage(
-          "Open Task List Failed",
-          describeLoadFailure("task list", loaded, path),
+          message("tabs.openFailed.title"),
+          describeLoadFailure("taskList", loaded, path),
         );
         return;
       }
@@ -222,10 +221,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       await addRecentFile(path);
     } catch (e) {
       log.error("open recent task list threw", { path, ...toErrorFields(e) });
-      await showMessage(
-        "Open Recent File Failed",
-        "The recent task list file could not be opened. Check that it is still available and that Dropkick has access, then try again.",
-      );
+      await showMessage(message("tabs.openRecentFailed.title"), message("tabs.openRecentFailed.body"));
     }
   };
 
@@ -235,10 +231,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       await addUnifiedViewTab();
     } catch (e) {
       log.error("open unified view failed", toErrorFields(e));
-      await showMessage(
-        "Open Unified View Failed",
-        "The unified view could not be opened. Your task lists were not changed; try again.",
-      );
+      await showMessage(message("tabs.unifiedFailed.title"), message("tabs.unifiedFailed.body"));
     }
   };
 
@@ -374,7 +367,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
           <div
             ref={tablistRef}
             role="tablist"
-            aria-label="Open task lists"
+            aria-label={t("tabs.label")}
             onKeyDown={handleTablistKeyDown}
             className="contents"
           >
@@ -419,7 +412,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <button
-                aria-label="New or open task list"
+                aria-label={t("tabs.newOrOpen")}
                 className="flex h-10 w-10 shrink-0 items-center justify-center text-primary transition-colors hover:bg-primary-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
               >
                 <Plus size={16} />
@@ -436,20 +429,20 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                   onSelect={handleNewTaskList}
                   className={MENU_ITEM_CLASS}
                 >
-                  New task list...
+                  {t("tabs.newList")}
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={handleOpenExisting}
                   className={MENU_ITEM_CLASS}
                 >
-                  Open existing file...
+                  {t("tabs.openExisting")}
                 </DropdownMenu.Item>
                 {!workspace.openTabs.some((t) => t.isUnifiedView) && (
                   <DropdownMenu.Item
                     onSelect={handleUnifiedView}
                     className={MENU_ITEM_CLASS}
                   >
-                    Unified view
+                    {t("tabs.unifiedMenu")}
                   </DropdownMenu.Item>
                 )}
 
@@ -457,7 +450,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                   <>
                     <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
                     <DropdownMenu.Label className="px-4 py-1 text-xs font-medium text-ink-muted">
-                      Recent
+                      {t("tabs.recent")}
                     </DropdownMenu.Label>
                     {recentFiles.slice(0, 10).map((r) => (
                       <DropdownMenu.Item
@@ -486,8 +479,8 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <button
-                aria-label="Menu"
-                title="Menu"
+                aria-label={t("menu.label")}
+                title={t("menu.label")}
                 className="flex h-10 w-10 shrink-0 items-center justify-center text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
               >
                 <Menu size={18} />
@@ -505,14 +498,14 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Settings size={14} className="text-ink-muted" />
-                  Settings
+                  {t("menu.settings")}
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("shortcuts")}
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Keyboard size={14} className="text-ink-muted" />
-                  Keyboard Shortcuts
+                  {t("menu.shortcuts")}
                 </DropdownMenu.Item>
 
                 {/* Zoom — a non-menuitem control embedded in the menu: arrow
@@ -520,7 +513,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                     global zoom shortcuts. Left exactly as the standalone control. */}
                 <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
                 <div className="flex items-center justify-center gap-3 px-3 py-1.5">
-                  <span className="text-sm text-ink-soft">Zoom</span>
+                  <span className="text-sm text-ink-soft">{t("menu.zoom")}</span>
                   <div className="flex items-center overflow-hidden rounded border border-border">
                     <button
                       onClick={() => {
@@ -529,7 +522,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                       }}
                       disabled={stepZoomOut(zoomLevel) === zoomLevel}
                       className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-30"
-                      title="Zoom out"
+                      title={t("menu.zoomOut")}
                     >
                       <Minus size={12} />
                     </button>
@@ -537,13 +530,13 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                       <button
                         onClick={() => updateViewState({ zoomLevel: ZOOM_DEFAULT })}
                         className="w-10 border-x border-border bg-surface text-center text-xs tabular-nums text-primary hover:text-primary-hover leading-6"
-                        title="Reset to 100%"
+                        title={t("menu.zoomReset", { percent: i18n.percent(ZOOM_DEFAULT) })}
                       >
-                        {Math.round(zoomLevel * 100)}%
+                        {i18n.percent(zoomLevel)}
                       </button>
                     ) : (
                       <span className="w-10 border-x border-border bg-surface text-center text-xs tabular-nums text-ink leading-6">
-                        {Math.round(zoomLevel * 100)}%
+                        {i18n.percent(zoomLevel)}
                       </span>
                     )}
                     <button
@@ -553,7 +546,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                       }}
                       disabled={stepZoomIn(zoomLevel) === zoomLevel}
                       className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-30"
-                      title="Zoom in"
+                      title={t("menu.zoomIn")}
                     >
                       <Plus size={12} />
                     </button>
@@ -566,7 +559,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Info size={14} className="text-ink-muted" />
-                  About Dropkick
+                  {t("menu.about")}
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
@@ -577,11 +570,11 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
             role="alert"
             className="flex shrink-0 items-start gap-2 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
           >
-            <span className="min-w-0 flex-1">{workspacePersistenceError}</span>
+            <span className="min-w-0 flex-1">{i18n.text(workspacePersistenceError)}</span>
             <button
               type="button"
-              aria-label="Dismiss workspace save error"
-              title="Dismiss"
+              aria-label={t("tabs.dismissSaveError")}
+              title={t("common.dismiss")}
               onClick={dismissWorkspacePersistenceError}
               className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong"
             >
@@ -602,9 +595,9 @@ const URGENCY_DOT_COLOR: Record<NonNullable<ListUrgency>, string> = {
   DueToday: "bg-group-duetoday-accent",
 };
 
-const URGENCY_LABEL: Record<NonNullable<ListUrgency>, string> = {
-  PastDue: "Has past-due tasks",
-  DueToday: "Has tasks due today",
+const URGENCY_LABEL: Record<NonNullable<ListUrgency>, MessageKey> = {
+  PastDue: "tabs.hasPastDue",
+  DueToday: "tabs.hasDueToday",
 };
 
 interface SortableTabProps {
@@ -652,6 +645,7 @@ function SortableTab({
     group: TAB_DRAG_TYPE,
   });
   const composing = useComposing();
+  const { t } = useI18n();
 
   const style = {
     opacity: isDragging ? 0.5 : 1,
@@ -669,7 +663,7 @@ function SortableTab({
       data-tab-id={id}
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
-      title={hasLoadError ? `Load failed: ${tab.filePath}` : undefined}
+      title={hasLoadError ? t("tabs.loadFailed", { path: tab.filePath }) : undefined}
       className={`group flex shrink-0 cursor-grab items-center gap-1.5 border-r border-border px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring ${
         isActive
           ? "bg-primary-surface text-primary-hover"
@@ -679,7 +673,7 @@ function SortableTab({
       {urgency && (
         <span
           className={`h-2 w-2 shrink-0 rounded-full ${URGENCY_DOT_COLOR[urgency]}`}
-          title={URGENCY_LABEL[urgency]}
+          title={t(URGENCY_LABEL[urgency])}
         />
       )}
 
@@ -712,13 +706,15 @@ function SortableTab({
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className="max-w-32 truncate">{tab.displayName}</span>
+        <span className="max-w-32 truncate">
+          {tab.isUnifiedView ? t("tabs.unified") : tab.displayName}
+        </span>
       )}
 
       <button
         onClick={onClose}
         tabIndex={-1}
-        aria-label="Close tab"
+        aria-label={t("tabs.close")}
         className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-surface-muted group-hover:opacity-100"
       >
         <X size={12} />

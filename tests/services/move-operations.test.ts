@@ -1,3 +1,5 @@
+import { message } from "../../src/i18n/translate";
+import { inEnglish } from "../helpers/i18n";
 import { describe, it, expect } from "vitest";
 import {
   prepareMoveOperation,
@@ -83,7 +85,7 @@ describe("moveSelectedTasks", () => {
       moveTasks: async (source) => {
         calls.push(source);
         return source === "/y.json"
-          ? { status: "error", message: "disk full" }
+          ? { status: "error", message: message("move.destDeleted") }
           : { status: "success" };
       },
     });
@@ -94,8 +96,8 @@ describe("moveSelectedTasks", () => {
       new Set([taskKey("/dst.json", "a"), taskSelectionKey(task("b", "/y.json"))]),
     );
     // And the user is told some of them moved.
-    expect(outcome.message).toContain("Some selected tasks were moved");
-    expect(outcome.message).toContain("disk full");
+    expect(inEnglish(outcome.message)).toContain("Some selected tasks were moved");
+    expect(inEnglish(outcome.message)).toContain("The destination file no longer exists");
   });
 
   it("does not claim a partial move when the first group already failed", async () => {
@@ -105,10 +107,10 @@ describe("moveSelectedTasks", () => {
       isUnifiedView: true,
       sourceFilePath: "",
       nextActiveTaskKey: null,
-      moveTasks: async () => ({ status: "error", message: "nope" }),
+      moveTasks: async () => ({ status: "error", message: message("move.failed") }),
     });
     expect(outcome.status).toBe("error");
-    expect(outcome.message).toBe("nope");
+    expect(outcome.message).toEqual(message("move.failed"));
     expect(outcome.selection).toEqual(
       new Set([taskSelectionKey(task("a", "/x.json"))]),
     );
@@ -121,7 +123,7 @@ describe("moveSelectedTasks", () => {
       isUnifiedView: false,
       sourceFilePath: "/src.json",
       nextActiveTaskKey: "next",
-      moveTasks: async () => ({ status: "error", message: "boom" }),
+      moveTasks: async () => ({ status: "error", message: message("move.failed") }),
     });
     expect(outcome.status).toBe("error");
     expect(outcome.selection).toEqual(

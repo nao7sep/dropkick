@@ -33,14 +33,13 @@ import {
 import { isComposingEvent } from "./useComposing";
 import { useViewTasks } from "./useViewTasks";
 import { useTaskDeletion } from "./useTaskDeletion";
+import { message, type Message } from "../i18n/translate";
 
 // Toast messages for actions that are silently disabled in unified view. They
 // lead with the view because that is the part users forget — an empty selection
 // is visible on screen, but "I'm in unified view" is not.
-const UNIFIED_DROPKICK_MSG =
-  "You're in unified view — Dropkick works in a single list.";
-const UNIFIED_REORDER_MSG =
-  "You're in unified view — reordering works in a single list.";
+const UNIFIED_DROPKICK_MSG = message("toast.unifiedDropkick");
+const UNIFIED_REORDER_MSG = message("toast.unifiedReorder");
 
 function isTyping(e: KeyboardEvent): boolean {
   // The shared editable predicate; SELECT is not editable for chord purposes
@@ -68,8 +67,8 @@ export function useKeyboardShortcuts(
   onOpenShortcutsHelp: () => void,
   onTaskActionFailure: (
     ownerKeys: readonly string[],
-    title: string,
-    message: string,
+    title: Message,
+    reason: Message,
   ) => void,
 ) {
   const preferences = usePreferencesStore((s) => s.preferences);
@@ -123,7 +122,7 @@ export function useKeyboardShortcuts(
       if (failures.length > 0) {
         onTaskActionFailure(
           selectedTasks.map(taskSelectionKey),
-          "Some tasks were not updated",
+          message("bulk.notUpdated"),
           describeTaskActionFailures(failures),
         );
         return false;
@@ -159,7 +158,7 @@ export function useKeyboardShortcuts(
       if (failures.length > 0) {
         onTaskActionFailure(
           selectedTasks.map(taskSelectionKey),
-          "Some tasks were not updated",
+          message("bulk.notUpdated"),
           describeTaskActionFailures(failures),
         );
         return false;
@@ -200,7 +199,7 @@ export function useKeyboardShortcuts(
       if (result.status === "error") {
         onTaskActionFailure(
           selectedTasks.map(taskSelectionKey),
-          "Tasks could not be reordered",
+          message("bulk.reorderFailed"),
           result.message,
         );
       }
@@ -409,7 +408,7 @@ export function useKeyboardShortcuts(
         if (result.status === "error") {
           onTaskActionFailure(
             selectedTasks.map(taskSelectionKey),
-            "Tasks could not be reordered",
+            message("bulk.reorderFailed"),
             result.message,
           );
           return;
@@ -432,12 +431,8 @@ export function useKeyboardShortcuts(
         if (result && result.failedTasks.length > 0) {
           onTaskActionFailure(
             result.failedTasks.map(taskSelectionKey),
-            result.deletedTasks.length > 0
-              ? "Some tasks were not deleted"
-              : "Tasks could not be deleted",
-            result.failures
-              .map(({ task, reason }) => `${task.title || "Untitled"}: ${reason}`)
-              .join("\n"),
+            message(result.deletedTasks.length > 0 ? "bulk.someNotDeleted" : "bulk.noneDeleted"),
+            describeTaskActionFailures(result.failures),
           );
         }
         return;

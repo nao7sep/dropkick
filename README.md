@@ -12,6 +12,7 @@ Dropkick is a local-first desktop task manager built around one idea: when you c
 - **Keyboard-first** — change status, priority, and due dates without leaving the keys
 - **Safe on disk** — SHA-256 change detection before overwrite, so an edit made to a task file outside the app is never silently clobbered
 - **IME-safe** — Japanese/Chinese/Korean input works in every text field
+- **Ten interface languages** — English, Japanese, Chinese, Korean, Spanish, Portuguese, French, German, Italian, and Russian, following the computer's language by default
 
 ## Requirements
 

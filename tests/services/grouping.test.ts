@@ -57,7 +57,7 @@ describe("groupTasks — list view", () => {
 
   it("labels the Default group as 'Tasks'", () => {
     const result = groupTasks([task({ id: "a", group: "Default" })], false);
-    expect(result.groups[0].label).toBe("Tasks");
+    expect(result.groups[0].label).toBe("group.default");
   });
 });
 

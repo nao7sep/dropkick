@@ -2,6 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState } from "react";
 import { useDialogStore } from "../../state/dialog-store";
 import type { DialogRequest } from "../../state/dialog-store";
+import { useI18n } from "../../i18n/I18nContext";
 
 // Which control a request wants focused. A confirmation never focuses the
 // destructive action; where BOTH choices destroy something, none of them does
@@ -15,6 +16,7 @@ export function dialogFocusTarget(request: DialogRequest): DialogFocusTarget {
 }
 
 export function AppDialogHost() {
+  const { text } = useI18n();
   const current = useDialogStore((s) => s.current);
   const confirmCurrent = useDialogStore((s) => s.confirmCurrent);
   const cancelCurrent = useDialogStore((s) => s.cancelCurrent);
@@ -103,7 +105,7 @@ export function AppDialogHost() {
                         : "text-ink-strong"
                   }`}
                 >
-                  {current.title}
+                  {text(current.title)}
                 </Dialog.Title>
               </div>
             </div>
@@ -111,7 +113,7 @@ export function AppDialogHost() {
             <div className="px-6 py-5">
               <Dialog.Description asChild>
                 <p className="whitespace-pre-wrap text-sm leading-6 text-ink-soft">
-                  {current.body}
+                  {text(current.body)}
                 </p>
               </Dialog.Description>
             </div>
@@ -123,7 +125,7 @@ export function AppDialogHost() {
                   onClick={cancelCurrent}
                   className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
                 >
-                  {current.cancelLabel}
+                  {text(current.cancelLabel)}
                 </button>
               )}
 
@@ -138,7 +140,7 @@ export function AppDialogHost() {
                       : "bg-primary-solid hover:bg-primary-solid-hover"
                 }`}
               >
-                {current.confirmLabel}
+                {text(current.confirmLabel)}
               </button>
             </div>
           </Dialog.Content>

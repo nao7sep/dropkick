@@ -35,10 +35,13 @@ import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { useTaskDeletion } from "../../hooks/useTaskDeletion";
 import { InlineResult } from "../shared/InlineResult";
+import { useI18n } from "../../i18n/I18nContext";
+import { ACTIONABILITY_LABELS, PRIORITY_LABELS, STATUS_LABELS } from "../../i18n/domainLabels";
+import { message, type Message } from "../../i18n/translate";
 
 interface PaneIssue {
-  title: string;
-  message: string;
+  title: Message;
+  message: Message;
 }
 
 interface TaskDetailProps {
@@ -60,6 +63,8 @@ export function TaskDetail({
   externalIssue,
   onDismissExternalIssue,
 }: TaskDetailProps) {
+  const i18n = useI18n();
+  const { t, text } = i18n;
   const preferences = usePreferencesStore((s) => s.preferences);
   const updateTitle = useTaskListStore((s) => s.updateTitle);
   const updateDescription = useTaskListStore((s) => s.updateDescription);
@@ -79,10 +84,10 @@ export function TaskDetail({
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descDraft, setDescDraft] = useState(task.description);
   const [moveTarget, setMoveTarget] = useState("");
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const [descriptionError, setDescriptionError] = useState<string | null>(null);
-  const [statusError, setStatusError] = useState<string | null>(null);
-  const [noteComposerError, setNoteComposerError] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<Message | null>(null);
+  const [descriptionError, setDescriptionError] = useState<Message | null>(null);
+  const [statusError, setStatusError] = useState<Message | null>(null);
+  const [noteComposerError, setNoteComposerError] = useState<Message | null>(null);
   const [actionErrors, setActionErrors] = useState<
     Record<string, PaneIssue>
   >({});
@@ -122,8 +127,8 @@ export function TaskDetail({
   const autoGrowDesc = useAutoGrow(descRef);
   const autoGrowNewNote = useAutoGrow(newNoteRef);
 
-  const reportActionError = (operation: string, title: string, message: string) => {
-    setActionErrors((errors) => ({ ...errors, [operation]: { title, message } }));
+  const reportActionError = (operation: string, title: Message, reason: Message) => {
+    setActionErrors((errors) => ({ ...errors, [operation]: { title, message: reason } }));
   };
 
   const clearActionError = (operation: string) => {
@@ -136,7 +141,7 @@ export function TaskDetail({
 
   const handleActionResult = (
     operation: string,
-    title: string,
+    title: Message,
     result: ActionResult,
   ) => {
     if (result.status === "error") {
@@ -237,12 +242,12 @@ export function TaskDetail({
 
   const handlePriorityChange = async (priority: TaskPriority) => {
     const result = await setPriority(filePath, task.id, priority);
-    handleActionResult("priority", "Priority could not be changed", result);
+    handleActionResult("priority", message("detail.priorityFailed"), result);
   };
 
   const handleDueDateChange = async (value: string) => {
     const result = await setDueDate(filePath, task.id, value || null);
-    handleActionResult("due-date", "Due date could not be changed", result);
+    handleActionResult("due-date", message("detail.dueDateFailed"), result);
   };
 
   const handleDeleteTask = async () => {
@@ -253,8 +258,8 @@ export function TaskDetail({
     }
     reportActionError(
       "delete",
-      "Task could not be deleted",
-      result.failures[0]?.reason ?? "The task is still here; try again.",
+      message("detail.deleteFailed"),
+      result.failures[0]?.reason ?? message("detail.deleteFailedBody"),
     );
   };
 
@@ -282,7 +287,7 @@ export function TaskDetail({
     const ids = new Set([task.id]);
     const result = await moveTasks(filePath, moveTarget, ids);
     if (result.status === "error") {
-      reportActionError("move", "Task could not be moved", result.message);
+      reportActionError("move", message("detail.moveFailed"), result.message);
       return;
     }
     clearActionError("move");
@@ -329,13 +334,13 @@ export function TaskDetail({
           }
         }}
         {...titleComposing.handlers}
-        placeholder="Task title..."
+        placeholder={t("detail.titlePlaceholder")}
         rows={1}
         className="mb-4 w-full shrink-0 resize-none text-lg font-semibold text-ink-strong outline-none placeholder:text-ink-muted"
       />
       {titleError ? (
         <p id={`task-title-error-${task.id}`} role="alert" className="-mt-3 mb-4 text-xs text-danger">
-          {titleError}
+          {text(titleError)}
         </p>
       ) : null}
 
@@ -343,7 +348,7 @@ export function TaskDetail({
       <div className="mb-4 flex flex-wrap gap-3">
         {/* Status */}
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">Status</label>
+          <label className="mb-1 block text-xs text-ink-muted">{t("detail.status")}</label>
           <select
             aria-invalid={statusError !== null}
             aria-describedby={statusError ? `task-status-error-${task.id}` : undefined}
@@ -351,37 +356,38 @@ export function TaskDetail({
             onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
             className="rounded-md border border-input-border px-2 py-1 text-sm text-ink"
           >
-            <option value="Pending">Pending</option>
+            <option value="Pending">{t(STATUS_LABELS.Pending)}</option>
             <option value="Completed" disabled={!task.canComplete}>
-              Completed {!task.canComplete ? "(actionable notes)" : ""}
+              {task.canComplete ? t(STATUS_LABELS.Completed) : t("detail.completedBlocked")}
             </option>
-            <option value="Dismissed">Dismissed</option>
+            <option value="Dismissed">{t(STATUS_LABELS.Dismissed)}</option>
           </select>
           {statusError ? (
             <p id={`task-status-error-${task.id}`} role="alert" className="mt-1 max-w-48 text-xs text-danger">
-              {statusError}
+              {text(statusError)}
             </p>
           ) : null}
         </div>
 
         {/* Priority */}
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">Priority</label>
+          <label className="mb-1 block text-xs text-ink-muted">{t("detail.priority")}</label>
           <select
             value={task.priority}
             onChange={(e) => handlePriorityChange(e.target.value as TaskPriority)}
             className={`rounded-md border px-2 py-1 text-sm ${prioritySelectStyle(task.priority)}`}
           >
-            <option value="Critical">Critical</option>
-            <option value="Important">Important</option>
-            <option value="Urgent">Urgent</option>
-            <option value="Default">Default</option>
+            {(["Critical", "Important", "Urgent", "Default"] as const).map((value) => (
+              <option key={value} value={value}>
+                {t(PRIORITY_LABELS[value])}
+              </option>
+            ))}
           </select>
         </div>
 
         {/* Due Date */}
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">Due</label>
+          <label className="mb-1 block text-xs text-ink-muted">{t("detail.due")}</label>
           <DatePicker
             value={task.dueDate}
             onChange={(v) => handleDueDateChange(v ?? "")}
@@ -392,7 +398,7 @@ export function TaskDetail({
 
       {/* Reorder buttons */}
       <Toolbar
-        label="Task actions"
+        label={t("detail.actions")}
         className="mb-4 flex flex-wrap items-center gap-2"
       >
         {!isUnifiedView && (
@@ -400,18 +406,18 @@ export function TaskDetail({
             <button
               onClick={async () => {
                 const result = await sendToFirst(filePath);
-                handleActionResult("reorder", "Task could not be reordered", result);
+                handleActionResult("reorder", message("detail.reorderFailed"), result);
               }}
               className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
-              Tackle
+              {t("action.tackle")}
             </button>
             {kickDistances.map((d) => (
               <button
                 key={d}
                 onClick={async () => {
                   const result = await kick(filePath, d);
-                  handleActionResult("reorder", "Task could not be reordered", result);
+                  handleActionResult("reorder", message("detail.reorderFailed"), result);
                 }}
                 className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
               >
@@ -421,16 +427,16 @@ export function TaskDetail({
             <button
               onClick={async () => {
                 const result = await sendToLast(filePath);
-                handleActionResult("reorder", "Task could not be reordered", result);
+                handleActionResult("reorder", message("detail.reorderFailed"), result);
               }}
               className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
-              Kick
+              {t("action.kick")}
             </button>
             <button
               onClick={async () => {
                 const result = await dropkick(filePath);
-                handleActionResult("reorder", "Task could not be reordered", result);
+                handleActionResult("reorder", message("detail.reorderFailed"), result);
               }}
               className="rounded border border-danger-border px-2 py-1 text-xs text-danger hover:bg-danger-surface"
             >
@@ -444,23 +450,23 @@ export function TaskDetail({
           className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-ink-soft hover:border-danger-border hover:text-danger"
         >
           <Trash2 size={12} />
-          Delete
+          {t("detail.delete")}
         </button>
       </Toolbar>
 
       {/* Move to another list */}
       {moveDestinations.length > 0 && (
         <div className="mb-4 flex items-center gap-2">
-          <label className="text-xs text-ink-muted">Move to</label>
+          <label className="text-xs text-ink-muted">{t("detail.moveTo")}</label>
           <select
             value={moveTarget}
             onChange={(e) => setMoveTarget(e.target.value)}
             className="flex-1 rounded-md border border-input-border px-2 py-1 text-sm text-ink-soft"
           >
-            <option value="">Select destination...</option>
-            {moveDestinations.map((t) => (
-              <option key={t.filePath} value={t.filePath}>
-                {t.displayName}
+            <option value="">{t("moveTasks.selectDestination")}</option>
+            {moveDestinations.map((tab) => (
+              <option key={tab.filePath} value={tab.filePath}>
+                {tab.displayName}
               </option>
             ))}
           </select>
@@ -469,14 +475,14 @@ export function TaskDetail({
             disabled={!moveTarget}
             className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
           >
-            Move
+            {t("moveTasks.move")}
           </button>
         </div>
       )}
 
       {/* Description */}
       <div className="mb-4">
-        <label className="mb-1 block text-xs text-ink-muted">Description</label>
+        <label className="mb-1 block text-xs text-ink-muted">{t("detail.description")}</label>
         <textarea
           ref={descRef}
           aria-invalid={descriptionError !== null}
@@ -488,12 +494,12 @@ export function TaskDetail({
           }}
           onBlur={handleDescBlur}
           rows={2}
-          placeholder="Add a description..."
+          placeholder={t("detail.descriptionPlaceholder")}
           className="w-full resize-none rounded-md border border-input-border p-2 text-sm text-ink outline-none focus:border-primary-ring"
         />
         {descriptionError ? (
           <p id={`task-description-error-${task.id}`} role="alert" className="mt-1 text-xs text-danger">
-            {descriptionError}
+            {text(descriptionError)}
           </p>
         ) : null}
       </div>
@@ -501,29 +507,30 @@ export function TaskDetail({
       {/* Timestamps */}
       <div className="mb-4 space-y-0.5 text-xs text-ink-muted">
         <div>
-          Created:{" "}
-          {formatTimestamp(task.createdAtUtc, preferences.timezone)}
+          {t("detail.created", {
+            time: formatTimestamp(task.createdAtUtc, preferences.timezone, i18n.dateTime),
+          })}
         </div>
         <div>
-          Updated:{" "}
-          {formatTimestamp(task.updatedAtUtc, preferences.timezone)}
+          {t("detail.updated", {
+            time: formatTimestamp(task.updatedAtUtc, preferences.timezone, i18n.dateTime),
+          })}
         </div>
         {task.completedAtUtc && (
           <div>
-            Handled:{" "}
-            {formatTimestamp(task.completedAtUtc, preferences.timezone)}
+            {t("detail.handled", {
+              time: formatTimestamp(task.completedAtUtc, preferences.timezone, i18n.dateTime),
+            })}
           </div>
         )}
         {task.dueDate && (
-          <div>
-            Due: {formatDueDate(task.dueDate)}
-          </div>
+          <div>{t("detail.dueOn", { date: formatDueDate(task.dueDate, i18n.calendarDate) })}</div>
         )}
       </div>
 
       {/* Notes section */}
       <div className="border-t border-border pt-4">
-        <h4 className="mb-3 text-sm font-medium text-ink-soft">Notes</h4>
+        <h4 className="mb-3 text-sm font-medium text-ink-soft">{t("detail.notes")}</h4>
 
         {/* Add note */}
         <div className="mb-3">
@@ -552,13 +559,13 @@ export function TaskDetail({
               handleAddNote(action === "save-actionable" ? "Actionable" : "Informational");
             }}
             {...noteComposing.handlers}
-            placeholder={`Add a note... (${primaryModifierLabel}+Enter to save, ${primaryModifierLabel}+Shift+Enter actionable)`}
+            placeholder={t("detail.notePlaceholder", { mod: primaryModifierLabel })}
             rows={2}
             className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           />
           {noteComposerError ? (
             <p id={`new-note-error-${task.id}`} role="alert" className="mt-1 text-xs text-danger">
-              {noteComposerError}
+              {text(noteComposerError)}
             </p>
           ) : null}
           <div className="mt-1 flex justify-end">
@@ -567,7 +574,7 @@ export function TaskDetail({
               disabled={!newNoteContent.trim()}
               className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
             >
-              Add Note
+              {t("detail.addNote")}
             </button>
           </div>
         </div>
@@ -575,7 +582,7 @@ export function TaskDetail({
         {/* Notes list */}
         {task.notes.length === 0 ? (
           <div className="py-4 text-center text-sm text-ink-muted">
-            No notes yet
+            {t("detail.noNotes")}
           </div>
         ) : (
           <div className="space-y-2">
@@ -626,7 +633,9 @@ function NoteItem({
   const clearJustOpened = useNoteDraftStore((s) => s.clearJustOpened);
   const editing = entry !== undefined;
   const draft = entry ?? "";
-  const [noteError, setNoteError] = useState<string | null>(null);
+  const i18n = useI18n();
+  const { t } = i18n;
+  const [noteError, setNoteError] = useState<Message | null>(null);
   const composing = useComposing();
   const editRef = useRef<HTMLTextAreaElement>(null);
   const autoGrowEdit = useAutoGrow(editRef);
@@ -744,7 +753,7 @@ function NoteItem({
       {noteError ? (
         <InlineResult
           id={`note-error-${note.id}`}
-          title="Note could not be updated"
+          title={message("note.updateFailed")}
           message={noteError}
           onDismiss={() => setNoteError(null)}
           className="mb-2"
@@ -761,18 +770,20 @@ function NoteItem({
           }
           className="rounded border border-input-border px-1 py-0.5 text-xs text-ink"
         >
-          <option value="Informational">Informational</option>
-          <option value="Actionable">Actionable</option>
-          <option value="Resolved">Resolved</option>
+          {(["Informational", "Actionable", "Resolved"] as const).map((value) => (
+            <option key={value} value={value}>
+              {t(ACTIONABILITY_LABELS[value])}
+            </option>
+          ))}
         </select>
 
         <span className="ml-auto text-xs text-ink-muted">
-          {formatTimestamp(note.createdAtUtc, preferences.timezone)}
+          {formatTimestamp(note.createdAtUtc, preferences.timezone, i18n.dateTime)}
         </span>
         <button
           onClick={handleDeleteNote}
           className="rounded p-0.5 text-ink-muted hover:text-danger"
-          title="Delete note"
+          title={t("note.delete")}
         >
           <X size={14} />
         </button>
@@ -814,14 +825,14 @@ function NoteItem({
               disabled={!draft.trim()}
               className="rounded bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
             >
-              Save
+              {t("note.save")}
             </button>
             <button
               // Immediate, unguarded discard — see requestCancelViaEscape above.
               onClick={() => clearDraft(draftKey)}
               className="rounded border border-border px-3 py-1 text-xs text-ink-muted hover:bg-background"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>

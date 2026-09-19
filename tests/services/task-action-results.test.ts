@@ -1,3 +1,5 @@
+import { inEnglish } from "../helpers/i18n";
+import { message } from "../../src/i18n/translate";
 import { describe, expect, it } from "vitest";
 import type { Task } from "../../src/models";
 import {
@@ -36,16 +38,16 @@ describe("task action results", () => {
     const tasks = [task("a", "Alpha"), task("b", "Beta"), task("c", "Gamma")];
     const failures = collectTaskActionFailures(tasks, [
       { status: "success" },
-      { status: "validation", reason: "Has actionable notes" },
-      { status: "error", message: "Disk full" },
+      { status: "validation", reason: message("task.cannotComplete", { count: 1 }) },
+      { status: "error", message: message("write.taskList") },
     ]);
 
-    expect(failures.map(({ task, reason }) => [task.title, reason])).toEqual([
-      ["Beta", "Has actionable notes"],
-      ["Gamma", "Disk full"],
+    expect(failures.map(({ task, reason }) => [task.title, inEnglish(reason)])).toEqual([
+      ["Beta", "Cannot complete: 1 actionable note remaining"],
+      ["Gamma", "The task list could not be saved. Your change was not saved; try again."],
     ]);
-    expect(describeTaskActionFailures(failures)).toBe(
-      "Beta: Has actionable notes\nGamma: Disk full",
+    expect(inEnglish(describeTaskActionFailures(failures))).toBe(
+      "Beta: Cannot complete: 1 actionable note remaining\nGamma: The task list could not be saved. Your change was not saved; try again.",
     );
   });
 });

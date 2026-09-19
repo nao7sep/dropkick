@@ -5,6 +5,7 @@
 // Launch but never change which file was selected — switching to a second
 // workspace meant re-picking the same file through the native dialog.
 
+import { inEnglish } from "../../helpers/i18n";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { createElement, act } from "react";
 import { mount } from "../../helpers/react-dom";
@@ -145,10 +146,12 @@ describe("StartupPicker — native picker failures", () => {
     expect(open).toBeTruthy();
     await act(async () => open!.click());
 
-    expect(repositories.showMessage).toHaveBeenCalledWith(
-      "Open Preferences Failed",
-      "Opening the preferences file could not be completed. Check that the selected location is available and try again.",
-    );
+    expect(repositories.showMessage.mock.calls.map((args: unknown[]) => args.map((m) => inEnglish(m as never)))).toEqual([
+      [
+        "Open Preferences Failed",
+        "Opening the preferences file could not be completed. Check that the selected location is available and try again.",
+      ],
+    ]);
     expect(JSON.stringify(repositories.showMessage.mock.calls)).not.toMatch(
       /EACCES|HOSTILE-SENTINEL|TypeError|IPC|private\/tmp/,
     );
@@ -166,10 +169,12 @@ describe("StartupPicker — native picker failures", () => {
     expect(create).toBeTruthy();
     await act(async () => create!.click());
 
-    expect(repositories.showMessage).toHaveBeenCalledWith(
-      "Create Preferences Failed",
-      "Creating the preferences file could not be completed. Check that the selected location is available and try again.",
-    );
+    expect(repositories.showMessage.mock.calls.map((args: unknown[]) => args.map((m) => inEnglish(m as never)))).toEqual([
+      [
+        "Create Preferences Failed",
+        "Creating the preferences file could not be completed. Check that the selected location is available and try again.",
+      ],
+    ]);
     expect(JSON.stringify(repositories.showMessage.mock.calls)).not.toMatch(
       /EACCES|HOSTILE-SENTINEL|private\/tmp/,
     );

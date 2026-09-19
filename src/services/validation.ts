@@ -1,10 +1,11 @@
 // Validation rules for task state transitions.
 
 import type { TaskDto, TaskStatus } from "../models";
+import { message, type Message } from "../i18n/translate";
 
 export interface ValidationResult {
   valid: boolean;
-  reason: string | null;
+  reason: Message | null;
 }
 
 // Checks whether a task can transition to the given status.
@@ -23,7 +24,7 @@ export function canTransitionStatus(
     if (actionableCount > 0) {
       return {
         valid: false,
-        reason: `Cannot complete: ${actionableCount} actionable note${actionableCount > 1 ? "s" : ""} remaining`,
+        reason: message("task.cannotComplete", { count: actionableCount }),
       };
     }
   }

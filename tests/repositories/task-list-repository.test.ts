@@ -1,3 +1,4 @@
+import { message } from "../../src/i18n/translate";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { TaskListDto } from "../../src/models";
 
@@ -115,7 +116,7 @@ describe("flushTaskList — happy path and registration", () => {
   it("errors when the file was never loaded", async () => {
     expect(await repo.flushTaskList("/unknown.json", () => data())).toEqual({
       status: "error",
-      message: "This task list is no longer loaded. Close its tab and open it again.",
+      message: message("write.notLoaded"),
     });
   });
 
@@ -164,7 +165,7 @@ describe("flushTaskList — conflict resolution", () => {
     const next = await repo.flushTaskList("/f.json", () => data());
     expect(next).toEqual({
       status: "error",
-      message: "This task list is no longer loaded. Close its tab and open it again.",
+      message: message("write.notLoaded"),
     });
   });
 
@@ -174,8 +175,7 @@ describe("flushTaskList — conflict resolution", () => {
     const result = await repo.flushTaskList("/f.json", () => data());
     expect(result.status).toBe("error");
     expect(result).toMatchObject({
-      message:
-        "The file changed outside Dropkick but could not be reloaded. Your in-app change was not saved.",
+      message: message("write.reloadFailed"),
     });
   });
 });
@@ -204,7 +204,7 @@ describe("flushTaskList — deleted resolution", () => {
     const next = await repo.flushTaskList("/f.json", () => data());
     expect(next).toEqual({
       status: "error",
-      message: "This task list is no longer loaded. Close its tab and open it again.",
+      message: message("write.notLoaded"),
     });
   });
 });
@@ -215,7 +215,7 @@ describe("forgetTaskList", () => {
     await repo.forgetTaskList("/f.json");
     expect(await repo.flushTaskList("/f.json", () => data())).toEqual({
       status: "error",
-      message: "This task list is no longer loaded. Close its tab and open it again.",
+      message: message("write.notLoaded"),
     });
   });
 });
@@ -255,7 +255,7 @@ describe("flushMove", () => {
     const result = await repo.flushMove(SRC, DST, inputs);
     expect(result).toEqual({
       status: "error",
-      message: "The source task list is no longer loaded. Reopen it before moving tasks.",
+      message: message("move.sourceNotLoaded"),
     });
   });
 
@@ -264,15 +264,14 @@ describe("flushMove", () => {
     const result = await repo.flushMove(SRC, DST, inputs);
     expect(result).toEqual({
       status: "error",
-      message:
-        "The destination task list is no longer loaded. Reopen it before moving tasks.",
+      message: message("move.destNotLoaded"),
     });
   });
 
   it("aborts without touching disk when compute returns null", async () => {
     await registerBoth();
     const result = await repo.flushMove(SRC, DST, () => null);
-    expect(result).toEqual({ status: "error", message: "Nothing to move" });
+    expect(result).toEqual({ status: "error", message: message("move.nothing") });
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
@@ -322,7 +321,7 @@ describe("flushMove", () => {
     const result = await repo.flushMove(SRC, DST, inputs);
     expect(result).toEqual({
       status: "rollback-failed",
-      message: expect.stringContaining("could not restore"),
+      message: message("move.rollbackFailed"),
     });
   });
 });

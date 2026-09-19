@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { message } from "../../../src/i18n/translate";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -20,7 +21,7 @@ let host: Mounted | null = null;
 beforeEach(async () => {
   updateTitle.mockReset().mockResolvedValue({
     status: "error",
-    message: "Disk full",
+    message: message("write.taskList"),
   });
   usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
   useWorkspaceStore.setState({
@@ -77,6 +78,8 @@ describe("TaskListPane results", () => {
     expect(updateTitle).toHaveBeenCalled();
     expect(row.querySelector("input")).not.toBeNull();
     expect(row.querySelector("input")?.getAttribute("aria-invalid")).toBe("true");
-    expect(row.querySelector('[role="alert"]')?.textContent).toBe("Disk full");
+    expect(row.querySelector('[role="alert"]')?.textContent).toBe(
+      "The task list could not be saved. Your change was not saved; try again.",
+    );
   });
 });

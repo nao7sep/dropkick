@@ -8,17 +8,18 @@ import { taskActionOwnerKey } from "../../services";
 import { TaskDetail } from "./TaskDetail";
 import { TaskSummary } from "./TaskSummary";
 import { BulkActions } from "./BulkActions";
+import type { Message } from "../../i18n/translate";
 
 interface TaskDetailPaneProps {
   filePath: string;
   isUnifiedView: boolean;
   focusNewNoteSignal: number;
-  externalIssues?: Record<string, { title: string; message: string }>;
+  externalIssues?: Record<string, { title: Message; message: Message }>;
   onDismissExternalIssue?: (ownerKey: string) => void;
   onReportExternalIssue?: (
     ownerKeys: readonly string[],
-    title: string,
-    message: string,
+    title: Message,
+    message: Message,
   ) => void;
 }
 

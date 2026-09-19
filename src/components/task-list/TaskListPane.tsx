@@ -27,6 +27,8 @@ import {
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useViewTasks } from "../../hooks/useViewTasks";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
+import { useI18n } from "../../i18n/I18nContext";
+import type { Message } from "../../i18n/translate";
 
 interface TaskListPaneProps {
   filePath: string;
@@ -69,6 +71,8 @@ const GROUP_BGS: Record<TaskGroup, string> = {
 };
 
 export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPaneProps) {
+  const i18n = useI18n();
+  const { t } = i18n;
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
@@ -205,7 +209,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   };
 
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
-  const [renameErrors, setRenameErrors] = useState<Record<string, string>>({});
+  const [renameErrors, setRenameErrors] = useState<Record<string, Message>>({});
 
   // Keyboard-first: focus the list on tab load so arrows work without a click,
   // but only when nothing else holds focus — never steal from an input or a tab
@@ -355,7 +359,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     return (
       <LoadErrorPane
         filePath={filePath}
-        message={describeLoadFailure("task list", fileLoadError)}
+        message={describeLoadFailure("taskList", fileLoadError)}
         onRetry={() => loadFile(filePath)}
         onRemove={() => closeTab(activeTabIndex)}
       />
@@ -402,7 +406,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         className="flex w-full shrink-0 items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium text-primary hover:bg-primary-surface"
       >
         <Plus size={14} />
-        New Task
+        {t("newTask.title")}
         <span className="ml-auto text-primary">
           {`${primaryModifierLabel}+N`}
         </span>
@@ -416,8 +420,11 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         <div className="flex shrink-0 items-start border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong">
           <span>
             {unifiedLoad.failedNames.length === 1
-              ? `"${unifiedLoad.failedNames[0]}" could not be loaded and is not included here. Open its tab to retry.`
-              : `${unifiedLoad.failedNames.length} lists could not be loaded and are not included here: ${unifiedLoad.failedNames.join(", ")}. Open the affected tabs to retry.`}
+              ? t("unified.oneFailed", { name: unifiedLoad.failedNames[0] })
+              : t("unified.manyFailed", {
+                  count: unifiedLoad.failedNames.length,
+                  names: i18n.list(unifiedLoad.failedNames),
+                })}
           </span>
         </div>
       )}
@@ -428,8 +435,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       {isUnifiedView && unifiedLoad.loadingCount > 0 && (
         <div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 text-xs text-ink-muted">
           <span>
-            Loading {unifiedLoad.loadingCount}{" "}
-            {unifiedLoad.loadingCount === 1 ? "list" : "lists"}…
+            {t("unified.loading", { count: unifiedLoad.loadingCount })}
           </span>
         </div>
       )}
@@ -449,7 +455,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           ref={listRef}
           role="listbox"
           aria-multiselectable={true}
-          aria-label="Task list"
+          aria-label={t("taskList.label")}
           aria-activedescendant={activeDescendantId}
           tabIndex={0}
           onKeyDown={handleListKeyDown}
@@ -459,7 +465,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               folded archive available below while saying the active list is empty. */}
           {emptyMessage && (
             <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
-              {emptyMessage}
+              {t(emptyMessage)}
             </div>
           )}
 
@@ -468,7 +474,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               <div
                 className={`sticky top-0 z-10 border-b bg-surface-sunken/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide backdrop-blur ${GROUP_COLORS[group]}`}
               >
-                {label}
+                {t(label)}
               </div>
               {groupTasks.map((task) => {
                 const selectionKey = taskSelectionKey(task);
@@ -514,7 +520,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                 <span className="flex items-center">
                   {handledExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </span>
-                <span>Handled ({grouped.handledTotal})</span>
+                <span>{t("taskList.handled", { count: grouped.handledTotal })}</span>
               </div>
 
               {handledExpanded && (
@@ -552,7 +558,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                       onClick={() => showMoreHandled(viewKey, pageSize)}
                       className="w-full cursor-pointer select-none py-2 text-center text-xs text-primary hover:bg-primary-surface"
                     >
-                      Show more ({grouped.handledTotal - handledVisible} remaining)
+                      {t("taskList.showMore", { count: grouped.handledTotal - handledVisible })}
                     </div>
                   )}
                 </>
@@ -599,12 +605,13 @@ function TaskRow({
   // Resolved source-list label, shown in unified view. Computed by the parent
   // from the subscribed open tabs so a tab rename updates the row immediately.
   sourceLabel?: string;
-  renameError?: string;
+  renameError?: Message;
   onClick: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
   onRename: (title: string) => Promise<boolean>;
   onCancelRename: () => void;
 }) {
+  const { t, text } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(task.title);
   const composing = useComposing();
@@ -684,13 +691,13 @@ function TaskRow({
             task.status === "Dismissed" ? "line-through text-ink-muted" : ""
           } ${task.status === "Completed" ? "text-ink-soft" : ""}`}
         >
-          {task.title || "Untitled"}
+          {task.title || t("common.untitled")}
         </span>
       )}
 
       {/* Actionable notes indicator */}
       {task.hasActionableNotes && (
-        <span title="Has actionable notes">
+        <span title={t("taskList.hasActionable")}>
           <AlertCircle
             size={14}
             className="shrink-0 text-attention"
@@ -710,7 +717,7 @@ function TaskRow({
           role="alert"
           className="w-full pl-6 text-xs text-danger"
         >
-          {renameError}
+          {text(renameError)}
         </span>
       ) : null}
     </div>
@@ -724,17 +731,18 @@ function LoadErrorPane({
   onRemove,
 }: {
   filePath: string;
-  message: string;
+  message: Message;
   onRetry: () => Promise<unknown>;
   onRemove: () => Promise<unknown>;
 }) {
+  const { t, text } = useI18n();
   return (
     <div className="flex flex-1 items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-lg border border-danger-border bg-danger-surface p-5 text-sm">
         <div className="mb-3 font-semibold text-danger-fg-strong">
-          Task list could not be loaded
+          {t("taskList.loadFailed")}
         </div>
-        <p className="whitespace-pre-wrap text-danger-fg-strong">{message}</p>
+        <p className="whitespace-pre-wrap text-danger-fg-strong">{text(message)}</p>
         <p className="mt-3 truncate text-xs text-danger" title={filePath}>
           {filePath}
         </p>
@@ -743,13 +751,13 @@ function LoadErrorPane({
             onClick={onRetry}
             className="rounded-md bg-danger-solid px-3 py-1.5 font-medium text-ink-inverted hover:bg-danger-solid-hover"
           >
-            Retry
+            {t("taskList.retry")}
           </button>
           <button
             onClick={onRemove}
             className="rounded-md border border-danger-border-strong bg-surface px-3 py-1.5 font-medium text-danger hover:bg-danger-surface-strong"
           >
-            Remove tab
+            {t("taskList.removeTab")}
           </button>
         </div>
       </div>

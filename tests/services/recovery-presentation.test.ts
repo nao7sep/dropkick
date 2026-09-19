@@ -1,3 +1,4 @@
+import { inEnglish } from "../helpers/i18n";
 import { describe, expect, it } from "vitest";
 import {
   describeAppStateRecovery,
@@ -8,8 +9,8 @@ describe("recovery presentation", () => {
   it("keeps internal quarantine paths out of both recovery notices", () => {
     const hostile = "/.dropkick/HOSTILE-SENTINEL-EACCES.invalid";
     for (const message of [
-      describeAppStateRecovery(hostile),
-      describeNoteDraftRecovery(hostile),
+      inEnglish(describeAppStateRecovery(hostile)),
+      inEnglish(describeNoteDraftRecovery(hostile)),
     ]) {
       expect(message).toContain("location is recorded in the application log");
       expect(message).not.toContain("/.dropkick/");

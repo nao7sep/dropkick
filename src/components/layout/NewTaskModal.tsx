@@ -20,6 +20,9 @@ import { AppModal } from "../shared/AppModal";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
+import { useI18n } from "../../i18n/I18nContext";
+import { PRIORITY_LABELS } from "../../i18n/domainLabels";
+import type { Message } from "../../i18n/translate";
 
 interface NewTaskModalProps {
   currentFilePath: string;
@@ -53,7 +56,8 @@ export function NewTaskModal({
   const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [targetError, setTargetError] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const { t, text } = useI18n();
+  const [actionError, setActionError] = useState<Message | null>(null);
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
@@ -173,7 +177,7 @@ export function NewTaskModal({
 
   return (
     <AppModal
-      title="New Task"
+      title={t("newTask.title")}
       onClose={onClose}
       onRequestClose={handleRequestClose}
       maxWidth={448}
@@ -184,14 +188,14 @@ export function NewTaskModal({
             onClick={handleRequestClose}
             className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             onClick={handleCreate}
             disabled={!canCreate || submitting}
             className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
           >
-            Create
+            {t("newTask.create")}
           </button>
         </>
       }
@@ -205,7 +209,7 @@ export function NewTaskModal({
     >
       {actionError ? (
         <p role="alert" className="text-sm text-danger">
-          {actionError}
+          {text(actionError)}
         </p>
       ) : null}
 
@@ -213,7 +217,7 @@ export function NewTaskModal({
       {fileTabs.length > 0 && (
         <div>
           <label className="mb-1 block text-xs font-medium text-ink-muted">
-            Add to list
+            {t("newTask.list")}
           </label>
           <select
             ref={targetSelectRef}
@@ -228,7 +232,7 @@ export function NewTaskModal({
           >
             {!targetFile && (
               <option value="" disabled>
-                Select a task list...
+                {t("newTask.selectList")}
               </option>
             )}
             {fileTabs.map((tab) => (
@@ -239,7 +243,7 @@ export function NewTaskModal({
           </select>
           {targetError ? (
             <p id="new-task-target-error" role="alert" className="mt-1 text-xs text-danger">
-              Select the task list that should receive this task.
+              {t("newTask.listRequired")}
             </p>
           ) : null}
         </div>
@@ -247,14 +251,14 @@ export function NewTaskModal({
 
       {fileTabs.length === 0 && (
         <p className="text-xs text-danger">
-          No task lists open. Open or create a task list first.
+          {t("newTask.noLists")}
         </p>
       )}
 
       {/* Title */}
       <div>
         <label className="mb-1 block text-xs font-medium text-ink-muted">
-          Title
+          {t("newTask.titleLabel")}
         </label>
         <textarea
           ref={titleRef}
@@ -271,7 +275,7 @@ export function NewTaskModal({
             }
           }}
           {...composing.handlers}
-          placeholder="Task title (optional)"
+          placeholder={t("newTask.titlePlaceholder")}
           rows={1}
           className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
@@ -280,7 +284,7 @@ export function NewTaskModal({
       {/* Description */}
       <div>
         <label className="mb-1 block text-xs font-medium text-ink-muted">
-          Description
+          {t("newTask.description")}
         </label>
         <textarea
           ref={descRef}
@@ -289,7 +293,7 @@ export function NewTaskModal({
             setDescription(e.target.value);
             autoGrowDesc();
           }}
-          placeholder="Optional details..."
+          placeholder={t("newTask.descriptionPlaceholder")}
           rows={2}
           className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
         />
@@ -299,23 +303,24 @@ export function NewTaskModal({
       <div className="flex items-start gap-4">
         <div className="flex-1">
           <label className="mb-1 block text-xs font-medium text-ink-muted">
-            Priority
+            {t("newTask.priority")}
           </label>
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value as TaskPriority)}
             className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
           >
-            <option value="Default">Default</option>
-            <option value="Urgent">Urgent</option>
-            <option value="Important">Important</option>
-            <option value="Critical">Critical</option>
+            {(["Default", "Urgent", "Important", "Critical"] as const).map((value) => (
+              <option key={value} value={value}>
+                {t(PRIORITY_LABELS[value])}
+              </option>
+            ))}
           </select>
         </div>
 
         <div>
           <label className="mb-1 block text-xs font-medium text-ink-muted">
-            Due date
+            {t("newTask.dueDate")}
           </label>
           <DatePicker value={dueDate} onChange={setDueDate} popoverPosition="top" />
         </div>

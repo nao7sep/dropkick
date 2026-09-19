@@ -1,6 +1,7 @@
 // User preferences stored as a portable JSON file at any path.
 // Controls display and behavior settings.
 
+import type { LanguagePreference } from "../i18n/languages";
 import { generateId } from "../utils/ids";
 
 export type ThemePreference = "system" | "light" | "dark";
@@ -11,6 +12,10 @@ export interface PreferencesDto {
   // materialized on load for legacy files that lack one — see loadPreferences.
   id: string;
   name: string;
+  // The interface language: "system" follows the computer's language on every
+  // launch; otherwise a supported language tag. An authored setting that travels
+  // with the portable document, like the theme.
+  language: LanguagePreference;
   fontFamily: string;
   theme: ThemePreference;
   // NOTE: zoomLevel and sidebarWidth used to live here but are VIEW STATE, not
@@ -150,6 +155,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     version: "1.0.0",
     id: generateId(),
     name,
+    language: "system",
     fontFamily: "",
     theme: "system",
     timezone: null,

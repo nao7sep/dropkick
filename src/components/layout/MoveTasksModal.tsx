@@ -12,6 +12,8 @@ import {
   passiveScrollRegionProps,
 } from "../../utils";
 import { moveSelectedTasks } from "../../services";
+import { useI18n } from "../../i18n/I18nContext";
+import type { Message } from "../../i18n/translate";
 
 interface MoveTasksModalProps {
   selectedTasks: Task[];
@@ -41,7 +43,8 @@ export function MoveTasksModal({
   const movingRef = useRef(false);
   const [moving, setMoving] = useState(false);
   const [destError, setDestError] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const { t, text } = useI18n();
+  const [actionError, setActionError] = useState<Message | null>(null);
   const destinationRef = useRef<HTMLSelectElement>(null);
 
   // In unified view, tasks may come from different files — collect all unique source files.
@@ -97,7 +100,7 @@ export function MoveTasksModal({
 
   return (
     <AppModal
-      title={`Move ${selectedTasks.length} task${selectedTasks.length > 1 ? "s" : ""}`}
+      title={t("moveTasks.title", { count: selectedTasks.length })}
       // Pure-selection modal per the modal conventions: the only draft is the
       // <select> destination, committed solely by the Move button. Closing
       // discards no persisted draft, so there is no dirty state — close routes
@@ -112,14 +115,14 @@ export function MoveTasksModal({
             onClick={onClose}
             className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             onClick={handleMove}
             disabled={!moveTarget || moving}
             className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
           >
-            Move
+            {t("moveTasks.move")}
           </button>
         </>
       }
@@ -134,12 +137,12 @@ export function MoveTasksModal({
     >
       {actionError ? (
         <p role="alert" className="mb-4 text-sm text-danger">
-          {actionError}
+          {text(actionError)}
         </p>
       ) : null}
 
       <div
-        {...passiveScrollRegionProps("Selected tasks")}
+        {...passiveScrollRegionProps(t("moveTasks.selected"))}
         className="mb-4 max-h-32 overflow-y-auto"
       >
         <SelectedTaskTitleList tasks={selectedTasks} />
@@ -147,12 +150,12 @@ export function MoveTasksModal({
 
       {destinations.length === 0 ? (
         <p className="text-sm text-ink-muted">
-          No other lists are open. Open another list tab first.
+          {t("moveTasks.noDestinations")}
         </p>
       ) : (
         <div>
           <label className="mb-1 block text-xs font-medium text-ink-muted">
-            Destination
+            {t("moveTasks.destination")}
           </label>
           <select
             ref={destinationRef}
@@ -166,16 +169,16 @@ export function MoveTasksModal({
             }}
             className={`w-full rounded-md border border-input-border px-3 py-1.5 text-sm text-ink-soft outline-none focus:border-primary-ring ${destError ? "bg-danger-surface" : ""}`}
           >
-            <option value="">Select destination...</option>
-            {destinations.map((t) => (
-              <option key={t.filePath} value={t.filePath}>
-                {t.displayName}
+            <option value="">{t("moveTasks.selectDestination")}</option>
+            {destinations.map((tab) => (
+              <option key={tab.filePath} value={tab.filePath}>
+                {tab.displayName}
               </option>
             ))}
           </select>
           {destError ? (
             <p id="move-tasks-destination-error" role="alert" className="mt-1 text-xs text-danger">
-              Select the task list that should receive these tasks.
+              {t("moveTasks.destinationRequired")}
             </p>
           ) : null}
         </div>

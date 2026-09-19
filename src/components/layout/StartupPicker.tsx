@@ -23,6 +23,9 @@ import {
 import { useAppStateStore } from "../../state/app-state-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 import { pageStepIndex, rowDomId, stepIndex } from "../../utils";
+import { useI18n } from "../../i18n/I18nContext";
+import type { MessageKey } from "../../i18n/catalogues";
+import { message } from "../../i18n/translate";
 
 const STARTUP_LIST_PAGE = 4;
 
@@ -31,6 +34,7 @@ interface StartupPickerProps {
 }
 
 export function StartupPicker({ onLaunch }: StartupPickerProps) {
+  const { t } = useI18n();
   const appState = useAppStateStore((s) => s.appState);
   const registerPreferences = useAppStateStore((s) => s.registerPreferences);
   const registerWorkspace = useAppStateStore((s) => s.registerWorkspace);
@@ -65,30 +69,30 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   // the rejection to the global unhandled-rejection logger: the button simply
   // did nothing, with no dialog, no selection change and no clue why. TabBar's
   // equivalent already wrapped the identical sequence.
+  // `action` names the failure's title and body keys, and the log line.
   const guarded = async (
-    title: string,
-    what: string,
+    action: "openPreferences" | "createPreferences" | "openWorkspace" | "createWorkspace",
     run: () => Promise<void>,
   ): Promise<void> => {
     try {
       await run();
     } catch (e) {
-      log.error("startup picker action failed", { action: what, ...toErrorFields(e) });
+      log.error("startup picker action failed", { action, ...toErrorFields(e) });
       await showMessage(
-        title,
-        `${what} could not be completed. Check that the selected location is available and try again.`,
+        message(`startup.${action}Failed.title` as MessageKey),
+        message(`startup.${action}Failed.body` as MessageKey),
       );
     }
   };
 
   const handleOpenPreferences = async () => {
-    await guarded("Open Preferences Failed", "Opening the preferences file", async () => {
+    await guarded("openPreferences", async () => {
       const path = await openJsonFileDialog();
       if (!path) return;
       const loadResult = await loadPreferences(path);
       if (loadResult.status !== "success") {
         await showMessage(
-          "Preferences Load Failed",
+          message("startup.preferencesFailed.title"),
           describeLoadFailure("preferences", loadResult, path),
         );
         return;
@@ -99,7 +103,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   };
 
   const handleNewPreferences = async () => {
-    await guarded("Create Preferences Failed", "Creating the preferences file", async () => {
+    await guarded("createPreferences", async () => {
       const normalizedPath = await saveJsonFileDialog("preferences.json");
       if (!normalizedPath) return;
       await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
@@ -109,13 +113,13 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   };
 
   const handleOpenWorkspace = async () => {
-    await guarded("Open Workspace Failed", "Opening the workspace file", async () => {
+    await guarded("openWorkspace", async () => {
       const path = await openJsonFileDialog();
       if (!path) return;
       const loadResult = await loadWorkspace(path);
       if (loadResult.status !== "success") {
         await showMessage(
-          "Workspace Load Failed",
+          message("startup.workspaceFailed.title"),
           describeLoadFailure("workspace", loadResult, path),
         );
         return;
@@ -126,7 +130,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   };
 
   const handleNewWorkspace = async () => {
-    await guarded("Create Workspace Failed", "Creating the workspace file", async () => {
+    await guarded("createWorkspace", async () => {
       const normalizedPath = await saveJsonFileDialog("workspace.json");
       if (!normalizedPath) return;
       await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
@@ -162,7 +166,9 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
 
         {/* Preferences section */}
         <Section
-          label="Preferences"
+          id="preferences"
+          label={t("startup.preferences")}
+          emptyText={t("startup.noPreferences")}
           items={appState.knownPreferences}
           selected={selectedPrefs}
           onSelect={setSelectedPrefs}
@@ -174,7 +180,9 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
 
         {/* Workspace section */}
         <Section
-          label="Workspace"
+          id="workspace"
+          label={t("startup.workspace")}
+          emptyText={t("startup.noWorkspaces")}
           items={appState.knownWorkspaces}
           selected={selectedWorkspace}
           onSelect={setSelectedWorkspace}
@@ -192,7 +200,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
             disabled={!canLaunch}
             className="min-w-28 rounded-md bg-primary-solid px-4 py-2 font-medium text-ink-inverted transition-colors hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
           >
-            Launch
+            {t("startup.launch")}
           </button>
         </div>
       </div>
@@ -200,15 +208,17 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   );
 }
 
-// A stable, HTML-safe option id. Prefixed with the section label because the
+// A stable, HTML-safe option id. Prefixed with the section id because the
 // same path could legitimately appear in both lists.
-function optionDomId(label: string, path: string): string {
-  return `${label.toLowerCase()}-${rowDomId(path)}`;
+function optionDomId(section: string, path: string): string {
+  return `${section}-${rowDomId(path)}`;
 }
 
 // Reusable section for preferences and workspace selection.
 function Section({
+  id,
   label,
+  emptyText,
   items,
   selected,
   onSelect,
@@ -217,7 +227,9 @@ function Section({
   onRemove,
   openButtonRef,
 }: {
+  id: string;
   label: string;
+  emptyText: string;
   items: string[];
   selected: string;
   onSelect: (path: string) => void;
@@ -226,16 +238,17 @@ function Section({
   onRemove: (path: string) => void;
   openButtonRef?: RefObject<HTMLButtonElement | null>;
 }) {
+  const { t } = useI18n();
   const listboxRef = useRef<HTMLDivElement>(null);
 
   // Active-descendant keeps focus on the listbox, so the browser does not
   // scroll the newly active option for us. Keep keyboard movement visible.
   useEffect(() => {
     if (!selected || !items.includes(selected)) return;
-    const option = document.getElementById(optionDomId(label, selected));
+    const option = document.getElementById(optionDomId(id, selected));
     if (!option || !listboxRef.current?.contains(option)) return;
     option.scrollIntoView?.({ block: "nearest" });
-  }, [items, label, selected]);
+  }, [items, id, selected]);
 
   // Selection follows the cursor, which is this list's whole purpose — there is
   // nothing to "open", only a file to choose.
@@ -272,20 +285,20 @@ function Section({
         ref={listboxRef}
         role="listbox"
         aria-label={label}
-        aria-activedescendant={selected ? optionDomId(label, selected) : undefined}
+        aria-activedescendant={selected ? optionDomId(id, selected) : undefined}
         tabIndex={0}
         onKeyDown={handleListKeyDown}
         className="max-h-36 overflow-y-auto rounded-md border border-border outline-none focus:border-primary-ring"
       >
         {items.length === 0 ? (
           <div className="px-3 py-2 text-sm text-ink-muted">
-            No {label.toLowerCase()} files configured
+            {emptyText}
           </div>
         ) : (
           items.map((path) => (
             <div
               key={path}
-              id={optionDomId(label, path)}
+              id={optionDomId(id, path)}
               role="option"
               aria-selected={selected === path}
               onClick={() => onSelect(path)}
@@ -313,14 +326,14 @@ function Section({
           className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-background"
         >
           <FolderOpen size={14} />
-          Open
+          {t("startup.open")}
         </button>
         <button
           onClick={onNew}
           className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-background"
         >
           <Plus size={14} />
-          New
+          {t("startup.new")}
         </button>
         {selected && (
           <button
@@ -328,7 +341,7 @@ function Section({
             className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-danger transition-colors hover:bg-danger-surface"
           >
             <X size={14} />
-            Remove
+            {t("startup.remove")}
           </button>
         )}
       </div>

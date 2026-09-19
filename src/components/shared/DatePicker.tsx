@@ -8,7 +8,9 @@ import { DayPicker } from "react-day-picker";
 import { Calendar, X } from "lucide-react";
 import "react-day-picker/style.css";
 import { usePreferencesStore } from "../../state/preferences-store";
-import { todayInTimezone } from "../../utils";
+import { formatDueDate, todayInTimezone } from "../../utils";
+import { useI18n } from "../../i18n/I18nContext";
+import { DAY_PICKER_LOCALES } from "../../i18n/dayPickerLocales";
 
 interface DatePickerProps {
   value: string | null; // "YYYY-MM-DD" or null
@@ -33,6 +35,7 @@ function formatDate(date: Date): string {
 }
 
 export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bottom" }: DatePickerProps) {
+  const i18n = useI18n();
   const [open, setOpen] = useState(false);
   // "Today" is a preference, not an OS fact. Every other date decision in the
   // app — the group a task falls in, whether it is overdue, what Cmd+D sets —
@@ -76,7 +79,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
             }`}
           >
             <Calendar size={14} />
-            {value ?? "No due date"}
+            {value ? formatDueDate(value, i18n.calendarDate) : i18n.t("date.none")}
           </button>
         </Popover.Trigger>
       </span>
@@ -100,6 +103,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
               numbers inherit the popover's text-ink. Inline vars reference the
               bare runtime tokens since @theme inline doesn't emit --color-*. */}
           <DayPicker
+            locale={DAY_PICKER_LOCALES[i18n.language]}
             mode="single"
             selected={selected}
             onSelect={handleSelect}
@@ -120,7 +124,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
                 className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs text-ink-soft hover:bg-background hover:text-ink"
               >
                 <X size={12} />
-                Clear due date
+                {i18n.t("date.clear")}
               </button>
             </div>
           )}

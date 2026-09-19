@@ -4,7 +4,7 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 
 // The modules are `pub` so the integration tests in `tests/` can reach them.
 // This crate's only real consumer is `main.rs`, so the "public API" is a seam
@@ -12,8 +12,10 @@ use tauri::{AppHandle, Manager};
 // tests-folder-conventions ask for: promote the helper, do not test it through
 // a shell, and keep shipped source free of test modules.
 pub mod backup_store;
+pub mod i18n;
 mod instance_owner;
 pub mod logging;
+pub mod menu;
 pub mod nanoid;
 pub mod paths;
 pub mod theme;
@@ -577,6 +579,57 @@ fn log_event(entry: Value) {
     logging::emit_forwarded(entry);
 }
 
+// The computer's language, resolved to a supported tag, and its regional
+// locale, both read once at launch before anything could override them.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LanguageEnvironment {
+    system_language: String,
+    system_locale: Option<String>,
+}
+
+#[tauri::command]
+fn language_environment(language: State<i18n::LanguageState>) -> LanguageEnvironment {
+    LanguageEnvironment {
+        system_language: language.system_language.to_string(),
+        system_locale: language.system_locale.clone(),
+    }
+}
+
+// Rebuilds the native menu in the interface language after it changes. The
+// frontend sends the resolved language (System already resolved), so only a
+// supported tag is accepted, and the language the menu already speaks is a
+// no-op.
+#[tauri::command]
+fn apply_language(
+    app: AppHandle,
+    state: State<i18n::LanguageState>,
+    language: String,
+) -> Result<(), String> {
+    let started = log_cmd_start("apply_language", json!({ "language": language }));
+    let result: Result<(), String> = (|| {
+        let language = i18n::normalize_preference(Some(&language))
+            .ok_or_else(|| format!("unsupported language {language:?}"))?;
+        if state.current() == language {
+            return Ok(());
+        }
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            let menu = menu::build(&app, language).map_err(|error| error.to_string())?;
+            app.set_menu(menu).map_err(|error| error.to_string())?;
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let _ = &app;
+        state.set_current(language);
+        Ok(())
+    })();
+    match &result {
+        Ok(()) => log_cmd_ok("apply_language", started, json!({})),
+        Err(message) => log_cmd_err("apply_language", started, message.clone()),
+    }
+    result
+}
+
 // Reports whether developer-only `debug` logging is on, so the frontend can
 // gate its own debug events identically (a dev build, or DROPKICK_DEBUG=1).
 #[tauri::command]
@@ -596,7 +649,17 @@ pub fn run() {
     let placement_state = window_placement::new_state();
     let event_placement_state = placement_state.clone();
     let setup_placement_state = placement_state.clone();
+    // The interface language is settled before Tauri builds the app: macOS fixes
+    // AppKit's language when the application object is created.
+    let language = i18n::LanguageState::detect(
+        paths::data_root_before_launch()
+            .map(|root| std::path::PathBuf::from(paths::app_paths(&root).state_file))
+            .as_deref(),
+    );
+    #[cfg(target_os = "macos")]
+    i18n::align_appkit(language.current());
     let app = tauri::Builder::default()
+        .manage(language)
         .plugin(instance_owner::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -669,6 +732,13 @@ pub fn run() {
                     eprintln!("dropkick: storage root unavailable: {message}");
                 }
             }
+            // The native menu speaks the interface language from the first frame.
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            {
+                let language = app.state::<i18n::LanguageState>().current();
+                let menu = menu::build(app.handle(), language)?;
+                app.set_menu(menu)?;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 // The theme of the preferences document the startup picker will
                 // preview is applied before the window is shown, so the first
@@ -692,7 +762,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            apply_language,
             apply_theme,
+            language_environment,
             hash_file,
             read_json_file_with_hash,
             read_text_file,

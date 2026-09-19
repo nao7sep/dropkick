@@ -4,6 +4,7 @@ import { useRef } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { isComposingEvent } from "../../hooks/useComposing";
 import { passiveScrollRegionProps } from "../../utils";
+import { useI18n } from "../../i18n/I18nContext";
 
 type DialogContentProps = Omit<
   ComponentPropsWithoutRef<typeof Dialog.Content>,
@@ -48,6 +49,7 @@ export function AppModal({
   contentProps,
   passiveBodyLabel,
 }: AppModalProps) {
+  const { t } = useI18n();
   const contentRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { onOpenAutoFocus, ...restContentProps } = contentProps ?? {};
@@ -122,7 +124,7 @@ export function AppModal({
             {onRequestClose ? (
               <button
                 type="button"
-                aria-label={`Close ${title}`}
+                aria-label={t("common.closeNamed", { title })}
                 onClick={onRequestClose}
                 className="rounded p-1 text-ink-muted hover:bg-surface-muted hover:text-ink"
               >
@@ -132,7 +134,7 @@ export function AppModal({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  aria-label={`Close ${title}`}
+                  aria-label={t("common.closeNamed", { title })}
                   className="rounded p-1 text-ink-muted hover:bg-surface-muted hover:text-ink"
                 >
                   <X size={18} />

@@ -8,6 +8,7 @@
 import { act } from "react";
 import type { ReactElement } from "react";
 import { createRoot } from "react-dom/client";
+import { renderedKeys } from "./i18n";
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -27,6 +28,12 @@ export async function mount(element: ReactElement): Promise<Mounted> {
   });
   return {
     unmount: async () => {
+      // Every mounted spec doubles as a check that no catalogue key reaches the
+      // screen untranslated; the body is scanned so portalled modals count.
+      const keys = renderedKeys(document.body);
+      if (keys.length > 0) {
+        throw new Error(`Untranslated catalogue keys on screen: ${keys.join(", ")}`);
+      }
       await act(async () => {
         root.unmount();
       });

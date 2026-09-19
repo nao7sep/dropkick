@@ -1,5 +1,5 @@
 import { addDays, format, parseISO, isValid } from "date-fns";
-import { formatInTimeZone, toZonedTime } from "date-fns-tz";
+import { formatInTimeZone } from "date-fns-tz";
 import { coerceTimezone } from "./timezone";
 
 // Returns the current time as an ISO 8601 UTC string.
@@ -24,29 +24,30 @@ export function tomorrowInTimezone(timezone: string | null): string {
   return format(addDays(today, 1), "yyyy-MM-dd");
 }
 
-// Formats an ISO 8601 UTC timestamp for display in the user's timezone, as
-// "yyyy-MM-dd HH:mm" (local, 24-hour, no localization). If timezone is null,
-// uses the system timezone.
+// Formats an ISO 8601 UTC timestamp for display in the user's timezone, with
+// the interface language's formatter (the translator's dateTime). An invalid
+// zone falls back to the system timezone; an invalid timestamp is shown as
+// stored.
 export function formatTimestamp(
   isoUtc: string,
   timezone: string | null,
+  dateTime: (date: Date, timeZone: string | null) => string,
 ): string {
   const date = parseISO(isoUtc);
   if (!isValid(date)) return isoUtc;
-
-  const safeTimezone = coerceTimezone(timezone);
-  const zoned = safeTimezone ? toZonedTime(date, safeTimezone) : date;
-
-  return format(zoned, "yyyy-MM-dd HH:mm");
+  return dateTime(date, coerceTimezone(timezone));
 }
 
-// Formats a date-only string ("YYYY-MM-DD") for display as "yyyy-MM-dd".
-// No timezone conversion — due dates are calendar dates, not instants.
-export function formatDueDate(dateStr: string): string {
+// Formats a date-only string ("YYYY-MM-DD") with the interface language's
+// formatter (the translator's calendarDate). No timezone conversion — due
+// dates are calendar dates, not instants.
+export function formatDueDate(
+  dateStr: string,
+  calendarDate: (year: number, month: number, day: number) => string,
+): string {
   const date = parseISO(dateStr);
   if (!isValid(date)) return dateStr;
-
-  return format(date, "yyyy-MM-dd");
+  return calendarDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
 }
 
 // Checks if a due date (YYYY-MM-DD) is in the past relative to today in the given timezone.

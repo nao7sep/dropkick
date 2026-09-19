@@ -16,6 +16,7 @@ import {
 } from "../models";
 import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
 import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
+import { normalizeLanguagePreference } from "../i18n/languages";
 import { mergeWithDefaults } from "../utils/merge-defaults";
 
 export type LoadPreferencesResult =
@@ -63,6 +64,7 @@ export async function loadPreferences(
     // deliberately preserves "" — so take the freshly minted default rather
     // than re-persisting the empty value on every launch.
     id: data.id || defaults.id,
+    language: normalizeLanguagePreference(data.language),
     // `darkMode` was the released boolean setting. Preserve an explicit legacy
     // choice while new and genuinely theme-less documents follow the OS.
     theme: normalizeThemePreference(stored.theme, stored.darkMode),
@@ -104,6 +106,7 @@ export async function flushPreferences(
     const preferences = getPreferences();
     const normalized = {
       ...preferences,
+      language: normalizeLanguagePreference(preferences.language),
       theme: normalizeThemePreference(preferences.theme),
       timezone: normalizeTimezoneOrThrow(preferences.timezone),
       kickDistances: normalizeKickDistances(preferences.kickDistances),

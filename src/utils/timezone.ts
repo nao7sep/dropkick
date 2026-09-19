@@ -50,3 +50,18 @@ export function normalizeTimezoneOrThrow(timezone: unknown): string | null {
   }
   return result.value;
 }
+
+// The zones the Settings list offers after System: every IANA zone the
+// platform knows, plus UTC and the saved zone when the platform's list lacks
+// them, so a stored choice always stays selectable.
+export function timeZoneOptions(saved: string | null): string[] {
+  const zones = new Set(Intl.supportedValuesOf("timeZone"));
+  zones.add("UTC");
+  if (saved) zones.add(saved);
+  return [...zones].sort();
+}
+
+// The computer's zone, which System follows; UTC when the platform cannot say.
+export function systemTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}

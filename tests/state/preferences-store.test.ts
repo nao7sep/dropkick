@@ -1,3 +1,4 @@
+import { message } from "../../src/i18n/translate";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { PreferencesDto } from "../../src/models";
 
@@ -80,8 +81,7 @@ describe("update", () => {
 
     expect(result).toEqual({
       status: "error",
-      message:
-        "Preferences could not be saved. Your previous settings are still in use; try again.",
+      message: message("write.preferences"),
     });
     expect(usePreferencesStore.getState().preferences.dueSoonDays).toBe(7);
   });

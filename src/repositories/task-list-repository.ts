@@ -23,6 +23,7 @@ import {
   showFileDeletedDialog,
 } from "./dialogs";
 import { log } from "./logging";
+import { message, type Message } from "../i18n/translate";
 
 // Represents a loaded task list.
 export interface LoadedTaskList {
@@ -40,8 +41,8 @@ export type LoadTaskListResult =
 // any conflict/deleted dialog by the time this resolves.
 export type WriteResult =
   | { status: "success" }
-  | { status: "reloaded"; data: TaskListDto; message: string }
-  | { status: "error"; message: string };
+  | { status: "reloaded"; data: TaskListDto; message: Message }
+  | { status: "error"; message: Message };
 
 // Result of a two-file move. The store applies `sourceData`/`destData` on
 // success and leaves its in-memory state untouched on any other outcome.
@@ -51,8 +52,8 @@ export type MoveResult =
   | { status: "dest-conflict" }
   | { status: "source-deleted" }
   | { status: "dest-deleted" }
-  | { status: "rollback-failed"; message: string }
-  | { status: "error"; message: string };
+  | { status: "rollback-failed"; message: Message }
+  | { status: "error"; message: Message };
 
 // Inputs the store provides to `flushMove`. Returned by a closure invoked
 // inside the serial slot so the data reflects the latest store state.
@@ -178,14 +179,14 @@ async function resolveConflict(
     knownHashes.delete(filePath);
     return {
       status: "error",
-      message: "The file no longer exists. Your in-app change was not saved.",
+      message: message("write.fileGone"),
     };
   }
   if (loaded.status !== "success") {
     knownHashes.delete(filePath);
     return {
       status: "error",
-      message: "The file changed outside Dropkick but could not be reloaded. Your in-app change was not saved.",
+      message: message("write.reloadFailed"),
     };
   }
   rememberHash(filePath, loaded.hash);
@@ -193,7 +194,7 @@ async function resolveConflict(
     status: "reloaded",
     data: loaded.data,
     message:
-      "The file was reloaded from disk. Your in-app change was not saved.",
+      message("write.reloaded"),
   };
 }
 
@@ -214,7 +215,7 @@ async function resolveDeleted(
   knownHashes.delete(filePath);
   return {
     status: "error",
-    message: "The file was not recreated. Your in-app change was not saved.",
+    message: message("write.notRecreated"),
   };
 }
 
@@ -230,7 +231,7 @@ export async function flushTaskList(
 ): Promise<WriteResult> {
   return withSerial(filePath, async () => {
     if (knownHashes.get(filePath) === undefined) {
-      return { status: "error", message: "This task list is no longer loaded. Close its tab and open it again." };
+      return { status: "error", message: message("write.notLoaded") };
     }
 
     const data = getData();
@@ -268,15 +269,15 @@ export async function flushMove(
 ): Promise<MoveResult> {
   return withSerialTwo(sourceFilePath, destFilePath, async () => {
     if (knownHashes.get(sourceFilePath) === undefined) {
-      return { status: "error", message: "The source task list is no longer loaded. Reopen it before moving tasks." };
+      return { status: "error", message: message("move.sourceNotLoaded") };
     }
     if (knownHashes.get(destFilePath) === undefined) {
-      return { status: "error", message: "The destination task list is no longer loaded. Reopen it before moving tasks." };
+      return { status: "error", message: message("move.destNotLoaded") };
     }
 
     const inputs = compute();
     if (inputs === null) {
-      return { status: "error", message: "Nothing to move" };
+      return { status: "error", message: message("move.nothing") };
     }
 
     const destDataPostMove: TaskListDto = {
@@ -315,7 +316,7 @@ export async function flushMove(
       return {
         status: "rollback-failed",
         message:
-          "The move failed and Dropkick could not restore the destination. Reload both files before continuing.",
+          message("move.rollbackFailed"),
       };
     }
     return sourceResult.status === "conflict"

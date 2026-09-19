@@ -1,3 +1,6 @@
+import type { MessageKey } from "../i18n/catalogues";
+import { message, type Message } from "../i18n/translate";
+
 // The user-facing wording for a document that would not load, and the file-name
 // label that goes with it.
 //
@@ -14,23 +17,19 @@ export type LoadFailure =
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
-// What kind of document failed, in the words the message uses.
-export type DocumentKind = "task list" | "preferences" | "workspace";
+// What kind of document failed. Each kind has whole sentences of its own, so
+// no language has to fit a document name into a shared frame.
+export type DocumentKind = "taskList" | "preferences" | "workspace";
 
-// One sentence for a failed load. `path` is omitted where the surface already
+// One message for a failed load. `path` is omitted where the surface already
 // shows it — an inline banner inside the tab for that very file.
 export function describeLoadFailure(
   kind: DocumentKind,
   result: LoadFailure,
   path?: string,
-): string {
-  if (result.status === "missing") {
-    return `The ${kind} file could not be found${path ? `:\n\n${path}` : "."}`;
-  }
-  if (result.status === "invalid") {
-    return `The ${kind} file does not contain valid Dropkick data${path ? `:\n\n${path}` : "."}`;
-  }
-  return `The ${kind} file could not be read${path ? `:\n\n${path}` : "."} Check that it is still available and that Dropkick has access, then try again.`;
+): Message {
+  const key = `load.${kind}.${result.status}${path ? "At" : ""}` as MessageKey;
+  return path ? message(key, { path }) : message(key);
 }
 
 // A file path's base name without its .json extension, used as a document's

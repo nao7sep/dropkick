@@ -6,7 +6,7 @@ function grouped(activeGroups: number, handledTotal: number): GroupedTasks {
   return {
     groups: Array.from({ length: activeGroups }, () => ({
       group: "Default",
-      label: "Tasks",
+      label: "group.default" as const,
       tasks: [],
     })),
     handled: [],
@@ -16,11 +16,11 @@ function grouped(activeGroups: number, handledTotal: number): GroupedTasks {
 
 describe("taskListEmptyMessage", () => {
   it("describes a genuinely empty task list", () => {
-    expect(taskListEmptyMessage(grouped(0, 0), false)).toBe("No tasks yet.");
+    expect(taskListEmptyMessage(grouped(0, 0), false)).toBe("taskList.empty");
   });
 
   it("describes the blank active body when handled tasks are folded", () => {
-    expect(taskListEmptyMessage(grouped(0, 3), false)).toBe("No active tasks.");
+    expect(taskListEmptyMessage(grouped(0, 3), false)).toBe("taskList.noActive");
   });
 
   it("shows no empty message while handled rows are expanded", () => {
@@ -32,7 +32,7 @@ describe("taskListEmptyMessage", () => {
   });
 
   it("returns to the genuine empty state after the final handled task is removed", () => {
-    expect(taskListEmptyMessage(grouped(0, 1), false)).toBe("No active tasks.");
-    expect(taskListEmptyMessage(grouped(0, 0), false)).toBe("No tasks yet.");
+    expect(taskListEmptyMessage(grouped(0, 1), false)).toBe("taskList.noActive");
+    expect(taskListEmptyMessage(grouped(0, 0), false)).toBe("taskList.empty");
   });
 });

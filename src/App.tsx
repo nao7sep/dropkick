@@ -17,6 +17,7 @@ import {
 } from "./utils";
 import "./App.css";
 import {
+  applyLanguage,
   applyWindowTheme,
   showMessage,
   log,
@@ -28,6 +29,10 @@ import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppStateStore } from "./state/app-state-store";
 import { useNoteDraftStore } from "./state/note-draft-store";
+import { useLanguageStore } from "./state/language-store";
+import { useInterfaceLanguage } from "./hooks/useInterfaceLanguage";
+import { I18nProvider } from "./i18n/I18nContext";
+import { message, type Message } from "./i18n/translate";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
@@ -42,7 +47,7 @@ import {
 type AppPhase =
   | { kind: "loading" }
   | { kind: "startup" }
-  | { kind: "error"; message: string }
+  | { kind: "error"; message: Message }
   | { kind: "main" };
 
 function App() {
@@ -54,6 +59,8 @@ function App() {
   const loadNoteDrafts = useNoteDraftStore((s) => s.load);
   const setLastPaths = useAppStateStore((s) => s.setLastPaths);
   const theme = usePreferencesStore((s) => s.preferences.theme);
+  const loadLanguageEnvironment = useLanguageStore((s) => s.load);
+  const { language, locale } = useInterfaceLanguage();
   const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
   // Guards against a double Launch: phase stays "startup" until the awaited
   // loads finish, so two quick clicks would otherwise both run the sequence.
@@ -75,6 +82,19 @@ function App() {
       }),
     );
   }, [themeSettled, theme]);
+
+  // The native menu follows the interface language. The Rust core built it in
+  // the last-launched document's language before the window was shown, and
+  // skips a language it already has.
+  useEffect(() => {
+    if (!themeSettled) return;
+    applyLanguage(language).catch((e) =>
+      log.warn("native language apply failed", {
+        language,
+        ...toErrorFields(e),
+      }),
+    );
+  }, [themeSettled, language]);
 
   // Set the UI font on <html> so it reaches every Radix surface, all of which
   // portal to <body> and sit outside the React tree. A family the user typed is appended to the default stack rather
@@ -174,6 +194,7 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
+        await loadLanguageEnvironment();
         const quarantinedTo = await initializeAppState();
 
         // The picker appears before the user chooses a preferences document,
@@ -195,7 +216,7 @@ function App() {
         setPhase({ kind: "startup" });
         if (quarantinedTo) {
           await showMessage(
-            "Saved Locations Were Reset",
+            message("startup.appStateReset.title"),
             describeAppStateRecovery(quarantinedTo),
           );
         }
@@ -203,11 +224,11 @@ function App() {
         log.error("app initialization failed", toErrorFields(e));
         setPhase({
           kind: "error",
-          message: "Dropkick could not read its saved application state. Your workspace and preferences files were not changed. Quit, check the log, and try again.",
+          message: message("startup.appStateFailed"),
         });
       }
     })();
-  }, [initializeAppState, loadPreferences]);
+  }, [initializeAppState, loadLanguageEnvironment, loadPreferences]);
 
   const handleLaunch = async (
     preferencesPath: string,
@@ -226,7 +247,7 @@ function App() {
           loadFailureFields(preferencesPath, preferencesResult),
         );
         await showMessage(
-          "Preferences Load Failed",
+          message("startup.preferencesFailed.title"),
           describeLoadFailure("preferences", preferencesResult, preferencesPath),
         );
         return;
@@ -239,7 +260,7 @@ function App() {
           loadFailureFields(workspacePath, workspaceResult),
         );
         await showMessage(
-          "Workspace Load Failed",
+          message("startup.workspaceFailed.title"),
           describeLoadFailure("workspace", workspaceResult, workspacePath),
         );
         return;
@@ -275,7 +296,7 @@ function App() {
 
       if (draftsQuarantinedTo) {
         await showMessage(
-          "Unsaved Note Drafts Were Reset",
+          message("startup.draftsReset.title"),
           describeNoteDraftRecovery(draftsQuarantinedTo),
         );
       }
@@ -289,11 +310,9 @@ function App() {
 
   switch (phase.kind) {
     case "loading":
-      content = (
-        <div className="flex h-screen items-center justify-center bg-background">
-          <div className="text-ink-muted">Loading...</div>
-        </div>
-      );
+      // No text until the language is known, so the first words on screen are
+      // already in it.
+      content = <div className="h-screen bg-background" />;
       break;
 
     case "error":
@@ -310,11 +329,11 @@ function App() {
   }
 
   return (
-    <>
+    <I18nProvider language={language} locale={locale}>
       {content}
       <AppDialogHost />
       <ToastHost />
-    </>
+    </I18nProvider>
   );
 }
 

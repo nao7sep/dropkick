@@ -1,9 +1,10 @@
 import type { Task } from "../models";
 import type { ActionResult } from "../state";
+import { message, type Message } from "../i18n/translate";
 
 export interface TaskActionFailure {
   task: Task;
-  reason: string;
+  reason: Message;
 }
 
 export function taskActionOwnerKey(ownerKeys: readonly string[]): string {
@@ -26,10 +27,12 @@ export function collectTaskActionFailures(
   return failures;
 }
 
+// One line per failed task, "title: reason".
 export function describeTaskActionFailures(
   failures: readonly TaskActionFailure[],
-): string {
-  return failures
-    .map(({ task, reason }) => `${task.title || "Untitled"}: ${reason}`)
-    .join("\n");
+): Message {
+  const lines = failures.map(({ task, reason }) =>
+    message("task.failureLine", { title: task.title || message("common.untitled"), reason }),
+  );
+  return lines.reduceRight((rest, first) => message("common.lines", { first, rest }));
 }

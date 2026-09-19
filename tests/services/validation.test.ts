@@ -1,3 +1,4 @@
+import { inEnglish } from "../helpers/i18n";
 import { describe, it, expect } from "vitest";
 import { canTransitionStatus } from "../../src/services/validation";
 import { makeTask, makeNote } from "../helpers/task";
@@ -7,7 +8,7 @@ describe("canTransitionStatus", () => {
     const task = makeTask({ notes: [makeNote({ actionability: "Actionable" })] });
     const result = canTransitionStatus(task, "Completed");
     expect(result.valid).toBe(false);
-    expect(result.reason).toBe("Cannot complete: 1 actionable note remaining");
+    expect(inEnglish(result.reason)).toBe("Cannot complete: 1 actionable note remaining");
   });
 
   it("pluralizes the reason for multiple actionable notes", () => {
@@ -17,7 +18,7 @@ describe("canTransitionStatus", () => {
         makeNote({ actionability: "Actionable" }),
       ],
     });
-    expect(canTransitionStatus(task, "Completed").reason).toBe(
+    expect(inEnglish(canTransitionStatus(task, "Completed").reason)).toBe(
       "Cannot complete: 2 actionable notes remaining",
     );
   });

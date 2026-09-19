@@ -21,10 +21,13 @@ import { Toolbar } from "../shared/Toolbar";
 import { SelectedTaskTitleList } from "../shared/SelectedTaskTitleList";
 import { useTaskDeletion } from "../../hooks/useTaskDeletion";
 import { InlineResult } from "../shared/InlineResult";
+import { useI18n } from "../../i18n/I18nContext";
+import { PRIORITY_LABELS, STATUS_LABELS } from "../../i18n/domainLabels";
+import { message, type Message } from "../../i18n/translate";
 
 interface PaneIssue {
-  title: string;
-  message: string;
+  title: Message;
+  message: Message;
 }
 
 interface BulkActionsProps {
@@ -36,8 +39,8 @@ interface BulkActionsProps {
   onDismissExternalIssue?: () => void;
   onReportExternalIssue?: (
     ownerKeys: readonly string[],
-    title: string,
-    message: string,
+    title: Message,
+    message: Message,
   ) => void;
 }
 
@@ -50,6 +53,7 @@ export function BulkActions({
   onDismissExternalIssue,
   onReportExternalIssue,
 }: BulkActionsProps) {
+  const { t } = useI18n();
   const kickDistances = usePreferencesStore((s) => s.preferences.kickDistances);
   const kick = useTaskListStore((s) => s.kick);
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
@@ -67,8 +71,8 @@ export function BulkActions({
   >({});
   const deleteTasks = useTaskDeletion();
 
-  const reportActionError = (operation: string, title: string, message: string) => {
-    setActionErrors((errors) => ({ ...errors, [operation]: { title, message } }));
+  const reportActionError = (operation: string, title: Message, reason: Message) => {
+    setActionErrors((errors) => ({ ...errors, [operation]: { title, message: reason } }));
   };
 
   const clearActionError = (operation: string) => {
@@ -81,7 +85,7 @@ export function BulkActions({
 
   const handleActionResult = (
     operation: string,
-    title: string,
+    title: Message,
     result: ActionResult,
   ) => {
     if (result.status === "error") {
@@ -101,7 +105,7 @@ export function BulkActions({
     if (failures.length > 0) {
       reportActionError(
         "status",
-        "Some tasks were not updated",
+        message("bulk.notUpdated"),
         describeTaskActionFailures(failures),
       );
     } else {
@@ -124,7 +128,7 @@ export function BulkActions({
     if (failures.length > 0) {
       reportActionError(
         "priority",
-        "Some tasks were not updated",
+        message("bulk.notUpdated"),
         describeTaskActionFailures(failures),
       );
     } else {
@@ -147,11 +151,11 @@ export function BulkActions({
       if (onReportExternalIssue) {
         onReportExternalIssue(
           [...outcome.selection],
-          "Some tasks could not be moved",
+          message("bulk.notMoved"),
           outcome.message!,
         );
       } else {
-        reportActionError("move", "Some tasks could not be moved", outcome.message!);
+        reportActionError("move", message("bulk.notMoved"), outcome.message!);
       }
       return;
     }
@@ -165,17 +169,14 @@ export function BulkActions({
       clearActionError("delete");
       return;
     }
-    const title =
-      result.deletedTasks.length > 0
-        ? "Some tasks were not deleted"
-        : "Tasks could not be deleted";
-    const message = result.failures
-      .map(({ task, reason }) => `${task.title || "Untitled"}: ${reason}`)
-      .join("\n");
+    const title = message(
+      result.deletedTasks.length > 0 ? "bulk.someNotDeleted" : "bulk.noneDeleted",
+    );
+    const reasons = describeTaskActionFailures(result.failures);
     if (onReportExternalIssue) {
-      onReportExternalIssue(result.failedTasks.map(taskSelectionKey), title, message);
+      onReportExternalIssue(result.failedTasks.map(taskSelectionKey), title, reasons);
     } else {
-      reportActionError("delete", title, message);
+      reportActionError("delete", title, reasons);
     }
   };
 
@@ -208,7 +209,7 @@ export function BulkActions({
         />
       ))}
       <h3 className="mb-4 text-lg font-medium text-ink">
-        {selectedTasks.length} tasks selected
+        {t("bulk.selected", { count: selectedTasks.length })}
       </h3>
 
       <SelectedTaskTitleList tasks={selectedTasks} />
@@ -216,7 +217,7 @@ export function BulkActions({
       {/* Status */}
       <div className="mt-6">
         <label className="mb-2 block text-xs font-medium text-ink-muted">
-          Set Status
+          {t("bulk.setStatus")}
         </label>
         <div className="flex gap-2">
           {(["Pending", "Completed", "Dismissed"] as TaskStatus[]).map((s) => (
@@ -225,7 +226,7 @@ export function BulkActions({
               onClick={() => handleBulkStatus(s)}
               className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
-              {s}
+              {t(STATUS_LABELS[s])}
             </button>
           ))}
         </div>
@@ -234,32 +235,32 @@ export function BulkActions({
       {/* Priority */}
       <div className="mt-4">
         <label className="mb-2 block text-xs font-medium text-ink-muted">
-          Set Priority
+          {t("bulk.setPriority")}
         </label>
         <div className="flex gap-2">
           <button
             onClick={() => handleBulkPriority("Critical")}
             className="rounded-md border border-group-critical-border px-3 py-1.5 text-sm text-group-critical-fg hover:bg-group-critical-tint"
           >
-            Critical
+            {t(PRIORITY_LABELS.Critical)}
           </button>
           <button
             onClick={() => handleBulkPriority("Important")}
             className="rounded-md border border-group-important-border px-3 py-1.5 text-sm text-group-important-fg hover:bg-group-important-tint"
           >
-            Important
+            {t(PRIORITY_LABELS.Important)}
           </button>
           <button
             onClick={() => handleBulkPriority("Urgent")}
             className="rounded-md border border-group-urgent-border px-3 py-1.5 text-sm text-group-urgent-fg hover:bg-group-urgent-tint"
           >
-            Urgent
+            {t(PRIORITY_LABELS.Urgent)}
           </button>
           <button
             onClick={() => handleBulkPriority("Default")}
             className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-muted hover:bg-background"
           >
-            Default
+            {t(PRIORITY_LABELS.Default)}
           </button>
         </div>
       </div>
@@ -268,24 +269,24 @@ export function BulkActions({
       {!isUnifiedView && (
         <div className="mt-4">
           <label className="mb-2 block text-xs font-medium text-ink-muted">
-            Reorder
+            {t("bulk.reorder")}
           </label>
-          <Toolbar label="Reorder selected tasks" className="flex gap-2">
+          <Toolbar label={t("bulk.reorderLabel")} className="flex gap-2">
             <button
               onClick={async () => {
                 const result = await sendToFirst(filePath);
-                handleActionResult("reorder", "Tasks could not be reordered", result);
+                handleActionResult("reorder", message("bulk.reorderFailed"), result);
               }}
               className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
-              Tackle
+              {t("action.tackle")}
             </button>
             {kickDistances.map((d) => (
               <button
                 key={d}
                 onClick={async () => {
                   const result = await kick(filePath, d);
-                  handleActionResult("reorder", "Tasks could not be reordered", result);
+                  handleActionResult("reorder", message("bulk.reorderFailed"), result);
                 }}
                 className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
               >
@@ -295,16 +296,16 @@ export function BulkActions({
             <button
               onClick={async () => {
                 const result = await sendToLast(filePath);
-                handleActionResult("reorder", "Tasks could not be reordered", result);
+                handleActionResult("reorder", message("bulk.reorderFailed"), result);
               }}
               className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
-              Kick
+              {t("action.kick")}
             </button>
             <button
               onClick={async () => {
                 const result = await dropkick(filePath);
-                handleActionResult("reorder", "Tasks could not be reordered", result);
+                handleActionResult("reorder", message("bulk.reorderFailed"), result);
               }}
               className="rounded-md border border-danger-border px-3 py-1.5 text-sm text-danger hover:bg-danger-surface"
             >
@@ -318,7 +319,7 @@ export function BulkActions({
       {moveDestinations.length > 0 && (
         <div className="mt-4">
           <label className="mb-2 block text-xs font-medium text-ink-muted">
-            Move to
+            {t("detail.moveTo")}
           </label>
           <div className="flex gap-2">
             <select
@@ -326,10 +327,10 @@ export function BulkActions({
               onChange={(e) => setMoveTarget(e.target.value)}
               className="flex-1 rounded-md border border-input-border px-2 py-1.5 text-sm text-ink-soft"
             >
-              <option value="">Select destination...</option>
-              {moveDestinations.map((t) => (
-                <option key={t.filePath} value={t.filePath}>
-                  {t.displayName}
+              <option value="">{t("moveTasks.selectDestination")}</option>
+              {moveDestinations.map((tab) => (
+                <option key={tab.filePath} value={tab.filePath}>
+                  {tab.displayName}
                 </option>
               ))}
             </select>
@@ -338,7 +339,7 @@ export function BulkActions({
               disabled={!moveTarget}
               className="rounded-md bg-primary-solid px-4 py-1.5 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
             >
-              Move
+              {t("moveTasks.move")}
             </button>
           </div>
         </div>
@@ -350,7 +351,7 @@ export function BulkActions({
           className="flex items-center gap-1 rounded-md border border-danger-border px-3 py-1.5 text-sm text-danger hover:bg-danger-surface"
         >
           <Trash2 size={14} />
-          Delete
+          {t("detail.delete")}
         </button>
       </div>
     </div>

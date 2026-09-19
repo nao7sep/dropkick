@@ -1,3 +1,4 @@
+import { message } from "../../src/i18n/translate";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { AppStateDto } from "../../src/models";
 
@@ -93,8 +94,8 @@ describe("saved locations", () => {
     await useAppStateStore.getState().registerPreferences("/prefs.json");
 
     expect(useToastStore.getState().backgroundWriteError).toEqual({
-      what: "Your saved locations",
-      message: "Your saved locations could not be saved.",
+      what: "savedLocations",
+      message: message("write.savedLocations"),
     });
   });
 

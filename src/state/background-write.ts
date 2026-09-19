@@ -18,10 +18,20 @@
 // firehose, and their own module documents that trade.
 
 import { log, toErrorFields } from "../repositories";
+import type { MessageKey } from "../i18n/catalogues";
+import { message } from "../i18n/translate";
 import { useToastStore } from "./toast-store";
 
+// Which background write failed; each names its own result text.
+export type BackgroundWrite = "viewSettings" | "savedLocations";
+
+const FAILURE_TEXT: Record<BackgroundWrite, MessageKey> = {
+  viewSettings: "write.viewSettings",
+  savedLocations: "write.savedLocations",
+};
+
 export async function guardBackgroundWrite(
-  what: string,
+  what: BackgroundWrite,
   run: () => Promise<void>,
 ): Promise<void> {
   try {
@@ -31,6 +41,6 @@ export async function guardBackgroundWrite(
     log.error("background write failed", { what, ...toErrorFields(e) });
     useToastStore
       .getState()
-      .showBackgroundWriteError(what, `${what} could not be saved.`);
+      .showBackgroundWriteError(what, message(FAILURE_TEXT[what]));
   }
 }

@@ -5,10 +5,12 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import { useToastStore } from "../../state/toast-store";
+import { useI18n } from "../../i18n/I18nContext";
 
 const DISMISS_MS = 2500;
 
 export function ToastHost() {
+  const { t, text } = useI18n();
   const message = useToastStore((s) => s.message);
   const token = useToastStore((s) => s.token);
   const clearToast = useToastStore((s) => s.clearToast);
@@ -33,12 +35,12 @@ export function ToastHost() {
           className="pointer-events-auto flex max-w-[90vw] items-start gap-2 rounded-md border border-danger-border bg-danger-surface px-4 py-2 text-sm text-danger-fg-strong shadow-lg"
         >
           <div className="min-w-0 flex-1">
-            <div>{backgroundWriteError.message}</div>
+            <div>{text(backgroundWriteError.message)}</div>
           </div>
           <button
             type="button"
-            aria-label="Dismiss save error"
-            title="Dismiss"
+            aria-label={t("toast.dismissSaveError")}
+            title={t("common.dismiss")}
             onClick={() => clearBackgroundWriteError()}
             className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong"
           >
@@ -52,7 +54,7 @@ export function ToastHost() {
           role="status"
           className="dropkick-toast max-w-[90vw] rounded-md border border-warning/40 bg-warning-surface px-4 py-2 text-sm text-warning-strong shadow-lg"
         >
-          {message}
+          {text(message)}
         </div>
       ) : null}
     </div>

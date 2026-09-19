@@ -12,6 +12,7 @@
 // The repository owns the hash internally, so the store no longer tracks one.
 
 import { create } from "zustand";
+import { message, type Message } from "../i18n/translate";
 import type { ActionResult } from "./action-result";
 import type {
   TaskListDto,
@@ -184,7 +185,7 @@ interface TaskListState {
     sourceFilePath: string,
     destFilePath: string,
     taskIds: Set<string>,
-  ) => Promise<{ status: "success" } | { status: "error"; message: string }>;
+  ) => Promise<{ status: "success" } | { status: "error"; message: Message }>;
 
   // Actions: conflict resolution.
   forceWrite: (filePath: string) => Promise<void>;
@@ -320,8 +321,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       finishPendingWrite(filePath, { failed: true });
       return {
         status: "error",
-        message:
-          "The task list could not be saved. Your change was not saved; try again.",
+        message: message("write.taskList"),
       };
     }
 
@@ -389,7 +389,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           : {}),
       };
     });
-    if (!loaded) return { status: "error", message: "File not loaded" };
+    if (!loaded) return { status: "error", message: message("task.fileNotLoaded") };
     if (!changed) return { status: "success", changed: false };
     beginPendingWrite(filePath);
     const result = await flush(
@@ -417,7 +417,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     const result = await mutateTasks(filePath, action, fields, (tasks) => {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) {
-        failure = { status: "error", message: "Task not found" };
+        failure = { status: "error", message: message("task.notFound") };
         return tasks;
       }
       const invalid = validate?.(task);
@@ -465,7 +465,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       { bumpReorderTick },
     );
     return empty
-      ? { status: "error", message: "No tasks selected" }
+      ? { status: "error", message: message("task.noneSelected") }
       : result;
   }
 
@@ -681,7 +681,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
 
     addNewNote: async (filePath, taskId, content, actionability = "Informational") => {
       if (!content.trim()) {
-        return { status: "error", message: "Note content cannot be empty" };
+        return { status: "error", message: message("note.empty") };
       }
       const note = createNote(content, actionability);
       return mutateTask(
@@ -700,7 +700,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
 
     updateNote: async (filePath, taskId, noteId, content) => {
       if (!content.trim()) {
-        return { status: "error", message: "Note content cannot be empty" };
+        return { status: "error", message: message("note.empty") };
       }
       return mutateTask(
         filePath,
@@ -760,7 +760,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       if (sourceFilePath === destFilePath) {
         return {
           status: "error",
-          message: "Source and destination must be different",
+          message: message("move.sameFile"),
         };
       }
 
@@ -794,8 +794,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       } catch {
         return {
           status: "error",
-          message:
-            "The tasks could not be moved. They remain in their current lists; try again.",
+          message: message("move.failed"),
         };
       }
 
@@ -813,24 +812,24 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         return { status: "success" };
       }
 
-      const message =
+      const failure =
         result.status === "dest-conflict"
-          ? "The destination file was modified outside Dropkick. No tasks were moved."
+          ? message("move.destConflict")
           : result.status === "dest-deleted"
-            ? "The destination file no longer exists. No tasks were moved."
+            ? message("move.destDeleted")
             : result.status === "source-conflict"
-              ? "The source file was modified outside Dropkick. The destination was restored, so no tasks were moved."
+              ? message("move.sourceConflict")
               : result.status === "source-deleted"
-                ? "The source file no longer exists. The destination was restored, so no tasks were moved."
+                ? message("move.sourceDeleted")
                 : result.message;
 
       log.warn("move tasks failed", {
         source: sourceFilePath,
         dest: destFilePath,
         status: result.status,
-        reason: message,
+        reason: failure.key,
       });
-      return { status: "error", message };
+      return { status: "error", message: failure };
     },
 
     // --- Conflict resolution ---

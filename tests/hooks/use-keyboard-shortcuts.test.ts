@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 
+import { inEnglish } from "../helpers/i18n";
+import { message } from "../../src/i18n/translate";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useKeyboardShortcuts } from "../../src/hooks/use-keyboard-shortcuts";
@@ -122,14 +124,15 @@ describe("task deletion dispatch", () => {
   });
 
   it("returns a deletion failure to the selected task surface", async () => {
-    removeTasks.mockResolvedValueOnce({ status: "error", message: "Disk full" });
+    removeTasks.mockResolvedValueOnce({ status: "error", message: message("write.taskList") });
 
     await press("Delete");
 
-    expect(taskActionFailure).toHaveBeenCalledWith(
-      [taskKey(FILE, "a")],
-      "Tasks could not be deleted",
-      "A: Disk full",
+    const [owners, title, reasons] = taskActionFailure.mock.calls[0];
+    expect(owners).toEqual([taskKey(FILE, "a")]);
+    expect(inEnglish(title)).toBe("Tasks could not be deleted");
+    expect(inEnglish(reasons)).toBe(
+      "A: The task list could not be saved. Your change was not saved; try again.",
     );
   });
 

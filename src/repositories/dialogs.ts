@@ -3,6 +3,7 @@
 
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { showAppConfirm, showAppMessage } from "../state/dialog-store";
+import { message, type Message } from "../i18n/translate";
 import { fileExists } from "./file-system";
 
 // Opens a native file dialog for selecting an existing JSON file.
@@ -46,12 +47,11 @@ export async function saveJsonFileDialog(
   const path = `${picked}.json`;
   if (!(await fileExists(path))) return path;
   const overwrite = await showAppConfirm(
-    "Replace Existing File?",
-    `A file already exists at:\n\n${path}\n\nCreating a new one here replaces its contents.`,
+    message("dialog.replaceFile.title"),
+    message("dialog.replaceFile.body", { path }),
     {
       tone: "warning",
-      confirmLabel: "Replace",
-      cancelLabel: "Cancel",
+      confirmLabel: message("dialog.replaceFile.confirm"),
     },
   );
   return overwrite ? path : null;
@@ -59,8 +59,8 @@ export async function saveJsonFileDialog(
 
 // Shows an informational message dialog.
 export async function showMessage(
-  title: string,
-  body: string,
+  title: Message,
+  body: Message,
 ): Promise<void> {
   await showAppMessage(title, body);
 }
@@ -70,27 +70,25 @@ export async function showTaskDeletionConfirm(
 ): Promise<boolean> {
   const one = tasks.length === 1 ? tasks[0] : null;
   const body = one
-    ? `Permanently delete "${one.title || "Untitled"}"? This cannot be undone.`
-    : `Permanently delete ${tasks.length} selected tasks? This cannot be undone.`;
+    ? message("dialog.deleteTask.body", { title: one.title || message("common.untitled") })
+    : message("dialog.deleteTasks.body", { count: tasks.length });
   return await showAppConfirm(
-    tasks.length === 1 ? "Delete Task" : "Delete Tasks",
+    message(one ? "dialog.deleteTask.title" : "dialog.deleteTasks.title"),
     body,
     {
       tone: "danger",
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
+      confirmLabel: message("dialog.delete"),
     },
   );
 }
 
 export async function showNoteDeletionConfirm(): Promise<boolean> {
   return await showAppConfirm(
-    "Delete Note",
-    "Permanently delete this note? This cannot be undone.",
+    message("dialog.deleteNote.title"),
+    message("dialog.deleteNote.body"),
     {
       tone: "danger",
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
+      confirmLabel: message("dialog.delete"),
     },
   );
 }
@@ -110,12 +108,12 @@ export async function showFileConflictDialog(
   filePath: string,
 ): Promise<"overwrite" | "cancel"> {
   const overwrite = await showAppConfirm(
-    "File Modified Externally",
-    `The file has been modified outside Dropkick:\n\n${filePath}\n\nOverwrite with your version, or discard your changes and reload?`,
+    message("dialog.fileConflict.title"),
+    message("dialog.fileConflict.body", { path: filePath }),
     {
       tone: "warning",
-      confirmLabel: "Overwrite",
-      cancelLabel: "Discard & Reload",
+      confirmLabel: message("dialog.fileConflict.overwrite"),
+      cancelLabel: message("dialog.fileConflict.reload"),
       noSafeAction: true,
     },
   );
@@ -126,12 +124,12 @@ export async function showFileConflictDialog(
 // Returns true if the user chose to discard changes, false to keep editing.
 export async function showUnsavedChangesConfirm(): Promise<boolean> {
   return await showAppConfirm(
-    "Discard Changes",
-    "You have unsaved changes. Discard them and close?",
+    message("dialog.unsavedChanges.title"),
+    message("dialog.unsavedChanges.body"),
     {
       tone: "warning",
-      confirmLabel: "Discard",
-      cancelLabel: "Keep Editing",
+      confirmLabel: message("dialog.unsavedChanges.discard"),
+      cancelLabel: message("dialog.unsavedChanges.keep"),
     },
   );
 }
@@ -142,12 +140,11 @@ export async function showFileDeletedDialog(
   filePath: string,
 ): Promise<"save" | "cancel"> {
   const save = await showAppConfirm(
-    "File Deleted",
-    `This file no longer exists:\n\n${filePath}\n\nSave to recreate it, or cancel this change?`,
+    message("dialog.fileDeleted.title"),
+    message("dialog.fileDeleted.body", { path: filePath }),
     {
       tone: "warning",
-      confirmLabel: "Save",
-      cancelLabel: "Cancel",
+      confirmLabel: message("dialog.fileDeleted.save"),
     },
   );
   return save ? "save" : "cancel";

@@ -42,12 +42,15 @@ import { MoveTasksModal } from "./MoveTasksModal";
 import { TaskListPane } from "../task-list/TaskListPane";
 import { TaskDetailPane } from "../task-detail/TaskDetailPane";
 import { AppErrorBoundary } from "../shared/AppErrorBoundary";
+import { useI18n } from "../../i18n/I18nContext";
+import type { Message } from "../../i18n/translate";
 
 interface MainWindowProps {
   onChromeHeightChange: (height: number) => void;
 }
 
 export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
+  const { t } = useI18n();
   // Zoom and sidebar width are view state (state.json), not preferences.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   const sidebarIntent = useAppStateStore((s) => s.appState.sidebarWidth);
@@ -71,10 +74,10 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   const [showMoveTasks, setShowMoveTasks] = useState(false);
   const [focusNewNoteSignal, setFocusNewNoteSignal] = useState(0);
   const [taskActionIssues, setTaskActionIssues] = useState<
-    Record<string, { title: string; message: string }>
+    Record<string, { title: Message; message: Message }>
   >({});
   const reportTaskActionFailure = useCallback(
-    (ownerKeys: readonly string[], title: string, message: string) => {
+    (ownerKeys: readonly string[], title: Message, message: Message) => {
       const ownerKey = taskActionOwnerKey(ownerKeys);
       setTaskActionIssues((issues) => ({
         ...issues,
@@ -268,12 +271,15 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   }, [updateViewState]);
 
   useEffect(() => {
-    const title = activeTab ? `${activeTab.displayName} - Dropkick` : "Dropkick";
+    // The title is the tab's name and the product name, with no words of its
+    // own to translate; only the unified view's name is interface text.
+    const name = activeTab?.isUnifiedView ? t("tabs.unified") : activeTab?.displayName;
+    const title = activeTab ? `${name} - Dropkick` : "Dropkick";
     document.title = title;
     getCurrentWindow()
       .setTitle(title)
       .catch((e) => log.warn("window setTitle failed", { title, ...toErrorFields(e) }));
-  }, [activeTab?.displayName, activeTab?.filePath, activeTab?.isUnifiedView]);
+  }, [activeTab?.displayName, activeTab?.filePath, activeTab?.isUnifiedView, t]);
 
   // Hold the window open until pending writes are on disk (see the hook for
   // which exits this can and cannot see).
@@ -462,10 +468,8 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
       ) : (
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center text-ink-muted">
-            <p className="text-lg">Welcome to Dropkick</p>
-            <p className="mt-2 text-sm">
-              Click the + button to open or create a task list.
-            </p>
+            <p className="text-lg">{t("main.welcome")}</p>
+            <p className="mt-2 text-sm">{t("main.welcomeHint")}</p>
           </div>
         </div>
       )}

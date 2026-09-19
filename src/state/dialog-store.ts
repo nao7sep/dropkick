@@ -1,11 +1,12 @@
 import { create } from "zustand";
+import { message, type Message } from "../i18n/translate";
 
 type DialogTone = "default" | "warning" | "danger";
 
 interface DialogOptions {
   tone?: DialogTone;
-  confirmLabel?: string;
-  cancelLabel?: string;
+  confirmLabel?: Message;
+  cancelLabel?: Message;
   // Set when BOTH choices destroy something different, so neither is the safe
   // one. Such a dialog opens with focus on its own surface instead of on a
   // button, so a reflexive Enter does nothing and the user must pick
@@ -14,22 +15,24 @@ interface DialogOptions {
   noSafeAction?: boolean;
 }
 
+// Dialog text is a key plus values, rendered by AppDialogHost in the current
+// language.
 interface MessageDialogRequest {
   kind: "message";
-  title: string;
-  body: string;
+  title: Message;
+  body: Message;
   tone: DialogTone;
-  confirmLabel: string;
+  confirmLabel: Message;
   resolve: () => void;
 }
 
 interface ConfirmDialogRequest {
   kind: "confirm";
-  title: string;
-  body: string;
+  title: Message;
+  body: Message;
   tone: DialogTone;
-  confirmLabel: string;
-  cancelLabel: string;
+  confirmLabel: Message;
+  cancelLabel: Message;
   noSafeAction: boolean;
   resolve: (confirmed: boolean) => void;
 }
@@ -40,13 +43,13 @@ interface DialogState {
   current: DialogRequest | null;
   queue: DialogRequest[];
   enqueueMessage: (
-    title: string,
-    body: string,
+    title: Message,
+    body: Message,
     options?: DialogOptions,
   ) => Promise<void>;
   enqueueConfirm: (
-    title: string,
-    body: string,
+    title: Message,
+    body: Message,
     options?: DialogOptions,
   ) => Promise<boolean>;
   confirmCurrent: () => void;
@@ -69,7 +72,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         title,
         body,
         tone: options.tone ?? "default",
-        confirmLabel: options.confirmLabel ?? "OK",
+        confirmLabel: options.confirmLabel ?? message("common.ok"),
         resolve,
       };
 
@@ -88,8 +91,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         title,
         body,
         tone: options.tone ?? "default",
-        confirmLabel: options.confirmLabel ?? "OK",
-        cancelLabel: options.cancelLabel ?? "Cancel",
+        confirmLabel: options.confirmLabel ?? message("common.ok"),
+        cancelLabel: options.cancelLabel ?? message("common.cancel"),
         noSafeAction: options.noSafeAction ?? false,
         resolve,
       };
@@ -130,16 +133,16 @@ export const useDialogStore = create<DialogState>((set, get) => ({
 }));
 
 export async function showAppMessage(
-  title: string,
-  body: string,
+  title: Message,
+  body: Message,
   options?: DialogOptions,
 ): Promise<void> {
   return await useDialogStore.getState().enqueueMessage(title, body, options);
 }
 
 export async function showAppConfirm(
-  title: string,
-  body: string,
+  title: Message,
+  body: Message,
   options?: DialogOptions,
 ): Promise<boolean> {
   return await useDialogStore.getState().enqueueConfirm(title, body, options);

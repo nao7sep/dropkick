@@ -1,6 +1,7 @@
 // Task movement between lists.
 
 import type { Task, TaskDto } from "../models";
+import { message, type Message } from "../i18n/translate";
 import { groupMoveBySource, taskKey, taskSelectionKey } from "../utils";
 
 export interface MoveResult {
@@ -42,7 +43,7 @@ export interface MoveSelectionOutcome {
   // tasks whose source group already landed are keyed under the destination,
   // the rest under where they still are.
   selection: Set<string>;
-  message?: string;
+  message?: Message;
 }
 
 export interface MoveSelectionInputs {
@@ -60,7 +61,7 @@ export interface MoveSelectionInputs {
     source: string,
     destination: string,
     taskIds: Set<string>,
-  ) => Promise<{ status: string; message?: string }>;
+  ) => Promise<{ status: string; message?: Message }>;
 }
 
 // Moves the selected tasks to `destination`.
@@ -114,8 +115,8 @@ export async function moveSelectedTasks(
               : taskSelectionKey(task),
           ),
         ),
-        message: movedAny
-          ? `Some selected tasks were moved before the operation stopped.\n\n${result.message}`
+        message: movedAny && result.message
+          ? message("move.partial", { reason: result.message })
           : result.message,
       };
     }

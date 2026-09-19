@@ -1,3 +1,5 @@
+import { message } from "../../src/i18n/translate";
+import { inEnglish } from "../helpers/i18n";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // The save panel and the file-existence check are the two side effects here.
@@ -90,15 +92,11 @@ describe("permanent deletion confirmations", () => {
     await expect(
       showTaskDeletionConfirm([{ title: "Write release notes" }]),
     ).resolves.toBe(true);
-    expect(showAppConfirm).toHaveBeenCalledWith(
-      "Delete Task",
-      'Permanently delete "Write release notes"? This cannot be undone.',
-      {
-        tone: "danger",
-        confirmLabel: "Delete",
-        cancelLabel: "Cancel",
-      },
-    );
+    const [title, body, options] = showAppConfirm.mock.calls[0];
+    expect(inEnglish(title)).toBe("Delete Task");
+    expect(inEnglish(body)).toBe('Permanently delete "Write release notes"? This cannot be undone.');
+    expect(options).toEqual({ tone: "danger", confirmLabel: message("dialog.delete") });
+    // No cancel label is passed, so the dialog shows its default, Cancel.
   });
 
   it("states the selected count for bulk deletion", async () => {
@@ -107,21 +105,19 @@ describe("permanent deletion confirmations", () => {
     await expect(
       showTaskDeletionConfirm([{ title: "A" }, { title: "B" }]),
     ).resolves.toBe(false);
-    expect(showAppConfirm).toHaveBeenCalledWith(
-      "Delete Tasks",
-      "Permanently delete 2 selected tasks? This cannot be undone.",
-      expect.objectContaining({ tone: "danger", confirmLabel: "Delete" }),
-    );
+    const [title, body, options] = showAppConfirm.mock.calls[0];
+    expect(inEnglish(title)).toBe("Delete Tasks");
+    expect(inEnglish(body)).toBe("Permanently delete 2 selected tasks? This cannot be undone.");
+    expect(options).toMatchObject({ tone: "danger", confirmLabel: message("dialog.delete") });
   });
 
   it("uses the same permanent danger treatment for notes", async () => {
     showAppConfirm.mockResolvedValue(true);
 
     await showNoteDeletionConfirm();
-    expect(showAppConfirm).toHaveBeenCalledWith(
-      "Delete Note",
-      "Permanently delete this note? This cannot be undone.",
-      expect.objectContaining({ tone: "danger", confirmLabel: "Delete" }),
-    );
+    const [title, body, options] = showAppConfirm.mock.calls[0];
+    expect(inEnglish(title)).toBe("Delete Note");
+    expect(inEnglish(body)).toBe("Permanently delete this note? This cannot be undone.");
+    expect(options).toMatchObject({ tone: "danger", confirmLabel: message("dialog.delete") });
   });
 });

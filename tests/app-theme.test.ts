@@ -4,6 +4,8 @@ import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const applyWindowTheme = vi.fn();
+const applyLanguage = vi.fn();
+const loadLanguageEnvironment = vi.fn();
 const setMinSize = vi.fn();
 const show = vi.fn();
 const isMaximized = vi.fn();
@@ -33,6 +35,8 @@ vi.mock("@tauri-apps/api/window", () => ({
 
 vi.mock("../src/repositories", () => ({
   applyWindowTheme: (...args: unknown[]) => applyWindowTheme(...args),
+  applyLanguage: (...args: unknown[]) => applyLanguage(...args),
+  loadLanguageEnvironment: (...args: unknown[]) => loadLanguageEnvironment(...args),
   showMessage: vi.fn(),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   toErrorFields: vi.fn(() => ({})),
@@ -62,6 +66,8 @@ vi.mock("../src/components/shared/ToastHost", () => ({
 import App from "../src/App";
 import { createDefaultAppState, createDefaultPreferences } from "../src/models";
 import type { ThemePreference } from "../src/models";
+import type { LanguagePreference } from "../src/i18n/languages";
+import { useLanguageStore } from "../src/state/language-store";
 import { useAppStateStore } from "../src/state/app-state-store";
 import { usePreferencesStore } from "../src/state/preferences-store";
 import { mount } from "./helpers/react-dom";
@@ -70,10 +76,15 @@ import type { Mounted } from "./helpers/react-dom";
 const LAST_PREFERENCES = "/last-preferences.json";
 let host: Mounted;
 let loadedTheme: ThemePreference;
+let loadedLanguage: LanguagePreference;
 let lastLaunchedPreferencesPath: string;
 
 beforeEach(() => {
   applyWindowTheme.mockReset().mockResolvedValue(undefined);
+  applyLanguage.mockReset().mockResolvedValue(undefined);
+  loadLanguageEnvironment.mockReset().mockResolvedValue({ systemLanguage: "ja", systemLocale: "ja-JP" });
+  useLanguageStore.setState({ systemLanguage: "en", systemLocale: null });
+  loadedLanguage = "system";
   setMinSize.mockReset().mockResolvedValue(undefined);
   show.mockReset().mockResolvedValue(undefined);
   isMaximized.mockReset().mockResolvedValue(false);
@@ -101,6 +112,7 @@ beforeEach(() => {
     const preferences = {
       ...createDefaultPreferences("Last"),
       theme: loadedTheme,
+      language: loadedLanguage,
     };
     usePreferencesStore.setState({ preferences, filePath, loaded: true });
     return { status: "success" as const, preferences };
@@ -172,5 +184,41 @@ describe("startup theme", () => {
     });
 
     expect(applyWindowTheme).toHaveBeenLastCalledWith("light");
+  });
+});
+
+// The native menu speaks the interface language: the previewed document's
+// choice, with System resolved to the computer's language.
+describe("startup language", () => {
+  it("resolves System to the computer's language for the page and the native menu", async () => {
+    await mountApp();
+
+    expect(applyLanguage.mock.calls).toEqual([["ja"]]);
+    expect(document.documentElement.lang).toBe("ja");
+  });
+
+  it("applies the previewed document's own language", async () => {
+    loadedLanguage = "ru";
+    await mountApp();
+
+    expect(applyLanguage.mock.calls).toEqual([["ru"]]);
+    expect(document.documentElement.lang).toBe("ru");
+  });
+
+  it("sends nothing while initialization is still running", async () => {
+    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<null>(() => {})) });
+    await mountApp();
+
+    expect(applyLanguage).not.toHaveBeenCalled();
+  });
+
+  it("applies a changed language once the app is running", async () => {
+    await mountApp();
+    await act(async () => {
+      const { preferences } = usePreferencesStore.getState();
+      usePreferencesStore.setState({ preferences: { ...preferences, language: "de" } });
+    });
+
+    expect(applyLanguage).toHaveBeenLastCalledWith("de");
   });
 });

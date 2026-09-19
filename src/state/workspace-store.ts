@@ -7,6 +7,7 @@
 //      workspace path. Overlapping flushes never land out of order.
 
 import { create } from "zustand";
+import { message, type Message } from "../i18n/translate";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
 import type { LoadWorkspaceResult } from "../repositories";
@@ -30,7 +31,7 @@ interface WorkspaceState {
 
   // A failed structural write remains visible until dismissed or until a later
   // full workspace write proves the durable state is current again.
-  workspacePersistenceError: string | null;
+  workspacePersistenceError: Message | null;
   dismissWorkspacePersistenceError: () => void;
 
   // Actions — each persists to disk after updating state.
@@ -56,7 +57,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   // Helper: queue a flush for the current workspace path. `getWorkspace` runs
   // inside the serial slot so it sees the latest store state at the moment of
   // the write.
-  async function flush(what = "Your open tabs"): Promise<boolean> {
+  async function flush(what: "openTabs" | "tabOrder" = "openTabs"): Promise<boolean> {
     const { filePath } = get();
     if (!filePath) {
       set({ workspacePersistenceError: null });
@@ -68,7 +69,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return true;
     } catch (error) {
       log.error("workspace write failed", { what, ...toErrorFields(error) });
-      set({ workspacePersistenceError: `${what} could not be saved.` });
+      set({
+        workspacePersistenceError: message(what === "openTabs" ? "write.openTabs" : "write.tabOrder"),
+      });
       return false;
     }
   }
@@ -228,7 +231,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         return { workspace: optimistic };
       });
       const reorderVersion = ++structuralVersion;
-      if (await flush("Your tab order")) return;
+      if (await flush("tabOrder")) return;
 
       // Restore only when no later structural action superseded this reorder.
       // Runtime-only tab selection may have changed while the write was in
@@ -237,7 +240,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       structuralVersion += 1;
       set((state) => ({
         workspace: restoreTabOrder(previous, state.workspace),
-        workspacePersistenceError: "The tab order could not be saved. The previous order was restored.",
+        workspacePersistenceError: message("write.tabOrderRestored"),
       }));
     },
 

@@ -4,6 +4,8 @@
 // store speaks it, and a store owning the type the others import would make the
 // dependency between them point the wrong way.
 //
+import type { Message } from "../i18n/translate";
+
 // Every mutating action returns one of these and never rejects. That contract
 // is the point: a store applies its state transition synchronously and then
 // awaits a disk write, so a rejected write would leave the UI showing a change
@@ -14,5 +16,5 @@ export type ActionResult =
   // operation actually moved anything, so callers can advance selection only on
   // a real change rather than guessing from the pre-state.
   | { status: "success"; changed?: boolean }
-  | { status: "validation"; reason: string }
-  | { status: "error"; message: string };
+  | { status: "validation"; reason: Message }
+  | { status: "error"; message: Message };

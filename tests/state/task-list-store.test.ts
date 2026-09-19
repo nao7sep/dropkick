@@ -1,3 +1,5 @@
+import { inEnglish } from "../helpers/i18n";
+import { message } from "../../src/i18n/translate";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { TaskListDto } from "../../src/models";
 
@@ -189,8 +191,7 @@ describe("mutating actions — the never-reject contract", () => {
 
     expect(result).toEqual({
       status: "error",
-      message:
-        "The task list could not be saved. Your change was not saved; try again.",
+      message: message("write.taskList"),
     });
     expect(tasksOf()[0].title).toBe("before");
   });
@@ -316,8 +317,7 @@ describe("mutating actions — the never-reject contract", () => {
 
     expect(result).toEqual({
       status: "error",
-      message:
-        "The tasks could not be moved. They remain in their current lists; try again.",
+      message: message("move.failed"),
     });
   });
 });
@@ -576,7 +576,7 @@ describe("moveTasks", () => {
     flushMove.mockResolvedValue({ status: "dest-conflict" });
     const result = await useTaskListStore.getState().moveTasks(SRC, DST, new Set(["s1"]));
     expect(result.status).toBe("error");
-    expect(result.status === "error" && result.message).toMatch(/destination file was modified/i);
+    expect(result.status === "error" && inEnglish(result.message)).toMatch(/destination file was modified/i);
     // No tasks moved.
     expect(tasksOf(SRC).map((t) => t.id)).toEqual(["s1", "s2"]);
     expect(tasksOf(DST).map((t) => t.id)).toEqual(["d1"]);

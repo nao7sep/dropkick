@@ -6,26 +6,27 @@
 // in each pane, the keyboard handler and the window shell, which is how the
 // keyboard's "next task" and the list's visible order could drift apart.
 
+import type { MessageKey } from "../i18n/catalogues";
 import type { Task, TaskGroup, TabDto, TaskListDto } from "../models";
 import { TASK_GROUP_ORDER } from "../models";
 import { toTask } from "../utils/domain-mapping";
 
 export interface GroupedTasks {
   // Active task groups in display order. Empty groups are omitted.
-  groups: { group: TaskGroup; label: string; tasks: Task[] }[];
+  groups: { group: TaskGroup; label: MessageKey; tasks: Task[] }[];
   // Handled tasks (Completed + Dismissed), sorted by completedAtUtc descending.
   handled: Task[];
   handledTotal: number;
 }
 
-const GROUP_LABELS: Record<TaskGroup, string> = {
-  PastDue: "Past Due",
-  Critical: "Critical",
-  DueToday: "Due Today",
-  DueSoon: "Due Soon",
-  Urgent: "Urgent",
-  Important: "Important",
-  Default: "Tasks",
+const GROUP_LABELS: Record<TaskGroup, MessageKey> = {
+  PastDue: "group.pastDue",
+  Critical: "group.critical",
+  DueToday: "group.dueToday",
+  DueSoon: "group.dueSoon",
+  Urgent: "group.urgent",
+  Important: "group.important",
+  Default: "group.default",
 };
 
 // Groups and sorts active tasks for display.
