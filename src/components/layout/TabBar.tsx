@@ -521,7 +521,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         if (next !== zoomLevel) updateViewState({ zoomLevel: next });
                       }}
                       disabled={stepZoomOut(zoomLevel) === zoomLevel}
-                      className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-30"
+                      className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-50"
                       title={t("menu.zoomOut")}
                     >
                       <Minus size={12} />
@@ -545,7 +545,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         if (next !== zoomLevel) updateViewState({ zoomLevel: next });
                       }}
                       disabled={stepZoomIn(zoomLevel) === zoomLevel}
-                      className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-30"
+                      className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-50"
                       title={t("menu.zoomIn")}
                     >
                       <Plus size={12} />

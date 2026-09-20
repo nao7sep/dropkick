@@ -198,7 +198,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
             ref={launchRef}
             onClick={() => onLaunch(selectedPrefs, selectedWorkspace)}
             disabled={!canLaunch}
-            className="min-w-28 rounded-md bg-primary-solid px-4 py-2 text-sm font-medium text-ink-inverted transition-colors hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
+            className="min-w-28 rounded-md bg-primary-solid px-4 py-2 text-sm font-medium text-ink-inverted transition-colors hover:bg-primary-solid-hover disabled:opacity-50"
           >
             {t("startup.launch")}
           </button>

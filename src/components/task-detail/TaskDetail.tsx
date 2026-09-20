@@ -473,7 +473,7 @@ export function TaskDetail({
           <button
             onClick={handleMoveTask}
             disabled={!moveTarget}
-            className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
+            className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
           >
             {t("moveTasks.move")}
           </button>
@@ -572,7 +572,7 @@ export function TaskDetail({
             <button
               onClick={() => handleAddNote()}
               disabled={!newNoteContent.trim()}
-              className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
+              className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
             >
               {t("detail.addNote")}
             </button>
@@ -823,7 +823,7 @@ function NoteItem({
               // MouseEvent as the note's actionability.
               onClick={() => void handleSave()}
               disabled={!draft.trim()}
-              className="rounded bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
+              className="rounded bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
             >
               {t("note.save")}
             </button>

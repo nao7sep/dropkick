@@ -126,7 +126,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <button
             onClick={handleSave}
             disabled={!isDirty}
-            className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:bg-background disabled:text-ink-muted"
+            className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
           >
             {t("settings.save")}
           </button>
