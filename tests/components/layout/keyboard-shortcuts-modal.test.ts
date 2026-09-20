@@ -25,6 +25,17 @@ describe("KeyboardShortcutsModal tab commands", () => {
     expect(document.activeElement).toBe(owners[0]);
   });
 
+  it("leaves the height bound to the modal shell", async () => {
+    host = await mount(createElement(KeyboardShortcutsModal, { onClose: () => {} }));
+
+    // A second viewport height here is always the tighter of the two, so the
+    // list stops short of the room the shell would have given it.
+    const body = document.querySelector("[data-passive-scroll-region]")!;
+    expect(body.className).not.toMatch(/max-h-\[\d+vh\]/);
+    expect(body.className).toContain("min-h-0");
+    expect(body.className).toContain("flex-1");
+  });
+
   it("documents the keyboard-equivalent tab reorder", async () => {
     host = await mount(createElement(KeyboardShortcutsModal, { onClose: () => {} }));
 

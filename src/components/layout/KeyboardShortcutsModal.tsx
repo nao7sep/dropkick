@@ -116,6 +116,11 @@ const shortcutSections: { title: Message; shortcuts: ShortcutItem[] }[] = [
   },
 ];
 
+// The body's height bound is the shell's own 90vh, reached by shrinking inside
+// it rather than by a second viewport figure here. This surface carried 70vh,
+// the tighter of the two, and that put its last rows out of reach at every
+// window height: the four columns want 846 px, which 70vh does not cover until
+// the window is 1209 px tall, where the shell's bound covers it at 1087.
 export function KeyboardShortcutsModal({
   onClose,
 }: KeyboardShortcutsModalProps) {
@@ -127,7 +132,7 @@ export function KeyboardShortcutsModal({
       describedById="shortcuts-modal-description"
       maxWidth={1160}
       passiveBodyLabel={t("shortcuts.contentLabel")}
-      bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-4"
+      bodyClassName="min-h-0 flex-1 overflow-y-auto px-6 py-4"
       footerClassName="flex justify-end border-t border-border px-6 py-4"
       footer={
           <button
