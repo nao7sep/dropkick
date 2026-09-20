@@ -1,4 +1,5 @@
 import { isValidElement, type ReactElement } from "react";
+import type { MessageKey } from "../../src/i18n/catalogues";
 import { describe, expect, it } from "vitest";
 import { createTranslator, message } from "../../src/i18n/translate";
 
@@ -40,5 +41,12 @@ describe("createTranslator", () => {
     expect(en.percent(1.1)).toBe("110%");
     expect(en.list(["Work", "Home", "Garden"])).toBe("Work, Home, Garden");
     expect(createTranslator("ja").list(["仕事", "家"])).toBe("仕事、家");
+  });
+
+  it("shows a key the catalogue lacks instead of failing the render", () => {
+    // Types keep this out of the app; a stale build or a half-merged catalogue
+    // could still reach it, and a window must not go down over one string.
+    const missing = "gone.missing" as unknown as MessageKey;
+    expect(createTranslator("ja").t(missing)).toBe("gone.missing");
   });
 });
