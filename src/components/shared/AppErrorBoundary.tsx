@@ -29,7 +29,13 @@ export class AppErrorBoundary extends Component<
           <p className="text-sm text-danger">{t("crash.body")}</p>
           <button
             type="button"
-            className="mt-4 rounded-md bg-danger px-3 py-2 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+            // Reloading destroys nothing, so it is the app's primary action and not
+            // a red one: red on what does no harm teaches the colour to mean
+            // nothing. The card around it still says what went wrong in red.
+            // As a red fill it was also the one button in the app outside the
+            // token system — `bg-danger` is the TEXT red, which in the dark theme
+            // is a pale one, so white on it measured 2.77:1.
+            className="mt-4 rounded-md bg-primary-solid px-3 py-2 text-sm font-semibold text-ink-inverted hover:bg-primary-solid-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-ring"
             onClick={this.props.onReload ?? (() => window.location.reload())}
           >
             {t("crash.reload")}

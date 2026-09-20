@@ -1,3 +1,5 @@
+import { readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -14,6 +16,16 @@ const themeRs = readFileSync(
 );
 const sources = `${css}\n${tailwindTheme}`;
 const themes = ["light", "dark"] as const;
+
+function tsxSources(): Array<readonly [string, string]> {
+  const root = fileURLToPath(new URL("../../src", import.meta.url));
+  const walk = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      return entry.isDirectory() ? walk(path) : entry.name.endsWith(".tsx") ? [path] : [];
+    });
+  return walk(root).map((path) => [relative(root, path), readFileSync(path, "utf8")] as const);
+}
 const GROUPS = ["pastdue", "critical", "duetoday", "important", "urgent", "duesoon"];
 
 // Foreground tokens on the surfaces the components place them on. The muted ink
@@ -107,5 +119,17 @@ describe("native window background", () => {
         expect(Math.abs(channel - expected[index]!), `${theme} channel ${index}`).toBeLessThanOrEqual(1);
       });
     }
+  });
+});
+
+// Every colour a control draws with is a token, so that changing it moves the
+// pairs above. The crash screen's button was the one that was not: a literal
+// `text-white` on `bg-danger`, which is the TEXT red — pale in the dark theme, so
+// white on it measured 2.77:1 while every tokenised fill in the app held 4.5.
+describe("control inks come from tokens", () => {
+  it("never paints a label with a literal black or white", () => {
+    for (const [name, source] of tsxSources())
+      for (const literal of ["text-white", "text-black"])
+        expect(source, `${name} uses ${literal}`).not.toContain(literal);
   });
 });

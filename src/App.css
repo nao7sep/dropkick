@@ -409,3 +409,17 @@ body {
 .dropkick-toast {
   animation: dropkick-toast 2500ms ease forwards;
 }
+
+/* A reader who asks for no motion still needs the toast to arrive and to leave,
+   and its animation is what removes it — so the still version keeps the same
+   three-second shape and drops the slide. */
+@keyframes dropkick-toast-still {
+  0%, 88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropkick-toast {
+    animation-name: dropkick-toast-still;
+  }
+}
