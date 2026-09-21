@@ -51,7 +51,6 @@ export function AppModal({
 }: AppModalProps) {
   const { t } = useI18n();
   const contentRef = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
   const { onOpenAutoFocus, ...restContentProps } = contentProps ?? {};
 
   // When a close guard is active, Escape and outside-click are intercepted and
@@ -111,8 +110,12 @@ export function AppModal({
             onOpenAutoFocus?.(e);
             if (e.defaultPrevented) return;
             e.preventDefault();
-            if (passiveBodyLabel) bodyRef.current?.focus();
-            else contentRef.current?.focus();
+            // The surface, never the body — including when the body is a passive
+            // scroll owner. The body reaches the modal's own edges, so its focus
+            // ring draws a second border just inside the surface, and a reader
+            // who opened this with the mouse never asked for one. It stays
+            // reachable, and rings correctly, on a deliberate Tab.
+            contentRef.current?.focus();
           }}
           {...escapeAndOutsideHandlers}
           {...restContentProps}
@@ -144,7 +147,6 @@ export function AppModal({
           </div>
 
           <div
-            ref={bodyRef}
             {...(passiveBodyLabel
               ? passiveScrollRegionProps(passiveBodyLabel)
               : {})}

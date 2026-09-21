@@ -22,7 +22,11 @@ describe("KeyboardShortcutsModal tab commands", () => {
     expect(owners[0].getAttribute("tabindex")).toBe("0");
     expect(owners[0].className).toContain("overflow-y-auto");
     expect(owners[0].querySelector(".overflow-y-auto")).toBeNull();
-    expect(document.activeElement).toBe(owners[0]);
+    // Reachable, not pre-focused. This owner reaches the modal's own edges, so
+    // the ring it carries draws a second border just inside the surface — and a
+    // reader who opened this with the mouse never asked for one. Tab reaches it,
+    // and rings it, deliberately. (This assertion used to require the opposite.)
+    expect(document.activeElement).toBe(document.querySelector('[role="dialog"]'));
   });
 
   it("leaves the height bound to the modal shell", async () => {

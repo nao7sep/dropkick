@@ -71,3 +71,30 @@ describe("AppModal — Escape during an IME composition", () => {
     expect(bands[2].className).toContain("shrink-0");
   });
 });
+
+describe("AppModal — an informational body", () => {
+  beforeEach(async () => {
+    host = await mount(
+      createElement(AppModal, {
+        title: "About",
+        onClose: () => {},
+        passiveBodyLabel: "About",
+        children: createElement("div", null, "Body"),
+        footer: createElement("button", null, "Close"),
+      }),
+    );
+  });
+
+  it("opens with focus on the surface rather than on the body that scrolls it", () => {
+    // The body reaches the modal's own edges, so the focus ring a passive scroll
+    // region carries draws a second border just inside the surface — and a reader
+    // who opened this with the mouse never asked for one. The region stays
+    // reachable, and rings correctly, on a deliberate Tab.
+    const dialog = document.querySelector('[role="dialog"]')!;
+    const body = document.querySelector("[data-passive-scroll-region]")!;
+
+    expect(body).not.toBeNull();
+    expect(document.activeElement).toBe(dialog);
+    expect(document.activeElement).not.toBe(body);
+  });
+});
