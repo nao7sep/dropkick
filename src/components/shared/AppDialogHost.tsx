@@ -86,7 +86,13 @@ export function AppDialogHost() {
         {current && (
           <Dialog.Content
             data-dropkick-interactive-layer=""
-            className="fixed left-1/2 top-1/2 z-[101] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-surface shadow-xl focus:outline-none"
+            // Bounded height with the body as the sole scroll region, the same
+            // shape AppModal takes: without it a long body — a conflict dialog
+            // naming a deep path, a message built from a list — grows the surface
+            // past the viewport, and because it is centred on a fixed layer the
+            // footer goes off the bottom with nothing to scroll it back
+            // (modal-dialog-conventions).
+            className="fixed left-1/2 top-1/2 z-[101] flex max-h-[90vh] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface shadow-xl focus:outline-none"
             onPointerDownOutside={(e) => e.preventDefault()}
             ref={setContentEl}
             tabIndex={-1}
@@ -94,7 +100,7 @@ export function AppDialogHost() {
             // first; Radix's own mount-time autofocus would only fight it.
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
-            <div className="border-b border-border px-6 py-4">
+            <div className="shrink-0 border-b border-border px-6 py-4">
               <div className="flex items-center">
                 <Dialog.Title
                   className={`text-lg font-semibold ${
@@ -110,7 +116,7 @@ export function AppDialogHost() {
               </div>
             </div>
 
-            <div className="px-6 py-5">
+            <div className="min-h-0 overflow-y-auto px-6 py-5">
               <Dialog.Description asChild>
                 <p className="whitespace-pre-wrap text-sm leading-6 text-ink-soft">
                   {text(current.body)}
@@ -118,7 +124,7 @@ export function AppDialogHost() {
               </Dialog.Description>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+            <div className="flex shrink-0 justify-end gap-2 border-t border-border px-6 py-4">
               {current.kind === "confirm" && (
                 <button
                   ref={cancelRef}

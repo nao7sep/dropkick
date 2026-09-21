@@ -205,3 +205,36 @@ describe("dismissing a no-safe-action dialog", () => {
     expect(settled).toBe(false);
   });
 });
+
+
+describe("the surface's own bands", () => {
+  it("bounds the surface and scrolls only the body, so the footer cannot be pushed off", async () => {
+    // The host is the one place a body's length is not the app's to choose: a
+    // conflict message carries whatever path the file system handed it. Without
+    // a cap the surface grows past the viewport, and because it is centred on a
+    // fixed layer both ends leave the screen with nothing able to scroll them
+    // back — the buttons among them (modal-dialog-conventions). AppModal beside
+    // it already takes this shape; this is the same one.
+    await open(() =>
+      void showAppConfirm(
+        message("dialog.fileConflict.title"),
+        message("dialog.fileConflict.body", { path: "/".concat("very-long-folder/".repeat(40), "notes.json") }),
+        {
+          confirmLabel: message("dialog.fileConflict.overwrite"),
+          cancelLabel: message("dialog.fileConflict.reload"),
+          noSafeAction: true,
+        },
+      ),
+    );
+
+    const dialog = document.querySelector('[role="dialog"]')!;
+    const bands = [...dialog.children] as HTMLElement[];
+
+    expect(dialog.className).toContain("max-h-[90vh]");
+    expect(dialog.className).toContain("flex-col");
+    expect(bands[0].className).toContain("shrink-0");
+    expect(bands[1].className).toContain("min-h-0");
+    expect(bands[1].className).toContain("overflow-y-auto");
+    expect(bands[2].className).toContain("shrink-0");
+  });
+});
