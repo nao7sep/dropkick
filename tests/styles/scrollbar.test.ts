@@ -75,9 +75,13 @@ describe("App.css scroll-bar styling (app-chrome-conventions)", () => {
     }
   });
 
-  it("reserves a stable gutter and visible focus treatment for passive owners", () => {
+  it("reserves a stable gutter for passive owners and shows their focus in the thumb", () => {
     expect(compact).toMatch(/\[data-passive-scroll-region\]\{[^}]*scrollbar-gutter:stable/);
-    expect(compact).toMatch(/\[data-passive-scroll-region\]:focus-visible\{[^}]*outline:/);
+    // The visible treatment is the thumb brightening while focus is inside, not a
+    // ring around the region: that ring outlined a whole pane or modal body the
+    // moment a key was pressed after a click (app-chrome-conventions).
+    expect(compact).toMatch(/\*:focus-within::-webkit-scrollbar-thumb\{/);
+    expect(compact).not.toMatch(/\[data-passive-scroll-region\]:focus-visible\{[^}]*outline:(?!none)/);
   });
 
   it("retains both color-scheme declarations (light and dark)", () => {

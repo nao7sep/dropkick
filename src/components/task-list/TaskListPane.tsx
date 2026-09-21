@@ -450,7 +450,9 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
             non-focusable click targets — never tab stops — and the keyboard reaches
             Handled by arrowing past the last active task (see handleListKeyDown).
             Flex-1 so the Handled archive's mt-auto sits at the bottom and the empty
-            state centers. */}
+            state centers. It draws no ring of its own: the active row shows the
+            cursor, and a ring here would outline the whole pane on the first key
+            after a click (composite-control-conventions). */}
         <div
           ref={listRef}
           role="listbox"
@@ -459,7 +461,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           aria-activedescendant={activeDescendantId}
           tabIndex={0}
           onKeyDown={handleListKeyDown}
-          className="group flex flex-1 flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
+          className="group flex flex-1 flex-col focus:outline-none"
         >
           {/* Hidden handled rows do not fill the mandatory list body. Keep its
               folded archive available below while saying the active list is empty. */}
