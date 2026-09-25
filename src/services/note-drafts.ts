@@ -1,5 +1,10 @@
-// Pure note-draft rules: the key grammar, and the reconciliation that drops
-// drafts whose subject is provably gone.
+// Pure draft rules: the key grammar, and the reconciliation that drops drafts
+// whose subject is provably gone.
+//
+// The draft store holds every piece of typed-but-uncommitted task text: the
+// new-note composer, an in-progress note edit, and the task's title and
+// description while they are being edited (they commit on blur, and a quit
+// that never blurs must not lose them).
 //
 // Keys deliberately omit the file path. Task ids are stable per-entity nanoids,
 // so a draft follows its task when the task is moved to another list.
@@ -17,6 +22,21 @@ export function editorDraftKey(taskId: string, noteId: string): string {
   return `${taskId}:${noteId}`;
 }
 
+// A task's title or description while it is being edited. "#" is outside the
+// nanoid alphabet and distinct from the editor separator, so field keys can
+// never collide with composer or editor keys.
+export type TaskField = "title" | "description";
+
+export function fieldDraftKey(taskId: string, field: TaskField): string {
+  return `${taskId}#${field}`;
+}
+
+// The task a draft key belongs to, whatever kind of draft it names.
+export function draftTaskId(key: string): string {
+  const end = key.search(/[:#]/);
+  return end === -1 ? key : key.slice(0, end);
+}
+
 // Drops only the drafts whose subject is PROVABLY gone, judged against whatever
 // task lists happen to be loaded.
 //
@@ -24,6 +44,9 @@ export function editorDraftKey(taskId: string, noteId: string): string {
 // and the note is not, the note is genuinely deleted and the draft has nowhere
 // to return to. Everything else is kept: a composer draft's subject is the task
 // itself, and a task we cannot see is a task we cannot judge.
+//
+// Field drafts (title, description) are judged like composer drafts: their
+// subject is the task itself.
 //
 // That asymmetry is the point. The previous rule collected the subjects of the
 // OPEN lists and dropped every draft outside that set, gated on all of them

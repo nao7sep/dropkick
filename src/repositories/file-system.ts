@@ -192,6 +192,12 @@ export async function withSerialTwo<T>(
   return withSerial(first, () => withSerial(second, fn));
 }
 
+// The keys (file paths) with work still queued or running, oldest first. The
+// close path names them when a write is taking too long to finish.
+export function pendingSerialKeys(): string[] {
+  return [...serialChains.keys()];
+}
+
 // Awaits every per-key serial chain currently in flight. Used at window-close
 // time to make sure pending writes (including ones triggered by the blur of a
 // focused input during shutdown) land on disk before the renderer terminates.

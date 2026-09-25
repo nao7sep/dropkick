@@ -13,6 +13,10 @@ interface DialogOptions {
   // deliberately (modal-dialog-conventions). Do not set it to avoid choosing:
   // it states that no safe choice exists, not that one was hard to pick.
   noSafeAction?: boolean;
+  // Withdraws the request when aborted: it leaves the screen (or the queue) and
+  // settles through its cancel path. For a question the app stops needing an
+  // answer to, such as "close anyway?" once the pending writes have finished.
+  signal?: AbortSignal;
 }
 
 // Dialog text is a key plus values, rendered by AppDialogHost in the current
@@ -61,6 +65,46 @@ function advanceQueue(queue: DialogRequest[]) {
   return { current: next ?? null, queue: rest };
 }
 
+type SetDialogState = (
+  partial: Partial<Pick<DialogState, "current" | "queue">>,
+) => void;
+
+// Shows the request now, or queues it behind the one on screen, and wires its
+// withdrawal to `signal`.
+function present(
+  request: DialogRequest,
+  signal: AbortSignal | undefined,
+  get: () => DialogState,
+  set: SetDialogState,
+  settleCancelled: () => void,
+): void {
+  if (signal?.aborted) {
+    settleCancelled();
+    return;
+  }
+  const { current, queue } = get();
+  if (current) {
+    set({ queue: [...queue, request] });
+  } else {
+    set({ current: request });
+  }
+  signal?.addEventListener(
+    "abort",
+    () => {
+      const state = get();
+      if (state.current === request) {
+        set(advanceQueue(state.queue));
+      } else if (state.queue.includes(request)) {
+        set({ queue: state.queue.filter((queued) => queued !== request) });
+      } else {
+        return; // already answered
+      }
+      settleCancelled();
+    },
+    { once: true },
+  );
+}
+
 export const useDialogStore = create<DialogState>((set, get) => ({
   current: null,
   queue: [],
@@ -75,13 +119,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         confirmLabel: options.confirmLabel ?? message("common.ok"),
         resolve,
       };
-
-      const { current, queue } = get();
-      if (current) {
-        set({ queue: [...queue, request] });
-      } else {
-        set({ current: request });
-      }
+      present(request, options.signal, get, set, () => resolve());
     }),
 
   enqueueConfirm: async (title, body, options = {}) =>
@@ -96,13 +134,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         noSafeAction: options.noSafeAction ?? false,
         resolve,
       };
-
-      const { current, queue } = get();
-      if (current) {
-        set({ queue: [...queue, request] });
-      } else {
-        set({ current: request });
-      }
+      present(request, options.signal, get, set, () => resolve(false));
     }),
 
   confirmCurrent: () => {

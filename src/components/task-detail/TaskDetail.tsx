@@ -23,14 +23,13 @@ import {
   noteEditorAction,
   primaryModifierLabel,
   taskKey,
-  taskSelectionKey,
   statusAdvancesSelection,
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { Toolbar } from "../shared/Toolbar";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useNoteDraftStore } from "../../state/note-draft-store";
-import { composerDraftKey, editorDraftKey } from "../../services";
+import { composerDraftKey, editorDraftKey, fieldDraftKey } from "../../services";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { useTaskDeletion } from "../../hooks/useTaskDeletion";
@@ -81,8 +80,6 @@ export function TaskDetail({
   const setSelection = useTaskListStore((s) => s.setSelection);
   const workspace = useWorkspaceStore((s) => s.workspace);
 
-  const [titleDraft, setTitleDraft] = useState(task.title);
-  const [descDraft, setDescDraft] = useState(task.description);
   const [moveTarget, setMoveTarget] = useState("");
   const [titleError, setTitleError] = useState<Message | null>(null);
   const [descriptionError, setDescriptionError] = useState<Message | null>(null);
@@ -99,23 +96,23 @@ export function TaskDetail({
   const newNoteContent = useNoteDraftStore(
     (s) => s.drafts[composerDraftKey(task.id)] ?? "",
   );
-  const updateComposerDraft = useNoteDraftStore((s) => s.setDraft);
-  const clearComposerDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
+  const setDraft = useNoteDraftStore((s) => s.setDraft);
+  const clearDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
+
+  // Title and description commit on blur, and while they are being edited the
+  // typed text is a draft in the same store: a quit that never blurs the field
+  // (Dock > Quit, force-quit, a crash) must not lose it. A draft's presence is
+  // the "edited, not yet committed" state; with none, the field shows the task.
+  const titleKey = fieldDraftKey(task.id, "title");
+  const descriptionKey = fieldDraftKey(task.id, "description");
+  const titleDraft = useNoteDraftStore((s) => s.drafts[titleKey]) ?? task.title;
+  const descDraft = useNoteDraftStore((s) => s.drafts[descriptionKey]) ?? task.description;
   const deleteTasks = useTaskDeletion();
 
   // Available move destinations (other open task list tabs).
   const moveDestinations = workspace.openTabs.filter(
     (t) => !t.isUnifiedView && t.filePath !== filePath,
   );
-
-  // Sync drafts when task changes (different task selected).
-  const currentTaskKey = taskSelectionKey(task);
-  const [lastTaskKey, setLastTaskKey] = useState(currentTaskKey);
-  if (currentTaskKey !== lastTaskKey) {
-    setLastTaskKey(currentTaskKey);
-    setTitleDraft(task.title);
-    setDescDraft(task.description);
-  }
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
@@ -152,20 +149,6 @@ export function TaskDetail({
     return false;
   };
 
-  // Sync drafts when the same task is updated externally (e.g. renamed in the left pane).
-  // Skip if the field is focused — the user is actively editing.
-  useEffect(() => {
-    if (document.activeElement !== titleRef.current) {
-      setTitleDraft(task.title);
-    }
-  }, [task.title]);
-
-  useEffect(() => {
-    if (document.activeElement !== descRef.current) {
-      setDescDraft(task.description);
-    }
-  }, [task.description]);
-
   // Re-measure after external sync or content change.
   useEffect(() => autoGrowTitle(), [titleDraft, autoGrowTitle]);
   useEffect(() => autoGrowDesc(), [descDraft, autoGrowDesc]);
@@ -186,39 +169,54 @@ export function TaskDetail({
     });
   }, [focusNewNoteSignal, autoGrowNewNote]);
 
-  const handleTitleBlur = async () => {
-    const cleaned = singleLine(titleDraft, { minify: true });
-    if (!cleaned) {
-      // Revert — don't allow empty titles.
-      setTitleDraft(task.title);
-      setTitleError(null);
-      return;
-    }
-    if (cleaned !== task.title) {
+  // Commits a title draft. The draft is cleared only if it still reads as it
+  // did when the write started, so a keystroke typed during the await survives;
+  // a failed write keeps it for retry beside the field.
+  const commitTitle = async (typed: string) => {
+    const key = titleKey;
+    const cleaned = singleLine(typed, { minify: true });
+    // An empty title is not allowed: dropping the draft reverts the field.
+    if (cleaned && cleaned !== task.title) {
       const result = await updateTitle(filePath, task.id, cleaned);
       if (result.status === "error") {
         setTitleError(result.message);
-        setTitleDraft(cleaned);
         return;
       }
     }
     setTitleError(null);
-    setTitleDraft(cleaned);
+    clearDraftIf(key, typed);
   };
 
-  const handleDescBlur = async () => {
-    const cleaned = multiline(descDraft);
+  const commitDescription = async (typed: string) => {
+    const key = descriptionKey;
+    const cleaned = multiline(typed);
     if (cleaned !== task.description) {
       const result = await updateDescription(filePath, task.id, cleaned);
       if (result.status === "error") {
         setDescriptionError(result.message);
-        setDescDraft(cleaned);
         return;
       }
     }
     setDescriptionError(null);
-    setDescDraft(cleaned);
+    clearDraftIf(key, typed);
   };
+
+  // A title or description draft found when the task is shown was typed but
+  // never blurred — the app quit, or the write failed — so leaving the field
+  // already happened and the draft is committed now, as its blur would have.
+  // A field the user is in keeps its draft until it blurs.
+  useEffect(() => {
+    const { drafts } = useNoteDraftStore.getState();
+    const title = drafts[titleKey];
+    if (title !== undefined && document.activeElement !== titleRef.current) {
+      void commitTitle(title);
+    }
+    const description = drafts[descriptionKey];
+    if (description !== undefined && document.activeElement !== descRef.current) {
+      void commitDescription(description);
+    }
+    // Once per task shown; the commits read the task from this render.
+  }, [task.id]);
 
   const handleStatusChange = async (status: TaskStatus) => {
     const result = await setStatusAction(filePath, task.id, status);
@@ -279,7 +277,7 @@ export function TaskDetail({
       return;
     }
     setNoteComposerError(null);
-    clearComposerDraftIf(composerDraftKey(task.id), newNoteContent);
+    clearDraftIf(composerDraftKey(task.id), newNoteContent);
   };
 
   const handleMoveTask = async () => {
@@ -324,8 +322,11 @@ export function TaskDetail({
         aria-invalid={titleError !== null}
         aria-describedby={titleError ? `task-title-error-${task.id}` : undefined}
         value={titleDraft}
-        onChange={(e) => setTitleDraft(e.target.value)}
-        onBlur={handleTitleBlur}
+        onChange={(e) => setDraft(titleKey, e.target.value)}
+        onBlur={() => {
+          const typed = useNoteDraftStore.getState().drafts[titleKey];
+          if (typed !== undefined) void commitTitle(typed);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             if (isComposingKeyboardEvent(titleComposing.composingRef, e)) return;
@@ -489,10 +490,13 @@ export function TaskDetail({
           aria-describedby={descriptionError ? `task-description-error-${task.id}` : undefined}
           value={descDraft}
           onChange={(e) => {
-            setDescDraft(e.target.value);
+            setDraft(descriptionKey, e.target.value);
             autoGrowDesc();
           }}
-          onBlur={handleDescBlur}
+          onBlur={() => {
+            const typed = useNoteDraftStore.getState().drafts[descriptionKey];
+            if (typed !== undefined) void commitDescription(typed);
+          }}
           rows={2}
           placeholder={t("detail.descriptionPlaceholder")}
           className="w-full resize-none rounded-md border border-input-border p-2 text-sm text-ink outline-none focus:border-primary-ring"
@@ -540,7 +544,7 @@ export function TaskDetail({
             aria-describedby={noteComposerError ? `new-note-error-${task.id}` : undefined}
             value={newNoteContent}
             onChange={(e) => {
-              updateComposerDraft(composerDraftKey(task.id), e.target.value);
+              setDraft(composerDraftKey(task.id), e.target.value);
               autoGrowNewNote();
             }}
             onKeyDown={(e) => {

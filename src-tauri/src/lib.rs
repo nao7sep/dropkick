@@ -663,6 +663,11 @@ pub fn run() {
         .plugin(instance_owner::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .on_menu_event(|app, event| {
+            if event.id().as_ref() == menu::QUIT_ID {
+                menu::request_quit(app);
+            }
+        })
         .on_window_event(move |window, event| {
             window_placement::on_window_event(window, event, &event_placement_state);
             // Under System the OS appearance can change while the app runs; keep

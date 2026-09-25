@@ -257,11 +257,13 @@ describe("reconcile", () => {
 });
 
 describe("clearTaskDrafts", () => {
-  it("removes the deleted task's composer and edit drafts and nothing else", async () => {
+  it("removes the deleted task's composer, edit, title and description drafts and nothing else", async () => {
     await loadEmpty();
     const { setDraft } = useNoteDraftStore.getState();
     setDraft("t1", "composer");
     setDraft("t1:n1", "one");
+    setDraft("t1#title", "retitled");
+    setDraft("t1#description", "described");
     setDraft("t2", "other task");
 
     useNoteDraftStore.getState().clearTaskDrafts("t1");

@@ -20,6 +20,7 @@ const setStatus = vi.fn();
 const sendToFirst = vi.fn();
 const setNoteActionability = vi.fn();
 const updateTitle = vi.fn();
+const updateDescription = vi.fn();
 let host: Mounted | null = null;
 
 function task(): Task {
@@ -39,6 +40,7 @@ beforeEach(async () => {
   sendToFirst.mockReset().mockResolvedValue({ status: "success", changed: true });
   setNoteActionability.mockReset().mockResolvedValue({ status: "success" });
   updateTitle.mockReset().mockResolvedValue({ status: "success" });
+  updateDescription.mockReset().mockResolvedValue({ status: "success" });
   usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
   useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: true });
@@ -47,6 +49,7 @@ beforeEach(async () => {
     sendToFirst,
     setNoteActionability,
     updateTitle,
+    updateDescription,
     selectedKeys: new Set(["/one.json\u0000task-a"]),
   });
   host = await mount(
@@ -152,5 +155,82 @@ describe("TaskDetail operation results", () => {
     );
     expect(alert?.textContent).toContain("reloaded from disk");
     expect(noteSelect.parentElement?.parentElement?.contains(alert ?? null)).toBe(true);
+  });
+});
+
+function typeInto(field: HTMLTextAreaElement, value: string): void {
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
+    field,
+    value,
+  );
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+async function showTask(): Promise<void> {
+  await host?.unmount();
+  host = await mount(
+    createElement(TaskDetail, {
+      task: task(),
+      filePath: "/one.json",
+      isUnifiedView: false,
+      nextActiveTaskKey: null,
+      focusNewNoteSignal: 0,
+    }),
+  );
+}
+
+describe("TaskDetail title and description drafts", () => {
+  it("holds typed title and description text in the draft store before any blur", async () => {
+    const title = document.querySelector('textarea[placeholder="Task title..."]')! as HTMLTextAreaElement;
+    const description = document.querySelector(
+      'textarea[placeholder="Add a description..."]',
+    )! as HTMLTextAreaElement;
+
+    await act(async () => {
+      title.focus();
+      typeInto(title, "Alpha, renamed");
+    });
+    expect(useNoteDraftStore.getState().drafts["task-a#title"]).toBe("Alpha, renamed");
+    await act(async () => {
+      description.focus();
+      typeInto(description, "Typed and never blurred");
+    });
+
+    expect(useNoteDraftStore.getState().drafts).toMatchObject({
+      "task-a#description": "Typed and never blurred",
+    });
+  });
+
+  it("commits a title and description left from a quit when the task is shown", async () => {
+    useNoteDraftStore.setState({
+      drafts: {
+        "task-a#title": "Typed before quitting",
+        "task-a#description": "Also typed before quitting",
+      },
+    });
+
+    await showTask();
+
+    expect(updateTitle).toHaveBeenCalledWith("/one.json", "task-a", "Typed before quitting");
+    expect(updateDescription).toHaveBeenCalledWith(
+      "/one.json",
+      "task-a",
+      "Also typed before quitting",
+    );
+    expect(useNoteDraftStore.getState().drafts).toEqual({});
+  });
+
+  it("commits the title on blur and then drops its draft", async () => {
+    const title = document.querySelector('textarea[placeholder="Task title..."]')! as HTMLTextAreaElement;
+    await act(async () => {
+      title.focus();
+      typeInto(title, "Blurred title");
+    });
+    await act(async () => {
+      title.blur();
+    });
+
+    expect(updateTitle).toHaveBeenCalledWith("/one.json", "task-a", "Blurred title");
+    expect(useNoteDraftStore.getState().drafts["task-a#title"]).toBeUndefined();
   });
 });

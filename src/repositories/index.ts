@@ -13,6 +13,7 @@ export {
   withSerial,
   withSerialTwo,
   drainAllSerial,
+  pendingSerialKeys,
 } from "./file-system";
 export type {
   JsonReadResult,

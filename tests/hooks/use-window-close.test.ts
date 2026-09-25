@@ -6,11 +6,12 @@
 //   1. The graceful close gets the last keystrokes onto disk BEFORE the window
 //      is destroyed, so the coalescing window costs nothing on the one exit
 //      this handler can actually see.
-//   2. It asks nothing. The old design held drafts in memory and prompted here;
-//      that prompt could not run on macOS Cmd+Q (tao emits CloseRequested only
-//      from `windowShouldClose:`), so it protected nothing while nagging on the
-//      exits it did reach. Drafts are written through now, and a dialog raised
-//      here would be a regression, not caution.
+//   2. It asks nothing about drafts. The old design held drafts in memory and
+//      prompted here; that prompt could not run on macOS Cmd+Q (tao emits
+//      CloseRequested only from `windowShouldClose:`), so it protected nothing
+//      while nagging on the exits it did reach. Drafts are written through now.
+//      The one question it may ask is about a write that is stuck: the wait is
+//      bounded, and past the bound the user may close anyway.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
@@ -42,7 +43,8 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { useWindowClose } from "../../src/hooks/use-window-close";
+import { prepareWindowClose, useWindowClose } from "../../src/hooks/use-window-close";
+import { withSerial } from "../../src/repositories/file-system";
 import { useNoteDraftStore, flushNoteDraftsNow } from "../../src/state/note-draft-store";
 import { useDialogStore } from "../../src/state/dialog-store";
 
@@ -140,5 +142,78 @@ describe("close request", () => {
 
     // One live listener: any extra registration is matched by an unlisten.
     expect(windowStub.handlers.length - windowStub.unlistened).toBe(1);
+  });
+});
+
+// A write the test holds open, standing in for one stuck on an unresponsive
+// volume.
+function stuckWrite(path: string): () => void {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  void withSerial(path, () => held);
+  return release;
+}
+
+async function waitForDialog(): Promise<void> {
+  for (let i = 0; i < 50 && !useDialogStore.getState().current; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+describe("a write that does not finish", () => {
+  const LIST = "/Volumes/share/tasks.json";
+
+  it("names the file after the bound and closes when the user closes anyway", async () => {
+    const release = stuckWrite(LIST);
+    const closing = prepareWindowClose(10);
+
+    await waitForDialog();
+    const dialog = useDialogStore.getState().current;
+    expect(dialog?.body.values).toEqual({ paths: LIST });
+    useDialogStore.getState().confirmCurrent();
+
+    await expect(closing).resolves.toBe(true);
+    release();
+  });
+
+  it("stays open when the user keeps it open", async () => {
+    const release = stuckWrite(LIST);
+    const closing = prepareWindowClose(10);
+
+    await waitForDialog();
+    useDialogStore.getState().cancelCurrent();
+
+    await expect(closing).resolves.toBe(false);
+    release();
+  });
+
+  it("withdraws the question and closes once the write finishes", async () => {
+    const release = stuckWrite(LIST);
+    const closing = prepareWindowClose(10);
+
+    await waitForDialog();
+    expect(useDialogStore.getState().current).not.toBeNull();
+    release();
+
+    await expect(closing).resolves.toBe(true);
+    expect(useDialogStore.getState().current).toBeNull();
+  });
+
+  it("runs one close at a time however often close is requested", async () => {
+    await mountHarness();
+    const release = stuckWrite(LIST);
+
+    const handler = windowStub.handlers.at(-1)!;
+    const first = handler({ preventDefault: () => {} });
+    await requestClose(); // a second click while the first still waits
+    expect(windowStub.events).toEqual([]);
+
+    release();
+    await act(async () => {
+      await first;
+    });
+    expect(windowStub.events).toEqual(["destroy"]);
   });
 });

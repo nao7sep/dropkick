@@ -7,6 +7,8 @@ import { describe, it, expect } from "vitest";
 import {
   composerDraftKey,
   editorDraftKey,
+  fieldDraftKey,
+  draftTaskId,
   reconcileDrafts,
 } from "../../src/services/note-drafts";
 import { makeTask, makeNote } from "../helpers/task";
@@ -33,6 +35,30 @@ describe("draft keys", () => {
     // lets a parked draft reappear against the moved task.
     expect(composerDraftKey("t1")).toBe(composerDraftKey("t1"));
     expect(editorDraftKey("t1", "n1")).not.toContain("/");
+  });
+});
+
+describe("field draft keys", () => {
+  it("keeps title and description keys distinct from each other and from note keys", () => {
+    const keys = [
+      fieldDraftKey("t1", "title"),
+      fieldDraftKey("t1", "description"),
+      composerDraftKey("t1"),
+      editorDraftKey("t1", "title"),
+    ];
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("names the owning task for every kind of key", () => {
+    expect(draftTaskId(composerDraftKey("t1"))).toBe("t1");
+    expect(draftTaskId(editorDraftKey("t1", "n1"))).toBe("t1");
+    expect(draftTaskId(fieldDraftKey("t1", "title"))).toBe("t1");
+    expect(draftTaskId(fieldDraftKey("t1", "description"))).toBe("t1");
+  });
+
+  it("keeps a field draft through reconciliation while its task is visible", () => {
+    const drafts = { [fieldDraftKey("t1", "title")]: "typed" };
+    expect(reconcileDrafts(drafts, [makeList([makeTask({ id: "t1" })])])).toBe(drafts);
   });
 });
 

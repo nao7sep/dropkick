@@ -1,12 +1,18 @@
 //! The native menu, in the interface language. It has the same items as
-//! Tauri's default menu, which Dropkick used before it was localized.
+//! Tauri's default menu, which Dropkick used before it was localized, except
+//! that Quit is the app's own item (see `QUIT_ID`).
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use tauri::menu::{
-    AboutMetadata, Menu, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
+    AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
+    WINDOW_SUBMENU_ID,
 };
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-use tauri::{AppHandle, Wry};
+use tauri::Wry;
+use tauri::{AppHandle, Manager};
+
+use crate::logging;
+use serde_json::json;
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::i18n;
@@ -38,6 +44,32 @@ pub const KEYS: [&str; 22] = [
     "nativeMenu.help",
 ];
 
+/// The id of the app-owned Quit item.
+///
+/// The predefined Quit maps to `terminate:` on macOS, and nothing in tao, wry
+/// or tauri implements `applicationShouldTerminate:`, so it exits without ever
+/// reaching the webview: a title or description still focused never blurs and
+/// never commits, and writes still queued in the webview are dropped. This item
+/// instead asks the main window to close, which is the one exit the webview
+/// sees (`CloseRequested`), so Cmd+Q and the menu's Quit finish pending work
+/// exactly as the red close button does. Dock > Quit and force-quit still go
+/// straight to `terminate:`; typed text survives those because it is written
+/// through as it is typed (state/note-draft-store).
+pub const QUIT_ID: &str = "dropkick-quit";
+
+/// Quits through the main window's close path, or exits directly when there is
+/// no window to close.
+pub fn request_quit(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        app.exit(0);
+        return;
+    };
+    if let Err(error) = window.close() {
+        logging::warn("quit: window close failed", json!({ "error": error.to_string() }));
+        app.exit(0);
+    }
+}
+
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn build(app: &AppHandle, language: &str) -> tauri::Result<Menu<Wry>> {
     let name = app.package_info().name.clone();
@@ -52,7 +84,10 @@ pub fn build(app: &AppHandle, language: &str) -> tauri::Result<Menu<Wry>> {
         ..Default::default()
     };
     let quit_text = if cfg!(target_os = "macos") { t("nativeMenu.quit") } else { t("nativeMenu.exit") };
-    let quit = PredefinedMenuItem::quit(app, Some(&quit_text))?;
+    // Cmd+Q on macOS, as the predefined item had; Windows' Exit has no shortcut
+    // (Alt+F4 closes the window through the same close path).
+    let quit_accelerator = if cfg!(target_os = "macos") { Some("CmdOrCtrl+Q") } else { None };
+    let quit = MenuItem::with_id(app, QUIT_ID, &quit_text, true, quit_accelerator)?;
     let about_item = PredefinedMenuItem::about(app, Some(&t("nativeMenu.about")), Some(about))?;
 
     let file = Submenu::with_items(

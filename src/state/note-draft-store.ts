@@ -1,7 +1,8 @@
-// Note drafts — written through to disk as the user types.
+// Task drafts — written through to disk as the user types.
 //
-// Text a user has typed but not yet saved — the new-note composer and an
-// in-progress note edit — must outlive the component showing it, because that
+// Text a user has typed but not yet saved — the new-note composer, an
+// in-progress note edit, and a task's title or description while its field is
+// being edited — must outlive the component showing it, because that
 // component's lifetime is decided by selection: switching tasks, cycling tabs,
 // or a bulk action unmounts the detail pane and would silently drop the text
 // (modal-dialog-conventions, Unsaved Edits Outside a Modal). Drafts therefore
@@ -10,15 +11,18 @@
 //
 // They are also PERSISTED, and that is the point. An earlier design kept them
 // in memory and asked at quit through the window's close-request handler. On
-// macOS that handler is never reached by Cmd+Q, the app menu, or Dock > Quit:
-// tao emits CloseRequested only from `windowShouldClose:` (the red button and
-// `performClose:`), the app installs no menu so Tauri's default is used and its
-// Quit maps to `terminate:`, and nothing in tao, wry, tauri or tauri-runtime-wry
-// implements `applicationShouldTerminate:`. The reflex quit on the primary
-// platform therefore ran straight to exit with the drafts still in memory —
-// and force-quit, a crash and power loss are unreachable by any guard at all.
+// macOS that handler is never reached by Dock > Quit: tao emits CloseRequested
+// only from `windowShouldClose:` (the red button and `performClose:`), Dock >
+// Quit goes to `terminate:`, and nothing in tao, wry, tauri or
+// tauri-runtime-wry implements `applicationShouldTerminate:`. (Cmd+Q and the
+// app menu's Quit now close the window instead — src-tauri/src/menu.rs — but
+// that covers only the routes the app owns.) Force-quit, a crash and power
+// loss are unreachable by any guard at all.
 // Writing through removes the whole class instead of plugging one route, so
-// there is no quit prompt any more: nothing is held back to ask about.
+// there is no quit prompt any more: nothing is held back to ask about. Title
+// and description commit on blur, which no quit route that bypasses the close
+// request ever fires, so they are written through here for the same reason
+// (services/note-drafts has the key grammar).
 //
 // The write is coalesced (see below) rather than fired per keystroke, so the
 // residual exposure is the coalescing window, not the session.
@@ -26,7 +30,7 @@
 import { create } from "zustand";
 import type { TaskListDto } from "../models";
 import { flushNoteDrafts, loadNoteDrafts, log, toErrorFields } from "../repositories";
-import { reconcileDrafts } from "../services/note-drafts";
+import { draftTaskId, reconcileDrafts } from "../services/note-drafts";
 
 // Coalescing window for the write-through.
 //
@@ -117,8 +121,8 @@ interface NoteDraftState {
   // A keystroke typed during that await is newer than what was committed, so
   // clearing unconditionally would eat it.
   clearDraftIf: (key: string, expected: string) => void;
-  // Drop a task's composer draft and all its note-edit drafts. Called when the
-  // task is deleted — the drafts' subject no longer exists.
+  // Drop every draft of a task: composer, note edits, title and description.
+  // Called when the task is deleted — the drafts' subject no longer exists.
   clearTaskDrafts: (taskId: string) => void;
   // Drop drafts whose task or note no longer exists. `subjects` is every key the
   // loaded task lists can justify (services/note-drafts).
@@ -181,11 +185,8 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
 
     clearTaskDrafts: (taskId) => {
       const { drafts } = get();
-      const editorPrefix = `${taskId}:`;
       const rest = Object.fromEntries(
-        Object.entries(drafts).filter(
-          ([key]) => key !== taskId && !key.startsWith(editorPrefix),
-        ),
+        Object.entries(drafts).filter(([key]) => draftTaskId(key) !== taskId),
       );
       if (Object.keys(rest).length === Object.keys(drafts).length) return;
       commit(rest);

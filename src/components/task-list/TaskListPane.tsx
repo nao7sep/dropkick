@@ -26,7 +26,8 @@ import {
 } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useViewTasks } from "../../hooks/useViewTasks";
-import { describeLoadFailure, fileNameWithoutExt } from "../../services";
+import { describeLoadFailure, fieldDraftKey, fileNameWithoutExt } from "../../services";
+import { useNoteDraftStore } from "../../state/note-draft-store";
 import { useI18n } from "../../i18n/I18nContext";
 import type { Message } from "../../i18n/translate";
 
@@ -366,11 +367,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     );
   }
 
+  // The typed title is a draft in the draft store, under the same key the
+  // detail pane's title field uses, so a quit that never blurs the input still
+  // keeps it (state/note-draft-store). It is cleared only if it still reads as
+  // it did when the write started.
   const handleRename = async (task: Task, newTitle: string) => {
     const selectionKey = taskSelectionKey(task);
+    const draftKey = fieldDraftKey(task.id, "title");
     const cleaned = singleLine(newTitle, { minify: true });
     if (!cleaned) {
       // Don't allow empty titles — just cancel the rename.
+      useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle);
       setEditingTaskKey(null);
       setRenameErrors((errors) => {
         const { [selectionKey]: _removed, ...rest } = errors;
@@ -389,6 +396,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         return false;
       }
     }
+    useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle);
     setEditingTaskKey(null);
     setRenameErrors((errors) => {
       const { [selectionKey]: _removed, ...rest } = errors;
@@ -396,6 +404,12 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
     });
     focusList();
     return true;
+  };
+
+  const cancelRename = (task: Task) => {
+    useNoteDraftStore.getState().clearDraft(fieldDraftKey(task.id, "title"));
+    setEditingTaskKey(null);
+    focusList();
   };
 
   return (
@@ -499,10 +513,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                     onClick={(e) => handleTaskClick(task, e)}
                     onDoubleClick={() => setEditingTaskKey(selectionKey)}
                     onRename={(title) => handleRename(task, title)}
-                    onCancelRename={() => {
-                      setEditingTaskKey(null);
-                      focusList();
-                    }}
+                    onCancelRename={() => cancelRename(task)}
                   />
                 );
               })}
@@ -548,10 +559,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                         onClick={(e) => handleTaskClick(task, e)}
                         onDoubleClick={() => setEditingTaskKey(selectionKey)}
                         onRename={(title) => handleRename(task, title)}
-                        onCancelRename={() => {
-                          setEditingTaskKey(null);
-                          focusList();
-                        }}
+                        onCancelRename={() => cancelRename(task)}
                       />
                     );
                   })}
@@ -615,7 +623,9 @@ function TaskRow({
 }) {
   const { t, text } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState(task.title);
+  const draftKey = fieldDraftKey(task.id, "title");
+  const draft = useNoteDraftStore((s) => s.drafts[draftKey]) ?? task.title;
+  const setDraft = useNoteDraftStore((s) => s.setDraft);
   const composing = useComposing();
 
   const commitRename = async () => {
@@ -623,17 +633,16 @@ function TaskRow({
     if (!succeeded) inputRef.current?.focus();
   };
 
-  // Reset draft and focus when entering edit mode.
+  // Focus when entering edit mode.
   useEffect(() => {
     if (isEditing) {
-      setDraft(task.title);
       // Defer focus so the input is mounted.
       requestAnimationFrame(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
       });
     }
-  }, [isEditing, task.title]);
+  }, [isEditing]);
 
   return (
     <div
@@ -670,7 +679,7 @@ function TaskRow({
           aria-invalid={renameError !== undefined}
           aria-describedby={renameError ? `rename-error-${task.id}` : undefined}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => setDraft(draftKey, e.target.value)}
           onBlur={() => void commitRename()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
