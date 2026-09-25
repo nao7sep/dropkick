@@ -107,6 +107,12 @@ export function TaskDetail({
   const descriptionKey = fieldDraftKey(task.id, "description");
   const titleDraft = useNoteDraftStore((s) => s.drafts[titleKey]) ?? task.title;
   const descDraft = useNoteDraftStore((s) => s.drafts[descriptionKey]) ?? task.description;
+
+  // Adding a note awaits its write while the composer still holds the text, so
+  // a second click or Cmd+Enter in that window would add the same note again.
+  // The ref is the synchronous guard; the state drives the disabled button.
+  const addingNoteRef = useRef(false);
+  const [addingNote, setAddingNote] = useState(false);
   const deleteTasks = useTaskDeletion();
 
   // Available move destinations (other open task list tabs).
@@ -264,20 +270,28 @@ export function TaskDetail({
   const handleAddNote = async (
     actionability: NoteActionability = "Informational",
   ) => {
+    if (addingNoteRef.current) return;
     const cleaned = multiline(newNoteContent);
     if (!cleaned) return;
-    const result = await addNewNote(
-      filePath,
-      task.id,
-      cleaned,
-      actionability,
-    );
-    if (result.status === "error") {
-      setNoteComposerError(result.message);
-      return;
+    addingNoteRef.current = true;
+    setAddingNote(true);
+    try {
+      const result = await addNewNote(
+        filePath,
+        task.id,
+        cleaned,
+        actionability,
+      );
+      if (result.status === "error") {
+        setNoteComposerError(result.message);
+        return;
+      }
+      setNoteComposerError(null);
+      clearDraftIf(composerDraftKey(task.id), newNoteContent);
+    } finally {
+      addingNoteRef.current = false;
+      setAddingNote(false);
     }
-    setNoteComposerError(null);
-    clearDraftIf(composerDraftKey(task.id), newNoteContent);
   };
 
   const handleMoveTask = async () => {
@@ -575,7 +589,7 @@ export function TaskDetail({
           <div className="mt-1 flex justify-end">
             <button
               onClick={() => handleAddNote()}
-              disabled={!newNoteContent.trim()}
+              disabled={!newNoteContent.trim() || addingNote}
               className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
             >
               {t("detail.addNote")}

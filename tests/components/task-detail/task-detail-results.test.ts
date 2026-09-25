@@ -21,6 +21,7 @@ const sendToFirst = vi.fn();
 const setNoteActionability = vi.fn();
 const updateTitle = vi.fn();
 const updateDescription = vi.fn();
+const addNewNote = vi.fn();
 let host: Mounted | null = null;
 
 function task(): Task {
@@ -41,6 +42,7 @@ beforeEach(async () => {
   setNoteActionability.mockReset().mockResolvedValue({ status: "success" });
   updateTitle.mockReset().mockResolvedValue({ status: "success" });
   updateDescription.mockReset().mockResolvedValue({ status: "success" });
+  addNewNote.mockReset().mockResolvedValue({ status: "success" });
   usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
   useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: true });
@@ -50,6 +52,7 @@ beforeEach(async () => {
     setNoteActionability,
     updateTitle,
     updateDescription,
+    addNewNote,
     selectedKeys: new Set(["/one.json\u0000task-a"]),
   });
   host = await mount(
@@ -232,5 +235,31 @@ describe("TaskDetail title and description drafts", () => {
 
     expect(updateTitle).toHaveBeenCalledWith("/one.json", "task-a", "Blurred title");
     expect(useNoteDraftStore.getState().drafts["task-a#title"]).toBeUndefined();
+  });
+});
+
+describe("TaskDetail note composer", () => {
+  it("adds a note once however often Add is clicked while the write runs", async () => {
+    let finish!: (value: { status: "success" }) => void;
+    addNewNote.mockImplementationOnce(
+      () => new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    useNoteDraftStore.setState({ drafts: { "task-a": "One note" } });
+    await showTask();
+    const add = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Add Note",
+    )!;
+
+    await act(async () => {
+      add.click();
+      add.click();
+    });
+    await act(async () => {
+      finish({ status: "success" });
+    });
+
+    expect(addNewNote).toHaveBeenCalledTimes(1);
   });
 });
