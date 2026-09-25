@@ -22,7 +22,7 @@ import {
   showFileConflictDialog,
   showFileDeletedDialog,
 } from "./dialogs";
-import { log } from "./logging";
+import { log, toErrorFields } from "./logging";
 import { message, type Message } from "../i18n/translate";
 
 // Represents a loaded task list.
@@ -294,11 +294,23 @@ export async function flushMove(
     if (destResult.status === "conflict") return { status: "dest-conflict" };
     if (destResult.status === "deleted") return { status: "dest-deleted" };
 
-    // Step 2: write source.
-    const sourceResult = await writeIfHashMatches(
-      sourceFilePath,
-      sourceDataPostMove,
-    );
+    // Step 2: write source. A throw here — the volume went read-only, was
+    // unplugged or filled up — is a failed step like a conflict, not an escape
+    // past the rollback: the destination already holds the moved tasks, and
+    // leaving it so would put them in both files on disk while the store keeps
+    // them only in the source. A failed atomic write leaves its target
+    // untouched, so the source still holds its pre-move content.
+    let sourceResult: HashCheckedWrite | { status: "failed" };
+    try {
+      sourceResult = await writeIfHashMatches(sourceFilePath, sourceDataPostMove);
+    } catch (e) {
+      log.warn("move source write failed; rolling back destination", {
+        source: sourceFilePath,
+        dest: destFilePath,
+        ...toErrorFields(e),
+      });
+      sourceResult = { status: "failed" };
+    }
     if (sourceResult.status === "success") {
       return {
         status: "success",
@@ -307,20 +319,29 @@ export async function flushMove(
       };
     }
 
-    // Source-write failed; roll the destination back.
-    const rollback = await writeIfHashMatches(
-      destFilePath,
-      inputs.destDataPreMove,
-    );
-    if (rollback.status !== "success") {
+    // Source-write failed; roll the destination back. A throw here is a failed
+    // rollback like any other.
+    let rolledBack = false;
+    try {
+      rolledBack =
+        (await writeIfHashMatches(destFilePath, inputs.destDataPreMove)).status === "success";
+    } catch (e) {
+      log.error("move rollback write failed", { dest: destFilePath, ...toErrorFields(e) });
+    }
+    if (!rolledBack) {
       return {
         status: "rollback-failed",
         message:
           message("move.rollbackFailed"),
       };
     }
-    return sourceResult.status === "conflict"
-      ? { status: "source-conflict" }
-      : { status: "source-deleted" };
+    switch (sourceResult.status) {
+      case "conflict":
+        return { status: "source-conflict" };
+      case "deleted":
+        return { status: "source-deleted" };
+      case "failed":
+        return { status: "error", message: message("move.failed") };
+    }
   });
 }

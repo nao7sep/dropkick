@@ -312,6 +312,40 @@ describe("flushMove", () => {
     expect(srcWrites).toHaveLength(0);
   });
 
+  it("rolls the destination back when the source write throws", async () => {
+    await registerBoth();
+    hashFile
+      .mockResolvedValueOnce("D0") // dest check matches -> dest write ok
+      .mockResolvedValueOnce("S0") // source check matches
+      .mockResolvedValueOnce("HW"); // rollback dest check matches the write hash
+    writeJsonFile
+      .mockResolvedValueOnce("HW") // dest write
+      .mockRejectedValueOnce(new Error("read-only file system")) // source write
+      .mockResolvedValueOnce("HR"); // rollback
+    const result = await repo.flushMove(SRC, DST, inputs);
+    expect(result).toEqual({ status: "error", message: message("move.failed") });
+    const dstWrites = writeJsonFile.mock.calls.filter((c) => c[0] === DST);
+    expect(dstWrites).toHaveLength(2);
+    expect(dstWrites[1][1]).toEqual(inputs().destDataPreMove);
+  });
+
+  it("reports rollback-failed when the rollback write itself throws", async () => {
+    await registerBoth();
+    hashFile
+      .mockResolvedValueOnce("D0")
+      .mockResolvedValueOnce("S0")
+      .mockResolvedValueOnce("HW");
+    writeJsonFile
+      .mockResolvedValueOnce("HW")
+      .mockRejectedValueOnce(new Error("device not configured"))
+      .mockRejectedValueOnce(new Error("device not configured"));
+    const result = await repo.flushMove(SRC, DST, inputs);
+    expect(result).toEqual({
+      status: "rollback-failed",
+      message: message("move.rollbackFailed"),
+    });
+  });
+
   it("reports rollback-failed when restoring the destination also fails", async () => {
     await registerBoth();
     hashFile
