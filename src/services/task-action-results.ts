@@ -21,7 +21,7 @@ export function collectTaskActionFailures(
     if (!result || result.status === "success") continue;
     failures.push({
       task: tasks[index],
-      reason: result.status === "error" ? result.message : result.reason,
+      reason: result.status === "validation" ? result.reason : result.message,
     });
   }
   return failures;

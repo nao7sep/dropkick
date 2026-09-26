@@ -132,7 +132,7 @@ describe("TaskDetail operation results", () => {
   it("keeps a note failure on the affected note", async () => {
     await host?.unmount();
     setNoteActionability.mockResolvedValueOnce({
-      status: "error",
+      status: "reloaded",
       message: message("write.reloaded"),
     });
     host = await mount(
@@ -223,6 +223,47 @@ describe("TaskDetail title and description drafts", () => {
     expect(useNoteDraftStore.getState().drafts).toEqual({});
   });
 
+  it("drops a description draft when the conflict is answered with Reload", async () => {
+    updateDescription.mockResolvedValueOnce({
+      status: "reloaded",
+      message: message("write.reloaded"),
+    });
+    const description = document.querySelector(
+      'textarea[placeholder="Add a description..."]',
+    )! as HTMLTextAreaElement;
+    await act(async () => {
+      description.focus();
+      typeInto(description, "Discarded by Reload");
+    });
+    await act(async () => {
+      description.blur();
+    });
+
+    expect(useNoteDraftStore.getState().drafts["task-a#description"]).toBeUndefined();
+    expect(description.value).toBe("");
+    expect(document.getElementById(description.getAttribute("aria-describedby")!)?.textContent)
+      .toContain("reloaded from disk");
+
+    updateDescription.mockClear();
+    await showTask();
+    expect(updateDescription).not.toHaveBeenCalled();
+  });
+
+  it("drops a title draft left from a quit when its commit is answered with Reload", async () => {
+    updateTitle.mockResolvedValueOnce({
+      status: "reloaded",
+      message: message("write.reloaded"),
+    });
+    useNoteDraftStore.setState({ drafts: { "task-a#title": "Typed before quitting" } });
+
+    await showTask();
+    expect(updateTitle).toHaveBeenCalledTimes(1);
+    expect(useNoteDraftStore.getState().drafts).toEqual({});
+
+    await showTask();
+    expect(updateTitle).toHaveBeenCalledTimes(1);
+  });
+
   it("commits the title on blur and then drops its draft", async () => {
     const title = document.querySelector('textarea[placeholder="Task title..."]')! as HTMLTextAreaElement;
     await act(async () => {
@@ -261,5 +302,36 @@ describe("TaskDetail note composer", () => {
     });
 
     expect(addNewNote).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("TaskDetail note editor", () => {
+  it("closes onto the disk note when its save is answered with Reload", async () => {
+    const updateNote = vi.fn().mockResolvedValue({
+      status: "reloaded",
+      message: message("write.reloaded"),
+    });
+    useTaskListStore.setState({ updateNote });
+    useNoteDraftStore.setState({ drafts: { "task-a:note-a": "Discarded by Reload" } });
+    await host?.unmount();
+    host = await mount(
+      createElement(TaskDetail, {
+        task: { ...task(), notes: [makeNote({ id: "note-a", content: "On disk" })] },
+        filePath: "/one.json",
+        isUnifiedView: false,
+        nextActiveTaskKey: null,
+        focusNewNoteSignal: 0,
+      }),
+    );
+    const save = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Save",
+    )!;
+
+    await act(async () => save.click());
+
+    expect(updateNote).toHaveBeenCalledTimes(1);
+    expect(useNoteDraftStore.getState().drafts["task-a:note-a"]).toBeUndefined();
+    expect(document.body.textContent).toContain("On disk");
+    expect(document.body.textContent).toContain("reloaded from disk");
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "../../../src/models";
 import { TaskListPane } from "../../../src/components/task-list/TaskListPane";
 import { usePreferencesStore } from "../../../src/state/preferences-store";
+import { useNoteDraftStore } from "../../../src/state/note-draft-store";
 import { useTaskListStore } from "../../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { makeTask } from "../../helpers/task";
@@ -81,5 +82,33 @@ describe("TaskListPane results", () => {
     expect(row.querySelector('[role="alert"]')?.textContent).toBe(
       "The task list could not be saved. Your change was not saved; try again.",
     );
+  });
+
+  it("ends a rename answered with Reload and drops its draft", async () => {
+    updateTitle.mockResolvedValueOnce({
+      status: "reloaded",
+      message: message("write.reloaded"),
+    });
+    useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: true });
+    const row = document.querySelector('[role="option"]')! as HTMLElement;
+    await act(async () => row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    const input = row.querySelector("input")!;
+
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(input, "Discarded by Reload");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(updateTitle).toHaveBeenCalledTimes(1);
+    expect(row.querySelector("input")).toBeNull();
+    expect(useNoteDraftStore.getState().drafts["a#title"]).toBeUndefined();
+    expect(row.querySelector('[role="alert"]')?.textContent).toContain("reloaded from disk");
   });
 });

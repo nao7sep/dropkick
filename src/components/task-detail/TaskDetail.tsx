@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../../models";
-import type { ActionResult } from "../../state";
+import { notSaved, type ActionResult } from "../../state";
 import { useTaskListStore } from "../../state/task-list-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
@@ -97,6 +97,7 @@ export function TaskDetail({
     (s) => s.drafts[composerDraftKey(task.id)] ?? "",
   );
   const setDraft = useNoteDraftStore((s) => s.setDraft);
+  const clearDraft = useNoteDraftStore((s) => s.clearDraft);
   const clearDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
 
   // Title and description commit on blur, and while they are being edited the
@@ -147,7 +148,7 @@ export function TaskDetail({
     title: Message,
     result: ActionResult,
   ) => {
-    if (result.status === "error") {
+    if (notSaved(result)) {
       reportActionError(operation, title, result.message);
       return true;
     }
@@ -177,7 +178,10 @@ export function TaskDetail({
 
   // Commits a title draft. The draft is cleared only if it still reads as it
   // did when the write started, so a keystroke typed during the await survives;
-  // a failed write keeps it for retry beside the field.
+  // a failed write keeps it for retry beside the field. Reload in the conflict
+  // dialog drops it outright: the user chose the disk version, and a draft left
+  // behind would be committed again, without a dialog, the next time the task
+  // is shown.
   const commitTitle = async (typed: string) => {
     const key = titleKey;
     const cleaned = singleLine(typed, { minify: true });
@@ -186,6 +190,11 @@ export function TaskDetail({
       const result = await updateTitle(filePath, task.id, cleaned);
       if (result.status === "error") {
         setTitleError(result.message);
+        return;
+      }
+      if (result.status === "reloaded") {
+        setTitleError(result.message);
+        clearDraft(key);
         return;
       }
     }
@@ -200,6 +209,11 @@ export function TaskDetail({
       const result = await updateDescription(filePath, task.id, cleaned);
       if (result.status === "error") {
         setDescriptionError(result.message);
+        return;
+      }
+      if (result.status === "reloaded") {
+        setDescriptionError(result.message);
+        clearDraft(key);
         return;
       }
     }
@@ -230,7 +244,7 @@ export function TaskDetail({
       setStatusError(result.reason);
       return;
     }
-    if (result.status === "error") {
+    if (notSaved(result)) {
       setStatusError(result.message);
       return;
     }
@@ -282,7 +296,7 @@ export function TaskDetail({
         cleaned,
         actionability,
       );
-      if (result.status === "error") {
+      if (notSaved(result)) {
         setNoteComposerError(result.message);
         return;
       }
@@ -699,10 +713,17 @@ function NoteItem({
         setNoteError(result.message);
         return;
       }
+      if (result.status === "reloaded") {
+        // The user chose the disk version, so the editor closes onto it rather
+        // than holding the discarded text for a later Save to write over it.
+        setNoteError(result.message);
+        clearDraft(draftKey);
+        return;
+      }
     }
     if (actionability && actionability !== note.actionability) {
       const result = await setActionability(filePath, taskId, note.id, actionability);
-      if (result.status === "error") {
+      if (notSaved(result)) {
         // The text is already saved; leave the editor open so the failure is
         // visible against the note it failed on rather than closing over it.
         setNoteError(result.message);
@@ -732,7 +753,7 @@ function NoteItem({
       (await showNoteDeletionConfirm());
     if (confirmed) {
       const result = await removeNote(filePath, taskId, note.id);
-      if (result.status === "error") {
+      if (notSaved(result)) {
         setNoteError(result.message);
         return;
       }
@@ -743,7 +764,7 @@ function NoteItem({
 
   const handleActionabilityChange = async (actionability: NoteActionability) => {
     const result = await setActionability(filePath, taskId, note.id, actionability);
-    if (result.status === "error") {
+    if (notSaved(result)) {
       setNoteError(result.message);
       return;
     }

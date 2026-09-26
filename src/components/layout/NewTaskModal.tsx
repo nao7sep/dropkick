@@ -14,6 +14,7 @@ import {
 } from "../../utils";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
+import { notSaved } from "../../state/action-result";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { DatePicker } from "../shared/DatePicker";
 import { AppModal } from "../shared/AppModal";
@@ -104,7 +105,7 @@ export function NewTaskModal({
 
       if (result.status === "success") {
         onClose();
-      } else if (result.status === "error") {
+      } else if (notSaved(result)) {
         setActionError(result.message);
       }
     } finally {

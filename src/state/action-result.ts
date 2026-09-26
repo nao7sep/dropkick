@@ -17,4 +17,19 @@ export type ActionResult =
   // a real change rather than guessing from the pre-state.
   | { status: "success"; changed?: boolean }
   | { status: "validation"; reason: Message }
+  // The file changed outside Dropkick and the user chose Reload in the conflict
+  // dialog: the disk version is now in the store and the change was dropped on
+  // purpose. Kept apart from `error` because the two ask opposite things of
+  // anything holding the typed text: a failed write keeps it for retry, while
+  // after Reload it must go, or a later commit would write the discarded text
+  // over the version the user chose to keep.
+  | { status: "reloaded"; message: Message }
   | { status: "error"; message: Message };
+
+// Whether an action's change did not reach disk, for callers that only report
+// why and hold no typed text: a failed write and a Reload read the same to them.
+export function notSaved(
+  result: ActionResult,
+): result is Extract<ActionResult, { message: Message }> {
+  return result.status === "error" || result.status === "reloaded";
+}

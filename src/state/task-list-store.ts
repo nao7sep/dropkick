@@ -338,7 +338,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     // reloaded
     finishPendingWrite(filePath, { persisted: result.data });
     applyData(filePath, result.data);
-    return { status: "error", message: result.message };
+    return { status: "reloaded", message: result.message };
   }
 
 

@@ -507,13 +507,13 @@ describe("reorderTick scroll-follow signal", () => {
 });
 
 describe("flush conflict reload", () => {
-  it("applies reloaded disk data and reports an error when the file changed externally", async () => {
+  it("applies reloaded disk data and reports the reload apart from a failed write", async () => {
     seedFile([makeTask({ id: "a", title: "local" })]);
     const reloaded: TaskListDto = { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "z", title: "from disk" })] };
     flushTaskList.mockResolvedValue({ status: "reloaded", data: reloaded, message: "changed externally" });
 
     const result = await useTaskListStore.getState().addNewTask(FILE, { title: "x" });
-    expect(result).toEqual({ status: "error", message: "changed externally" });
+    expect(result).toEqual({ status: "reloaded", message: "changed externally" });
     // The store reflects the disk state after a reload.
     expect(tasksOf().map((t) => t.id)).toEqual(["z"]);
   });

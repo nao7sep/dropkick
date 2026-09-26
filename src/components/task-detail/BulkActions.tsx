@@ -7,7 +7,7 @@ import type { Task, TaskStatus, TaskPriority } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
-import type { ActionResult } from "../../state";
+import { notSaved, type ActionResult } from "../../state";
 import {
   statusAdvancesSelection,
   taskSelectionKey,
@@ -88,7 +88,7 @@ export function BulkActions({
     title: Message,
     result: ActionResult,
   ) => {
-    if (result.status === "error") {
+    if (notSaved(result)) {
       reportActionError(operation, title, result.message);
       return true;
     }

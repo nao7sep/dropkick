@@ -48,7 +48,7 @@ export async function deleteSelectedTasks({
     }
 
     failedTasks.push(...tasks);
-    const reason = result.status === "error" ? result.message : result.reason;
+    const reason = result.status === "validation" ? result.reason : result.message;
     for (const task of tasks) {
       failures.push({ task, reason });
     }

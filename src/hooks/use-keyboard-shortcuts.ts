@@ -8,7 +8,7 @@ import { useWorkspaceStore } from "../state/workspace-store";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useToastStore } from "../state/toast-store";
 import type { Task, TaskPriority, TaskStatus } from "../models";
-import type { ActionResult } from "../state";
+import { notSaved, type ActionResult } from "../state";
 import {
   pickNextActiveKey,
   taskSelectionKey,
@@ -196,7 +196,7 @@ export function useKeyboardShortcuts(
         return;
       }
       const result = await action(filePath);
-      if (result.status === "error") {
+      if (notSaved(result)) {
         onTaskActionFailure(
           selectedTasks.map(taskSelectionKey),
           message("bulk.reorderFailed"),
@@ -405,7 +405,7 @@ export function useKeyboardShortcuts(
         if (selectedTasks.length === 0) return;
         const nextKey = pickNextActiveKey(selectedKeys, visualTasks);
         const result = await dropkick(filePath);
-        if (result.status === "error") {
+        if (notSaved(result)) {
           onTaskActionFailure(
             selectedTasks.map(taskSelectionKey),
             message("bulk.reorderFailed"),
