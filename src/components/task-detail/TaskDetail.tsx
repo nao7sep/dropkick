@@ -443,10 +443,10 @@ export function TaskDetail({
           trigger (its confirmation holds the filled commit). */}
       <Toolbar
         label={t("detail.actions")}
-        className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2"
+        className="mb-4 flex flex-wrap items-center gap-2"
       >
         {!isUnifiedView && (
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             <Button
               size="sm"
               onClick={async () => {
@@ -504,10 +504,10 @@ export function TaskDetail({
             >
               Dropkick
             </Button>
-          </div>
+          </>
         )}
-        {/* The reorder group and Delete are set apart by space alone, never a
-            divider (interface-styling-conventions, "No stray separators"). */}
+        {/* Delete takes the row's one gap like every other button: no divider
+            and no extra space set it apart (interface-styling-conventions). */}
         <Button size="sm" variant="danger" onClick={handleDeleteTask}>
           <Trash2 size={12} />
           {t("detail.delete")}
