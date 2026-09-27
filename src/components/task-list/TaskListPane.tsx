@@ -65,7 +65,12 @@ const GROUP_CARDS: Record<TaskGroup, string> = {
 // its ends by the same amount, so every pair of adjacent groups — the handled
 // archive and whatever comes last included — sits the same distance apart,
 // scrolled or not.
-const CARD_CLASS = "rounded-[var(--radius-card)] border pb-1";
+// Inside, the card is one even frame judged by the text, since rows have no
+// fill: border to title, title to first task and last task to border are
+// the same (about 16px). The bottom padding (6px) matches the rows' side inset,
+// so a hovered or selected last row's fill sits the same distance from the
+// card's edge on every side.
+const CARD_CLASS = "rounded-[var(--radius-card)] border pb-1.5";
 
 // Rows moved per PageUp/PageDown press. A fixed step rather than a measured
 // viewport — predictable, and the list rarely needs pixel-accurate paging.
@@ -503,7 +508,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
             <div key={group} data-group={group} className={`${CARD_CLASS} ${GROUP_CARDS[group]}`}>
               {/* Sticks to the top of the scroll area within its own card, in the
                   card's tint so rows pass cleanly beneath it. */}
-              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wide">
+              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 pb-1 pt-3.5 text-[11px] font-semibold uppercase tracking-wide">
                 <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[var(--g-accent)]" />
                 <span className="min-w-0 flex-1 truncate whitespace-nowrap">{t(label)}</span>
                 <span className="shrink-0 rounded-full bg-[var(--g-fg)] px-1.5 text-[11px] font-semibold leading-[18px] tracking-normal text-surface tabular-nums">
@@ -673,7 +678,7 @@ function TaskRow({
       // the group colour; selection is the accent fill; the keyboard cursor,
       // while the list has focus, is a ring on the active row
       // (composite-control-conventions).
-      className={`mx-1.5 mb-[5px] flex cursor-pointer flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
+      className={`mx-1.5 mb-[5px] flex cursor-pointer last:mb-0 flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
         isSelected
           ? "bg-primary-surface-strong"
           : "bg-transparent hover:bg-[color-mix(in_srgb,var(--g-tint),var(--g-accent)_18%)]"
