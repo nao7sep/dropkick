@@ -23,7 +23,7 @@ export function InlineResult({
     <div
       role="alert"
       id={id}
-      className={`flex items-start gap-2 rounded-md border border-danger-border bg-danger-surface px-3 py-2 text-sm text-danger-fg-strong ${className}`}
+      className={`flex items-start gap-2 rounded-[var(--radius-control)] border border-danger-border bg-danger-surface px-3 py-2 text-sm text-danger-fg-strong ${className}`}
     >
       <div className="min-w-0 flex-1">
         <div className="font-semibold">{heading}</div>
@@ -34,7 +34,7 @@ export function InlineResult({
           type="button"
           onClick={onDismiss}
           aria-label={t("common.dismissNamed", { title: heading })}
-          className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong focus-visible:bg-danger-surface-strong"
+          className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger -mr-1"
         >
           <X size={14} />
         </button>

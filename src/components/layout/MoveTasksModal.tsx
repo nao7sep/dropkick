@@ -6,6 +6,7 @@ import type { Task } from "../../models";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { AppModal } from "../shared/AppModal";
+import { Button } from "../shared/Button";
 import { SelectedTaskTitleList } from "../shared/SelectedTaskTitleList";
 import {
   hasPrimaryShortcutModifier,
@@ -111,19 +112,10 @@ export function MoveTasksModal({
       maxWidth={384}
       footer={
         <>
-          <button
-            onClick={onClose}
-            className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            onClick={handleMove}
-            disabled={!moveTarget || moving}
-            className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
-          >
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" onClick={handleMove} disabled={!moveTarget || moving}>
             {t("moveTasks.move")}
-          </button>
+          </Button>
         </>
       }
       contentProps={{
@@ -154,7 +146,7 @@ export function MoveTasksModal({
         </p>
       ) : (
         <div>
-          <label className="mb-1 block text-xs font-medium text-ink-muted">
+          <label className="dk-label">
             {t("moveTasks.destination")}
           </label>
           <select
@@ -167,7 +159,7 @@ export function MoveTasksModal({
               setDestError(false);
               setActionError(null);
             }}
-            className={`w-full rounded-md border border-input-border px-3 py-1.5 text-sm text-ink-soft outline-none focus:border-primary-ring ${destError ? "bg-danger-surface" : ""}`}
+            className={`dk-field w-full ${destError ? "bg-danger-surface" : ""}`}
           >
             <option value="">{t("moveTasks.selectDestination")}</option>
             {destinations.map((tab) => (

@@ -17,8 +17,8 @@ function tsxFiles(dir: string): string[] {
 // filled primary instead replaced its accent with the page background — 1.05:1
 // against the panel it sits on in the light theme, 1.18:1 in the dark — so the
 // button stopped having a shape at all, and drew identically to a hovered
-// secondary beside it. This app has no button primitive to hold the rule, so the
-// rule is held over the sources themselves.
+// secondary beside it. The Button primitive's roles fade in App.css; buttons
+// still styled at their call sites are held to the same rule here.
 describe("disabled buttons", () => {
   const sources = tsxFiles(SOURCE).map((path) => [relative(SOURCE, path), readFileSync(path, "utf8")] as const);
 

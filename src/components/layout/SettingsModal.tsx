@@ -23,6 +23,7 @@ import type { MessageKey } from "../../i18n/catalogues";
 import { message, type Message } from "../../i18n/translate";
 import { LANGUAGES, normalizeLanguagePreference } from "../../i18n/languages";
 import { AppModal } from "../shared/AppModal";
+import { Button } from "../shared/Button";
 import {
   hasPrimaryShortcutModifier,
   singleLine,
@@ -117,19 +118,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       bodyClassName="space-y-5 overflow-y-auto px-6 py-5"
       footer={
         <>
-          <button
-            onClick={handleRequestClose}
-            className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isDirty}
-            className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
-          >
+          <Button onClick={handleRequestClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" onClick={handleSave} disabled={!isDirty}>
             {t("settings.save")}
-          </button>
+          </Button>
         </>
       }
       contentProps={{
@@ -156,7 +148,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         <select
           value={draft.language}
           onChange={(e) => setField("language", normalizeLanguagePreference(e.target.value))}
-          className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="dk-field w-full"
         >
           <option value="system">{t("settings.languageSystem")}</option>
           {LANGUAGES.map((language) => (
@@ -171,10 +163,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           select; composite-control conventions), staged and applied on Save
           like every other field here. */}
       <fieldset className="min-w-0">
-        <legend className="mb-1 block text-xs font-medium text-ink-muted">
+        <legend className="dk-label">
           {t("settings.theme")}
         </legend>
-        <div className="flex flex-wrap gap-x-5 gap-y-1">
+        <div className="flex min-h-8 flex-wrap items-center gap-x-5 gap-y-1">
           {THEME_OPTIONS.map(({ value, label }) => (
             <label key={value} className="flex items-center gap-2 text-sm text-ink">
               <input
@@ -188,7 +180,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             </label>
           ))}
         </div>
-        <p className="mt-1 text-xs text-ink-muted">
+        <p className="mt-1.5 text-xs leading-5 text-ink-muted">
           {t("settings.themeHint")}
         </p>
       </fieldset>
@@ -200,9 +192,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           value={draft.fontFamily}
           placeholder={t("settings.fontPlaceholder")}
           onChange={(e) => setField("fontFamily", e.target.value)}
-          className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="dk-field w-full"
         />
-        <p className="mt-1 text-xs text-ink-muted">
+        <p className="mt-1.5 text-xs leading-5 text-ink-muted">
           {t("settings.fontHint")}
         </p>
       </Field>
@@ -213,7 +205,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         <select
           value={draft.timezone ?? ""}
           onChange={(e) => setField("timezone", e.target.value || null)}
-          className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="dk-field w-full"
         >
           <option value="">{t("settings.timezoneSystem", { zone: systemTimeZone() })}</option>
           {zones.map((zone) => (
@@ -231,9 +223,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           value={kickInput}
           onChange={(e) => setKickInput(e.target.value)}
           placeholder="5, 25"
-          className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="dk-field w-full"
         />
-        <p className="mt-1 text-xs text-ink-muted">
+        <p className="mt-1.5 text-xs leading-5 text-ink-muted">
           {t("settings.kickDistancesHint", { kick: message("action.kick") })}
         </p>
       </Field>
@@ -251,9 +243,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               parseInt(e.target.value, 10) || DUE_SOON_DAYS_DEFAULT,
             )
           }
-          className="w-24 rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="dk-field w-24"
         />
-        <p className="mt-1 text-xs text-ink-muted">
+        <p className="mt-1.5 text-xs leading-5 text-ink-muted">
           {t("settings.dueSoonHint", { group: message("group.dueSoon") })}
         </p>
       </Field>
@@ -271,24 +263,24 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               parseInt(e.target.value, 10) || HANDLED_TASKS_PAGE_SIZE_DEFAULT,
             )
           }
-          className="w-24 rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="dk-field w-24"
         />
       </Field>
 
       {/* Permanent deletion safety */}
       <Field label={t("settings.deletion")}>
-        <label className="flex items-center gap-2 text-sm text-ink">
+        <label className="flex min-h-8 items-center gap-2 text-sm text-ink">
           <input
             type="checkbox"
             checked={draft.confirmPermanentDeletions}
             onChange={(e) =>
               setField("confirmPermanentDeletions", e.target.checked)
             }
-            className="rounded border-border-strong"
+            className="h-4 w-4"
           />
           {t("settings.confirmDeletions")}
         </label>
-        <p className="mt-1 text-xs text-ink-muted">
+        <p className="mt-1.5 text-xs leading-5 text-ink-muted">
           {t("settings.confirmDeletionsHint")}
         </p>
       </Field>
@@ -306,7 +298,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-ink-muted">
+      <label className="dk-label">
         {label}
       </label>
       {children}

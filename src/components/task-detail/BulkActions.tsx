@@ -18,6 +18,7 @@ import {
   moveSelectedTasks,
 } from "../../services";
 import { Toolbar } from "../shared/Toolbar";
+import { Button } from "../shared/Button";
 import { SelectedTaskTitleList } from "../shared/SelectedTaskTitleList";
 import { useTaskDeletion } from "../../hooks/useTaskDeletion";
 import { InlineResult } from "../shared/InlineResult";
@@ -210,7 +211,7 @@ export function BulkActions({
           className="mb-3 shrink-0"
         />
       ))}
-      <h3 className="mb-4 text-lg font-medium text-ink">
+      <h3 className="mb-4 text-lg font-semibold text-ink-strong">
         {t("bulk.selected", { count: selectedTasks.length })}
       </h3>
 
@@ -218,119 +219,109 @@ export function BulkActions({
 
       {/* Status */}
       <div className="mt-6">
-        <label className="mb-2 block text-xs font-medium text-ink-muted">
+        <label className="dk-label">
           {t("bulk.setStatus")}
         </label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {(["Pending", "Completed", "Dismissed"] as TaskStatus[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => handleBulkStatus(s)}
-              className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
-            >
+            <Button key={s} onClick={() => handleBulkStatus(s)}>
               {t(STATUS_LABELS[s])}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
 
       {/* Priority */}
       <div className="mt-4">
-        <label className="mb-2 block text-xs font-medium text-ink-muted">
+        <label className="dk-label">
           {t("bulk.setPriority")}
         </label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
+            type="button"
             onClick={() => handleBulkPriority("Critical")}
-            className="rounded-md border border-group-critical-border px-3 py-1.5 text-sm text-group-critical-fg hover:bg-group-critical-tint"
+            className="dk-btn dk-btn-tint dk-tint-critical"
           >
             {t(PRIORITY_LABELS.Critical)}
           </button>
           <button
+            type="button"
             onClick={() => handleBulkPriority("Important")}
-            className="rounded-md border border-group-important-border px-3 py-1.5 text-sm text-group-important-fg hover:bg-group-important-tint"
+            className="dk-btn dk-btn-tint dk-tint-important"
           >
             {t(PRIORITY_LABELS.Important)}
           </button>
           <button
+            type="button"
             onClick={() => handleBulkPriority("Urgent")}
-            className="rounded-md border border-group-urgent-border px-3 py-1.5 text-sm text-group-urgent-fg hover:bg-group-urgent-tint"
+            className="dk-btn dk-btn-tint dk-tint-urgent"
           >
             {t(PRIORITY_LABELS.Urgent)}
           </button>
-          <button
-            onClick={() => handleBulkPriority("Default")}
-            className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-muted hover:bg-background"
-          >
+          <Button onClick={() => handleBulkPriority("Default")}>
             {t(PRIORITY_LABELS.Default)}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Reorder (not in unified view) */}
       {!isUnifiedView && (
         <div className="mt-4">
-          <label className="mb-2 block text-xs font-medium text-ink-muted">
+          <label className="dk-label">
             {t("bulk.reorder")}
           </label>
-          <Toolbar label={t("bulk.reorderLabel")} className="flex gap-2">
-            <button
+          <Toolbar label={t("bulk.reorderLabel")} className="flex flex-wrap gap-2">
+            <Button
               onClick={async () => {
                 const result = await sendToFirst(filePath);
                 handleActionResult("reorder", message("bulk.reorderFailed"), result);
               }}
-              className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
               {t("action.tackle")}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={async () => {
                 const result = await moveUp(filePath);
                 handleActionResult("reorder", message("bulk.reorderFailed"), result);
               }}
-              className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
               {t("action.moveUp")}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={async () => {
                 const result = await moveDown(filePath);
                 handleActionResult("reorder", message("bulk.reorderFailed"), result);
               }}
-              className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
               {t("action.moveDown")}
-            </button>
+            </Button>
             {kickDistances.map((d) => (
-              <button
+              <Button
                 key={d}
                 onClick={async () => {
                   const result = await kick(filePath, d);
                   handleActionResult("reorder", message("bulk.reorderFailed"), result);
                 }}
-                className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
               >
                 +{d}
-              </button>
+              </Button>
             ))}
-            <button
+            <Button
               onClick={async () => {
                 const result = await sendToLast(filePath);
                 handleActionResult("reorder", message("bulk.reorderFailed"), result);
               }}
-              className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
               {t("action.kick")}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={async () => {
                 const result = await dropkick(filePath);
                 handleActionResult("reorder", message("bulk.reorderFailed"), result);
               }}
-              className="rounded-md border border-danger-border px-3 py-1.5 text-sm text-danger hover:bg-danger-surface"
             >
               Dropkick
-            </button>
+            </Button>
           </Toolbar>
         </div>
       )}
@@ -338,14 +329,14 @@ export function BulkActions({
       {/* Move to another list */}
       {moveDestinations.length > 0 && (
         <div className="mt-4">
-          <label className="mb-2 block text-xs font-medium text-ink-muted">
+          <label className="dk-label">
             {t("detail.moveTo")}
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <select
               value={moveTarget}
               onChange={(e) => setMoveTarget(e.target.value)}
-              className="flex-1 rounded-md border border-input-border px-2 py-1.5 text-sm text-ink-soft"
+              className="dk-field min-w-0 flex-1"
             >
               <option value="">{t("moveTasks.selectDestination")}</option>
               {moveDestinations.map((tab) => (
@@ -354,25 +345,19 @@ export function BulkActions({
                 </option>
               ))}
             </select>
-            <button
-              onClick={handleMove}
-              disabled={!moveTarget}
-              className="rounded-md bg-primary-solid px-4 py-1.5 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
-            >
+            <Button variant="primary" onClick={handleMove} disabled={!moveTarget}>
               {t("moveTasks.move")}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      <div className="mt-6 border-t border-border pt-4">
-        <button
-          onClick={() => void handleDelete()}
-          className="flex items-center gap-1 rounded-md border border-danger-border px-3 py-1.5 text-sm text-danger hover:bg-danger-surface"
-        >
+      <div className="mt-8">
+        {/* Opens the deletion path; the confirmation holds the filled commit. */}
+        <Button variant="danger" onClick={() => void handleDelete()}>
           <Trash2 size={14} />
           {t("detail.delete")}
-        </button>
+        </Button>
       </div>
     </div>
   );

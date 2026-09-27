@@ -73,12 +73,22 @@ body.divider-dragging * {
   --primary-surface-strong: var(--color-sky-100); /* selected row */
   --primary-accent: var(--color-sky-300); /* divider hover */
   --primary-accent-strong: var(--color-sky-400); /* divider active */
+  --primary-solid-pressed: var(--color-sky-900); /* one step past hover */
+
+  /* Control surfaces — the neutral button's own ladder. Hover and press are
+     steps of this surface, never the canvas (--background), which in the dark
+     theme sits BELOW the panels and left nothing for a press to step to. */
+  --control: var(--color-white);
+  --control-hover: var(--color-gray-100);
+  --control-pressed: var(--color-gray-200);
+  --control-edge: var(--color-gray-300);
 
   /* Status — danger / info / success / warning */
   --danger: var(--color-red-700);
   --danger-fg-strong: var(--color-red-800);
   --danger-solid: var(--color-red-700); /* destructive button fill */
   --danger-solid-hover: var(--color-red-800);
+  --danger-solid-pressed: var(--color-red-900);
   --danger-surface: var(--color-red-50);
   --danger-surface-strong: var(--color-red-100);
   --danger-border: var(--color-red-200);
@@ -99,6 +109,7 @@ body.divider-dragging * {
   --warning-surface: var(--color-amber-100);
   --warning-solid: var(--color-amber-800);
   --warning-solid-strong: var(--color-amber-900);
+  --warning-solid-pressed: var(--color-amber-950);
 
   /* Task group / urgency palette — keyed to TaskGroup. Kept separate from the
      status family above so urgency hues can be tuned for dark mode on their
@@ -179,11 +190,20 @@ body.divider-dragging * {
     --primary-surface-strong: #103049; /* selected row */
     --primary-accent: #0ea5e9; /* sky-500 — divider hover */
     --primary-accent-strong: #38bdf8; /* sky-400 — divider active */
+    --primary-solid-pressed: #0c4a6e; /* sky-900 — deepens past hover */
+
+    /* The dark ladder lifts: hover and press each step lighter than the
+       resting control, which itself sits a step above the panel. */
+    --control: #2d2d2d;
+    --control-hover: #383838;
+    --control-pressed: #454545;
+    --control-edge: #4d4d4d;
 
     --danger: #f87171; /* red-400 — text */
     --danger-fg-strong: #fca5a5; /* red-300 */
     --danger-solid: #dc2626; /* red-600 — fill */
     --danger-solid-hover: #b91c1c; /* red-700 */
+    --danger-solid-pressed: #991b1b; /* red-800 */
     --danger-surface: #2a1416; /* dark red wash */
     --danger-surface-strong: #3b1a1d;
     --danger-border: #7f1d1d; /* red-900 */
@@ -202,6 +222,7 @@ body.divider-dragging * {
     --warning-surface: #2a2008; /* dark amber wash */
     --warning-solid: #b45309; /* amber-700 — fill */
     --warning-solid-strong: #92400e; /* amber-800 */
+    --warning-solid-pressed: #78350f; /* amber-900 */
 
     --group-pastdue-fg: #f87171; /* red-400 */
     --group-pastdue-accent: #ef4444; /* red-500 */
@@ -264,11 +285,18 @@ body.divider-dragging * {
   --color-primary-surface-strong: var(--primary-surface-strong);
   --color-primary-accent: var(--primary-accent);
   --color-primary-accent-strong: var(--primary-accent-strong);
+  --color-primary-solid-pressed: var(--primary-solid-pressed);
+
+  --color-control: var(--control);
+  --color-control-hover: var(--control-hover);
+  --color-control-pressed: var(--control-pressed);
+  --color-control-edge: var(--control-edge);
 
   --color-danger: var(--danger);
   --color-danger-fg-strong: var(--danger-fg-strong);
   --color-danger-solid: var(--danger-solid);
   --color-danger-solid-hover: var(--danger-solid-hover);
+  --color-danger-solid-pressed: var(--danger-solid-pressed);
   --color-danger-surface: var(--danger-surface);
   --color-danger-surface-strong: var(--danger-surface-strong);
   --color-danger-border: var(--danger-border);
@@ -287,6 +315,7 @@ body.divider-dragging * {
   --color-warning-surface: var(--warning-surface);
   --color-warning-solid: var(--warning-solid);
   --color-warning-solid-strong: var(--warning-solid-strong);
+  --color-warning-solid-pressed: var(--warning-solid-pressed);
 
   --color-group-pastdue-fg: var(--group-pastdue-fg);
   --color-group-pastdue-accent: var(--group-pastdue-accent);
@@ -330,6 +359,17 @@ body.divider-dragging * {
      default resolves to the same stack, so an empty or unknown family degrades
      to a real sans stack rather than the engine's serif. */
   --font-ui: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Control anatomy (interface-styling-conventions). Dropkick's own values:
+     two control heights, a corner scale that grows with the surface, and one
+     colour-fade duration. Every button, field, row and surface reads these. */
+  --control-h: 32px; /* standard buttons and every one-line field */
+  --control-h-sm: 28px; /* compact: pane toolbars, in-row and in-card actions */
+  --radius-sm: 6px; /* compact controls, rows, menu items */
+  --radius-control: 8px; /* standard buttons and fields */
+  --radius-card: 10px; /* cards, menus, popovers */
+  --radius-dialog: 14px; /* dialogs and root panels */
+  --motion: 120ms;
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -345,6 +385,20 @@ body,
 
 body {
   font-size: 13px;
+}
+
+/* The focus treatment quiets while the native window is inactive (set from the
+   window's focus events by repositories/window-activity). Every ring and focus
+   frame reads --primary-ring, so re-pointing it covers them all; it still shows
+   where focus will be when the window comes back. Outranks both theme blocks. */
+:root[data-window-inactive] {
+  --primary-ring: var(--input-border);
+}
+
+/* Checkboxes and radios stay native and take the app's accent. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--primary-solid);
 }
 
 /* Scroll bars — easy to acquire, rounded, and themed (app-chrome-conventions).
@@ -444,5 +498,330 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .dropkick-toast {
     animation-name: dropkick-toast-still;
+  }
+}
+
+/* ── Control roles ────────────────────────────────────────────────────────
+   One anatomy per role (interface-styling-conventions). A control names its
+   role where it is used, through the Button primitive or these field classes,
+   and is never resized by where it sits.
+
+   Buttons: dk-btn + a size (default standard, dk-btn-sm compact) + a role:
+     primary         the surface's main action (Save, Create, Move, Retry)
+     secondary       every ordinary action (Cancel, Tackle, Kick, Dropkick)
+     quiet           a borderless action in a band (New Task)
+     danger          OPENS a destructive path: red letters in a red outline
+     danger-confirm  COMMITS it, in the dialog that asks: the only red fill
+     warning-confirm the amber commit of a caution dialog
+   Nothing that destroys nothing is red.
+
+   Hover and press are steps of the role's own surface in one direction; off,
+   a control is its resting self at the app's one fade (0.5), and the
+   destructive trigger keeps its red. Layered as components so a call site's
+   utilities (width, margin) still apply. */
+@layer components {
+  .dk-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-sizing: border-box;
+    height: var(--control-h);
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    transition-property: background-color, border-color, color;
+    transition-duration: var(--motion);
+  }
+  .dk-btn-sm {
+    height: var(--control-h-sm);
+    padding: 0 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+  }
+  .dk-btn:disabled {
+    opacity: 0.5;
+  }
+
+  .dk-btn-primary {
+    background-color: var(--primary-solid);
+    color: var(--ink-inverted);
+  }
+  .dk-btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-solid-hover);
+  }
+  .dk-btn-primary:active:not(:disabled) {
+    background-color: var(--primary-solid-pressed);
+  }
+
+  .dk-btn-secondary {
+    background-color: var(--control);
+    border-color: var(--control-edge);
+    color: var(--ink);
+  }
+  .dk-btn-secondary:hover:not(:disabled) {
+    background-color: var(--control-hover);
+  }
+  .dk-btn-secondary:active:not(:disabled) {
+    background-color: var(--control-pressed);
+  }
+
+  .dk-btn-quiet {
+    background-color: transparent;
+    color: var(--ink-soft);
+  }
+  .dk-btn-quiet:hover:not(:disabled) {
+    background-color: var(--control-hover);
+    color: var(--ink);
+  }
+  .dk-btn-quiet:active:not(:disabled) {
+    background-color: var(--control-pressed);
+    color: var(--ink);
+  }
+
+  .dk-btn-danger {
+    background-color: transparent;
+    border-color: var(--danger-border-strong);
+    color: var(--danger);
+  }
+  .dk-btn-danger:hover:not(:disabled) {
+    background-color: var(--danger-surface);
+  }
+  .dk-btn-danger:active:not(:disabled) {
+    background-color: var(--danger-surface-strong);
+  }
+
+  .dk-btn-danger-confirm {
+    background-color: var(--danger-solid);
+    color: var(--ink-inverted);
+  }
+  .dk-btn-danger-confirm:hover:not(:disabled) {
+    background-color: var(--danger-solid-hover);
+  }
+  .dk-btn-danger-confirm:active:not(:disabled) {
+    background-color: var(--danger-solid-pressed);
+  }
+
+  .dk-btn-warning-confirm {
+    background-color: var(--warning-solid);
+    color: var(--ink-inverted);
+  }
+  .dk-btn-warning-confirm:hover:not(:disabled) {
+    background-color: var(--warning-solid-strong);
+  }
+  .dk-btn-warning-confirm:active:not(:disabled) {
+    background-color: var(--warning-solid-pressed);
+  }
+
+  /* A priority's own colours on the neutral anatomy (bulk Set Priority): the
+     group palette is the app's language for priority, so the letters and edge
+     keep it and the press steps its tint. */
+  .dk-btn-tint {
+    background-color: var(--control);
+    border-color: var(--tint-edge);
+    color: var(--tint-fg);
+  }
+  .dk-btn-tint:hover:not(:disabled) {
+    background-color: var(--tint-bg);
+  }
+  .dk-btn-tint:active:not(:disabled) {
+    background-color: color-mix(in srgb, var(--tint-bg), var(--tint-edge) 45%);
+  }
+  .dk-tint-critical {
+    --tint-fg: var(--group-critical-fg);
+    --tint-edge: var(--group-critical-border-strong);
+    --tint-bg: var(--group-critical-tint);
+  }
+  .dk-tint-important {
+    --tint-fg: var(--group-important-fg);
+    --tint-edge: var(--group-important-border-strong);
+    --tint-bg: var(--group-important-tint);
+  }
+  .dk-tint-urgent {
+    --tint-fg: var(--group-urgent-fg);
+    --tint-edge: var(--group-urgent-border-strong);
+    --tint-bg: var(--group-urgent-tint);
+  }
+
+  /* Icon-only quiet control: the close mark in a title band, a result's
+     dismiss, a note's delete. No chrome at rest; hover and press reveal the
+     hit area. The danger tone takes the red only on hover. */
+  .dk-icon-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: var(--control-h-sm);
+    height: var(--control-h-sm);
+    border-radius: var(--radius-sm);
+    color: var(--ink-muted);
+    background-color: transparent;
+    transition-property: background-color, color;
+    transition-duration: var(--motion);
+  }
+  .dk-icon-btn-xs {
+    width: 22px;
+    height: 22px;
+  }
+  .dk-icon-btn:hover:not(:disabled) {
+    background-color: var(--control-hover);
+    color: var(--ink);
+  }
+  .dk-icon-btn:active:not(:disabled) {
+    background-color: var(--control-pressed);
+    color: var(--ink);
+  }
+  .dk-icon-btn-danger:hover:not(:disabled) {
+    background-color: var(--danger-surface);
+    color: var(--danger);
+  }
+  .dk-icon-btn-danger:active:not(:disabled) {
+    background-color: var(--danger-surface-strong);
+    color: var(--danger);
+  }
+  /* A dismiss mark inside a red result keeps that result's ink. */
+  .dk-icon-btn-on-danger {
+    color: var(--danger);
+  }
+  .dk-icon-btn-on-danger:hover:not(:disabled),
+  .dk-icon-btn-on-danger:active:not(:disabled) {
+    background-color: var(--danger-surface-strong);
+    color: var(--danger-fg-strong);
+  }
+
+  /* One focus treatment for every button: a ring just clear of the edge that
+     follows its corners, so a focused control never looks larger than its
+     neighbour. */
+  .dk-btn:focus-visible,
+  .dk-icon-btn:focus-visible {
+    outline: 2px solid var(--primary-ring);
+    outline-offset: 1px;
+  }
+
+  /* Fields: every one-line field — text, number, select, the date trigger —
+     takes one height, edge, corner and padding, given outright rather than
+     grown from padding (a select and an input size differently from the same
+     padding). Focus recolours the field's own frame. */
+  .dk-field {
+    box-sizing: border-box;
+    height: var(--control-h);
+    padding: 0 10px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-control);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
+    transition-property: border-color, box-shadow;
+    transition-duration: var(--motion);
+  }
+  .dk-field-sm {
+    height: var(--control-h-sm);
+    padding: 0 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+  }
+  .dk-field-multi {
+    height: auto;
+    padding: 6px 10px;
+    line-height: 1.5;
+  }
+  .dk-field:focus,
+  .dk-field:focus-visible {
+    outline: none;
+    border-color: var(--primary-ring);
+    box-shadow: inset 0 0 0 1px var(--primary-ring);
+  }
+  .dk-field::placeholder {
+    color: var(--ink-muted);
+  }
+  /* A closed select matches the fields; the list it opens stays native. The
+     chevron is two gradients in currentColor, so it follows the field's ink
+     in both themes (and a coloured priority select's ink) with no image. */
+  select.dk-field {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 28px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+      calc(100% - 15px) 55%,
+      calc(100% - 10.5px) 55%;
+    background-size: 4.5px 4.5px;
+    background-repeat: no-repeat;
+  }
+  select.dk-field-sm {
+    padding-right: 24px;
+    background-position:
+      calc(100% - 13px) 55%,
+      calc(100% - 8.5px) 55%;
+  }
+  button.dk-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  button.dk-field:hover:not(:disabled) {
+    background-color: var(--control-hover);
+  }
+  button.dk-field:active:not(:disabled) {
+    background-color: var(--control-pressed);
+  }
+
+  .dk-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-muted);
+  }
+
+  /* Menus: a rounded popover whose items highlight as inset, rounded rows. */
+  .dk-menu {
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.14), 0 2px 6px rgb(0 0 0 / 0.08);
+  }
+  .dk-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--ink);
+    white-space: nowrap;
+    cursor: pointer;
+    outline: none;
+    transition: background-color var(--motion);
+  }
+  .dk-menu-item[data-highlighted] {
+    background-color: var(--control-hover);
+  }
+  .dk-menu-item:active {
+    background-color: var(--control-pressed);
+  }
+  .dk-menu-separator {
+    margin: 4px 6px;
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-btn,
+  .dk-icon-btn,
+  .dk-field,
+  .dk-menu-item {
+    transition: none;
   }
 }

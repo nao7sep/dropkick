@@ -18,6 +18,7 @@ import { notSaved } from "../../state/action-result";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { DatePicker } from "../shared/DatePicker";
 import { AppModal } from "../shared/AppModal";
+import { Button } from "../shared/Button";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
@@ -185,19 +186,10 @@ export function NewTaskModal({
       bodyClassName="space-y-4 overflow-y-auto px-6 py-5"
       footer={
         <>
-          <button
-            onClick={handleRequestClose}
-            className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={!canCreate || submitting}
-            className="rounded-md bg-primary-solid px-4 py-2 text-sm text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
-          >
+          <Button onClick={handleRequestClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" onClick={handleCreate} disabled={!canCreate || submitting}>
             {t("newTask.create")}
-          </button>
+          </Button>
         </>
       }
       contentProps={{
@@ -217,7 +209,7 @@ export function NewTaskModal({
       {/* Target list */}
       {fileTabs.length > 0 && (
         <div>
-          <label className="mb-1 block text-xs font-medium text-ink-muted">
+          <label className="dk-label">
             {t("newTask.list")}
           </label>
           <select
@@ -229,7 +221,7 @@ export function NewTaskModal({
               setTargetFile(e.target.value);
               setTargetError(false);
             }}
-            className={`w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring ${targetError ? "bg-danger-surface" : ""}`}
+            className={`dk-field w-full ${targetError ? "bg-danger-surface" : ""}`}
           >
             {!targetFile && (
               <option value="" disabled>
@@ -258,7 +250,7 @@ export function NewTaskModal({
 
       {/* Title */}
       <div>
-        <label className="mb-1 block text-xs font-medium text-ink-muted">
+        <label className="dk-label">
           {t("newTask.titleLabel")}
         </label>
         <textarea
@@ -278,13 +270,13 @@ export function NewTaskModal({
           {...composing.handlers}
           placeholder={t("newTask.titlePlaceholder")}
           rows={1}
-          className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          className="dk-field dk-field-multi block w-full resize-none"
         />
       </div>
 
       {/* Description */}
       <div>
-        <label className="mb-1 block text-xs font-medium text-ink-muted">
+        <label className="dk-label">
           {t("newTask.description")}
         </label>
         <textarea
@@ -295,21 +287,21 @@ export function NewTaskModal({
             autoGrowDesc();
           }}
           placeholder={t("newTask.descriptionPlaceholder")}
-          rows={2}
-          className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+          rows={3}
+          className="dk-field dk-field-multi block w-full resize-none"
         />
       </div>
 
       {/* Priority and Due date — side by side */}
       <div className="flex items-start gap-4">
         <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-ink-muted">
+          <label className="dk-label">
             {t("newTask.priority")}
           </label>
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value as TaskPriority)}
-            className="w-full rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+            className="dk-field w-full"
           >
             {(["Default", "Urgent", "Important", "Critical"] as const).map((value) => (
               <option key={value} value={value}>
@@ -320,7 +312,7 @@ export function NewTaskModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-ink-muted">
+          <label className="dk-label">
             {t("newTask.dueDate")}
           </label>
           <DatePicker value={dueDate} onChange={setDueDate} popoverPosition="top" />

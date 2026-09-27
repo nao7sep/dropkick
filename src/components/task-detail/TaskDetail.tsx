@@ -27,6 +27,7 @@ import {
 } from "../../utils";
 import { DatePicker } from "../shared/DatePicker";
 import { Toolbar } from "../shared/Toolbar";
+import { Button } from "../shared/Button";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useNoteDraftStore } from "../../state/note-draft-store";
 import { composerDraftKey, editorDraftKey, fieldDraftKey } from "../../services";
@@ -337,7 +338,7 @@ export function TaskDetail({
   };
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto px-4 pt-4">
+    <div className="flex h-full flex-col overflow-y-auto px-6 pt-5">
       {externalIssue ? (
         <InlineResult
           title={externalIssue.title}
@@ -376,7 +377,7 @@ export function TaskDetail({
         {...titleComposing.handlers}
         placeholder={t("detail.titlePlaceholder")}
         rows={1}
-        className="mb-4 w-full shrink-0 resize-none text-lg font-semibold text-ink-strong outline-none placeholder:text-ink-muted"
+        className="-mx-2 mb-4 w-[calc(100%+1rem)] shrink-0 resize-none rounded-[var(--radius-sm)] bg-transparent px-2 py-1 text-lg font-semibold text-ink-strong outline-none transition-colors duration-[var(--motion)] placeholder:text-ink-muted hover:bg-control-hover focus:bg-surface focus:shadow-[inset_0_0_0_1px_var(--primary-ring)]"
       />
       {titleError ? (
         <p id={`task-title-error-${task.id}`} role="alert" className="-mt-3 mb-4 text-xs text-danger">
@@ -388,13 +389,13 @@ export function TaskDetail({
       <div className="mb-4 flex flex-wrap gap-3">
         {/* Status */}
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">{t("detail.status")}</label>
+          <label className="dk-label">{t("detail.status")}</label>
           <select
             aria-invalid={statusError !== null}
             aria-describedby={statusError ? `task-status-error-${task.id}` : undefined}
             value={task.status}
             onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
-            className="rounded-md border border-input-border px-2 py-1 text-sm text-ink"
+            className="dk-field"
           >
             <option value="Pending">{t(STATUS_LABELS.Pending)}</option>
             <option value="Completed" disabled={!task.canComplete}>
@@ -411,11 +412,11 @@ export function TaskDetail({
 
         {/* Priority */}
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">{t("detail.priority")}</label>
+          <label className="dk-label">{t("detail.priority")}</label>
           <select
             value={task.priority}
             onChange={(e) => handlePriorityChange(e.target.value as TaskPriority)}
-            className={`rounded-md border px-2 py-1 text-sm ${prioritySelectStyle(task.priority)}`}
+            className={`dk-field ${prioritySelectStyle(task.priority)}`}
           >
             {(["Critical", "Important", "Urgent", "Default"] as const).map((value) => (
               <option key={value} value={value}>
@@ -427,7 +428,7 @@ export function TaskDetail({
 
         {/* Due Date */}
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">{t("detail.due")}</label>
+          <label className="dk-label">{t("detail.due")}</label>
           <DatePicker
             value={task.dueDate}
             onChange={(v) => handleDueDateChange(v ?? "")}
@@ -436,90 +437,91 @@ export function TaskDetail({
         </div>
       </div>
 
-      {/* Reorder buttons */}
+      {/* Reorder buttons — compact secondary actions in one toolbar. Dropkick
+          reorders and destroys nothing, so it is neutral like its neighbours;
+          Delete opens the deletion path, so it is the outlined destructive
+          trigger (its confirmation holds the filled commit). */}
       <Toolbar
         label={t("detail.actions")}
-        className="mb-4 flex flex-wrap items-center gap-2"
+        className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2"
       >
         {!isUnifiedView && (
-          <>
-            <button
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
               onClick={async () => {
                 const result = await sendToFirst(filePath);
                 handleActionResult("reorder", message("detail.reorderFailed"), result);
               }}
-              className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
               {t("action.tackle")}
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               onClick={async () => {
                 const result = await moveUp(filePath);
                 handleActionResult("reorder", message("detail.reorderFailed"), result);
               }}
-              className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
               {t("action.moveUp")}
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               onClick={async () => {
                 const result = await moveDown(filePath);
                 handleActionResult("reorder", message("detail.reorderFailed"), result);
               }}
-              className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
               {t("action.moveDown")}
-            </button>
+            </Button>
             {kickDistances.map((d) => (
-              <button
+              <Button
                 key={d}
+                size="sm"
                 onClick={async () => {
                   const result = await kick(filePath, d);
                   handleActionResult("reorder", message("detail.reorderFailed"), result);
                 }}
-                className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
               >
                 +{d}
-              </button>
+              </Button>
             ))}
-            <button
+            <Button
+              size="sm"
               onClick={async () => {
                 const result = await sendToLast(filePath);
                 handleActionResult("reorder", message("detail.reorderFailed"), result);
               }}
-              className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
               {t("action.kick")}
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               onClick={async () => {
                 const result = await dropkick(filePath);
                 handleActionResult("reorder", message("detail.reorderFailed"), result);
               }}
-              className="rounded border border-danger-border px-2 py-1 text-xs text-danger hover:bg-danger-surface"
             >
               Dropkick
-            </button>
-            <span className="mx-1 text-border">|</span>
-          </>
+            </Button>
+          </div>
         )}
-        <button
-          onClick={handleDeleteTask}
-          className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-ink-soft hover:border-danger-border hover:text-danger"
-        >
+        {/* The reorder group and Delete are set apart by space alone, never a
+            divider (interface-styling-conventions, "No stray separators"). */}
+        <Button size="sm" variant="danger" onClick={handleDeleteTask}>
           <Trash2 size={12} />
           {t("detail.delete")}
-        </button>
+        </Button>
       </Toolbar>
 
       {/* Move to another list */}
       {moveDestinations.length > 0 && (
         <div className="mb-4 flex items-center gap-2">
-          <label className="text-xs text-ink-muted">{t("detail.moveTo")}</label>
+          <label className="shrink-0 text-xs font-medium text-ink-muted">{t("detail.moveTo")}</label>
           <select
             value={moveTarget}
             onChange={(e) => setMoveTarget(e.target.value)}
-            className="flex-1 rounded-md border border-input-border px-2 py-1 text-sm text-ink-soft"
+            className="dk-field min-w-0 flex-1"
           >
             <option value="">{t("moveTasks.selectDestination")}</option>
             {moveDestinations.map((tab) => (
@@ -528,19 +530,15 @@ export function TaskDetail({
               </option>
             ))}
           </select>
-          <button
-            onClick={handleMoveTask}
-            disabled={!moveTarget}
-            className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
-          >
+          <Button variant="primary" onClick={handleMoveTask} disabled={!moveTarget}>
             {t("moveTasks.move")}
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Description */}
       <div className="mb-4">
-        <label className="mb-1 block text-xs text-ink-muted">{t("detail.description")}</label>
+        <label className="dk-label">{t("detail.description")}</label>
         <textarea
           ref={descRef}
           aria-invalid={descriptionError !== null}
@@ -554,9 +552,9 @@ export function TaskDetail({
             const typed = useNoteDraftStore.getState().drafts[descriptionKey];
             if (typed !== undefined) void commitDescription(typed);
           }}
-          rows={2}
+          rows={3}
           placeholder={t("detail.descriptionPlaceholder")}
-          className="w-full resize-none rounded-md border border-input-border p-2 text-sm text-ink outline-none focus:border-primary-ring"
+          className="dk-field dk-field-multi block w-full resize-none"
         />
         {descriptionError ? (
           <p id={`task-description-error-${task.id}`} role="alert" className="mt-1 text-xs text-danger">
@@ -591,7 +589,7 @@ export function TaskDetail({
 
       {/* Notes section */}
       <div className="border-t border-border pt-4">
-        <h4 className="mb-3 text-sm font-medium text-ink-soft">{t("detail.notes")}</h4>
+        <h4 className="mb-3 text-sm font-semibold text-ink">{t("detail.notes")}</h4>
 
         {/* Add note */}
         <div className="mb-3">
@@ -621,22 +619,22 @@ export function TaskDetail({
             }}
             {...noteComposing.handlers}
             placeholder={t("detail.notePlaceholder", { mod: primaryModifierLabel })}
-            rows={2}
-            className="w-full resize-none rounded-md border border-input-border px-3 py-1.5 text-sm outline-none focus:border-primary-ring"
+            rows={3}
+            className="dk-field dk-field-multi block w-full resize-none"
           />
           {noteComposerError ? (
             <p id={`new-note-error-${task.id}`} role="alert" className="mt-1 text-xs text-danger">
               {text(noteComposerError)}
             </p>
           ) : null}
-          <div className="mt-1 flex justify-end">
-            <button
+          <div className="mt-2 flex justify-end">
+            <Button
+              variant="primary"
               onClick={() => handleAddNote()}
               disabled={!newNoteContent.trim() || addingNote}
-              className="rounded-md bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
             >
               {t("detail.addNote")}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -806,6 +804,14 @@ function NoteItem({
       : note.actionability === "Resolved"
         ? "border-success-border bg-success-surface/50"
         : "border-border";
+  // The actionability mark is a straight bar of its own inside the rounded
+  // card, never a thick border side that the card's corners would bend.
+  const markBar =
+    note.actionability === "Actionable"
+      ? "bg-attention"
+      : note.actionability === "Resolved"
+        ? "bg-success"
+        : null;
 
   const icon =
     note.actionability === "Actionable" ? (
@@ -817,7 +823,13 @@ function NoteItem({
     );
 
   return (
-    <div className={`rounded-md border-l-4 border ${borderColor} p-3`}>
+    <div className={`relative rounded-[var(--radius-card)] border ${borderColor} py-3 pl-4 pr-3`}>
+      {markBar ? (
+        <span
+          aria-hidden="true"
+          className={`absolute bottom-2.5 left-1.5 top-2.5 w-[3px] rounded-full ${markBar}`}
+        />
+      ) : null}
       {noteError ? (
         <InlineResult
           id={`note-error-${note.id}`}
@@ -827,7 +839,7 @@ function NoteItem({
           className="mb-2"
         />
       ) : null}
-      <div className="mb-1 flex items-center gap-2">
+      <div className="mb-2 flex items-center gap-2">
         {icon}
         <select
           aria-invalid={noteError !== null}
@@ -836,7 +848,7 @@ function NoteItem({
           onChange={(e) =>
             handleActionabilityChange(e.target.value as NoteActionability)
           }
-          className="rounded border border-input-border px-1 py-0.5 text-xs text-ink"
+          className="dk-field dk-field-sm"
         >
           {(["Informational", "Actionable", "Resolved"] as const).map((value) => (
             <option key={value} value={value}>
@@ -849,9 +861,11 @@ function NoteItem({
           {formatTimestamp(note.createdAtUtc, preferences.timezone, i18n.dateTime)}
         </span>
         <button
+          type="button"
           onClick={handleDeleteNote}
-          className="rounded p-0.5 text-ink-muted hover:text-danger"
+          className="dk-icon-btn dk-icon-btn-danger -my-1 -mr-1"
           title={t("note.delete")}
+          aria-label={t("note.delete")}
         >
           <X size={14} />
         </button>
@@ -880,34 +894,35 @@ function NoteItem({
               else void handleSave(action === "save-actionable" ? "Actionable" : undefined);
             }}
             {...composing.handlers}
-            rows={2}
-            className="w-full resize-none rounded border border-input-border p-2 text-sm outline-none focus:border-primary-ring"
+            rows={3}
+            className="dk-field dk-field-multi block w-full resize-none"
           />
-          <div className="mt-1 flex gap-2">
-            <button
+          <div className="mt-2 flex gap-2">
+            <Button
+              size="sm"
+              variant="primary"
               // Wrapped, not passed directly: `handleSave` now takes an optional
               // actionability, and a bare handler reference would hand it the
               // click event — truthy, so every mouse Save would try to write a
               // MouseEvent as the note's actionability.
               onClick={() => void handleSave()}
               disabled={!draft.trim()}
-              className="rounded bg-primary-solid px-3 py-1 text-xs text-ink-inverted hover:bg-primary-solid-hover disabled:opacity-50"
             >
               {t("note.save")}
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               // Immediate, unguarded discard — see requestCancelViaEscape above.
               onClick={() => clearDraft(draftKey)}
-              className="rounded border border-border px-3 py-1 text-xs text-ink-muted hover:bg-background"
             >
               {t("common.cancel")}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <div
           onClick={() => openDraft(draftKey, note.content)}
-          className="cursor-pointer text-sm text-ink"
+          className="-mx-1.5 cursor-pointer rounded-[var(--radius-sm)] px-1.5 py-0.5 text-sm text-ink transition-colors duration-[var(--motion)] hover:bg-control-hover/60"
         >
           <p className="whitespace-pre-wrap break-words">{note.content}</p>
         </div>

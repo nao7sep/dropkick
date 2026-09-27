@@ -24,6 +24,7 @@ import { useAppStateStore } from "../../state/app-state-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 import { pageStepIndex, rowDomId, stepIndex } from "../../utils";
 import { useI18n } from "../../i18n/I18nContext";
+import { Button } from "../shared/Button";
 import type { MessageKey } from "../../i18n/catalogues";
 import { message } from "../../i18n/translate";
 
@@ -159,7 +160,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
 
   return (
     <div className="flex h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-lg rounded-lg bg-surface p-8 shadow-lg">
+      <div className="w-full max-w-lg rounded-[var(--radius-dialog)] bg-surface p-8 shadow-lg">
         <h1 className="mb-8 text-center text-2xl font-bold text-ink-strong">
           Dropkick
         </h1>
@@ -194,14 +195,15 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
 
         {/* Launch action */}
         <div className="mt-6 flex justify-end border-t border-border pt-4">
-          <button
+          <Button
             ref={launchRef}
+            variant="primary"
             onClick={() => onLaunch(selectedPrefs, selectedWorkspace)}
             disabled={!canLaunch}
-            className="min-w-28 rounded-md bg-primary-solid px-4 py-2 text-sm font-medium text-ink-inverted transition-colors hover:bg-primary-solid-hover disabled:opacity-50"
+            className="min-w-28"
           >
             {t("startup.launch")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -271,7 +273,7 @@ function Section({
 
   return (
     <div className="mb-6">
-      <label className="mb-2 block text-sm font-medium text-ink">
+      <label className="mb-2 block text-sm font-semibold text-ink">
         {label}
       </label>
 
@@ -288,10 +290,10 @@ function Section({
         aria-activedescendant={selected ? optionDomId(id, selected) : undefined}
         tabIndex={0}
         onKeyDown={handleListKeyDown}
-        className="max-h-36 overflow-y-auto rounded-md border border-border outline-none focus:border-primary-ring"
+        className="max-h-36 overflow-y-auto rounded-[var(--radius-control)] border border-border p-1 outline-none focus:border-primary-ring"
       >
         {items.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-ink-muted">
+          <div className="px-2.5 py-1.5 text-sm text-ink-muted">
             {emptyText}
           </div>
         ) : (
@@ -302,10 +304,10 @@ function Section({
               role="option"
               aria-selected={selected === path}
               onClick={() => onSelect(path)}
-              className={`flex cursor-pointer items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-background ${
+              className={`flex cursor-pointer items-center justify-between rounded-[var(--radius-sm)] px-2.5 py-1.5 text-sm transition-colors duration-[var(--motion)] ${
                 selected === path
                   ? "bg-primary-surface text-primary-hover"
-                  : "text-ink-soft"
+                  : "text-ink-soft hover:bg-control-hover"
               }`}
             >
               <span className="mr-2 min-w-0 truncate" title={path}>
@@ -320,29 +322,20 @@ function Section({
       </div>
 
       <div className="mt-2 flex gap-2">
-        <button
-          ref={openButtonRef}
-          onClick={onOpen}
-          className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-background"
-        >
+        <Button ref={openButtonRef} size="sm" onClick={onOpen}>
           <FolderOpen size={14} />
           {t("startup.open")}
-        </button>
-        <button
-          onClick={onNew}
-          className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-background"
-        >
+        </Button>
+        <Button size="sm" onClick={onNew}>
           <Plus size={14} />
           {t("startup.new")}
-        </button>
+        </Button>
+        {/* Forgets the entry; the file itself is untouched, so it is not red. */}
         {selected && (
-          <button
-            onClick={() => onRemove(selected)}
-            className="flex items-center gap-1 rounded-md border border-border-strong px-3 py-1.5 text-sm text-danger transition-colors hover:bg-danger-surface"
-          >
+          <Button size="sm" onClick={() => onRemove(selected)}>
             <X size={14} />
             {t("startup.remove")}
-          </button>
+          </Button>
         )}
       </div>
     </div>

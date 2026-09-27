@@ -1,6 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState } from "react";
 import { useDialogStore } from "../../state/dialog-store";
+import { Button } from "./Button";
 import type { DialogRequest } from "../../state/dialog-store";
 import { useI18n } from "../../i18n/I18nContext";
 
@@ -92,7 +93,7 @@ export function AppDialogHost() {
             // past the viewport, and because it is centred on a fixed layer the
             // footer goes off the bottom with nothing to scroll it back
             // (modal-dialog-conventions).
-            className="fixed left-1/2 top-1/2 z-[101] flex max-h-[90vh] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface shadow-xl focus:outline-none"
+            className="fixed left-1/2 top-1/2 z-[101] flex max-h-[90vh] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-dialog)] bg-surface shadow-xl focus:outline-none"
             onPointerDownOutside={(e) => e.preventDefault()}
             ref={setContentEl}
             tabIndex={-1}
@@ -100,10 +101,10 @@ export function AppDialogHost() {
             // first; Radix's own mount-time autofocus would only fight it.
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
-            <div className="shrink-0 border-b border-border px-6 py-4">
+            <div className="flex min-h-14 shrink-0 items-center border-b border-border px-6 py-3">
               <div className="flex items-center">
                 <Dialog.Title
-                  className={`text-lg font-semibold ${
+                  className={`text-base font-semibold ${
                     isDanger
                       ? "text-danger-fg-strong"
                       : isWarning
@@ -124,30 +125,22 @@ export function AppDialogHost() {
               </Dialog.Description>
             </div>
 
-            <div className="flex shrink-0 justify-end gap-2 border-t border-border px-6 py-4">
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-6 py-4">
               {current.kind === "confirm" && (
-                <button
-                  ref={cancelRef}
-                  onClick={cancelCurrent}
-                  className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
-                >
+                <Button ref={cancelRef} variant="secondary" onClick={cancelCurrent}>
                   {text(current.cancelLabel)}
-                </button>
+                </Button>
               )}
 
-              <button
+              {/* The commit of a danger confirmation is the app's one filled red;
+                  a caution dialog commits in amber; everything else is primary. */}
+              <Button
                 ref={confirmRef}
+                variant={isDanger ? "danger-confirm" : isWarning ? "warning-confirm" : "primary"}
                 onClick={confirmCurrent}
-                className={`rounded-md px-4 py-2 text-sm text-ink-inverted ${
-                  isDanger
-                    ? "bg-danger-solid hover:bg-danger-solid-hover"
-                    : isWarning
-                      ? "bg-warning-solid hover:bg-warning-solid-strong"
-                      : "bg-primary-solid hover:bg-primary-solid-hover"
-                }`}
               >
                 {text(current.confirmLabel)}
-              </button>
+              </Button>
             </div>
           </Dialog.Content>
         )}

@@ -1,6 +1,7 @@
 // Keyboard shortcuts reference — lists all global shortcuts in a modal overlay.
 
 import { AppModal } from "../shared/AppModal";
+import { Button } from "../shared/Button";
 import { primaryModifierLabel } from "../../utils";
 import type { TaskPriority, TaskStatus } from "../../models";
 import { useI18n } from "../../i18n/I18nContext";
@@ -132,46 +133,35 @@ export function KeyboardShortcutsModal({
       describedById="shortcuts-modal-description"
       maxWidth={1160}
       passiveBodyLabel={t("shortcuts.contentLabel")}
-      bodyClassName="min-h-0 flex-1 overflow-y-auto px-6 py-4"
-      footerClassName="flex justify-end border-t border-border px-6 py-4"
-      footer={
-          <button
-            onClick={onClose}
-            className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
-          >
-            {t("common.close")}
-          </button>
-      }
+      bodyClassName="min-h-0 flex-1 overflow-y-auto px-6 py-5"
+      footer={<Button onClick={onClose}>{t("common.close")}</Button>}
     >
-      <div id="shortcuts-modal-description" className="mb-3 shrink-0 space-y-1 text-xs leading-5 text-ink-muted">
+      <div id="shortcuts-modal-description" className="mb-5 shrink-0 space-y-1 text-xs leading-5 text-ink-muted">
         <p>{t("shortcuts.contextNote")}</p>
         <p>{t("shortcuts.cmdTabNote")}</p>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* A reference list carries even less (interface-styling-conventions): no
+          card around a group, no rule under every row. Headings and the space
+          between rows separate; the one mark on the surface is the key. */}
+      <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-4">
         {shortcutSections.map((section) => (
-          <section
-            key={section.title.key}
-            className="rounded-lg border border-border-subtle bg-background/60"
-          >
-            <h3 className="border-b border-border-subtle px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted">
+          <section key={section.title.key}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted">
               {text(section.title)}
             </h3>
-            <div className="space-y-2 px-4 py-3">
+            <div className="space-y-2">
               {section.shortcuts.map((item, index) =>
                 "kind" in item ? (
                   <div
                     key={index}
-                    className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted first:pt-0"
+                    className="pt-3 text-[11px] font-semibold uppercase tracking-wide text-ink-muted first:pt-0"
                   >
                     {typeof item.label === "string" ? item.label : text(item.label)}
                   </div>
                 ) : (
-                  <div
-                    key={index}
-                    className="flex items-start justify-between gap-4 border-b border-border-subtle pb-2 last:border-0 last:pb-0"
-                  >
+                  <div key={index} className="flex items-start justify-between gap-4">
                     <span className="text-sm text-ink">{text(item.label)}</span>
-                    <span className="shrink-0 text-right text-xs font-medium text-primary">
+                    <span className="shrink-0 text-right text-xs font-medium leading-5 text-primary">
                       {typeof item.keys === "string" ? item.keys : text(item.keys)}
                     </span>
                   </div>

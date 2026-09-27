@@ -70,12 +70,14 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
       <span {...interactiveLayerProps}>
         <Popover.Trigger asChild>
           <button
-            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors hover:bg-background ${
+            // The date trigger is a field: one height, edge and corner with the
+            // selects beside it.
+            className={`dk-field ${
               isOverdue
                 ? "border-danger-border-strong text-danger"
                 : value
-                  ? "border-border text-ink"
-                  : "border-border text-ink-soft"
+                  ? "text-ink"
+                  : "text-ink-soft"
             }`}
           >
             <Calendar size={14} />
@@ -95,7 +97,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
           align="start"
           sideOffset={4}
           collisionPadding={8}
-          className="z-[60] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-lg border border-border bg-surface p-2 text-ink shadow-lg"
+          className="dk-menu z-[60] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-2"
         >
           {/* react-day-picker ships its own blue accent and inherits text color
               from the page (black) — both fail in dark mode. Map its accent vars
@@ -121,7 +123,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
             <div className="border-t border-border-subtle pt-2">
               <button
                 onClick={handleClear}
-                className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs text-ink-soft hover:bg-background hover:text-ink"
+                className="dk-btn dk-btn-quiet dk-btn-sm w-full"
               >
                 <X size={12} />
                 {i18n.t("date.clear")}

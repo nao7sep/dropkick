@@ -33,6 +33,11 @@ interface AppModalProps {
   // Informational bodies opt in to the shared keyboard-scroll owner. Forms keep
   // their fields as the focus and keyboard owners.
   passiveBodyLabel?: string;
+  // The title stays the dialog's spoken name but is not drawn: a surface that
+  // names itself in its own content (About) keeps only the close control in
+  // its title band, pinned to the trailing corner, and that band drops its line
+  // (modal-dialog-conventions).
+  titleVisuallyHidden?: boolean;
 }
 
 export function AppModal({
@@ -44,10 +49,11 @@ export function AppModal({
   footer,
   maxWidth = 448,
   bodyClassName = "overflow-y-auto px-6 py-5",
-  footerClassName = "flex justify-end gap-2 border-t border-border px-6 py-4",
+  footerClassName = "flex items-center justify-end gap-2 border-t border-border px-6 py-4",
   contentClassName = "",
   contentProps,
   passiveBodyLabel,
+  titleVisuallyHidden = false,
 }: AppModalProps) {
   const { t } = useI18n();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -103,7 +109,7 @@ export function AppModal({
           ref={contentRef}
           aria-describedby={describedById}
           data-dropkick-interactive-layer=""
-          className={`fixed left-1/2 top-1/2 z-[51] flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface shadow-xl focus:outline-none ${contentClassName}`}
+          className={`fixed left-1/2 top-1/2 z-[51] flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-dialog)] bg-surface shadow-xl focus:outline-none ${contentClassName}`}
           style={{ maxWidth }}
           tabIndex={-1}
           onOpenAutoFocus={(e) => {
@@ -120,8 +126,16 @@ export function AppModal({
           {...escapeAndOutsideHandlers}
           {...restContentProps}
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
-            <Dialog.Title className="text-lg font-semibold text-ink-strong">
+          <div
+            className={`flex min-h-14 shrink-0 items-center justify-between gap-3 px-6 py-3 ${
+              titleVisuallyHidden ? "" : "border-b border-border"
+            }`}
+          >
+            <Dialog.Title
+              className={
+                titleVisuallyHidden ? "sr-only" : "text-base font-semibold text-ink-strong"
+              }
+            >
               {title}
             </Dialog.Title>
             {onRequestClose ? (
@@ -129,7 +143,7 @@ export function AppModal({
                 type="button"
                 aria-label={t("common.closeNamed", { title })}
                 onClick={onRequestClose}
-                className="rounded p-1 text-ink-muted hover:bg-surface-muted hover:text-ink"
+                className="dk-icon-btn -mr-2 ml-auto"
               >
                 <X size={18} />
               </button>
@@ -138,7 +152,7 @@ export function AppModal({
                 <button
                   type="button"
                   aria-label={t("common.closeNamed", { title })}
-                  className="rounded p-1 text-ink-muted hover:bg-surface-muted hover:text-ink"
+                  className="dk-icon-btn -mr-2 ml-auto"
                 >
                   <X size={18} />
                 </button>

@@ -1,6 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { log, toErrorFields } from "../../repositories";
 import { useI18n } from "../../i18n/I18nContext";
+import { Button } from "../shared/Button";
 import type { Message } from "../../i18n/translate";
 
 // Non-dismissible halt shown when startup fails (app-state init, or a
@@ -30,17 +31,13 @@ export function StartupErrorScreen({ message }: StartupErrorScreenProps) {
 
   return (
     <div className="flex h-screen items-center justify-center bg-background">
-      <div className="max-w-md rounded-lg bg-surface p-6 shadow-lg">
+      <div className="max-w-md rounded-[var(--radius-dialog)] bg-surface p-6 shadow-lg">
         <h2 className="mb-2 text-lg font-bold text-danger">{t("startup.errorTitle")}</h2>
         <p className="whitespace-pre-wrap text-sm text-ink-soft">{text(message)}</p>
         <div className="mt-5 flex justify-end">
-          <button
-            type="button"
-            className="rounded-md bg-primary-solid px-4 py-2 text-sm font-medium text-ink-inverted transition-colors hover:bg-primary-solid-hover"
-            onClick={quit}
-          >
+          <Button variant="primary" onClick={quit}>
             {t("startup.quit")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

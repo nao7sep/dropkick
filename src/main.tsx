@@ -4,10 +4,14 @@ import App from "./App";
 import { log, toErrorFields, initLogging } from "./repositories";
 import { denyUnhandledExternalDrop } from "./utils/externalDropBoundary";
 import { AppErrorBoundary } from "./components/shared/AppErrorBoundary";
+import { installWindowActivity } from "./repositories/window-activity";
 
 // Learn the core's debug gate as early as possible. Fire-and-forget: emit()
 // already works before this resolves (defaulting to the dev-build gate).
 void initLogging();
+
+// Quiets the focus ring while the native window is inactive.
+installWindowActivity();
 
 window.addEventListener("dragover", denyUnhandledExternalDrop);
 window.addEventListener("drop", denyUnhandledExternalDrop);

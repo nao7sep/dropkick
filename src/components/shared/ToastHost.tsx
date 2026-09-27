@@ -32,7 +32,7 @@ export function ToastHost() {
       {backgroundWriteError ? (
         <div
           role="alert"
-          className="pointer-events-auto flex max-w-[90vw] items-start gap-2 rounded-md border border-danger-border bg-danger-surface px-4 py-2 text-sm text-danger-fg-strong shadow-lg"
+          className="pointer-events-auto flex max-w-[90vw] items-start gap-2 rounded-[var(--radius-card)] border border-danger-border bg-danger-surface px-4 py-2 text-sm text-danger-fg-strong shadow-lg"
         >
           <div className="min-w-0 flex-1">
             <div>{text(backgroundWriteError.message)}</div>
@@ -42,7 +42,7 @@ export function ToastHost() {
             aria-label={t("toast.dismissSaveError")}
             title={t("common.dismiss")}
             onClick={() => clearBackgroundWriteError()}
-            className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong"
+            className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger -mr-1"
           >
             <X size={14} />
           </button>
@@ -52,7 +52,7 @@ export function ToastHost() {
         <div
           key={token}
           role="status"
-          className="dropkick-toast max-w-[90vw] rounded-md border border-warning/40 bg-warning-surface px-4 py-2 text-sm text-warning-strong shadow-lg"
+          className="dropkick-toast max-w-[90vw] rounded-[var(--radius-card)] border border-warning/40 bg-warning-surface px-4 py-2 text-sm text-warning-strong shadow-lg"
         >
           {text(message)}
         </div>

@@ -37,7 +37,12 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   ),
   ["--ink-strong", "--surface-muted"],
   ["--ink", "--surface-muted"],
-  ...["--primary-solid", "--primary-solid-hover", "--danger-solid", "--danger-solid-hover", "--warning-solid", "--warning-solid-strong"].map(
+  // The neutral control's ladder carries its label at every step.
+  ...["--control", "--control-hover", "--control-pressed"].map(
+    (fill): [string, string] => ["--ink", fill],
+  ),
+  ["--danger", "--danger-surface-strong"],
+  ...["--primary-solid", "--primary-solid-hover", "--primary-solid-pressed", "--danger-solid", "--danger-solid-hover", "--danger-solid-pressed", "--warning-solid", "--warning-solid-strong", "--warning-solid-pressed"].map(
     (fill): [string, string] => ["--ink-inverted", fill],
   ),
   ["--primary", "--surface"],

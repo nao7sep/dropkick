@@ -101,7 +101,7 @@ describe("focus on the first request", () => {
       [...document.querySelectorAll("button")].find(
         (button) => button.textContent === "Delete",
       )?.className,
-    ).toContain("bg-danger-solid");
+    ).toContain("dk-btn-danger-confirm");
   });
 });
 

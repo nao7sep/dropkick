@@ -6,6 +6,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { getVersion } from "@tauri-apps/api/app";
 import { AppModal } from "../shared/AppModal";
 import { InlineResult } from "../shared/InlineResult";
+import { Button } from "../shared/Button";
 import { log, toErrorFields } from "../../repositories";
 import { useI18n } from "../../i18n/I18nContext";
 import { message, type Message } from "../../i18n/translate";
@@ -56,18 +57,15 @@ export function AboutModal({ onClose }: AboutModalProps) {
       describedById="about-modal-description"
       maxWidth={320}
       passiveBodyLabel={t("about.title")}
-      bodyClassName="overflow-y-auto px-6 py-5 text-center"
-      footerClassName="flex justify-end border-t border-border px-6 py-4"
+      // The name leads the body, so the title band carries only the close
+      // control and the title stays the dialog's spoken name.
+      titleVisuallyHidden
+      bodyClassName="overflow-y-auto px-6 pb-5 pt-0 text-center"
       footer={
-          <button
-            onClick={onClose}
-            className="rounded-md border border-border px-4 py-2 text-sm text-ink-soft hover:bg-background"
-          >
-            {t("common.close")}
-          </button>
+        <Button onClick={onClose}>{t("common.close")}</Button>
       }
     >
-      <p className="text-2xl font-bold text-ink-strong">Dropkick</p>
+      <p className="text-2xl font-bold leading-tight text-ink-strong">Dropkick</p>
       <p className="mt-1 text-sm text-ink-muted">
         {version
           ? t("about.version", { version })
@@ -79,14 +77,14 @@ export function AboutModal({ onClose }: AboutModalProps) {
       <div className="mt-4 flex justify-center gap-4">
         <button
           onClick={() => void openProjectLink("repository", "https://github.com/nao7sep/dropkick")}
-          className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
+          className="inline-flex items-center gap-1 rounded-sm text-sm text-primary hover:text-primary-hover hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-ring"
         >
           GitHub
           <ExternalLink size={12} />
         </button>
         <button
           onClick={() => void openProjectLink("issues", "https://github.com/nao7sep/dropkick/issues")}
-          className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover hover:underline"
+          className="inline-flex items-center gap-1 rounded-sm text-sm text-primary hover:text-primary-hover hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-ring"
         >
           {t("about.reportIssue")}
           <ExternalLink size={12} />
