@@ -130,7 +130,9 @@ describe("TabBar wrapped visibility", () => {
     expect(renderedTabs.every((tab) => !tab.hasAttribute("hidden"))).toBe(true);
     expect(renderedTabs.every((tab) => tab.classList.contains("cursor-grab"))).toBe(true);
 
-    const chrome = tabRow.parentElement;
+    // The tab row sits in the bar beside the menu column; the chrome is the
+    // bar's parent, which also holds any persistent result strip.
+    const chrome = tabRow.parentElement?.parentElement;
     if (!chrome) throw new Error("tab chrome not found");
     vi.spyOn(chrome, "getBoundingClientRect").mockReturnValue({
       x: 0,
@@ -247,6 +249,50 @@ describe("TabBar wrapped visibility", () => {
       useWorkspaceStore.getState().workspace.openTabs.map((tab) => tab.filePath),
     ).toEqual(["/fixtures/b.json", "/fixtures/c.json", "/fixtures/a.json"]);
     expect(useWorkspaceStore.getState().workspace.activeTabIndex).toBe(2);
+    expect(flushWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a tab be dropped last with the menu at the corner, which is no drag target", async () => {
+    const openTabs = [
+      createTab("/fixtures/a.json", "A"),
+      createTab("/fixtures/b.json", "B"),
+      createTab("/fixtures/c.json", "C"),
+    ];
+    useWorkspaceStore.setState({
+      workspace: { ...createDefaultWorkspace("Test"), openTabs, activeTabIndex: 1 },
+      filePath: "/fixtures/workspace.json",
+      loaded: true,
+    });
+    flushWorkspace.mockClear();
+
+    host = await mount(
+      createElement(TabBar, { onMenuSelect: vi.fn(), onChromeHeightChange: vi.fn() }),
+    );
+
+    // The menu trigger is outside the tablist and not registered as sortable:
+    // only the three tabs are drag sources and targets.
+    const menu = document.querySelector('button[aria-label="Menu"]')!;
+    const tablist = document.querySelector('[role="tablist"]')!;
+    expect(menu).toBeTruthy();
+    expect(tablist.contains(menu)).toBe(false);
+    expect(menu.closest(".flex-wrap")).toBeNull();
+    expect(dnd.sortables.map((sortable) => sortable.id)).toEqual(
+      openTabs.map((tab) => tab.filePath),
+    );
+
+    // Dropping the middle tab at the last position — the slot beside the menu.
+    const provider = dnd.provider as any;
+    await act(async () => {
+      provider.onDragEnd({
+        canceled: false,
+        operation: { source: { sortable: true, initialIndex: 1, index: 2 }, target: {} },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(
+      useWorkspaceStore.getState().workspace.openTabs.map((tab) => tab.filePath),
+    ).toEqual(["/fixtures/a.json", "/fixtures/c.json", "/fixtures/b.json"]);
     expect(flushWorkspace).toHaveBeenCalledTimes(1);
   });
 

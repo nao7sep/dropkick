@@ -46,12 +46,10 @@ const TAB_POINTER_SENSOR = PointerSensor.configure({
   ],
 });
 
-// Shared styling for menu items. `data-[highlighted]` is Radix's active-item
-// state (keyboard arrow focus and pointer hover both set it).
-const MENU_ITEM_CLASS =
-  "cursor-pointer whitespace-nowrap px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
-const MENU_ITEM_ICON_CLASS =
-  "flex cursor-pointer items-center gap-2 whitespace-nowrap px-4 py-2 text-left text-sm text-ink outline-none data-[highlighted]:bg-background";
+// Menu items are inset, rounded rows (App.css `dk-menu-item`); Radix's
+// `data-highlighted` marks the active item for pointer and keyboard alike.
+const MENU_ITEM_CLASS = "dk-menu-item";
+const MENU_ITEM_ICON_CLASS = "dk-menu-item";
 
 interface TabBarProps {
   onMenuSelect: (item: MenuItemId) => void;
@@ -359,7 +357,13 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       onDragEnd={(event) => { void handleDragEnd(event); }}
     >
       <div ref={chromeRef} className="shrink-0">
-        <div className="flex min-h-10 flex-wrap items-center border-b border-border bg-surface">
+        {/* The bar is two columns: the tabs wrap in their own area, and the menu
+            keeps the window's top-right corner, level with the first tab row
+            however many rows follow. The menu sits outside the tablist and is
+            no sortable, so a tab drag can end last, beside it, and nothing
+            starts or lands on the menu. */}
+        <div className="flex items-start border-b border-border bg-surface">
+        <div className="flex min-h-10 min-w-0 flex-1 flex-wrap items-center gap-0.5 px-1 py-1">
           {/* The tablist wrapper is display:contents (creates no box), so every
               tab flows directly in this wrapping row alongside the New button.
               This keeps every open tab visible instead of hiding tabs in a
@@ -413,7 +417,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
             <DropdownMenu.Trigger asChild>
               <button
                 aria-label={t("tabs.newOrOpen")}
-                className="flex h-10 w-10 shrink-0 items-center justify-center text-primary transition-colors hover:bg-primary-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
+                className="dk-icon-btn h-8 w-8 text-primary"
               >
                 <Plus size={16} />
               </button>
@@ -423,7 +427,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 data-dropkick-interactive-layer=""
                 align="start"
                 sideOffset={4}
-                className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-64 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
+                className="dk-menu z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-64 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto"
               >
                 <DropdownMenu.Item
                   onSelect={handleNewTaskList}
@@ -448,15 +452,15 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
 
                 {recentFiles.length > 0 && (
                   <>
-                    <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
-                    <DropdownMenu.Label className="px-4 py-1 text-xs font-medium text-ink-muted">
+                    <DropdownMenu.Separator className="dk-menu-separator" />
+                    <DropdownMenu.Label className="px-2.5 pb-1 pt-1.5 text-xs font-medium text-ink-muted">
                       {t("tabs.recent")}
                     </DropdownMenu.Label>
                     {recentFiles.slice(0, 10).map((r) => (
                       <DropdownMenu.Item
                         key={r.filePath}
                         onSelect={() => handleOpenRecent(r.filePath)}
-                        className="cursor-pointer px-4 py-1.5 text-left text-sm text-ink-soft outline-none data-[highlighted]:bg-background"
+                        className="dk-menu-item block text-ink-soft"
                       >
                         <span className="block w-0 min-w-full truncate" title={r.filePath}>
                           {fileNameWithoutExt(r.filePath)}
@@ -472,16 +476,16 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
 
-          {/* Spacer pushes the hamburger menu to the right edge. */}
-          <div className="flex-1" />
+        </div>
 
-          {/* Hamburger menu */}
+          {/* Hamburger menu — its own fixed column at the top-right corner. */}
+          <div className="shrink-0 py-1 pr-1">
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <button
                 aria-label={t("menu.label")}
                 title={t("menu.label")}
-                className="flex h-10 w-10 shrink-0 items-center justify-center text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring"
+                className="dk-icon-btn h-8 w-8"
               >
                 <Menu size={18} />
               </button>
@@ -491,7 +495,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 data-dropkick-interactive-layer=""
                 align="end"
                 sideOffset={4}
-                className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-52 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto rounded-md border border-border bg-surface py-1 text-ink shadow-lg"
+                className="dk-menu z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-52 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto"
               >
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("settings")}
@@ -511,17 +515,17 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 {/* Zoom — a non-menuitem control embedded in the menu: arrow
                     navigation skips it, and it is driven by pointer and by the
                     global zoom shortcuts. Left exactly as the standalone control. */}
-                <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
-                <div className="flex items-center justify-center gap-3 px-3 py-1.5">
+                <DropdownMenu.Separator className="dk-menu-separator" />
+                <div className="flex items-center justify-between gap-3 px-2.5 py-1">
                   <span className="text-sm text-ink-soft">{t("menu.zoom")}</span>
-                  <div className="flex items-center overflow-hidden rounded border border-border">
+                  <div className="flex items-center overflow-hidden rounded-[var(--radius-sm)] border border-control-edge bg-control">
                     <button
                       onClick={() => {
                         const next = stepZoomOut(zoomLevel);
                         if (next !== zoomLevel) updateViewState({ zoomLevel: next });
                       }}
                       disabled={stepZoomOut(zoomLevel) === zoomLevel}
-                      className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-50"
+                      className="flex h-7 w-7 items-center justify-center text-ink-soft transition-colors hover:bg-control-hover active:bg-control-pressed disabled:opacity-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring"
                       title={t("menu.zoomOut")}
                     >
                       <Minus size={12} />
@@ -529,13 +533,13 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                     {zoomLevel !== ZOOM_DEFAULT ? (
                       <button
                         onClick={() => updateViewState({ zoomLevel: ZOOM_DEFAULT })}
-                        className="w-10 border-x border-border bg-surface text-center text-xs tabular-nums text-primary hover:text-primary-hover leading-6"
+                        className="h-7 w-12 border-x border-control-edge text-center text-xs tabular-nums leading-7 text-primary transition-colors hover:bg-control-hover hover:text-primary-hover active:bg-control-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring"
                         title={t("menu.zoomReset", { percent: i18n.percent(ZOOM_DEFAULT) })}
                       >
                         {i18n.percent(zoomLevel)}
                       </button>
                     ) : (
-                      <span className="w-10 border-x border-border bg-surface text-center text-xs tabular-nums text-ink leading-6">
+                      <span className="h-7 w-12 border-x border-control-edge text-center text-xs tabular-nums leading-7 text-ink">
                         {i18n.percent(zoomLevel)}
                       </span>
                     )}
@@ -545,14 +549,14 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         if (next !== zoomLevel) updateViewState({ zoomLevel: next });
                       }}
                       disabled={stepZoomIn(zoomLevel) === zoomLevel}
-                      className="flex h-6 w-6 items-center justify-center bg-surface text-ink-muted hover:bg-background disabled:opacity-50"
+                      className="flex h-7 w-7 items-center justify-center text-ink-soft transition-colors hover:bg-control-hover active:bg-control-pressed disabled:opacity-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring"
                       title={t("menu.zoomIn")}
                     >
                       <Plus size={12} />
                     </button>
                   </div>
                 </div>
-                <DropdownMenu.Separator className="my-1 border-t border-border-subtle" />
+                <DropdownMenu.Separator className="dk-menu-separator" />
 
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("about")}
@@ -564,6 +568,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
+          </div>
         </div>
         {workspacePersistenceError ? (
           <div
@@ -576,7 +581,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
               aria-label={t("tabs.dismissSaveError")}
               title={t("common.dismiss")}
               onClick={dismissWorkspacePersistenceError}
-              className="shrink-0 rounded p-0.5 text-danger hover:bg-danger-surface-strong"
+              className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger -my-0.5"
             >
               <X size={13} />
             </button>
@@ -664,10 +669,12 @@ function SortableTab({
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
       title={hasLoadError ? t("tabs.loadFailed", { path: tab.filePath }) : undefined}
-      className={`group flex shrink-0 cursor-grab items-center gap-1.5 border-r border-border px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ring ${
+      // A tab is a rounded item in the strip: the chosen one takes the accent
+      // wash, the rest a hover step. No dividers or folder shapes.
+      className={`group flex h-8 shrink-0 cursor-grab items-center gap-1.5 rounded-[var(--radius-control)] pl-3 pr-1.5 text-sm transition-colors duration-[var(--motion)] focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring ${
         isActive
-          ? "bg-primary-surface text-primary-hover"
-          : "text-ink hover:bg-background"
+          ? "bg-primary-surface font-medium text-primary-hover"
+          : "text-ink-soft hover:bg-control-hover hover:text-ink"
       }`}
     >
       {urgency && (
@@ -702,7 +709,7 @@ function SortableTab({
             }
           }}
           {...composing.handlers}
-          className="w-24 rounded border border-primary-ring px-1 text-sm outline-none"
+          className="h-6 w-28 rounded-[var(--radius-sm)] border border-primary-ring bg-surface px-1.5 text-sm text-ink outline-none"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
@@ -715,7 +722,7 @@ function SortableTab({
         onClick={onClose}
         tabIndex={-1}
         aria-label={t("tabs.close")}
-        className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-surface-muted group-hover:opacity-100"
+        className="dk-icon-btn dk-icon-btn-xs h-5 w-5 opacity-0 group-hover:opacity-100"
       >
         <X size={12} />
       </button>
