@@ -85,6 +85,21 @@ describe("About", () => {
   });
 });
 
+describe("menus", () => {
+  it("size to their longest item: content width, a floor at most, never a fixed width", () => {
+    const tabBar = readFileSync(join(ROOT, "src/components/layout/TabBar.tsx"), "utf8");
+    const contents = [...tabBar.matchAll(/<DropdownMenu\.Content[\s\S]*?className="([^"]*)"/g)].map((m) => m[1]!);
+    expect(contents.length).toBeGreaterThan(0);
+    for (const className of contents) {
+      expect(className).toContain("w-max");
+      expect(className).toMatch(/max-w-\[var\(--radix-dropdown-menu-content-available-width\)\]/);
+      expect(className).not.toMatch(/(^|\s)w-(?!max)[\w[]/);
+    }
+    // Items never wrap: the shared item role keeps its label on one line.
+    expect(css).toMatch(/\.dk-menu-item\s*\{[^}]*white-space:\s*nowrap/);
+  });
+});
+
 describe("task list", () => {
   it("draws groups as cards with no stripe for the rounding to bend", () => {
     const list = readFileSync(join(ROOT, "src/components/task-list/TaskListPane.tsx"), "utf8");
