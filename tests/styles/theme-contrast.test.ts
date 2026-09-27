@@ -65,7 +65,12 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
     [`--group-${group}-fg`, "--surface"],
     [`--group-${group}-fg`, `--group-${group}-tint`],
     [`--group-${group}-fg`, "--surface-sunken"],
+    // Task rows have no fill and sit on their group's card tint.
+    ["--ink", `--group-${group}-tint`],
   ]),
+  // A selected row, and the default group's card.
+  ["--ink", "--primary-surface-strong"],
+  ["--ink", "--surface-sunken"],
 ];
 
 // Boundaries that alone identify a control or its state: a form field's

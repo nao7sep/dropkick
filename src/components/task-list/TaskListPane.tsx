@@ -42,23 +42,23 @@ interface TaskListPaneProps {
 // with a dot and a count, holding its tasks as rounded rows on the surface. The
 // colour lives in the card, the dot and the badge; there is no stripe for the
 // rounding to bend or split (interface-styling-conventions, "Rounding never
-// reshapes a marker"). `--g-accent` feeds the dot and the rows' hover tint;
-// `--g-fg` the title and the badge.
+// reshapes a marker"). `--g-accent` feeds the dot and the rows' hover step;
+// `--g-fg` the title and the badge; `--g-tint` the card, which the rows sit on.
 const GROUP_CARDS: Record<TaskGroup, string> = {
   PastDue:
-    "border-group-pastdue-border bg-group-pastdue-tint text-group-pastdue-fg [--g-accent:var(--group-pastdue-accent)] [--g-fg:var(--group-pastdue-fg)]",
+    "border-group-pastdue-border bg-group-pastdue-tint text-group-pastdue-fg [--g-accent:var(--group-pastdue-accent)] [--g-fg:var(--group-pastdue-fg)] [--g-tint:var(--group-pastdue-tint)]",
   Critical:
-    "border-group-critical-border bg-group-critical-tint text-group-critical-fg [--g-accent:var(--group-critical-accent)] [--g-fg:var(--group-critical-fg)]",
+    "border-group-critical-border bg-group-critical-tint text-group-critical-fg [--g-accent:var(--group-critical-accent)] [--g-fg:var(--group-critical-fg)] [--g-tint:var(--group-critical-tint)]",
   DueToday:
-    "border-group-duetoday-border bg-group-duetoday-tint text-group-duetoday-fg [--g-accent:var(--group-duetoday-accent)] [--g-fg:var(--group-duetoday-fg)]",
+    "border-group-duetoday-border bg-group-duetoday-tint text-group-duetoday-fg [--g-accent:var(--group-duetoday-accent)] [--g-fg:var(--group-duetoday-fg)] [--g-tint:var(--group-duetoday-tint)]",
   Important:
-    "border-group-important-border bg-group-important-tint text-group-important-fg [--g-accent:var(--group-important-accent)] [--g-fg:var(--group-important-fg)]",
+    "border-group-important-border bg-group-important-tint text-group-important-fg [--g-accent:var(--group-important-accent)] [--g-fg:var(--group-important-fg)] [--g-tint:var(--group-important-tint)]",
   Urgent:
-    "border-group-urgent-border bg-group-urgent-tint text-group-urgent-fg [--g-accent:var(--group-urgent-accent)] [--g-fg:var(--group-urgent-fg)]",
+    "border-group-urgent-border bg-group-urgent-tint text-group-urgent-fg [--g-accent:var(--group-urgent-accent)] [--g-fg:var(--group-urgent-fg)] [--g-tint:var(--group-urgent-tint)]",
   DueSoon:
-    "border-group-duesoon-border bg-group-duesoon-tint text-group-duesoon-fg [--g-accent:var(--group-duesoon-accent)] [--g-fg:var(--group-duesoon-fg)]",
+    "border-group-duesoon-border bg-group-duesoon-tint text-group-duesoon-fg [--g-accent:var(--group-duesoon-accent)] [--g-fg:var(--group-duesoon-fg)] [--g-tint:var(--group-duesoon-tint)]",
   Default:
-    "border-border bg-surface-sunken text-ink-soft [--g-accent:var(--ink-faint)] [--g-fg:var(--ink-soft)]",
+    "border-border bg-surface-sunken text-ink-soft [--g-accent:var(--ink-faint)] [--g-fg:var(--ink-soft)] [--g-tint:var(--surface-sunken)]",
 };
 
 // Cards carry no outer margin: the listbox spaces them with one gap and pads
@@ -668,13 +668,15 @@ function TaskRow({
       aria-selected={asOption ? isSelected : undefined}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
-      // A rounded row on the surface inside its group's card. Selection is the
-      // accent fill; the keyboard cursor, while the list has focus, is a ring on
-      // the active row (composite-control-conventions).
+      // A rounded row with no fill of its own, sitting on its group's card tint
+      // and set apart from its neighbours by space. Hover steps the tint toward
+      // the group colour; selection is the accent fill; the keyboard cursor,
+      // while the list has focus, is a ring on the active row
+      // (composite-control-conventions).
       className={`mx-1.5 mb-[5px] flex cursor-pointer flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
         isSelected
           ? "bg-primary-surface-strong"
-          : "bg-surface hover:bg-[color-mix(in_srgb,var(--surface),var(--g-accent)_10%)]"
+          : "bg-transparent hover:bg-[color-mix(in_srgb,var(--g-tint),var(--g-accent)_18%)]"
       } ${
         asOption && isActive
           ? "group-focus-within:ring-[1.5px] group-focus-within:ring-inset group-focus-within:ring-primary-ring"
