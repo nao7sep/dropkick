@@ -34,7 +34,7 @@ export function InlineResult({
           type="button"
           onClick={onDismiss}
           aria-label={t("common.dismissNamed", { title: heading })}
-          className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger -mr-1"
+          className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger dk-line-dismiss -mr-1"
         >
           <X size={14} />
         </button>

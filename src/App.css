@@ -684,6 +684,17 @@ input[type="radio"] {
     background-color: var(--danger-surface-strong);
     color: var(--danger);
   }
+  /* A per-item dismiss sits on the item's first text line: the item aligns its
+     children to the top, and the mark's block margins centre it on the first
+     line box, whatever the text below it does. `1lh` is the line height the
+     button inherits from the item's text, so one class serves every size, and
+     the hit area (22px) is never shorter than that line. Never centred on the
+     whole block, never pinned to the top edge or nudged by a fixed offset. */
+  .dk-line-dismiss {
+    --dk-dismiss-size: 22px;
+    margin-block: calc((1lh - var(--dk-dismiss-size)) / 2);
+  }
+
   /* A dismiss mark inside a red result keeps that result's ink. */
   .dk-icon-btn-on-danger {
     color: var(--danger);

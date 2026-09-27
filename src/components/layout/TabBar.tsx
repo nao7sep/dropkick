@@ -581,7 +581,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
               aria-label={t("tabs.dismissSaveError")}
               title={t("common.dismiss")}
               onClick={dismissWorkspacePersistenceError}
-              className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger -my-0.5"
+              className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger dk-line-dismiss"
             >
               <X size={13} />
             </button>

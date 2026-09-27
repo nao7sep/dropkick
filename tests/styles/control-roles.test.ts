@@ -107,3 +107,18 @@ describe("task list", () => {
     expect(list).not.toMatch(/border-l-4|border-l-group-/);
   });
 });
+
+describe("per-item dismiss", () => {
+  it("centres on the item's first line through one shared class", () => {
+    expect(css).toMatch(/\.dk-line-dismiss\s*\{[^}]*margin-block:\s*calc\(\(1lh - var\(--dk-dismiss-size\)\) \/ 2\)/);
+    for (const file of [
+      "src/components/shared/InlineResult.tsx",
+      "src/components/shared/ToastHost.tsx",
+      "src/components/layout/TabBar.tsx",
+    ]) {
+      const source = readFileSync(join(ROOT, file), "utf8");
+      expect(source, file).toContain("dk-line-dismiss");
+      expect(source, file).not.toMatch(/dk-icon-btn-on-danger[^"]*-my-/);
+    }
+  });
+});

@@ -42,7 +42,7 @@ export function ToastHost() {
             aria-label={t("toast.dismissSaveError")}
             title={t("common.dismiss")}
             onClick={() => clearBackgroundWriteError()}
-            className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger -mr-1"
+            className="dk-icon-btn dk-icon-btn-xs dk-icon-btn-on-danger dk-line-dismiss -mr-1"
           >
             <X size={14} />
           </button>
