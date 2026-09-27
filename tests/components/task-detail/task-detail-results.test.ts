@@ -303,6 +303,34 @@ describe("TaskDetail note composer", () => {
 
     expect(addNewNote).toHaveBeenCalledTimes(1);
   });
+
+  it("drops the composer draft when the add is answered with Reload", async () => {
+    addNewNote.mockResolvedValueOnce({
+      status: "reloaded",
+      message: message("write.reloaded"),
+    });
+    useNoteDraftStore.setState({ drafts: { "task-a": "Discarded by Reload" } });
+    await showTask();
+    const add = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Add Note",
+    )!;
+
+    await act(async () => add.click());
+
+    expect(addNewNote).toHaveBeenCalledTimes(1);
+    expect(useNoteDraftStore.getState().drafts["task-a"]).toBeUndefined();
+    const composer = [...document.querySelectorAll("textarea")].find(
+      (textarea) =>
+        textarea.placeholder !== "Task title..." &&
+        textarea.placeholder !== "Add a description...",
+    )!;
+    expect(composer.value).toBe("");
+
+    const addAgain = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Add Note",
+    )!;
+    expect((addAgain as HTMLButtonElement).disabled).toBe(true);
+  });
 });
 
 describe("TaskDetail note editor", () => {

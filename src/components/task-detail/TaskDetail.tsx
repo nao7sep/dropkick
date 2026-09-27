@@ -296,8 +296,17 @@ export function TaskDetail({
         cleaned,
         actionability,
       );
-      if (notSaved(result)) {
+      if (result.status === "error") {
+        // Keep the typed text so the user can retry rather than retype it.
         setNoteComposerError(result.message);
+        return;
+      }
+      if (result.status === "reloaded") {
+        // The disk version is now in the store and the add was dropped on
+        // purpose; holding the text would only see it added again, without a
+        // dialog, next time the user hits Add.
+        setNoteComposerError(result.message);
+        clearDraft(composerDraftKey(task.id));
         return;
       }
       setNoteComposerError(null);
