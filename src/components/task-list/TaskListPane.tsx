@@ -28,6 +28,7 @@ import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing
 import { useViewTasks } from "../../hooks/useViewTasks";
 import { describeLoadFailure, fieldDraftKey, fileNameWithoutExt } from "../../services";
 import { useNoteDraftStore } from "../../state/note-draft-store";
+import { Button } from "../shared/Button";
 import { useI18n } from "../../i18n/I18nContext";
 import type { Message } from "../../i18n/translate";
 
@@ -37,39 +38,35 @@ interface TaskListPaneProps {
   onNewTask: () => void;
 }
 
-const GROUP_COLORS: Record<TaskGroup, string> = {
-  PastDue: "text-group-pastdue-fg border-group-pastdue-border",
-  Critical: "text-group-critical-fg border-group-critical-border",
-  DueToday: "text-group-duetoday-fg border-group-duetoday-border",
-  Important: "text-group-important-fg border-group-important-border",
-  Urgent: "text-group-urgent-fg border-group-urgent-border",
-  DueSoon: "text-group-duesoon-fg border-group-duesoon-border",
-  Default: "text-ink-soft border-border",
+// Each group is a rounded card in its own tint and edge, titled in its colour
+// with a dot and a count, holding its tasks as rounded rows on the surface. The
+// colour lives in the card, the dot and the badge; there is no stripe for the
+// rounding to bend or split (interface-styling-conventions, "Rounding never
+// reshapes a marker"). `--g-accent` feeds the dot and the rows' hover tint;
+// `--g-fg` the title and the badge.
+const GROUP_CARDS: Record<TaskGroup, string> = {
+  PastDue:
+    "border-group-pastdue-border bg-group-pastdue-tint text-group-pastdue-fg [--g-accent:var(--group-pastdue-accent)] [--g-fg:var(--group-pastdue-fg)]",
+  Critical:
+    "border-group-critical-border bg-group-critical-tint text-group-critical-fg [--g-accent:var(--group-critical-accent)] [--g-fg:var(--group-critical-fg)]",
+  DueToday:
+    "border-group-duetoday-border bg-group-duetoday-tint text-group-duetoday-fg [--g-accent:var(--group-duetoday-accent)] [--g-fg:var(--group-duetoday-fg)]",
+  Important:
+    "border-group-important-border bg-group-important-tint text-group-important-fg [--g-accent:var(--group-important-accent)] [--g-fg:var(--group-important-fg)]",
+  Urgent:
+    "border-group-urgent-border bg-group-urgent-tint text-group-urgent-fg [--g-accent:var(--group-urgent-accent)] [--g-fg:var(--group-urgent-fg)]",
+  DueSoon:
+    "border-group-duesoon-border bg-group-duesoon-tint text-group-duesoon-fg [--g-accent:var(--group-duesoon-accent)] [--g-fg:var(--group-duesoon-fg)]",
+  Default:
+    "border-border bg-surface-sunken text-ink-soft [--g-accent:var(--ink-faint)] [--g-fg:var(--ink-soft)]",
 };
 
-const GROUP_BORDERS: Record<TaskGroup, string> = {
-  PastDue: "border-l-group-pastdue-accent",
-  Critical: "border-l-group-critical-accent",
-  DueToday: "border-l-group-duetoday-accent",
-  Important: "border-l-group-important-accent",
-  Urgent: "border-l-group-urgent-accent",
-  DueSoon: "border-l-group-duesoon-accent",
-  Default: "border-l-transparent",
-};
+const CARD_CLASS = "mx-2 mt-2 rounded-[var(--radius-card)] border pb-1";
 
 // Rows moved per PageUp/PageDown press. A fixed step rather than a measured
 // viewport — predictable, and the list rarely needs pixel-accurate paging.
 const LIST_PAGE = 10;
 
-const GROUP_BGS: Record<TaskGroup, string> = {
-  PastDue: "bg-group-pastdue-tint/60",
-  Critical: "bg-group-critical-tint/60",
-  DueToday: "bg-group-duetoday-tint/60",
-  Important: "bg-group-important-tint/60",
-  Urgent: "bg-group-urgent-tint/60",
-  DueSoon: "bg-group-duesoon-tint/60",
-  Default: "",
-};
 
 export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPaneProps) {
   const i18n = useI18n();
@@ -430,11 +427,11 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       {/* New task button — fixed header; stays visible while the list scrolls. */}
       <button
         onClick={onNewTask}
-        className="flex w-full shrink-0 items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium text-primary hover:bg-primary-surface"
+        className="flex w-full shrink-0 items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium text-primary transition-colors duration-[var(--motion)] hover:bg-primary-surface active:bg-primary-surface-strong focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring"
       >
-        <Plus size={14} />
-        {t("newTask.title")}
-        <span className="ml-auto text-primary">
+        <Plus size={14} className="shrink-0" />
+        <span className="min-w-0 truncate whitespace-nowrap">{t("newTask.title")}</span>
+        <span className="ml-auto shrink-0 whitespace-nowrap text-primary">
           {`${primaryModifierLabel}+N`}
         </span>
       </button>
@@ -470,7 +467,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       {/* Scrollable region holding the one composite listbox. Group headers and
           the Handled disclosure stick to the top of this area as the list scrolls,
           just below the fixed New Task button. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[25px]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[36px]">
         {/* The composite listbox: one tab stop spanning the active tasks and the
             Handled archive. Navigation is handled here and fires only while the
             list has focus. The Handled disclosure and "show more" are inside it as
@@ -488,7 +485,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           aria-activedescendant={activeDescendantId}
           tabIndex={0}
           onKeyDown={handleListKeyDown}
-          className="group flex flex-1 flex-col focus:outline-none"
+          className="group flex flex-1 flex-col pb-2 focus:outline-none"
         >
           {/* Hidden handled rows do not fill the mandatory list body. Keep its
               folded archive available below while saying the active list is empty. */}
@@ -499,11 +496,15 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           )}
 
           {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
-            <div key={group}>
-              <div
-                className={`sticky top-0 z-10 border-b bg-surface-sunken/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide backdrop-blur ${GROUP_COLORS[group]}`}
-              >
-                {t(label)}
+            <div key={group} data-group={group} className={`${CARD_CLASS} ${GROUP_CARDS[group]}`}>
+              {/* Sticks to the top of the scroll area within its own card, in the
+                  card's tint so rows pass cleanly beneath it. */}
+              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wide">
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[var(--g-accent)]" />
+                <span className="min-w-0 flex-1 truncate whitespace-nowrap">{t(label)}</span>
+                <span className="shrink-0 rounded-full bg-[var(--g-fg)] px-1.5 text-[11px] font-semibold leading-[18px] tracking-normal text-surface tabular-nums">
+                  {i18n.number(groupTasks.length)}
+                </span>
               </div>
               {groupTasks.map((task) => {
                 const selectionKey = taskSelectionKey(task);
@@ -514,7 +515,6 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                     asOption
                     domId={rowDomId(selectionKey)}
                     task={task}
-                    group={group}
                     isSelected={selectedKeys.has(selectionKey)}
                     isActive={selectionKey === dominantSelectedKey}
                     isEditing={editingTaskKey === selectionKey}
@@ -538,10 +538,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               (mouse toggles/loads; keyboard reaches Handled by arrowing in), so the
               listbox stays a single tab stop. */}
           {grouped.handledTotal > 0 && (
-            <div className="mt-auto">
+            <div className={`mt-auto mb-2 ${CARD_CLASS} ${GROUP_CARDS.Default} ${handledExpanded ? "" : "pb-0"}`}>
               <div
                 onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
-                className="flex w-full cursor-pointer select-none items-center gap-2 border-y border-border bg-background px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-muted"
+                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[var(--radius-card)] px-3 py-2 text-xs font-medium text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
               >
                 <span className="flex items-center">
                   {handledExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -560,7 +560,6 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                         asOption
                         domId={rowDomId(selectionKey)}
                         task={task}
-                        group="Default"
                         isSelected={selectedKeys.has(selectionKey)}
                         isActive={selectionKey === dominantSelectedKey}
                         isEditing={editingTaskKey === selectionKey}
@@ -579,7 +578,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                   {handledVisible < grouped.handledTotal && (
                     <div
                       onClick={() => showMoreHandled(viewKey, pageSize)}
-                      className="w-full cursor-pointer select-none py-2 text-center text-xs text-primary hover:bg-primary-surface"
+                      className="mx-1.5 cursor-pointer select-none rounded-[var(--radius-sm)] py-1.5 text-center text-xs text-primary transition-colors duration-[var(--motion)] hover:bg-primary-surface active:bg-primary-surface-strong"
                     >
                       {t("taskList.showMore", { count: grouped.handledTotal - handledVisible })}
                     </div>
@@ -594,13 +593,14 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   );
 }
 
-// Individual task row in the list.
+// Individual task row in the list. Its left padding is trimmed (pl-1.5 against
+// pr-3) because the stripe and the status slot's gap already sit on that side,
+// so the text's room at both ends reads balanced.
 function TaskRow({
   rowRef,
   asOption = false,
   domId,
   task,
-  group,
   isSelected,
   isActive = false,
   isEditing,
@@ -620,7 +620,6 @@ function TaskRow({
   asOption?: boolean;
   domId?: string;
   task: Task;
-  group: TaskGroup;
   isSelected: boolean;
   isActive?: boolean;
   isEditing: boolean;
@@ -665,13 +664,16 @@ function TaskRow({
       aria-selected={asOption ? isSelected : undefined}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
-      className={`flex cursor-pointer flex-wrap items-center gap-2 border-b border-l-4 border-b-border-subtle px-3 py-2 transition-colors ${GROUP_BORDERS[group]} ${
+      // A rounded row on the surface inside its group's card. Selection is the
+      // accent fill; the keyboard cursor, while the list has focus, is a ring on
+      // the active row (composite-control-conventions).
+      className={`mx-1.5 mb-[3px] flex cursor-pointer flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
         isSelected
           ? "bg-primary-surface-strong"
-          : `${GROUP_BGS[group]} hover:bg-background`
+          : "bg-surface hover:bg-[color-mix(in_srgb,var(--surface),var(--g-accent)_10%)]"
       } ${
         asOption && isActive
-          ? "group-focus-within:ring-1 group-focus-within:ring-inset group-focus-within:ring-primary-accent"
+          ? "group-focus-within:ring-[1.5px] group-focus-within:ring-inset group-focus-within:ring-primary-ring"
           : ""
       }`}
     >
@@ -707,7 +709,7 @@ function TaskRow({
             }
           }}
           {...composing.handlers}
-          className="min-w-0 flex-1 rounded border border-primary-ring bg-surface px-1 py-0 text-sm outline-none"
+          className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-primary-ring bg-surface px-1.5 py-0 text-sm text-ink outline-none"
         />
       ) : (
         <span
@@ -762,7 +764,7 @@ function LoadErrorPane({
   const { t, text } = useI18n();
   return (
     <div className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-lg border border-danger-border bg-danger-surface p-5 text-sm">
+      <div className="w-full max-w-sm rounded-[var(--radius-card)] border border-danger-border bg-danger-surface p-5 text-sm">
         <div className="mb-3 font-semibold text-danger-fg-strong">
           {t("taskList.loadFailed")}
         </div>
@@ -771,18 +773,12 @@ function LoadErrorPane({
           {filePath}
         </p>
         <div className="mt-4 flex gap-2">
-          <button
-            onClick={onRetry}
-            className="rounded-md bg-danger-solid px-3 py-1.5 font-medium text-ink-inverted hover:bg-danger-solid-hover"
-          >
+          {/* Retrying and closing the tab destroy nothing, so neither is red:
+              the card says what went wrong, the buttons are ordinary roles. */}
+          <Button variant="primary" onClick={onRetry}>
             {t("taskList.retry")}
-          </button>
-          <button
-            onClick={onRemove}
-            className="rounded-md border border-danger-border-strong bg-surface px-3 py-1.5 font-medium text-danger hover:bg-danger-surface-strong"
-          >
-            {t("taskList.removeTab")}
-          </button>
+          </Button>
+          <Button onClick={onRemove}>{t("taskList.removeTab")}</Button>
         </div>
       </div>
     </div>

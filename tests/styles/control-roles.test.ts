@@ -56,13 +56,16 @@ describe("destructive roles", () => {
     );
   });
 
-  it("styles no reorder red", () => {
+  it("styles no reorder, retry or reload red", () => {
     const detail = readFileSync(join(ROOT, "src/components/task-detail/TaskDetail.tsx"), "utf8");
     const bulk = readFileSync(join(ROOT, "src/components/task-detail/BulkActions.tsx"), "utf8");
+    const list = readFileSync(join(ROOT, "src/components/task-list/TaskListPane.tsx"), "utf8");
     for (const source of [detail, bulk]) {
       const dropkick = source.slice(source.lastIndexOf("<Button", source.indexOf("Dropkick\n")), source.indexOf("Dropkick\n"));
       expect(dropkick).not.toMatch(/danger/);
     }
+    const retry = list.slice(list.lastIndexOf("<Button", list.indexOf('t("taskList.retry")')), list.indexOf('t("taskList.retry")'));
+    expect(retry).toContain('variant="primary"');
   });
 
   it("opens deletion with the outlined trigger", () => {
@@ -82,3 +85,10 @@ describe("About", () => {
   });
 });
 
+describe("task list", () => {
+  it("draws groups as cards with no stripe for the rounding to bend", () => {
+    const list = readFileSync(join(ROOT, "src/components/task-list/TaskListPane.tsx"), "utf8");
+    expect(list).toContain("GROUP_CARDS");
+    expect(list).not.toMatch(/border-l-4|border-l-group-/);
+  });
+});
