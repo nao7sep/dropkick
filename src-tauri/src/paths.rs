@@ -31,7 +31,33 @@ pub fn data_root(app: &AppHandle) -> Result<PathBuf, String> {
     let root = resolve_root(&home, std::env::var(HOME_ENV_VAR).ok())?;
     std::fs::create_dir_all(&root)
         .map_err(|e| format!("could not create storage root {}: {e}", root.display()))?;
+    secure_root(&root)?;
     Ok(root)
+}
+
+// Enforces the owner-only (0700) permission on the storage root, per the
+// storage-path conventions: created that way, and tightened to 0700 at each
+// launch when an existing root is broader, because derived data and logs must
+// never be readable by accounts that cannot read their sources. Windows uses
+// its own permission model and is unaffected.
+#[cfg(unix)]
+pub fn secure_root(dir: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let metadata = std::fs::metadata(dir)
+        .map_err(|e| format!("could not stat storage root {}: {e}", dir.display()))?;
+    let mode = metadata.permissions().mode() & 0o777;
+    if mode != 0o700 {
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).map_err(|e| {
+            format!("could not set permissions on storage root {}: {e}", dir.display())
+        })?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub fn secure_root(_dir: &Path) -> Result<(), String> {
+    Ok(())
 }
 
 // The storage root as the app will resolve it, found before Tauri builds the

@@ -5,6 +5,8 @@
 // can be exercised without touching the real environment or an AppHandle.
 
 use dropkick_lib::paths::{app_paths, resolve_root};
+#[cfg(unix)]
+use dropkick_lib::paths::secure_root;
 use std::path::PathBuf;
 
 #[test]
@@ -114,4 +116,42 @@ fn app_paths_names_each_store_distinctly() {
 #[test]
 fn native_window_state_has_its_own_file_name() {
     assert_eq!(dropkick_lib::paths::WINDOW_FILE_NAME, "window.json");
+}
+
+// Storage-path-conventions: the root is owner-only (0700) on POSIX — created
+// that way, and tightened to 0700 at each launch when an existing root is
+// broader. Both cases are exercised here against a throwaway home directory,
+// driving the same `secure_root` step `data_root` runs on every launch.
+#[cfg(unix)]
+#[test]
+fn new_root_is_created_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let base = tempfile::tempdir().unwrap();
+    let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_HOME
+    std::fs::create_dir_all(&root).unwrap();
+
+    secure_root(&root).unwrap();
+
+    let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o700);
+}
+
+#[cfg(unix)]
+#[test]
+fn existing_broader_root_is_tightened_on_launch() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let base = tempfile::tempdir().unwrap();
+    let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_HOME
+    std::fs::create_dir_all(&root).unwrap();
+    // Simulate a pre-existing root that is broader than owner-only, e.g. left
+    // over from before this rule, or created with a permissive umask.
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(std::fs::metadata(&root).unwrap().permissions().mode() & 0o777, 0o755);
+
+    secure_root(&root).unwrap();
+
+    let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o700);
 }
