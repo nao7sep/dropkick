@@ -798,20 +798,15 @@ function NoteItem({
     setNoteError(null);
   };
 
+  // The note's state reads from the card's tint, its coloured edge, the icon
+  // and the state select; there is no separate bar, and the card pads equally
+  // on every side.
   const borderColor =
     note.actionability === "Actionable"
       ? "border-attention-border bg-attention-surface"
       : note.actionability === "Resolved"
         ? "border-success-border bg-success-surface/50"
         : "border-border";
-  // The actionability mark is a straight bar of its own inside the rounded
-  // card, never a thick border side that the card's corners would bend.
-  const markBar =
-    note.actionability === "Actionable"
-      ? "bg-attention"
-      : note.actionability === "Resolved"
-        ? "bg-success"
-        : null;
 
   const icon =
     note.actionability === "Actionable" ? (
@@ -823,13 +818,7 @@ function NoteItem({
     );
 
   return (
-    <div className={`relative rounded-[var(--radius-card)] border ${borderColor} py-3 pl-4 pr-3`}>
-      {markBar ? (
-        <span
-          aria-hidden="true"
-          className={`absolute bottom-2.5 left-1.5 top-2.5 w-[3px] rounded-full ${markBar}`}
-        />
-      ) : null}
+    <div className={`rounded-[var(--radius-card)] border ${borderColor} p-3`}>
       {noteError ? (
         <InlineResult
           id={`note-error-${note.id}`}
