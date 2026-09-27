@@ -671,7 +671,7 @@ function TaskRow({
       // A rounded row on the surface inside its group's card. Selection is the
       // accent fill; the keyboard cursor, while the list has focus, is a ring on
       // the active row (composite-control-conventions).
-      className={`mx-1.5 mb-[3px] flex cursor-pointer flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
+      className={`mx-1.5 mb-[5px] flex cursor-pointer flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
         isSelected
           ? "bg-primary-surface-strong"
           : "bg-surface hover:bg-[color-mix(in_srgb,var(--surface),var(--g-accent)_10%)]"
