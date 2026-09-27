@@ -61,7 +61,11 @@ const GROUP_CARDS: Record<TaskGroup, string> = {
     "border-border bg-surface-sunken text-ink-soft [--g-accent:var(--ink-faint)] [--g-fg:var(--ink-soft)]",
 };
 
-const CARD_CLASS = "mx-2 mt-2 rounded-[var(--radius-card)] border pb-1";
+// Cards carry no outer margin: the listbox spaces them with one gap and pads
+// its ends by the same amount, so every pair of adjacent groups — the handled
+// archive and whatever comes last included — sits the same distance apart,
+// scrolled or not.
+const CARD_CLASS = "rounded-[var(--radius-card)] border pb-1";
 
 // Rows moved per PageUp/PageDown press. A fixed step rather than a measured
 // viewport — predictable, and the list rarely needs pixel-accurate paging.
@@ -485,7 +489,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           aria-activedescendant={activeDescendantId}
           tabIndex={0}
           onKeyDown={handleListKeyDown}
-          className="group flex flex-1 flex-col pb-2 focus:outline-none"
+          className="group flex flex-1 flex-col gap-2 p-2 focus:outline-none"
         >
           {/* Hidden handled rows do not fill the mandatory list body. Keep its
               folded archive available below while saying the active list is empty. */}
@@ -538,7 +542,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               (mouse toggles/loads; keyboard reaches Handled by arrowing in), so the
               listbox stays a single tab stop. */}
           {grouped.handledTotal > 0 && (
-            <div className={`mt-auto mb-2 ${CARD_CLASS} ${GROUP_CARDS.Default} ${handledExpanded ? "" : "pb-0"}`}>
+            <div className={`mt-auto ${CARD_CLASS} ${GROUP_CARDS.Default} ${handledExpanded ? "" : "pb-0"}`}>
               <div
                 onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
                 className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[var(--radius-card)] px-3 py-2 text-xs font-medium text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
