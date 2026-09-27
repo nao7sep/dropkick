@@ -6,7 +6,7 @@
 
 use dropkick_lib::paths::{app_paths, resolve_root};
 #[cfg(unix)]
-use dropkick_lib::paths::secure_root;
+use dropkick_lib::paths::{create_storage_root, secure_root};
 use std::path::PathBuf;
 
 #[test]
@@ -135,6 +135,26 @@ fn new_root_is_created_owner_only() {
 
     let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o700);
+}
+
+// A freshly created root must be born owner-only, not merely tightened
+// afterward — otherwise a broad umask (e.g. 022) leaves it briefly
+// world-readable between creation and the `secure_root` tightening step.
+#[cfg(unix)]
+#[test]
+fn create_storage_root_creates_a_fresh_root_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let base = tempfile::tempdir().unwrap();
+    let root = base.path().join("dropkick-home").join(".dropkick");
+
+    create_storage_root(&root).unwrap();
+
+    let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
+    assert_eq!(
+        mode, 0o700,
+        "the storage root must be created owner-only, not just tightened after the fact"
+    );
 }
 
 #[cfg(unix)]
