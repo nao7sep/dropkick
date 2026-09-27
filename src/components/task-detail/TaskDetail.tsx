@@ -75,6 +75,8 @@ export function TaskDetail({
   const kick = useTaskListStore((s) => s.kick);
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
   const sendToLast = useTaskListStore((s) => s.sendToLast);
+  const moveUp = useTaskListStore((s) => s.moveUp);
+  const moveDown = useTaskListStore((s) => s.moveDown);
   const dropkick = useTaskListStore((s) => s.dropkick);
   const moveTasks = useTaskListStore((s) => s.moveTasks);
   const setSelection = useTaskListStore((s) => s.setSelection);
@@ -449,6 +451,24 @@ export function TaskDetail({
               className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
             >
               {t("action.tackle")}
+            </button>
+            <button
+              onClick={async () => {
+                const result = await moveUp(filePath);
+                handleActionResult("reorder", message("detail.reorderFailed"), result);
+              }}
+              className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
+            >
+              {t("action.moveUp")}
+            </button>
+            <button
+              onClick={async () => {
+                const result = await moveDown(filePath);
+                handleActionResult("reorder", message("detail.reorderFailed"), result);
+              }}
+              className="rounded border border-border px-2 py-1 text-xs text-ink-soft hover:bg-background"
+            >
+              {t("action.moveDown")}
             </button>
             {kickDistances.map((d) => (
               <button

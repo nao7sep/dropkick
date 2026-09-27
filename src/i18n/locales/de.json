@@ -275,6 +275,8 @@
 
   "action.kick": "Zurückstellen",
   "action.tackle": "Anpacken",
+  "action.moveUp": "Nach oben",
+  "action.moveDown": "Nach unten",
 
   "shortcuts.title": "Tastenkürzel",
   "shortcuts.contentLabel": "Tastenkürzel",

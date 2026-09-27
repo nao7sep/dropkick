@@ -15,6 +15,8 @@ import { makeTask } from "../../helpers/task";
 import { mount, type Mounted } from "../../helpers/react-dom";
 
 const setStatus = vi.fn();
+const moveUp = vi.fn();
+const moveDown = vi.fn();
 let host: Mounted | null = null;
 
 function task(id: string, title: string): Task {
@@ -34,9 +36,11 @@ beforeEach(async () => {
     .mockReset()
     .mockResolvedValueOnce({ status: "success" })
     .mockResolvedValueOnce({ status: "validation", reason: "Has actionable notes" });
+  moveUp.mockReset().mockResolvedValue({ status: "success", changed: true });
+  moveDown.mockReset().mockResolvedValue({ status: "success", changed: true });
   usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
-  useTaskListStore.setState({ setStatus });
+  useTaskListStore.setState({ setStatus, moveUp, moveDown });
   host = await mount(
     createElement(BulkActions, {
       selectedTasks: [task("a", "Alpha"), task("b", "Beta")],
@@ -63,5 +67,20 @@ describe("BulkActions results", () => {
     expect(alert?.textContent).toContain("Some tasks were not updated");
     expect(alert?.textContent).toContain("Beta: Has actionable notes");
     expect(alert?.textContent).not.toContain("Alpha:");
+  });
+
+  it("gives Move Up and Move Down a row action beside Tackle and Kick", async () => {
+    const moveUpButton = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Move Up",
+    )!;
+    const moveDownButton = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Move Down",
+    )!;
+
+    await act(async () => moveUpButton.click());
+    expect(moveUp).toHaveBeenCalledWith("/one.json");
+
+    await act(async () => moveDownButton.click());
+    expect(moveDown).toHaveBeenCalledWith("/one.json");
   });
 });

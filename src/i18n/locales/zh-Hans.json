@@ -275,6 +275,8 @@
 
   "action.kick": "移到底部",
   "action.tackle": "移到顶部",
+  "action.moveUp": "上移",
+  "action.moveDown": "下移",
 
   "shortcuts.title": "键盘快捷键",
   "shortcuts.contentLabel": "键盘快捷键",

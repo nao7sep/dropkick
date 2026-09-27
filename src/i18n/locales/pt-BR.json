@@ -275,6 +275,8 @@
 
   "action.kick": "Chutar",
   "action.tackle": "Encarar",
+  "action.moveUp": "Subir",
+  "action.moveDown": "Descer",
 
   "shortcuts.title": "Atalhos de teclado",
   "shortcuts.contentLabel": "Atalhos de teclado",

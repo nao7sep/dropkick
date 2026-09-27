@@ -58,6 +58,8 @@ export function BulkActions({
   const kick = useTaskListStore((s) => s.kick);
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
   const sendToLast = useTaskListStore((s) => s.sendToLast);
+  const moveUp = useTaskListStore((s) => s.moveUp);
+  const moveDown = useTaskListStore((s) => s.moveDown);
   const dropkick = useTaskListStore((s) => s.dropkick);
   const setStatus = useTaskListStore((s) => s.setStatus);
   const setPriority = useTaskListStore((s) => s.setPriority);
@@ -280,6 +282,24 @@ export function BulkActions({
               className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
             >
               {t("action.tackle")}
+            </button>
+            <button
+              onClick={async () => {
+                const result = await moveUp(filePath);
+                handleActionResult("reorder", message("bulk.reorderFailed"), result);
+              }}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
+            >
+              {t("action.moveUp")}
+            </button>
+            <button
+              onClick={async () => {
+                const result = await moveDown(filePath);
+                handleActionResult("reorder", message("bulk.reorderFailed"), result);
+              }}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-soft hover:bg-background"
+            >
+              {t("action.moveDown")}
             </button>
             {kickDistances.map((d) => (
               <button

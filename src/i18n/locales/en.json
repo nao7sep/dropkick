@@ -275,6 +275,8 @@
 
   "action.kick": "Kick",
   "action.tackle": "Tackle",
+  "action.moveUp": "Move Up",
+  "action.moveDown": "Move Down",
 
   "shortcuts.title": "Keyboard Shortcuts",
   "shortcuts.contentLabel": "Keyboard shortcuts",

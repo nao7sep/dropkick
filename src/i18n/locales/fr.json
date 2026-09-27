@@ -275,6 +275,8 @@
 
   "action.kick": "Repousser",
   "action.tackle": "Attaquer",
+  "action.moveUp": "Monter",
+  "action.moveDown": "Descendre",
 
   "shortcuts.title": "Raccourcis clavier",
   "shortcuts.contentLabel": "Raccourcis clavier",

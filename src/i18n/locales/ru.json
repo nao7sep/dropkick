@@ -275,6 +275,8 @@
 
   "action.kick": "Отложить",
   "action.tackle": "Заняться",
+  "action.moveUp": "Поднять",
+  "action.moveDown": "Опустить",
 
   "shortcuts.title": "Сочетания клавиш",
   "shortcuts.contentLabel": "Сочетания клавиш",

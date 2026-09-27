@@ -18,6 +18,8 @@ import { mount, type Mounted } from "../../helpers/react-dom";
 
 const setStatus = vi.fn();
 const sendToFirst = vi.fn();
+const moveUp = vi.fn();
+const moveDown = vi.fn();
 const setNoteActionability = vi.fn();
 const updateTitle = vi.fn();
 const updateDescription = vi.fn();
@@ -39,6 +41,8 @@ function task(): Task {
 beforeEach(async () => {
   setStatus.mockReset().mockResolvedValue({ status: "success" });
   sendToFirst.mockReset().mockResolvedValue({ status: "success", changed: true });
+  moveUp.mockReset().mockResolvedValue({ status: "success", changed: true });
+  moveDown.mockReset().mockResolvedValue({ status: "success", changed: true });
   setNoteActionability.mockReset().mockResolvedValue({ status: "success" });
   updateTitle.mockReset().mockResolvedValue({ status: "success" });
   updateDescription.mockReset().mockResolvedValue({ status: "success" });
@@ -49,6 +53,8 @@ beforeEach(async () => {
   useTaskListStore.setState({
     setStatus,
     sendToFirst,
+    moveUp,
+    moveDown,
     setNoteActionability,
     updateTitle,
     updateDescription,
@@ -122,6 +128,35 @@ describe("TaskDetail operation results", () => {
     )!;
 
     await act(async () => tackle.click());
+
+    const alert = [...document.querySelectorAll('[role="alert"]')].find(
+      (element) => element.textContent?.includes("Task could not be reordered"),
+    );
+    expect(alert?.textContent).toContain("no longer loaded");
+  });
+
+  it("gives Move Up and Move Down a row action beside Tackle and Kick", async () => {
+    const moveUpButton = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Move Up",
+    )!;
+    const moveDownButton = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Move Down",
+    )!;
+
+    await act(async () => moveUpButton.click());
+    expect(moveUp).toHaveBeenCalledWith("/one.json");
+
+    await act(async () => moveDownButton.click());
+    expect(moveDown).toHaveBeenCalledWith("/one.json");
+  });
+
+  it("keeps a Move Up reorder failure in the task detail pane", async () => {
+    moveUp.mockResolvedValueOnce({ status: "error", message: message("write.notLoaded") });
+    const moveUpButton = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Move Up",
+    )!;
+
+    await act(async () => moveUpButton.click());
 
     const alert = [...document.querySelectorAll('[role="alert"]')].find(
       (element) => element.textContent?.includes("Task could not be reordered"),

@@ -275,6 +275,8 @@
 
   "action.kick": "Rinvia",
   "action.tackle": "Affronta",
+  "action.moveUp": "Sposta su",
+  "action.moveDown": "Sposta giù",
 
   "shortcuts.title": "Scorciatoie da tastiera",
   "shortcuts.contentLabel": "Scorciatoie da tastiera",

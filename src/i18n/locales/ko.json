@@ -275,6 +275,8 @@
 
   "action.kick": "맨 아래로",
   "action.tackle": "맨 위로",
+  "action.moveUp": "위로 이동",
+  "action.moveDown": "아래로 이동",
 
   "shortcuts.title": "키보드 단축키",
   "shortcuts.contentLabel": "키보드 단축키",
