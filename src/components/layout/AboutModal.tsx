@@ -55,12 +55,16 @@ export function AboutModal({ onClose }: AboutModalProps) {
       title={t("about.title")}
       onClose={onClose}
       describedById="about-modal-description"
-      maxWidth={320}
+      // The width at which the Japanese introduction line lands at about 2.5
+      // lines (3, the last about half full) reads as a comfortable card in
+      // every language, with no line stranding a single short fragment
+      // (about-size rule).
+      maxWidth={418}
       passiveBodyLabel={t("about.title")}
       // The name leads the body, so the title band carries only the close
       // control and the title stays the dialog's spoken name.
       titleVisuallyHidden
-      bodyClassName="overflow-y-auto px-6 pb-5 pt-0 text-center"
+      bodyClassName="overflow-y-auto px-6 pb-5 pt-0"
       footer={
         <Button onClick={onClose}>{t("common.close")}</Button>
       }
@@ -74,7 +78,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
       <p id="about-modal-description" className="mt-4 text-sm text-ink-soft">
         {t("about.tagline")}
       </p>
-      <div className="mt-4 flex justify-center gap-4">
+      <div className="mt-4 flex justify-start gap-4">
         <button
           onClick={() => void openProjectLink("repository", "https://github.com/nao7sep/dropkick")}
           className="inline-flex items-center gap-1 rounded-sm text-sm text-primary hover:text-primary-hover hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-ring"
