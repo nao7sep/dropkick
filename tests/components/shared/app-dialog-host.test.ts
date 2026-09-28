@@ -206,6 +206,40 @@ describe("dismissing a no-safe-action dialog", () => {
   });
 });
 
+describe("built on AppModal, with no close control and an inert backdrop", () => {
+  it("renders no close button — every request forces an explicit footer choice", async () => {
+    await open(() =>
+      void showAppConfirm(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"), {
+        confirmLabel: message("dialog.delete"),
+      }),
+    );
+
+    const header = document.querySelector('[role="dialog"] > div')!;
+    expect(header.querySelectorAll("button")).toHaveLength(0);
+  });
+
+  it("ignores an outside click even on a dialog with a safe action — only the footer decides", async () => {
+    let settled: boolean | null = null;
+    await open(() =>
+      void showAppConfirm(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"), {
+        confirmLabel: message("dialog.delete"),
+      }).then((answer) => {
+        settled = answer;
+      }),
+    );
+
+    await act(async () => {
+      // A pointerdown outside the dialog surface — Radix's outside-interaction
+      // path, distinct from Escape above.
+      document.body.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(settled).toBeNull();
+    expect(document.querySelector("[role=dialog]")).not.toBeNull();
+  });
+});
 
 describe("the surface's own bands", () => {
   it("bounds the surface and scrolls only the body, so the footer cannot be pushed off", async () => {

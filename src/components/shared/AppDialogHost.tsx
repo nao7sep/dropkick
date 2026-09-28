@@ -1,6 +1,6 @@
-import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState } from "react";
 import { useDialogStore } from "../../state/dialog-store";
+import { AppModal } from "./AppModal";
 import { Button } from "./Button";
 import type { DialogRequest } from "../../state/dialog-store";
 import { useI18n } from "../../i18n/I18nContext";
@@ -16,6 +16,8 @@ export function dialogFocusTarget(request: DialogRequest): DialogFocusTarget {
   return request.noSafeAction ? "surface" : "cancel";
 }
 
+const DESCRIPTION_ID = "app-dialog-host-description";
+
 export function AppDialogHost() {
   const { text } = useI18n();
   const current = useDialogStore((s) => s.current);
@@ -27,19 +29,22 @@ export function AppDialogHost() {
   // appears, and a ref assignment does not re-run anything.
   const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null);
 
-  const handleOpenChange = (open: boolean) => {
-    if (open || !current) return;
+  // Escape routes through here (AppModal's onRequestClose); an outside click
+  // never does (dismissOnOutsideClick={false} below) — a stray click outside
+  // must not silently confirm or cancel anything.
+  const requestClose = () => {
+    if (!current) return;
 
     if (current.kind === "message") {
       confirmCurrent();
       return;
     }
 
-    // Where no action is safe, Escape and the backdrop do not choose one. Both
+    // Where no action is safe, Escape does not choose one either. Both
     // buttons destroy something different, so dismissing would silently pick
-    // the destructive default — which is what focusing nothing already refuses
-    // to do. Two reachable choices that each resolve the situation is a
-    // decision, not a trap.
+    // the destructive default — which is what focusing nothing already
+    // refuses to do. Two reachable choices that each resolve the situation is
+    // a decision, not a trap.
     if (current.noSafeAction) return;
 
     cancelCurrent();
@@ -52,12 +57,14 @@ export function AppDialogHost() {
   //
   // Radix fires `onOpenAutoFocus` on mount only, and the store advances its
   // queue by replacing `current` in one `set` — it never passes through null —
-  // so `Dialog.Content` stays mounted and a queued request would inherit
-  // whatever was focused before it (in practice the button the user just
-  // clicked). `noSafeAction` and the safest-action default would then silently
-  // not apply to the second dialog. Keying the rule to the REQUEST rather than
-  // to mounting is what makes it hold for all of them; the request object is
-  // fresh per request, so this runs once per request and never twice for one.
+  // so the surface stays mounted (AppModal's own Dialog.Root never toggles
+  // `open`; this component instead keeps rendering the same AppModal across
+  // requests) and a queued request would inherit whatever was focused before
+  // it (in practice the button the user just clicked). `noSafeAction` and the
+  // safest-action default would then silently not apply to the second dialog.
+  // Keying the rule to the REQUEST rather than to mounting is what makes it
+  // hold for all of them; the request object is fresh per request, so this
+  // runs once per request and never twice for one.
   //
   // `contentEl` is the second dependency because the two do not change on the
   // same commit in the other direction either: Radix mounts the surface through
@@ -79,72 +86,47 @@ export function AppDialogHost() {
     }
   }, [current, contentEl]);
 
+  if (!current) return null;
+
   return (
-    <Dialog.Root open={current !== null} onOpenChange={handleOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/30" />
+    <AppModal
+      title={text(current.title)}
+      // Never actually reached: onRequestClose (below) and dismissOnOutsideClick
+      // together own every dismiss path this surface has.
+      onClose={() => {}}
+      onRequestClose={requestClose}
+      dismissOnOutsideClick={false}
+      // No close control: every request forces an explicit footer choice.
+      closable={false}
+      titleClassName={isDanger ? "text-danger-fg-strong" : isWarning ? "text-warning-strong" : undefined}
+      describedById={DESCRIPTION_ID}
+      onContentRef={setContentEl}
+      // Stacks over an already-open AppModal (a settings-style dialog can
+      // itself open a confirmation through this same host).
+      zIndexBase={100}
+      footer={
+        <>
+          {current.kind === "confirm" && (
+            <Button ref={cancelRef} variant="secondary" onClick={cancelCurrent}>
+              {text(current.cancelLabel)}
+            </Button>
+          )}
 
-        {current && (
-          <Dialog.Content
-            data-dropkick-interactive-layer=""
-            // Bounded height with the body as the sole scroll region, the same
-            // shape AppModal takes: without it a long body — a conflict dialog
-            // naming a deep path, a message built from a list — grows the surface
-            // past the viewport, and because it is centred on a fixed layer the
-            // footer goes off the bottom with nothing to scroll it back
-            // (modal-dialog-conventions).
-            className="fixed left-1/2 top-1/2 z-[101] flex max-h-[90vh] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-dialog)] bg-surface shadow-xl focus:outline-none"
-            onPointerDownOutside={(e) => e.preventDefault()}
-            ref={setContentEl}
-            tabIndex={-1}
-            // The effect above owns focus for every request, including the
-            // first; Radix's own mount-time autofocus would only fight it.
-            onOpenAutoFocus={(e) => e.preventDefault()}
+          {/* The commit of a danger confirmation is the app's one filled red;
+              a caution dialog commits in amber; everything else is primary. */}
+          <Button
+            ref={confirmRef}
+            variant={isDanger ? "danger-confirm" : isWarning ? "warning-confirm" : "primary"}
+            onClick={confirmCurrent}
           >
-            <div className="flex min-h-14 shrink-0 items-center border-b border-border px-6 py-3">
-              <div className="flex items-center">
-                <Dialog.Title
-                  className={`text-base font-semibold ${
-                    isDanger
-                      ? "text-danger-fg-strong"
-                      : isWarning
-                        ? "text-warning-strong"
-                        : "text-ink-strong"
-                  }`}
-                >
-                  {text(current.title)}
-                </Dialog.Title>
-              </div>
-            </div>
-
-            <div className="min-h-0 overflow-y-auto px-6 py-5">
-              <Dialog.Description asChild>
-                <p className="whitespace-pre-wrap text-sm leading-6 text-ink-soft">
-                  {text(current.body)}
-                </p>
-              </Dialog.Description>
-            </div>
-
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-6 py-4">
-              {current.kind === "confirm" && (
-                <Button ref={cancelRef} variant="secondary" onClick={cancelCurrent}>
-                  {text(current.cancelLabel)}
-                </Button>
-              )}
-
-              {/* The commit of a danger confirmation is the app's one filled red;
-                  a caution dialog commits in amber; everything else is primary. */}
-              <Button
-                ref={confirmRef}
-                variant={isDanger ? "danger-confirm" : isWarning ? "warning-confirm" : "primary"}
-                onClick={confirmCurrent}
-              >
-                {text(current.confirmLabel)}
-              </Button>
-            </div>
-          </Dialog.Content>
-        )}
-      </Dialog.Portal>
-    </Dialog.Root>
+            {text(current.confirmLabel)}
+          </Button>
+        </>
+      }
+    >
+      <p id={DESCRIPTION_ID} className="whitespace-pre-wrap text-sm leading-6 text-ink-soft">
+        {text(current.body)}
+      </p>
+    </AppModal>
   );
 }

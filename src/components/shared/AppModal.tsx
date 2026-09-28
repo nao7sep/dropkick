@@ -38,15 +38,34 @@ interface AppModalProps {
   // its title band, pinned to the trailing corner, and that band drops its line
   // (modal-dialog-conventions).
   titleVisuallyHidden?: boolean;
-  // False for a surface with nothing to close back to (the startup picker):
-  // no close control in the header, and Escape and an outside click do
-  // nothing rather than reaching for a close path that doesn't exist.
+  // False when the header has no close control to draw — a surface with
+  // nothing to close back to (the startup picker), or one that always forces
+  // an explicit choice through its footer's own buttons (a confirmation).
+  // Escape and an outside click still run `onRequestClose` when one is given;
+  // only a surface with neither does nothing, since there is no path to
+  // reach for at all.
   closable?: boolean;
   // False when this surface has no page behind it to dim — the startup
   // picker's card sits directly on the app's own canvas, not over other
   // content. The overlay still occupies its layer (Dialog.Content's centring
   // depends on it existing), it just carries no tint.
   dimmed?: boolean;
+  // The overlay's z-index; the content sits one above it. Raised for a
+  // surface that must stack over an already-open AppModal, such as the
+  // app-wide confirmation/message queue over a settings-style dialog.
+  zIndexBase?: number;
+  // False keeps an outside click fully inert even when `onRequestClose` is
+  // set — the app-wide confirmation/message queue always forces an explicit
+  // footer choice and never treats a stray click as one. Escape still runs
+  // `onRequestClose` either way; only outside-click is affected.
+  dismissOnOutsideClick?: boolean;
+  // Overrides the title's ink colour — a danger or warning confirmation
+  // tints its own title instead of the default strong ink.
+  titleClassName?: string;
+  // The dialog surface's own DOM node, once mounted — for a caller whose
+  // focus rule includes "the surface itself" (a confirmation with no safe
+  // default action), which needs the element `.focus()` is called on.
+  onContentRef?: (element: HTMLDivElement | null) => void;
 }
 
 export function AppModal({
@@ -65,6 +84,10 @@ export function AppModal({
   titleVisuallyHidden = false,
   closable = true,
   dimmed = true,
+  zIndexBase = 50,
+  dismissOnOutsideClick = true,
+  titleClassName,
+  onContentRef,
 }: AppModalProps) {
   const { t } = useI18n();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -90,21 +113,26 @@ export function AppModal({
         e.preventDefault();
         return;
       }
-      // Nothing to close back to: Escape does nothing, not even the default
-      // dismiss.
+      // A close guard always owns the dismiss, whether or not the header
+      // draws a close control — a confirmation with no X still routes
+      // Escape through its own queue-advancing logic.
+      if (onRequestClose) {
+        e.preventDefault();
+        onRequestClose();
+        return;
+      }
+      // No guard and nothing to close back to: Escape does nothing.
       if (!closable) {
         e.preventDefault();
         return;
       }
       // No close guard: let Radix's own dismiss run.
-      if (!onRequestClose) return;
-      e.preventDefault();
-      onRequestClose();
     },
-    ...(!closable
+    ...(!dismissOnOutsideClick
       ? {
-          // Same reasoning as Escape above: an outside click has nowhere to
-          // dismiss to.
+          // Always inert regardless of onRequestClose: a surface that forces
+          // an explicit footer choice never treats a stray outside click as
+          // one (unlike Escape above, which still runs the guard).
           onInteractOutside: (e: Event) => e.preventDefault(),
         }
       : onRequestClose
@@ -121,19 +149,35 @@ export function AppModal({
           onRequestClose();
         },
         }
+      : !closable
+      ? {
+          // Same reasoning as Escape above: an outside click has nowhere to
+          // dismiss to.
+          onInteractOutside: (e: Event) => e.preventDefault(),
+        }
       : {}),
   };
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className={`fixed inset-0 z-50 ${dimmed ? "bg-black/30" : ""}`} />
+        {/* Tailwind's z-* utilities need a literal class in source to be
+            generated, so a caller-supplied base goes through style instead —
+            a plain arbitrary-value class string built from a prop is never
+            actually seen by the scanner. */}
+        <Dialog.Overlay
+          className={`fixed inset-0 ${dimmed ? "bg-black/30" : ""}`}
+          style={{ zIndex: zIndexBase }}
+        />
         <Dialog.Content
-          ref={contentRef}
+          ref={(node) => {
+            contentRef.current = node;
+            onContentRef?.(node);
+          }}
           aria-describedby={describedById}
           data-dropkick-interactive-layer=""
-          className={`fixed left-1/2 top-1/2 z-[51] flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-dialog)] bg-surface shadow-xl focus:outline-none ${contentClassName}`}
-          style={{ maxWidth }}
+          className={`fixed left-1/2 top-1/2 flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-dialog)] bg-surface shadow-xl focus:outline-none ${contentClassName}`}
+          style={{ maxWidth, zIndex: zIndexBase + 1 }}
           tabIndex={-1}
           onOpenAutoFocus={(e) => {
             onOpenAutoFocus?.(e);
@@ -156,7 +200,9 @@ export function AppModal({
           >
             <Dialog.Title
               className={
-                titleVisuallyHidden ? "sr-only" : "text-base font-semibold text-ink-strong"
+                titleVisuallyHidden
+                  ? "sr-only"
+                  : `text-base font-semibold ${titleClassName ?? "text-ink-strong"}`
               }
             >
               {title}
