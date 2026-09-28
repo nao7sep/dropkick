@@ -143,3 +143,27 @@ describe("control inks come from tokens", () => {
         expect(source, `${name} uses ${literal}`).not.toContain(literal);
   });
 });
+
+// The line that closes a dialog's header band and opens its footer band must
+// stay as visible as the app's own control borders (modal-dialog-conventions:
+// "never fainter than the app's own control borders in either theme"). It is
+// pinned to the same --control-edge token the buttons and fields use, rather
+// than the fainter --border token dividers elsewhere use, so a future edit
+// can't quietly fade it back.
+describe("dialog band separators", () => {
+  it("draw the header and footer lines with the control-border token, not the fainter divider token", () => {
+    for (const [name, source] of tsxSources().filter(
+      ([path]) => path === "shared/AppModal.tsx" || path === "shared/AppDialogHost.tsx",
+    )) {
+      expect(source, `${name} header/footer border`).not.toMatch(/border-[bt] border-border\b/);
+    }
+  });
+
+  it("keeps the control-border token at least as visible as the divider token in both themes", () => {
+    for (const theme of themes) {
+      const dividerContrast = pairContrast(theme, "--border", "--surface");
+      const controlEdgeContrast = pairContrast(theme, "--control-edge", "--surface");
+      expect(controlEdgeContrast, theme).toBeGreaterThanOrEqual(dividerContrast);
+    }
+  });
+});
