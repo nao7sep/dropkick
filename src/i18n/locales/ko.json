@@ -234,7 +234,7 @@
   "menu.zoomOut": "축소",
   "menu.zoomIn": "확대",
   "menu.zoomReset": "{percent}로 재설정",
-  "menu.about": "Dropkick 정보",
+  "menu.about": "Dropkick에 관하여",
 
   "main.welcome": "Dropkick에 오신 것을 환영합니다",
   "main.welcomeHint": "+ 버튼을 클릭하여 할 일 목록을 열거나 만드십시오.",

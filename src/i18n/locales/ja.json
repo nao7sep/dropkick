@@ -234,7 +234,7 @@
   "menu.zoomOut": "縮小",
   "menu.zoomIn": "拡大",
   "menu.zoomReset": "{percent} に戻す",
-  "menu.about": "Dropkick について",
+  "menu.about": "Dropkickについて",
 
   "main.welcome": "Dropkick へようこそ",
   "main.welcomeHint": "+ ボタンをクリックして、タスクリストを開くか作成してください。",

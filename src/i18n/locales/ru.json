@@ -25,7 +25,7 @@
   "settings.confirmDeletions": "Подтверждать безвозвратное удаление",
   "settings.confirmDeletionsHint": "Если выключено, задачи и заметки удаляются сразу, и восстановить их в Dropkick будет нельзя.",
 
-  "nativeMenu.about": "О приложении {app}",
+  "nativeMenu.about": "О программе {app}",
   "nativeMenu.services": "Службы",
   "nativeMenu.hide": "Скрыть {app}",
   "nativeMenu.hideOthers": "Скрыть остальные",
@@ -191,7 +191,7 @@
   "crash.body": "Перезагрузите Dropkick, чтобы продолжить работу. Сохранённые списки задач не изменились.",
   "crash.reload": "Перезагрузить",
 
-  "about.title": "О приложении Dropkick",
+  "about.title": "О программе Dropkick",
   "about.version": "Версия {version}",
   "about.versionUnavailable": "Версия недоступна",
   "about.versionLoading": "Загрузка версии…",
@@ -234,7 +234,7 @@
   "menu.zoomOut": "Уменьшить",
   "menu.zoomIn": "Увеличить",
   "menu.zoomReset": "Сбросить до {percent}",
-  "menu.about": "О приложении Dropkick",
+  "menu.about": "О программе Dropkick",
 
   "main.welcome": "Добро пожаловать в Dropkick",
   "main.welcomeHint": "Нажмите кнопку +, чтобы открыть или создать список задач.",
