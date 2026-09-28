@@ -43,7 +43,7 @@ body.divider-dragging * {
   --surface-muted: var(--color-gray-100); /* hover / raised fills */
   --surface-sunken: #f5f6f8; /* recessed surface (sticky group headers) — ~1.07:1 vs surface */
   --border: var(--color-gray-200);
-  --border-subtle: var(--color-gray-100);
+  --border-subtle: var(--color-gray-200);
   --border-strong: var(--color-gray-300);
   /* A text field's outline is its only boundary on a surface, so it holds 3:1
      against --surface; the other borders are decorative dividers. */
@@ -81,7 +81,7 @@ body.divider-dragging * {
   --control: var(--color-white);
   --control-hover: var(--color-gray-100);
   --control-pressed: var(--color-gray-200);
-  --control-edge: var(--color-gray-300);
+  --control-edge: #c0c4cb; /* gray-300's hue, darker: a felt edge, clearly above the --border dividers */
 
   /* Status — danger / info / success / warning */
   --danger: var(--color-red-700);
@@ -168,7 +168,7 @@ body.divider-dragging * {
     --surface-muted: #404040; /* neutral-700 */
     --surface-sunken: #202020; /* recessed surface — tuned to the same ~1.07:1 vs surface as light */
     --border: #404040; /* neutral-700 */
-    --border-subtle: #2e2e2e; /* faint, just above surface */
+    --border-subtle: #3a3a3a; /* quiet separator, a real hairline step above surface */
     --border-strong: #525252; /* neutral-600 */
     --input-border: #737373; /* neutral-500 — 3:1 on surface */
 
@@ -197,7 +197,7 @@ body.divider-dragging * {
     --control: #2d2d2d;
     --control-hover: #383838;
     --control-pressed: #454545;
-    --control-edge: #4d4d4d;
+    --control-edge: #636363; /* at least as strong as light's edge, below the field's 3:1 */
 
     --danger: #f87171; /* red-400 — text */
     --danger-fg-strong: #fca5a5; /* red-300 */
