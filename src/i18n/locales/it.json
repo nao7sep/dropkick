@@ -177,7 +177,6 @@
   "startup.open": "Apri",
   "startup.new": "Nuovo",
   "startup.remove": "Rimuovi",
-  "startup.launch": "Avvia",
   "startup.openPreferencesFailed.title": "Apertura delle preferenze non riuscita",
   "startup.openPreferencesFailed.body": "Impossibile aprire il file delle preferenze. Verifica che la posizione selezionata sia disponibile e riprova.",
   "startup.createPreferencesFailed.title": "Creazione delle preferenze non riuscita",

@@ -177,7 +177,6 @@
   "startup.open": "Открыть",
   "startup.new": "Создать",
   "startup.remove": "Убрать",
-  "startup.launch": "Запустить",
   "startup.openPreferencesFailed.title": "Ошибка открытия настроек",
   "startup.openPreferencesFailed.body": "Не удалось открыть файл настроек. Убедитесь, что выбранное расположение доступно, и попробуйте ещё раз.",
   "startup.createPreferencesFailed.title": "Ошибка создания настроек",

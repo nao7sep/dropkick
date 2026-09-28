@@ -177,7 +177,6 @@
   "startup.open": "Öffnen",
   "startup.new": "Neu",
   "startup.remove": "Entfernen",
-  "startup.launch": "Starten",
   "startup.openPreferencesFailed.title": "Einstellungen konnten nicht geöffnet werden",
   "startup.openPreferencesFailed.body": "Die Einstellungsdatei konnte nicht geöffnet werden. Prüfen Sie, ob der gewählte Speicherort verfügbar ist, und versuchen Sie es erneut.",
   "startup.createPreferencesFailed.title": "Einstellungen konnten nicht erstellt werden",

@@ -22,6 +22,11 @@ async function pressEscape(isComposing: boolean) {
       new KeyboardEvent("keydown", {
         key: "Escape",
         bubbles: true,
+        // Radix's DismissableLayer only honours preventDefault() on a
+        // cancelable event — a genuine Escape keypress is; this synthetic one
+        // must say so too, or preventDefault() silently does nothing and the
+        // dialog dismisses regardless of what onEscapeKeyDown decided.
+        cancelable: true,
         // happy-dom's KeyboardEvent honours this in its init dict.
         isComposing,
       } as KeyboardEventInit),
@@ -96,5 +101,42 @@ describe("AppModal — an informational body", () => {
     expect(body).not.toBeNull();
     expect(document.activeElement).toBe(dialog);
     expect(document.activeElement).not.toBe(body);
+  });
+});
+
+// A surface with nothing to close back to — the startup picker sits on the
+// app's own canvas, not stacked over other content (modal-dialog-conventions:
+// exempt root surface).
+describe("AppModal — closable={false}, dimmed={false}", () => {
+  const onClose = vi.fn();
+
+  beforeEach(async () => {
+    onClose.mockClear();
+    host = await mount(
+      createElement(AppModal, {
+        title: "Startup",
+        onClose,
+        closable: false,
+        dimmed: false,
+        children: createElement("div", null, "Body"),
+        footer: createElement("button", null, "Open"),
+      }),
+    );
+  });
+
+  it("renders no close control", () => {
+    const header = document.querySelector('[role="dialog"] > div')!;
+    expect(header.querySelectorAll("button")).toHaveLength(0);
+  });
+
+  it("does not close on Escape", async () => {
+    await pressEscape(false);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
+  it("carries no backdrop tint", () => {
+    const overlay = document.querySelector('[data-state="open"]:not([role="dialog"])')!;
+    expect(overlay.className).not.toContain("bg-black/30");
   });
 });

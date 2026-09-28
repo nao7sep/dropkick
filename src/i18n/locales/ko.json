@@ -177,7 +177,6 @@
   "startup.open": "열기",
   "startup.new": "새로 만들기",
   "startup.remove": "제거",
-  "startup.launch": "시작",
   "startup.openPreferencesFailed.title": "환경설정을 열지 못함",
   "startup.openPreferencesFailed.body": "환경설정 파일을 열 수 없습니다. 선택한 위치를 사용할 수 있는지 확인한 다음 다시 시도하십시오.",
   "startup.createPreferencesFailed.title": "환경설정을 만들지 못함",

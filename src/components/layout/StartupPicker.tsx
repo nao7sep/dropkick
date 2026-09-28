@@ -24,6 +24,7 @@ import { useAppStateStore } from "../../state/app-state-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 import { pageStepIndex, rowDomId, stepIndex } from "../../utils";
 import { useI18n } from "../../i18n/I18nContext";
+import { AppModal } from "../shared/AppModal";
 import { Button } from "../shared/Button";
 import type { MessageKey } from "../../i18n/catalogues";
 import { message } from "../../i18n/translate";
@@ -54,7 +55,13 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   const workspaceOpenRef = useRef<HTMLButtonElement>(null);
   const launchRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
+  // The next actionable control: the first empty section's Open button, or
+  // the footer's Open once both files are chosen. Shared by the reactive
+  // effect below (a selection changes after mount) and AppModal's
+  // onOpenAutoFocus (the very first focus, on mount) — Radix's own focus
+  // scope activates around that callback, so setting focus reactively
+  // afterwards instead of there raced it and lost.
+  const focusNextActionable = () => {
     const target =
       selectedPrefs === ""
         ? prefsOpenRef.current
@@ -63,7 +70,9 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
           : launchRef.current;
 
     target?.focus();
-  }, [selectedPrefs, selectedWorkspace]);
+  };
+
+  useEffect(focusNextActionable, [selectedPrefs, selectedWorkspace]);
 
   // Every write this screen performs — creating a file, or recording the
   // selection in state.json — goes through here. Without it a failed write left
@@ -159,42 +168,40 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   const canLaunch = selectedPrefs !== "" && selectedWorkspace !== "";
 
   return (
-    <div className="flex h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-lg rounded-[var(--radius-dialog)] bg-surface p-8 shadow-lg">
-        <h1 className="mb-8 text-center text-2xl font-bold text-ink-strong">
-          Dropkick
-        </h1>
-
-        {/* Preferences section */}
-        <Section
-          id="preferences"
-          label={t("startup.preferences")}
-          emptyText={t("startup.noPreferences")}
-          items={appState.knownPreferences}
-          selected={selectedPrefs}
-          onSelect={setSelectedPrefs}
-          onOpen={handleOpenPreferences}
-          onNew={handleNewPreferences}
-          onRemove={handleRemovePreferences}
-          openButtonRef={prefsOpenRef}
-        />
-
-        {/* Workspace section */}
-        <Section
-          id="workspace"
-          label={t("startup.workspace")}
-          emptyText={t("startup.noWorkspaces")}
-          items={appState.knownWorkspaces}
-          selected={selectedWorkspace}
-          onSelect={setSelectedWorkspace}
-          onOpen={handleOpenWorkspace}
-          onNew={handleNewWorkspace}
-          onRemove={handleRemoveWorkspace}
-          openButtonRef={workspaceOpenRef}
-        />
-
-        {/* Launch action */}
-        <div className="mt-6 flex justify-end border-t border-border pt-4">
+    <>
+      {/* AppModal's own overlay and Dialog.Content positioning already centre
+          the card on screen; this just paints the canvas behind it, since —
+          unlike every other AppModal use — there is no main window underneath
+          to show through (modal-dialog-conventions: root launch gate, not a
+          stacked modal, exempt from the *Modal/*Dialog naming rule). */}
+      <div className="fixed inset-0 bg-background" />
+      {/* Built on the same shared shell every dialog uses, so it can't drift
+          from it. Two differences from an ordinary AppModal: `closable=false`
+          drops the header's close control and makes Escape and an outside
+          click no-ops — there is nothing to close back to — and `dimmed=false`
+          skips the backdrop tint, since the card sits on the app's own canvas
+          rather than over other content. */}
+      <AppModal
+        title="Dropkick"
+        onClose={() => {}}
+        closable={false}
+        dimmed={false}
+        maxWidth={448}
+        // Radix's own default — focus the dialog surface on open — would
+        // fight the effect above that advances focus to the next actionable
+        // control (the first empty section's Open button, or Open itself
+        // once both are chosen); ceding it here lets that effect win.
+        contentProps={{
+          onOpenAutoFocus: (e) => {
+            e.preventDefault();
+            focusNextActionable();
+          },
+        }}
+        footer={
+          // Opens the selected pair into the main window — the app is already
+          // running, so this never reads "Launch"; it reuses the app's own
+          // "Open" wording (startup.open), the same term each section's own
+          // Open button already carries.
           <Button
             ref={launchRef}
             variant="primary"
@@ -202,11 +209,41 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
             disabled={!canLaunch}
             className="min-w-28"
           >
-            {t("startup.launch")}
+            {t("startup.open")}
           </Button>
+        }
+      >
+        <div className="flex flex-col gap-6">
+          {/* Preferences section */}
+          <Section
+            id="preferences"
+            label={t("startup.preferences")}
+            emptyText={t("startup.noPreferences")}
+            items={appState.knownPreferences}
+            selected={selectedPrefs}
+            onSelect={setSelectedPrefs}
+            onOpen={handleOpenPreferences}
+            onNew={handleNewPreferences}
+            onRemove={handleRemovePreferences}
+            openButtonRef={prefsOpenRef}
+          />
+
+          {/* Workspace section */}
+          <Section
+            id="workspace"
+            label={t("startup.workspace")}
+            emptyText={t("startup.noWorkspaces")}
+            items={appState.knownWorkspaces}
+            selected={selectedWorkspace}
+            onSelect={setSelectedWorkspace}
+            onOpen={handleOpenWorkspace}
+            onNew={handleNewWorkspace}
+            onRemove={handleRemoveWorkspace}
+            openButtonRef={workspaceOpenRef}
+          />
         </div>
-      </div>
-    </div>
+      </AppModal>
+    </>
   );
 }
 
@@ -272,7 +309,7 @@ function Section({
   };
 
   return (
-    <div className="mb-6">
+    <div>
       <label className="mb-2 block text-sm font-semibold text-ink">
         {label}
       </label>

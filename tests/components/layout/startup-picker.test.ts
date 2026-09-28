@@ -40,7 +40,7 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
-async function mountWithKnownFiles() {
+async function mountWithKnownFiles(onLaunch: (prefs: string, workspace: string) => void = () => {}) {
   useAppStateStore.setState({
     appState: {
       ...createDefaultAppState(),
@@ -52,7 +52,7 @@ async function mountWithKnownFiles() {
     filePath: "/home/state.json",
     loaded: true,
   });
-  host = await mount(createElement(StartupPicker, { onLaunch: () => {} }));
+  host = await mount(createElement(StartupPicker, { onLaunch }));
 }
 
 function preferencesListbox(): HTMLElement {
@@ -178,5 +178,70 @@ describe("StartupPicker — native picker failures", () => {
     expect(JSON.stringify(repositories.showMessage.mock.calls)).not.toMatch(
       /EACCES|HOSTILE-SENTINEL|private\/tmp/,
     );
+  });
+});
+
+// Built on the same shell every dialog uses — one shared background, the
+// header/body/footer bands and their control-edge separators — with two
+// deliberate differences: no close control (there is nothing to close back
+// to at startup) and the footer's primary action reads "Open", the app's own
+// existing term, rather than "Launch" (wrong once the app is already
+// running).
+describe("StartupPicker — the shared dialog shell", () => {
+  it("gives the header and footer their own band lines, and no others", async () => {
+    await mountWithKnownFiles();
+    const header = document.querySelector("h2")!.parentElement!;
+    const card = header.parentElement!;
+    const footer = card.lastElementChild as HTMLElement;
+    expect(header.className).toContain("border-b");
+    expect(header.className).toContain("border-control-edge");
+    expect(footer.className).toContain("border-t");
+    expect(footer.className).toContain("border-control-edge");
+  });
+
+  it("carries the title as the header band's own content, with no close control", async () => {
+    await mountWithKnownFiles();
+    const heading = document.querySelector("h2")!;
+    expect(heading.textContent).toBe("Dropkick");
+    // Nothing in the header closes back to a screen behind it.
+    const header = heading.parentElement!;
+    expect(header.querySelectorAll("button")).toHaveLength(0);
+  });
+
+  it("labels the footer's primary action Open, not Launch", async () => {
+    await mountWithKnownFiles();
+    const buttons = Array.from(document.querySelectorAll("button"));
+    // The footer's Open button is the one with the primary appearance —
+    // every other "Open" on screen is a section's own file picker.
+    const primaryOpen = buttons.find((button) => button.className.includes("dk-btn-primary"));
+    expect(primaryOpen?.textContent?.trim()).toBe("Open");
+    expect(document.body.textContent).not.toContain("Launch");
+  });
+});
+
+describe("StartupPicker — keyboard behaviour", () => {
+  it("focuses the primary Open action once both files are selected, so Enter opens the selection", async () => {
+    await mountWithKnownFiles();
+    const buttons = Array.from(document.querySelectorAll("button"));
+    const primaryOpen = buttons.find((button) => button.className.includes("dk-btn-primary"));
+    // A real <button>, so the browser's own Enter-activates-the-focused-button
+    // behaviour opens the selection; nothing here needs to reimplement that.
+    expect(document.activeElement).toBe(primaryOpen);
+    expect(primaryOpen?.disabled).toBe(false);
+  });
+
+  it("does nothing harmful on Escape — there is no close path to trigger", async () => {
+    const onLaunch = vi.fn();
+    await mountWithKnownFiles(onLaunch);
+    await act(async () => {
+      // cancelable: true — a real Escape keypress is, and Radix's dismiss
+      // layer only honours preventDefault() on a cancelable event.
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onLaunch).not.toHaveBeenCalled();
+    // The screen is still up — Escape did not tear anything down.
+    expect(document.querySelector("h2")?.textContent).toBe("Dropkick");
   });
 });

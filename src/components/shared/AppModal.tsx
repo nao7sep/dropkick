@@ -38,6 +38,15 @@ interface AppModalProps {
   // its title band, pinned to the trailing corner, and that band drops its line
   // (modal-dialog-conventions).
   titleVisuallyHidden?: boolean;
+  // False for a surface with nothing to close back to (the startup picker):
+  // no close control in the header, and Escape and an outside click do
+  // nothing rather than reaching for a close path that doesn't exist.
+  closable?: boolean;
+  // False when this surface has no page behind it to dim — the startup
+  // picker's card sits directly on the app's own canvas, not over other
+  // content. The overlay still occupies its layer (Dialog.Content's centring
+  // depends on it existing), it just carries no tint.
+  dimmed?: boolean;
 }
 
 export function AppModal({
@@ -54,6 +63,8 @@ export function AppModal({
   contentProps,
   passiveBodyLabel,
   titleVisuallyHidden = false,
+  closable = true,
+  dimmed = true,
 }: AppModalProps) {
   const { t } = useI18n();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -79,12 +90,24 @@ export function AppModal({
         e.preventDefault();
         return;
       }
+      // Nothing to close back to: Escape does nothing, not even the default
+      // dismiss.
+      if (!closable) {
+        e.preventDefault();
+        return;
+      }
       // No close guard: let Radix's own dismiss run.
       if (!onRequestClose) return;
       e.preventDefault();
       onRequestClose();
     },
-    ...(onRequestClose
+    ...(!closable
+      ? {
+          // Same reasoning as Escape above: an outside click has nowhere to
+          // dismiss to.
+          onInteractOutside: (e: Event) => e.preventDefault(),
+        }
+      : onRequestClose
       ? {
         onInteractOutside: (e: Event) => {
           e.preventDefault();
@@ -104,7 +127,7 @@ export function AppModal({
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30" />
+        <Dialog.Overlay className={`fixed inset-0 z-50 ${dimmed ? "bg-black/30" : ""}`} />
         <Dialog.Content
           ref={contentRef}
           aria-describedby={describedById}
@@ -138,7 +161,7 @@ export function AppModal({
             >
               {title}
             </Dialog.Title>
-            {onRequestClose ? (
+            {!closable ? null : onRequestClose ? (
               <button
                 type="button"
                 aria-label={t("common.closeNamed", { title })}

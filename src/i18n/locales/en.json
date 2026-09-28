@@ -177,7 +177,6 @@
   "startup.open": "Open",
   "startup.new": "New",
   "startup.remove": "Remove",
-  "startup.launch": "Launch",
   "startup.openPreferencesFailed.title": "Open Preferences Failed",
   "startup.openPreferencesFailed.body": "Opening the preferences file could not be completed. Check that the selected location is available and try again.",
   "startup.createPreferencesFailed.title": "Create Preferences Failed",

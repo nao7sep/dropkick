@@ -177,7 +177,6 @@
   "startup.open": "開く",
   "startup.new": "新規",
   "startup.remove": "一覧から削除",
-  "startup.launch": "起動",
   "startup.openPreferencesFailed.title": "環境設定を開けませんでした",
   "startup.openPreferencesFailed.body": "環境設定ファイルを開けませんでした。選択した場所が利用できることを確認してから、もう一度お試しください。",
   "startup.createPreferencesFailed.title": "環境設定を作成できませんでした",
