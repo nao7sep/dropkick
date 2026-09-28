@@ -195,7 +195,7 @@
   "about.version": "バージョン {version}",
   "about.versionUnavailable": "バージョン情報を取得できません",
   "about.versionLoading": "バージョンを読み込み中…",
-  "about.tagline": "複数のファイルに分かれたプレーンな JSON のタスクリストを扱う、ローカルファーストのタスクマネージャーです。データがお使いのコンピューターの外に出ることはありません。",
+  "about.tagline": "タスクを緊急度で自動的に並べ替え、今すぐ手を付けられないものはリストの下へ後回しにし、すべてのリストをプレーンな JSON ファイルで保管しましょう。",
   "about.reportIssue": "問題を報告",
   "about.githubFailed.title": "GitHub を開けませんでした",
   "about.githubFailed.body": "プロジェクトページをブラウザで開けませんでした。もう一度お試しください。",

@@ -1,6 +1,6 @@
 # Dropkick
 
-Dropkick is a local-first desktop task manager built around one idea: when you can't deal with a task right now, *kick* it down the list instead of endlessly re-prioritizing. Task lists, workspaces, and preferences are plain JSON files at paths you choose — no cloud, no accounts, no sync — so your tasks can live anywhere, including inside project repositories. It's a cross-platform desktop app (macOS and Windows) built with Tauri v2, React, and TypeScript, with a keyboard-first workflow and automatic priority grouping.
+Let tasks sort themselves by urgency, kick the ones you can't do yet down the list, and keep every list in plain JSON files. Task lists, workspaces, and preferences are plain JSON files at paths you choose — no cloud, no accounts, no sync — so your tasks can live anywhere, including inside project repositories. It's a cross-platform desktop app (macOS and Windows) built with Tauri v2, React, and TypeScript, with a keyboard-first workflow and automatic priority grouping.
 
 ## Features
 

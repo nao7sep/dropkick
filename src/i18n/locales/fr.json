@@ -195,7 +195,7 @@
   "about.version": "Version {version}",
   "about.versionUnavailable": "Version non disponible",
   "about.versionLoading": "Chargement de la version…",
-  "about.tagline": "Un gestionnaire de tâches qui privilégie le stockage local, pour travailler avec des listes de tâches en JSON brut réparties sur plusieurs fichiers. Vos données restent sur votre machine.",
+  "about.tagline": "Laissez les tâches se trier elles-mêmes par urgence, repoussez dans la liste celles que vous ne pouvez pas encore faire, et conservez chaque liste dans de simples fichiers JSON.",
   "about.reportIssue": "Signaler un problème",
   "about.githubFailed.title": "Impossible d’ouvrir GitHub",
   "about.githubFailed.body": "La page du projet n’a pas pu être ouverte dans votre navigateur. Réessayez.",

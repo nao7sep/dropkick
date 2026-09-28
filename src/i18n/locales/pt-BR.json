@@ -195,7 +195,7 @@
   "about.version": "Versão {version}",
   "about.versionUnavailable": "Versão indisponível",
   "about.versionLoading": "Carregando a versão…",
-  "about.tagline": "Um gerenciador de tarefas local para trabalhar com listas de tarefas em JSON simples, distribuídas em vários arquivos. Seus dados ficam no seu computador.",
+  "about.tagline": "Deixe as tarefas se organizarem sozinhas por urgência, chute para baixo na lista as que você ainda não pode fazer, e mantenha cada lista em arquivos JSON simples.",
   "about.reportIssue": "Relatar Problema",
   "about.githubFailed.title": "Não foi possível abrir o GitHub",
   "about.githubFailed.body": "Não foi possível abrir a página do projeto no seu navegador. Tente novamente.",

@@ -195,7 +195,7 @@
   "about.version": "Version {version}",
   "about.versionUnavailable": "Version nicht verfügbar",
   "about.versionLoading": "Version wird geladen…",
-  "about.tagline": "Ein Local-first-Aufgabenmanager für Aufgabenlisten in reinem JSON, verteilt auf mehrere Dateien. Ihre Daten bleiben auf Ihrem Rechner.",
+  "about.tagline": "Lassen Sie Aufgaben sich selbst nach Dringlichkeit einordnen, stellen Sie die, die Sie noch nicht erledigen können, in der Liste zurück, und bewahren Sie jede Liste in reinen JSON-Dateien auf.",
   "about.reportIssue": "Problem melden",
   "about.githubFailed.title": "GitHub wurde nicht geöffnet",
   "about.githubFailed.body": "Die Projektseite konnte nicht im Browser geöffnet werden. Versuchen Sie es erneut.",

@@ -195,7 +195,7 @@
   "about.version": "Versione {version}",
   "about.versionUnavailable": "Versione non disponibile",
   "about.versionLoading": "Caricamento della versione…",
-  "about.tagline": "Un gestore di attività che funziona prima di tutto in locale, per lavorare con semplici liste di attività in JSON distribuite su più file. I tuoi dati restano sul tuo computer.",
+  "about.tagline": "Lascia che le attività si ordinino da sole in base all'urgenza, rinvia in fondo alla lista quelle che non puoi ancora fare, e conserva ogni lista in semplici file JSON.",
   "about.reportIssue": "Segnala un problema",
   "about.githubFailed.title": "Impossibile aprire GitHub",
   "about.githubFailed.body": "Impossibile aprire la pagina del progetto nel browser. Riprova.",

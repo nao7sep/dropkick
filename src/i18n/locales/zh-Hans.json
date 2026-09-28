@@ -195,7 +195,7 @@
   "about.version": "版本 {version}",
   "about.versionUnavailable": "无法获取版本",
   "about.versionLoading": "正在加载版本…",
-  "about.tagline": "一款本地优先的任务管理器，用于处理分散在多个文件中的纯 JSON 任务列表。你的数据只保存在你的电脑上。",
+  "about.tagline": "让任务按紧急程度自动排序，把暂时做不了的任务移到列表底部，并将每个列表保存为纯 JSON 文件。",
   "about.reportIssue": "报告问题",
   "about.githubFailed.title": "未能打开 GitHub",
   "about.githubFailed.body": "无法在浏览器中打开项目页面，请重试。",
