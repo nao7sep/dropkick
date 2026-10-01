@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 const DATA_DIR_NAME: &str = ".dropkick";
-const HOME_ENV_VAR: &str = "DROPKICK_DATA_DIR";
+const DATA_DIR_ENV_VAR: &str = "DROPKICK_DATA_DIR";
 
 // Resolves the absolute storage root and ensures it exists. Returns a clear
 // error (and the caller stops) if the home directory is unknown or the root
@@ -28,7 +28,7 @@ pub fn data_root(app: &AppHandle) -> Result<PathBuf, String> {
         .path()
         .home_dir()
         .map_err(|e| format!("could not resolve home directory: {e}"))?;
-    let root = resolve_root(&home, std::env::var(HOME_ENV_VAR).ok())?;
+    let root = resolve_root(&home, std::env::var(DATA_DIR_ENV_VAR).ok())?;
     create_storage_root(&root)
         .map_err(|e| format!("could not create storage root {}: {e}", root.display()))?;
     secure_root(&root)?;
@@ -87,7 +87,7 @@ pub fn secure_root(_dir: &Path) -> Result<(), String> {
 // resolved.
 pub fn data_root_before_launch() -> Option<PathBuf> {
     let home = dirs::home_dir()?;
-    resolve_root(&home, std::env::var(HOME_ENV_VAR).ok()).ok()
+    resolve_root(&home, std::env::var(DATA_DIR_ENV_VAR).ok()).ok()
 }
 
 // Root resolution, factored out so it can be unit-tested with an injected home
@@ -108,7 +108,7 @@ pub fn resolve_root(home: &Path, override_value: Option<String>) -> Result<PathB
     let expanded = expanded.trim();
     if expanded.is_empty() {
         return Err(format!(
-            "{HOME_ENV_VAR} is set to \"{raw}\" but expands to an empty path \
+            "{DATA_DIR_ENV_VAR} is set to \"{raw}\" but expands to an empty path \
              (an unset $VAR/%VAR%?). Set it to a usable directory, or unset it to use ~/{DATA_DIR_NAME}."
         ));
     }
