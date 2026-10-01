@@ -120,3 +120,31 @@ fn ensure_dir_creates_nested_and_is_idempotent() {
     // Idempotent: calling again on an existing dir is fine.
     ensure_dir(p).unwrap();
 }
+
+#[test]
+#[serial_test::serial(backup_store)]
+fn volatile_state_uses_the_atomic_writer_without_recording_backup_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let history = dir.path().join("backups.sqlite3");
+    backup_store::init(history.clone());
+    let state = dir.path().join("state.json");
+    let config = dir.path().join("config.json");
+    let preferences = dir.path().join("preferences.json");
+
+    let state_text = r#"{"zoomLevel":1.5}"#;
+    let hash = write_text_file_atomic(state.to_str().unwrap(), state_text, Some(false)).unwrap();
+    assert_eq!(hash, sha256_hex(state_text.as_bytes()));
+    assert_eq!(std::fs::read_to_string(&state).unwrap(), state_text);
+    write_text_file_atomic(state.to_str().unwrap(), r#"{"zoomLevel":2}"#, Some(false)).unwrap();
+    write_text_file_atomic(config.to_str().unwrap(), r#"{"knownWorkspaces":[]}"#, None).unwrap();
+    write_text_file_atomic(preferences.to_str().unwrap(), r#"{"id":"prefs","theme":"dark"}"#, Some(true)).unwrap();
+
+    let conn = rusqlite::Connection::open(history).unwrap();
+    let rows = |path: &std::path::Path| -> i64 {
+        conn.query_row("SELECT COUNT(*) FROM backups WHERE path = ?1", [path.to_str().unwrap()], |row| row.get(0)).unwrap()
+    };
+    assert_eq!(rows(&state), 0);
+    assert_eq!(rows(&config), 1);
+    assert_eq!(rows(&preferences), 1);
+    backup_store::close_for_test();
+}

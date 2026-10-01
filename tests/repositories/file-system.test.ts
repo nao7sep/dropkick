@@ -8,6 +8,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import { invoke } from "@tauri-apps/api/core";
 import {
   hashFile,
+  writeJsonFile,
   withSerial,
   withSerialTwo,
   drainAllSerial,
@@ -157,5 +158,17 @@ describe("drainAllSerial", () => {
     await Promise.all([p2, drain]);
     // Drain must not resolve until the later-enqueued p2 has also run.
     expect(order).toEqual(["p1", "p2", "drain"]);
+  });
+});
+
+describe("managed JSON backup policy", () => {
+  it.each([true, false])("forwards a store's recording choice (%s) through the atomic-write command", async (recorded) => {
+    vi.mocked(invoke).mockClear().mockResolvedValue("digest");
+    expect(await writeJsonFile("/store.json", { value: 1 }, recorded)).toBe("digest");
+    const writes = vi.mocked(invoke).mock.calls.filter(([command]) => command === "write_text_file_atomic");
+    expect(writes).toEqual([["write_text_file_atomic", {
+      path: "/store.json", contents: JSON.stringify({ value: 1 }, null, 2),
+      ...(recorded ? {} : { recordBackup: false }),
+    }]]);
   });
 });

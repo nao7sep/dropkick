@@ -6,7 +6,7 @@ const quarantineFile = vi.fn();
 const ROOT = "/home/tester/.dropkick";
 vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileResult: (p: string) => readJsonFileResult(p),
-  writeJsonFile: (p: string, d: unknown) => writeJsonFile(p, d),
+  writeJsonFile: (p: string, d: unknown, recorded?: boolean) => recorded === undefined ? writeJsonFile(p, d) : writeJsonFile(p, d, recorded),
   ensureDirectory: vi.fn(),
   fileExists: (p: string) => fileExists(p),
   appPaths: async () => ({ root: ROOT, stateFile: `${ROOT}/state.json`, configFile: `${ROOT}/config.json`, preferencesFile: `${ROOT}/preferences.json`, workspaceFile: `${ROOT}/workspace.json` }),
@@ -33,6 +33,7 @@ describe("app-level view state", () => {
     expect(appState).toEqual({ ...createDefaultAppState(), lastPreferencesPath: `${ROOT}/preferences.json`, lastWorkspacePath: `${ROOT}/workspace.json` });
     const paths = writeJsonFile.mock.calls.map((c) => c[0]);
     expect(paths).toEqual([`${ROOT}/state.json`, `${ROOT}/preferences.json`, `${ROOT}/workspace.json`]);
+    expect(writeJsonFile.mock.calls[0][2]).toBe(false);
     expect(writeJsonFile.mock.calls[1][1]).toEqual({ id: expect.any(String), name: "Default" });
   });
 
@@ -46,7 +47,7 @@ describe("app-level view state", () => {
     expect(quarantineFile).not.toHaveBeenCalled();
     expect(writeJsonFile).not.toHaveBeenCalled();
     await flushAppState(`${ROOT}/state.json`, () => appState);
-    expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState);
+    expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState, false);
     expect("knownPreferences" in writeJsonFile.mock.calls[0][1]).toBe(false);
   });
 
@@ -70,7 +71,7 @@ describe("app-level view state", () => {
     expect(quarantinedTo).toBe(`${ROOT}/state-stamp.invalid`);
     expect(appState.zoomLevel).toBe(1);
     expect("knownWorkspaces" in appState).toBe(false);
-    expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState);
+    expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState, false);
   });
 
   it("halts after a failed quarantine without replacing preserved bytes", async () => {

@@ -94,7 +94,7 @@ export async function initializeAppState(): Promise<{
     appState = createDefaultAppState();
     appState.lastPreferencesPath = prefsPath;
     appState.lastWorkspacePath = workspacePath;
-    await writeJsonFile(statePath, appState);
+    await writeJsonFile(statePath, appState, false);
   } else if (configResult.status === "success") {
     // Fill any newly added fields from defaults and drop keys no longer part of
     // AppStateDto, so a retired field is never re-emitted — the same
@@ -132,6 +132,6 @@ export async function flushAppState(
   getAppState: () => AppStateDto,
 ): Promise<void> {
   await withSerial(filePath, async () => {
-    await writeJsonFile(filePath, getAppState());
+    await writeJsonFile(filePath, getAppState(), false);
   });
 }

@@ -70,11 +70,13 @@ export async function readJsonFileWithHash<T>(
 // at user-picked locations (preferences/task lists outside ~/.dropkick) — the
 // Rust side stages its temp file beside `path` wherever that is, never under
 // ~/.dropkick.
+// Volatile state opts out of the history while using the same atomic writer.
 // Returns the SHA-256 the core computed from the bytes it wrote, so a caller
 // that tracks the file's hash does not have to read it back.
 export async function writeJsonFile<T>(
   path: string,
   data: T,
+  recordBackup = true,
 ): Promise<string> {
   const text = JSON.stringify(data, null, 2);
   try {
@@ -85,6 +87,7 @@ export async function writeJsonFile<T>(
     const hash = await invoke<string>("write_text_file_atomic", {
       path,
       contents: text,
+      ...(recordBackup ? {} : { recordBackup: false }),
     });
     log.debug("file write", { path, chars: text.length });
     return hash;

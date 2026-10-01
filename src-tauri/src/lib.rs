@@ -341,12 +341,16 @@ fn read_text_file(path: &str) -> Result<TextReadResult, String> {
 // which a re-read could hash a concurrent writer's content instead of this
 // call's.
 #[tauri::command(async)]
-fn write_text_file_atomic(path: &str, contents: &str) -> Result<String, String> {
+fn write_text_file_atomic(path: &str, contents: &str, record_backup: Option<bool>) -> Result<String, String> {
     let started = log_cmd_start(
         "write_text_file_atomic",
         json!({ "path": path, "bytes": contents.len() }),
     );
-    let result = write_atomic(path, contents);
+    let result = if record_backup.unwrap_or(true) {
+        write_atomic(path, contents)
+    } else {
+        write_atomic_unrecorded(path, contents)
+    };
     match &result {
         Ok(_) => log_cmd_ok(
             "write_text_file_atomic",
@@ -414,7 +418,7 @@ pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
 }
 
 // The same atomic write, minus the backup-history record: for volatile state
-// that is state and nothing else (window placement), which the data-backup
+// that is state and nothing else (view state and window placement), which the data-backup
 // convention excludes from backups.sqlite3.
 pub fn write_atomic_unrecorded(path: &str, contents: &str) -> Result<String, String> {
     write_atomic_impl(path, contents, false)
@@ -474,9 +478,9 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     // (webview -> write_text_file_atomic -> here), so the hook lives in exactly one
     // place. record() is best-effort and silent on success; it never throws, never
     // breaks this save that already succeeded above, and never crashes the app.
-    // Managed durable text (state.json, preferences/workspaces/task-lists — internal
+    // Managed durable text (config.json, preferences/workspaces/task-lists — internal
     // and external) is recorded on every save; dedup absorbs the churn. Not
-    // recorded: volatile state saved through write_atomic_unrecorded (window.json),
+    // recorded: volatile state saved through write_atomic_unrecorded (state.json, window.json),
     // append-mode logs (logging.rs opens with create_new + per-line write_all,
     // never atomically) and the backup_store's own SQLite file (written by the
     // backup layer, not here).
