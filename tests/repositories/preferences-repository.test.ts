@@ -9,10 +9,16 @@ vi.mock("../../src/repositories/file-system", () => ({
   withSerial: (_p: string, fn: () => unknown) => fn(),
 }));
 vi.mock("../../src/repositories/logging", () => ({ log: { warn: (...args: unknown[]) => warn(...args) } }));
-import { loadPreferences, flushPreferences, createPreferencesFile } from "../../src/repositories/preferences-repository";
 import { createDefaultPreferences } from "../../src/models";
 
-beforeEach(() => {
+type PreferencesRepository = typeof import("../../src/repositories/preferences-repository");
+let loadPreferences: PreferencesRepository["loadPreferences"];
+let flushPreferences: PreferencesRepository["flushPreferences"];
+let createPreferencesFile: PreferencesRepository["createPreferencesFile"];
+
+beforeEach(async () => {
+  vi.resetModules();
+  ({ loadPreferences, flushPreferences, createPreferencesFile } = await import("../../src/repositories/preferences-repository"));
   readJsonFileResult.mockReset();
   writeJsonFile.mockReset();
   warn.mockReset();
@@ -65,6 +71,37 @@ describe("preferences sets", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][1]).toEqual({ path: "/prefs.json", key });
     expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it("warns once per key across repeated loads and saves of different documents", async () => {
+    stored({ id: "prefs", fontFamily: 42 });
+    const first = await loadPreferences("/prefs.json");
+    const second = await loadPreferences("/other-prefs.json");
+    expect(first.status === "success" && first.preferences.fontFamily).toBe("");
+    expect(second.status === "success" && second.preferences.fontFamily).toBe("");
+
+    const preferences = { ...createDefaultPreferences("Work"), theme: "dark" as const };
+    const saved = await flushPreferences("/prefs.json", () => preferences, ["theme"]);
+    expect(saved.fontFamily).toBe("");
+    expect(saved.theme).toBe("dark");
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("preferences set has wrong shape; using built-in", { path: "/prefs.json", key: "fontFamily" });
+
+    stored({ id: "prefs", fontFamily: "Valid" });
+    await loadPreferences("/prefs.json");
+    stored({ id: "prefs", fontFamily: false, theme: "sepia" });
+    await loadPreferences("/prefs.json");
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[1][1]).toEqual({ path: "/prefs.json", key: "theme" });
+  });
+
+  it("warns again when the repository starts a fresh process lifetime", async () => {
+    stored({ id: "prefs", theme: "sepia" });
+    await loadPreferences("/prefs.json");
+    vi.resetModules();
+    const freshRepository = await import("../../src/repositories/preferences-repository");
+    await freshRepository.loadPreferences("/prefs.json");
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
   it("retains existing range normalization after reading a correctly shaped set", async () => {

@@ -17,6 +17,8 @@ export type LoadPreferencesResult =
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
+const warnedSetKeys = new Set<PreferenceSetKey>();
+
 function effectivePreferences(data: Record<string, unknown> & { id: string }, path: string): PreferencesDto {
   const preferences = createDefaultPreferences(typeof data.name === "string" ? data.name : "Default");
   preferences.id = data.id;
@@ -31,7 +33,10 @@ function effectivePreferences(data: Record<string, unknown> & { id: string }, pa
       : key === "confirmPermanentDeletions" ? typeof value === "boolean"
       : typeof value === "number" && Number.isFinite(value);
     if (!valid) {
-      log.warn("preferences set has wrong shape; using built-in", { path, key });
+      if (!warnedSetKeys.has(key)) {
+        warnedSetKeys.add(key);
+        log.warn("preferences set has wrong shape; using built-in", { path, key });
+      }
       continue;
     }
     Object.assign(preferences, { [key]: value });
