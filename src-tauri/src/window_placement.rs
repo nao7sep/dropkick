@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, PhysicalPosition, PhysicalSize, Window, WindowEvent, Wry};
 
-use crate::{logging, paths, write_atomic};
+use crate::{logging, paths, write_atomic_unrecorded};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -229,7 +229,7 @@ pub(crate) fn save(app: &AppHandle, state: &PlacementState) {
         let path = root.join(paths::WINDOW_FILE_NAME);
         let mut text = serde_json::to_string_pretty(&placement).map_err(|e| e.to_string())?;
         text.push('\n');
-        write_atomic(&path.to_string_lossy(), &text).map(|_| ())
+        write_atomic_unrecorded(&path.to_string_lossy(), &text).map(|_| ())
     })();
     if let Err(error) = result {
         logging::warn(

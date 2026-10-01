@@ -410,6 +410,17 @@ fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
 }
 
 pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
+    write_atomic_impl(path, contents, true)
+}
+
+// The same atomic write, minus the backup-history record: for volatile state
+// that is state and nothing else (window placement), which the data-backup
+// convention excludes from backups.sqlite3.
+pub fn write_atomic_unrecorded(path: &str, contents: &str) -> Result<String, String> {
+    write_atomic_impl(path, contents, false)
+}
+
+fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String, String> {
     use std::io::Write;
     let resolved = resolve_symlink(std::path::Path::new(path));
     let target = resolved.as_path();
@@ -464,11 +475,14 @@ pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
     // place. record() is best-effort and silent on success; it never throws, never
     // breaks this save that already succeeded above, and never crashes the app.
     // Managed durable text (state.json, preferences/workspaces/task-lists — internal
-    // and external) is recorded on every save; dedup absorbs the churn. The only
-    // things NOT recorded are what never reaches this path: append-mode logs
-    // (logging.rs opens with create_new + per-line write_all, never atomically) and
-    // the backup_store's own SQLite file (written by the backup layer, not here).
-    backup_store::record(target, contents.as_bytes());
+    // and external) is recorded on every save; dedup absorbs the churn. Not
+    // recorded: volatile state saved through write_atomic_unrecorded (window.json),
+    // append-mode logs (logging.rs opens with create_new + per-line write_all,
+    // never atomically) and the backup_store's own SQLite file (written by the
+    // backup layer, not here).
+    if record {
+        backup_store::record(target, contents.as_bytes());
+    }
 
     Ok(sha256_hex(contents.as_bytes()))
 }
