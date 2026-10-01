@@ -9,6 +9,13 @@ const host = remoteHost ?? "127.0.0.1";
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
 
+  // Loaded from disk by the webview, not over a network: the default 500 kB
+  // warning measures transfer cost. 2000 keeps a runaway bundle loud without
+  // flagging the ten-language catalogues on every build.
+  build: {
+    chunkSizeWarningLimit: 2000,
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
