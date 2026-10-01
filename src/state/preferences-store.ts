@@ -11,9 +11,9 @@
 
 import { create } from "zustand";
 import { message } from "../i18n/translate";
-import type { PreferencesDto } from "../models";
+import type { PreferencesDto, PreferenceSetKey } from "../models";
 import type { ActionResult } from "./action-result";
-import { createDefaultPreferences } from "../models";
+import { createDefaultPreferences, PREFERENCE_SET_KEYS } from "../models";
 import type { LoadPreferencesResult } from "../repositories";
 import {
   loadPreferences,
@@ -33,7 +33,7 @@ interface PreferencesState {
 
   // Actions.
   load: (filePath: string) => Promise<LoadPreferencesResult>;
-  update: (changes: Partial<PreferencesDto>) => Promise<ActionResult>;
+  update: (changes: Partial<Pick<PreferencesDto, PreferenceSetKey>>) => Promise<ActionResult>;
 }
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => {
@@ -69,11 +69,12 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       return result;
     },
 
-    update: async (changes: Partial<PreferencesDto>) => {
+    update: async (changes: Partial<Pick<PreferencesDto, PreferenceSetKey>>) => {
       // The single funnel for every preference change: log which keys changed,
       // not the values, to keep the line stable and free of any future
       // setting's content.
-      const changedKeys = Object.keys(changes) as (keyof PreferencesDto)[];
+      const changedKeys = PREFERENCE_SET_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(changes, key) && JSON.stringify(changes[key]) !== JSON.stringify(get().preferences[key]));
+      if (changedKeys.length === 0) return { status: "success" };
       log.info("preferences updated", { changed: changedKeys });
 
       const revision = ++nextRevision;
@@ -104,7 +105,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
         normalized = await flushPreferences(filePath, () => {
           writeCapture.revisions = new Map(fieldRevisions);
           return get().preferences;
-        });
+        }, changedKeys);
       } catch (e) {
         if (documentRevision === writeDocumentRevision) {
           pendingWrites = Math.max(0, pendingWrites - 1);

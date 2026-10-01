@@ -32,10 +32,11 @@ import {
 } from "../../utils";
 import {
   isPreferencesDraftDirty,
+  changedPreferenceSets,
   parseKickDistances,
   stagedPreferences,
   type StagedPreferences,
-} from "../../services";
+} from "../../services/preferences-draft";
 
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: MessageKey }> = [
   { value: "system", label: "settings.themeSystem" },
@@ -76,7 +77,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (!isDirty) return;
     setActionError(null);
 
-    const result = await update({
+    const result = await update(changedPreferenceSets({
       ...draft,
       fontFamily: singleLine(draft.fontFamily),
       kickDistances: parseKickDistances(kickInput),
@@ -89,7 +90,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       handledTasksPageSize: normalizeHandledTasksPageSize(
         draft.handledTasksPageSize,
       ),
-    });
+    }, preferences));
     // A failed write leaves the draft on screen with its message, rather than
     // closing over settings that never reached disk.
     if (result.status === "error") {

@@ -21,19 +21,9 @@ pub fn window_theme_for(preference: &str) -> Option<Theme> {
     }
 }
 
-/// The window theme a preferences document asks for, by the same rule as the
-/// frontend's normalizeThemePreference: a valid `theme` wins, a document without
-/// one keeps the released `darkMode` boolean's choice, and anything else follows
-/// the OS.
+/// An absent or invalid theme follows the OS, without rewriting the document.
 pub fn preferences_window_theme(preferences: &Value) -> Option<Theme> {
-    match preferences.get("theme").and_then(Value::as_str) {
-        Some(preference @ ("system" | "light" | "dark")) => window_theme_for(preference),
-        _ => match preferences.get("darkMode").and_then(Value::as_bool) {
-            Some(true) => Some(Theme::Dark),
-            Some(false) => Some(Theme::Light),
-            None => None,
-        },
-    }
+    preferences.get("theme").and_then(Value::as_str).and_then(window_theme_for)
 }
 
 /// The preferences document the startup picker previews: state.json's

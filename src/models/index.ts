@@ -9,9 +9,11 @@ export { createDefaultNoteDrafts } from "./note-drafts";
 export type {
   PreferencesDto,
   ThemePreference,
+  PreferenceSetKey,
 } from "./preferences";
 export {
   createDefaultPreferences,
+  PREFERENCE_SET_KEYS,
   isPreferencesDocument,
   normalizeDueSoonDays,
   normalizeHandledTasksPageSize,

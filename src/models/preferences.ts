@@ -7,9 +7,7 @@ import { generateId } from "../utils/ids";
 export type ThemePreference = "system" | "light" | "dark";
 
 export interface PreferencesDto {
-  version: string;
-  // Stable identity for this document. Generated once at creation and
-  // materialized on load for legacy files that lack one — see loadPreferences.
+  // Stable identity generated once when the document is created.
   id: string;
   name: string;
   // The interface language: "system" follows the computer's language on every
@@ -59,13 +57,9 @@ export const DEFAULT_UI_FONT_STACK =
 
 export function normalizeThemePreference(
   value: unknown,
-  legacyDarkMode?: unknown,
 ): ThemePreference {
   if (value === "system" || value === "light" || value === "dark") {
     return value;
-  }
-  if (typeof legacyDarkMode === "boolean") {
-    return legacyDarkMode ? "dark" : "light";
   }
   return "system";
 }
@@ -121,38 +115,21 @@ export function normalizeHandledTasksPageSize(value: unknown): number {
   );
 }
 
-// Recognizes a parsed JSON document as a preferences file. This answers "is this
-// one of ours?", which is a separate question from "are its fields well-formed?"
-// — the loader still shape-checks the fields it finds. Without this gate any
-// JSON object passes, takes every field from defaults, and the id write-back
-// rewrites it as a preferences document, so picking a neighbouring .json in the
-// startup picker destroys it. The test is version plus at least one field only
-// this document carries: that rejects a package.json or a workspace while still
-// letting mergeWithDefaults heal a document that predates a newly added field.
-export function isPreferencesDocument(
-  data: unknown,
-): data is Partial<PreferencesDto> {
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    return false;
-  }
-  const candidate = data as Partial<PreferencesDto> & { darkMode?: unknown };
-  if (typeof candidate.version !== "string") {
-    return false;
-  }
-  return (
-    candidate.fontFamily !== undefined ||
-    candidate.theme !== undefined ||
-    candidate.darkMode !== undefined ||
-    candidate.kickDistances !== undefined ||
-    candidate.dueSoonDays !== undefined ||
-    candidate.handledTasksPageSize !== undefined ||
-    candidate.confirmPermanentDeletions !== undefined
-  );
+// The known settings sets. Identity is document metadata, never a settings set.
+export const PREFERENCE_SET_KEYS = [
+  "language", "fontFamily", "theme", "timezone", "kickDistances", "dueSoonDays",
+  "handledTasksPageSize", "confirmPermanentDeletions",
+] as const satisfies readonly (keyof PreferencesDto)[];
+export type PreferenceSetKey = (typeof PREFERENCE_SET_KEYS)[number];
+
+// User-picked JSON is a preferences document only when it carries its identity.
+export function isPreferencesDocument(data: unknown): data is Record<string, unknown> & { id: string } {
+  return typeof data === "object" && data !== null && !Array.isArray(data)
+    && typeof (data as Record<string, unknown>).id === "string";
 }
 
 export function createDefaultPreferences(name: string): PreferencesDto {
   return {
-    version: "1.0.0",
     id: generateId(),
     name,
     language: "system",

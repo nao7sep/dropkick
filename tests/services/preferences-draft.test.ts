@@ -3,6 +3,7 @@ import { createDefaultPreferences } from "../../src/models";
 import type { PreferencesDto } from "../../src/models";
 import {
   parseKickDistances,
+  changedPreferenceSets,
   isPreferencesDraftDirty,
   stagedPreferences,
 } from "../../src/services/preferences-draft";
@@ -110,5 +111,13 @@ describe("isPreferencesDraftDirty", () => {
         true,
       );
     }
+  });
+});
+
+describe("changedPreferenceSets", () => {
+  it("writes only changed sets and never document identity", () => {
+    const c = committed();
+    expect(changedPreferenceSets({ ...c, theme: "dark", id: "other", name: "Other", kickDistances: [...c.kickDistances] }, c)).toEqual({ theme: "dark" });
+    expect(changedPreferenceSets({ ...c, kickDistances: [25, 5] }, c)).toEqual({ kickDistances: [25, 5] });
   });
 });

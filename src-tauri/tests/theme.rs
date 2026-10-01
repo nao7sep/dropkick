@@ -22,7 +22,7 @@ fn explicit_light_and_dark_pin_the_window_theme() {
 }
 
 #[test]
-fn a_valid_theme_wins_over_the_released_dark_mode_boolean() {
+fn a_valid_theme_ignores_unknown_keys() {
     assert_eq!(
         preferences_window_theme(&json!({ "theme": "light", "darkMode": true })),
         Some(Theme::Light)
@@ -34,14 +34,14 @@ fn a_valid_theme_wins_over_the_released_dark_mode_boolean() {
 }
 
 #[test]
-fn a_document_without_a_valid_theme_keeps_its_dark_mode_choice() {
+fn a_document_without_a_valid_theme_follows_the_os() {
     assert_eq!(
         preferences_window_theme(&json!({ "darkMode": true })),
-        Some(Theme::Dark)
+        None
     );
     assert_eq!(
         preferences_window_theme(&json!({ "theme": "sepia", "darkMode": false })),
-        Some(Theme::Light)
+        None
     );
     assert_eq!(preferences_window_theme(&json!({})), None);
     assert_eq!(

@@ -10,7 +10,7 @@
 // persisted-store-separation-conventions.)
 
 import type { PreferencesDto } from "../models";
-import { normalizeKickDistances } from "../models";
+import { normalizeKickDistances, PREFERENCE_SET_KEYS } from "../models";
 
 // The preferences the Settings modal stages: everything the user edits and
 // commits on Save.
@@ -45,4 +45,11 @@ export function isPreferencesDraftDirty(
   return (Object.keys(draft) as (keyof StagedPreferences)[])
     .filter((key) => key !== "kickDistances")
     .some((key) => draft[key] !== committed[key]);
+}
+
+// Save patches only sets whose effective values differ, including whole lists.
+export function changedPreferenceSets(draft: StagedPreferences, committed: PreferencesDto) {
+  return Object.fromEntries(PREFERENCE_SET_KEYS
+    .filter((key) => JSON.stringify(draft[key]) !== JSON.stringify(committed[key]))
+    .map((key) => [key, draft[key]])) as Partial<StagedPreferences>;
 }

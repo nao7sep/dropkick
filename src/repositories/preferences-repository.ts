@@ -1,23 +1,15 @@
-// Reads and writes preferences files.
-//
-// Saves are serialized per path. The store mutates synchronously and then
-// awaits a flush; if several flushes queue against the same path, each runs in
-// order and writes the latest store state at the moment its turn comes up.
-// Matches the pattern used by task-list and workspace stores.
+// Portable preferences documents hold their identity and only changed sets.
+// One serialized patch path re-reads the current map before replacing those sets.
 
-import type { PreferencesDto } from "../models";
+import type { PreferencesDto, PreferenceSetKey } from "../models";
 import {
-  createDefaultPreferences,
-  isPreferencesDocument,
-  normalizeDueSoonDays,
-  normalizeHandledTasksPageSize,
-  normalizeKickDistances,
-  normalizeThemePreference,
+  createDefaultPreferences, isPreferencesDocument, PREFERENCE_SET_KEYS,
+  normalizeDueSoonDays, normalizeHandledTasksPageSize, normalizeKickDistances,
 } from "../models";
 import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
 import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
-import { normalizeLanguagePreference } from "../i18n/languages";
-import { mergeWithDefaults } from "../utils/merge-defaults";
+import { isLanguage } from "../i18n/languages";
+import { log } from "./logging";
 
 export type LoadPreferencesResult =
   | { status: "success"; preferences: PreferencesDto }
@@ -25,107 +17,72 @@ export type LoadPreferencesResult =
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
-// Loads a preferences file. Missing and invalid files are reported explicitly so
-// selected files do not silently become default settings.
-export async function loadPreferences(
-  path: string,
-): Promise<LoadPreferencesResult> {
-  const result = await readJsonFileResult<unknown>(path);
-  if (result.status === "missing") {
-    return { status: "missing" };
-  }
-  if (result.status !== "success") {
-    return result;
-  }
-  // Merge with defaults so newly added fields are always present, and drop any
-  // stored keys no longer part of PreferencesDto — a retired field is not copied
-  // through the load, so the next flush never re-emits it.
-  const data = result.data;
-  // Same two gates as the workspace repository, and for the same reasons. First:
-  // the merge below fills every field from defaults, so without a kind gate a
-  // foreign JSON object loads as default preferences and the id write-back
-  // replaces the file with one — reachable straight from the startup picker.
-  if (!isPreferencesDocument(data)) {
-    return { status: "invalid", message: "not a preferences document" };
-  }
-  // Second: a present-but-non-array kickDistances is corruption reported in
-  // place, never coerced and flushed back over the user's file. Absent takes the
-  // defaults; element- and range-level clamping inside the normalizers is value
-  // use, not a shape failure.
-  if (data.kickDistances !== undefined && !Array.isArray(data.kickDistances)) {
-    return { status: "invalid", message: "kickDistances is not an array" };
-  }
-  const defaults = createDefaultPreferences(data.name ?? "Default");
-  const merged = mergeWithDefaults(defaults, data);
-  const stored = data as Partial<PreferencesDto> & { darkMode?: unknown };
-  const preferences: PreferencesDto = {
-    ...merged,
-    // A stored empty id is as absent as a missing one, and mergeWithDefaults
-    // deliberately preserves "" — so take the freshly minted default rather
-    // than re-persisting the empty value on every launch.
-    id: data.id || defaults.id,
-    language: normalizeLanguagePreference(data.language),
-    // `darkMode` was the released boolean setting. Preserve an explicit legacy
-    // choice while new and genuinely theme-less documents follow the OS.
-    theme: normalizeThemePreference(stored.theme, stored.darkMode),
-    timezone: coerceTimezone(data.timezone),
-    kickDistances: normalizeKickDistances(data.kickDistances),
-    dueSoonDays: normalizeDueSoonDays(data.dueSoonDays),
-    handledTasksPageSize: normalizeHandledTasksPageSize(
-      data.handledTasksPageSize,
-    ),
-    confirmPermanentDeletions:
-      typeof data.confirmPermanentDeletions === "boolean"
-        ? data.confirmPermanentDeletions
-        : defaults.confirmPermanentDeletions,
-  };
-  // Materialize a missing stable id by persisting it once, so this document's
-  // identity does not change between launches — mergeWithDefaults otherwise mints
-  // a fresh id on every load until one is written back. Best-effort: a failed
-  // write just defers materialization to the next load.
-  if (!data.id) {
-    try {
-      await writeJsonFile(path, preferences);
-    } catch {
-      // Non-fatal — the id persists on the next successful save.
+function effectivePreferences(data: Record<string, unknown> & { id: string }, path: string): PreferencesDto {
+  const preferences = createDefaultPreferences(typeof data.name === "string" ? data.name : "Default");
+  preferences.id = data.id;
+  for (const key of PREFERENCE_SET_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+    const value = data[key];
+    const valid = key === "language" ? value === "system" || isLanguage(value)
+      : key === "theme" ? value === "system" || value === "light" || value === "dark"
+      : key === "fontFamily" ? typeof value === "string"
+      : key === "timezone" ? value === null || typeof value === "string"
+      : key === "kickDistances" ? Array.isArray(value) && value.every((n) => typeof n === "number" && Number.isFinite(n))
+      : key === "confirmPermanentDeletions" ? typeof value === "boolean"
+      : typeof value === "number" && Number.isFinite(value);
+    if (!valid) {
+      log.warn("preferences set has wrong shape; using built-in", { path, key });
+      continue;
     }
+    Object.assign(preferences, { [key]: value });
   }
-  return { status: "success", preferences };
+  // Existing value-use normalization remains separate from set shape.
+  preferences.timezone = coerceTimezone(preferences.timezone);
+  preferences.kickDistances = normalizeKickDistances(preferences.kickDistances);
+  preferences.dueSoonDays = normalizeDueSoonDays(preferences.dueSoonDays);
+  preferences.handledTasksPageSize = normalizeHandledTasksPageSize(preferences.handledTasksPageSize);
+  return preferences;
 }
 
-// Flushes the latest preferences state to disk. Calls are serialized per
-// path, so overlapping flushes can never land out of order. `getPreferences`
-// is invoked inside the serial slot so it sees the latest store state at the
-// instant of the write. Returns the normalized preferences so the store can
-// re-apply timezone coercion to its in-memory copy.
+export async function loadPreferences(path: string): Promise<LoadPreferencesResult> {
+  const result = await readJsonFileResult<unknown>(path);
+  if (result.status !== "success") return result;
+  if (!isPreferencesDocument(result.data)) {
+    return { status: "invalid", message: "not a preferences document" };
+  }
+  return { status: "success", preferences: effectivePreferences(result.data, path) };
+}
+
 export async function flushPreferences(
   path: string,
   getPreferences: () => PreferencesDto,
+  changedKeys: readonly PreferenceSetKey[],
 ): Promise<PreferencesDto> {
   return withSerial(path, async () => {
+    const result = await readJsonFileResult<unknown>(path);
+    if (result.status !== "success" || !isPreferencesDocument(result.data)) {
+      throw new Error("Cannot save an unavailable preferences document");
+    }
+    const current = result.data;
+    const stored: Record<string, unknown> & { id: string } = { id: current.id, name: current.name };
+    for (const key of PREFERENCE_SET_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(current, key)) stored[key] = current[key];
+    }
     const preferences = getPreferences();
-    const normalized = {
-      ...preferences,
-      language: normalizeLanguagePreference(preferences.language),
-      theme: normalizeThemePreference(preferences.theme),
-      timezone: normalizeTimezoneOrThrow(preferences.timezone),
-      kickDistances: normalizeKickDistances(preferences.kickDistances),
-      dueSoonDays: normalizeDueSoonDays(preferences.dueSoonDays),
-      handledTasksPageSize: normalizeHandledTasksPageSize(
-        preferences.handledTasksPageSize,
-      ),
-    };
-    await writeJsonFile(path, normalized);
-    return normalized;
+    for (const key of changedKeys) {
+      stored[key] = key === "timezone" ? normalizeTimezoneOrThrow(preferences.timezone)
+        : key === "kickDistances" ? normalizeKickDistances(preferences.kickDistances)
+        : key === "dueSoonDays" ? normalizeDueSoonDays(preferences.dueSoonDays)
+        : key === "handledTasksPageSize" ? normalizeHandledTasksPageSize(preferences.handledTasksPageSize)
+        : preferences[key];
+    }
+    await writeJsonFile(path, stored);
+    return effectivePreferences(stored, path);
   });
 }
 
-// Creates a new preferences file with defaults at the given path.
-export async function createPreferencesFile(
-  path: string,
-  name: string,
-): Promise<PreferencesDto> {
-  const prefs = createDefaultPreferences(name);
-  await writeJsonFile(path, prefs);
-  return prefs;
+export async function createPreferencesFile(path: string, name: string): Promise<PreferencesDto> {
+  const preferences = createDefaultPreferences(name);
+  await writeJsonFile(path, { id: preferences.id, name });
+  return preferences;
 }

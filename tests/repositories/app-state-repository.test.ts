@@ -68,6 +68,8 @@ describe("app-level storage filenames", () => {
     expect(writtenPaths).not.toContain(`${ROOT}/app.json`);
     expect(writtenPaths).not.toContain(`${ROOT}/config.json`);
     expect(appState.lastLaunchedPreferencesPath).toBe("");
+    const createdPreferences = writeJsonFile.mock.calls.find((c) => c[0] === `${ROOT}/preferences.json`)?.[1];
+    expect(createdPreferences).toEqual({ id: expect.any(String), name: "Default" });
   });
 
   it("seeds the default user documents without the redundant default- prefix", async () => {

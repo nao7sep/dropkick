@@ -13,9 +13,7 @@ describe("normalizeThemePreference", () => {
     expect(normalizeThemePreference("dark")).toBe("dark");
   });
 
-  it("preserves released boolean preferences and otherwise follows the system", () => {
-    expect(normalizeThemePreference(undefined, true)).toBe("dark");
-    expect(normalizeThemePreference(undefined, false)).toBe("light");
+  it("follows the system for absent and invalid settings", () => {
     expect(normalizeThemePreference(undefined)).toBe("system");
     expect(normalizeThemePreference("invalid")).toBe("system");
   });
