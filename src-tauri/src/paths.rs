@@ -191,6 +191,7 @@ fn absolutize(home: &Path, path: PathBuf) -> PathBuf {
 // two processes, the layout was described nowhere: adding or renaming a store
 // meant finding five unrelated files, and the sandboxed half was composing
 // absolute paths with a hand-rolled separator guess.
+const CONFIG_FILE: &str = "config.json";
 const STATE_FILE: &str = "state.json";
 pub const WINDOW_FILE_NAME: &str = "window.json";
 const PREFERENCES_FILE: &str = "preferences.json";
@@ -205,6 +206,7 @@ const BACKUPS_FILE: &str = "backups.sqlite3";
 pub struct AppPaths {
     pub root: String,
     pub state_file: String,
+    pub config_file: String,
     pub preferences_file: String,
     pub workspace_file: String,
     pub note_drafts_file: String,
@@ -217,6 +219,7 @@ pub fn app_paths(root: &Path) -> AppPaths {
     AppPaths {
         root: root.to_string_lossy().into_owned(),
         state_file: at(STATE_FILE),
+        config_file: at(CONFIG_FILE),
         preferences_file: at(PREFERENCES_FILE),
         workspace_file: at(WORKSPACE_FILE),
         note_drafts_file: at(NOTE_DRAFTS_FILE),

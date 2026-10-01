@@ -68,6 +68,7 @@ import { createDefaultAppState, createDefaultPreferences } from "../src/models";
 import type { ThemePreference } from "../src/models";
 import type { LanguagePreference } from "../src/i18n/languages";
 import { useLanguageStore } from "../src/state/language-store";
+import { useAppConfigStore } from "../src/state/app-config-store";
 import { useAppStateStore } from "../src/state/app-state-store";
 import { usePreferencesStore } from "../src/state/preferences-store";
 import { mount } from "./helpers/react-dom";
@@ -107,6 +108,7 @@ beforeEach(() => {
     return null;
   });
   useAppStateStore.setState({ appState, initialize, loaded: false });
+  useAppConfigStore.setState({ initialize: vi.fn().mockResolvedValue(null) });
 
   const load = vi.fn(async (filePath: string) => {
     const preferences = {

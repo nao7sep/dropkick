@@ -1,3 +1,6 @@
+export type { AppConfigDto, AppConfigSetKey } from "./app-config";
+export { createDefaultAppConfig, APP_CONFIG_SET_KEYS } from "./app-config";
+
 export type {
   AppStateDto,
 } from "./app-state";

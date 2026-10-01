@@ -85,6 +85,7 @@ fn app_paths_puts_every_standard_subpath_under_the_root() {
     assert_eq!(layout.root, root.to_string_lossy());
     for path in [
         &layout.state_file,
+        &layout.config_file,
         &layout.preferences_file,
         &layout.workspace_file,
         &layout.note_drafts_file,
@@ -103,6 +104,7 @@ fn app_paths_names_each_store_distinctly() {
     let layout = app_paths(&PathBuf::from("/r"));
     let names = [
         layout.state_file.clone(),
+        layout.config_file.clone(),
         layout.preferences_file.clone(),
         layout.workspace_file.clone(),
         layout.note_drafts_file.clone(),

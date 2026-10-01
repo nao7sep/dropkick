@@ -30,6 +30,7 @@ vi.mock("../../../src/repositories", () => ({
 }));
 
 import { StartupPicker } from "../../../src/components/layout/StartupPicker";
+import { useAppConfigStore } from "../../../src/state/app-config-store";
 import { useAppStateStore } from "../../../src/state/app-state-store";
 import { createDefaultAppState } from "../../../src/models";
 
@@ -44,13 +45,15 @@ async function mountWithKnownFiles(onLaunch: (prefs: string, workspace: string) 
   useAppStateStore.setState({
     appState: {
       ...createDefaultAppState(),
-      knownPreferences: ["/a/prefs.json", "/b/prefs.json"],
-      knownWorkspaces: ["/a/ws.json"],
       lastPreferencesPath: "/a/prefs.json",
       lastWorkspacePath: "/a/ws.json",
     },
     filePath: "/home/state.json",
     loaded: true,
+  });
+  useAppConfigStore.setState({
+    appConfig: { knownPreferences: ["/a/prefs.json", "/b/prefs.json"], knownWorkspaces: ["/a/ws.json"] },
+    filePath: "/home/config.json", loaded: true,
   });
   host = await mount(createElement(StartupPicker, { onLaunch }));
 }

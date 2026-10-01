@@ -63,7 +63,7 @@ export type { TaskField } from "./note-drafts";
 export type { LoadFailure, DocumentKind } from "./load-failure";
 export { describeLoadFailure, fileNameWithoutExt } from "./load-failure";
 export {
-  describeAppStateRecovery,
+  describeAppConfigRecovery,
   describeNoteDraftRecovery,
 } from "./recovery-presentation";
 

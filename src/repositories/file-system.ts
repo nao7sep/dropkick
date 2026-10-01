@@ -130,6 +130,7 @@ export async function ensureDirectory(path: string): Promise<void> {
 export interface AppPaths {
   root: string;
   stateFile: string;
+  configFile: string;
   preferencesFile: string;
   workspaceFile: string;
   noteDraftsFile: string;

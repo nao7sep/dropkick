@@ -47,7 +47,6 @@ describe("updateViewState", () => {
       filePath: "/state.json",
       appState: {
         ...createDefaultAppState(),
-        knownPreferences: ["/x/preferences.json"],
         lastPreferencesPath: "/x/preferences.json",
       },
     });
@@ -57,7 +56,7 @@ describe("updateViewState", () => {
     const appState = useAppStateStore.getState().appState;
     expect(appState.sidebarWidth).toBe(440);
     // The view patch must not touch the register/unregister-owned fields.
-    expect(appState.knownPreferences).toEqual(["/x/preferences.json"]);
+    expect("knownPreferences" in appState).toBe(false);
     expect(appState.lastPreferencesPath).toBe("/x/preferences.json");
   });
 
@@ -74,7 +73,7 @@ describe("saved locations", () => {
 
     await useAppStateStore
       .getState()
-      .registerPreferences("/selected.json");
+      .selectPreferences("/selected.json");
     expect(
       useAppStateStore.getState().appState.lastLaunchedPreferencesPath,
     ).toBe("");
@@ -91,7 +90,7 @@ describe("saved locations", () => {
     useAppStateStore.setState({ filePath: "/state.json" });
     flushAppState.mockRejectedValueOnce(new Error("disk full"));
 
-    await useAppStateStore.getState().registerPreferences("/prefs.json");
+    await useAppStateStore.getState().selectPreferences("/prefs.json");
 
     expect(useToastStore.getState().backgroundWriteError).toEqual({
       what: "savedLocations",

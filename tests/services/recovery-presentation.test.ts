@@ -1,7 +1,7 @@
 import { inEnglish } from "../helpers/i18n";
 import { describe, expect, it } from "vitest";
 import {
-  describeAppStateRecovery,
+  describeAppConfigRecovery,
   describeNoteDraftRecovery,
 } from "../../src/services/recovery-presentation";
 
@@ -9,7 +9,7 @@ describe("recovery presentation", () => {
   it("keeps internal quarantine paths out of both recovery notices", () => {
     const hostile = "/.dropkick/HOSTILE-SENTINEL-EACCES.invalid";
     for (const message of [
-      inEnglish(describeAppStateRecovery(hostile)),
+      inEnglish(describeAppConfigRecovery(hostile)),
       inEnglish(describeNoteDraftRecovery(hostile)),
     ]) {
       expect(message).toContain("location is recorded in the application log");

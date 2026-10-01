@@ -1,17 +1,4 @@
-// Manages ~/.dropkick/state.json — the app-level state.
-//
-// Every field here (last selection + known preferences/workspace lists) is
-// rebuildable, so the file is state, not durable configuration. There is no
-// separate appState.json: dropkick has no app-level user-tunable settings that
-// outlive a rebuild — those live in the seeded preferences.json / workspace.json
-// user documents.
-//
-// initializeAppState handles first-launch setup (creating ~/.dropkick/ and
-// the seeded preferences/workspace files). It runs exactly once at startup, so
-// it doesn't need serialization. All subsequent writes go through
-// flushAppState, which uses withSerial — the same pattern as the other
-// repositories. The actual data manipulation (register/unregister) lives in
-// useAppStateStore; this module owns I/O only.
+// Owns state.json, initial document creation, and serialized view-state writes.
 
 import type { AppStateDto } from "../models";
 import { createDefaultAppState } from "../models";
@@ -45,14 +32,6 @@ function appStateShapeIssue(value: unknown): string | null {
   for (const field of stringFields) {
     if (data[field] !== undefined && typeof data[field] !== "string") {
       return `${field} is not a string`;
-    }
-  }
-
-  const pathLists = ["knownPreferences", "knownWorkspaces"] as const;
-  for (const field of pathLists) {
-    const list = data[field];
-    if (list !== undefined && (!Array.isArray(list) || !list.every((item) => typeof item === "string"))) {
-      return `${field} is not an array of strings`;
     }
   }
 
@@ -115,8 +94,6 @@ export async function initializeAppState(): Promise<{
     appState = createDefaultAppState();
     appState.lastPreferencesPath = prefsPath;
     appState.lastWorkspacePath = workspacePath;
-    appState.knownPreferences = [prefsPath];
-    appState.knownWorkspaces = [workspacePath];
     await writeJsonFile(statePath, appState);
   } else if (configResult.status === "success") {
     // Fill any newly added fields from defaults and drop keys no longer part of
@@ -134,18 +111,7 @@ export async function initializeAppState(): Promise<{
     throw new Error(`Failed to load app appState: ${configResult.message}`);
   }
 
-  // Materialize the built-in default documents whenever they are absent, not
-  // only on a first run.
-  //
-  // Gating this on state.json's absence meant that deleting or moving
-  // ~/.dropkick/preferences.json on its own left it gone for good: state.json
-  // survived, so nothing re-created it, while knownPreferences still listed it
-  // and the picker still preselected it — so Launch dead-ended at "could not be
-  // found" with no recovery but New. Absence of the file itself is the single
-  // trigger the storage-path conventions name.
-  //
-  // Creation goes through the owning repositories rather than being open-coded
-  // here, so a seeded document and a New-created one cannot drift apart.
+  // Create missing default documents through their owning repositories.
   if (!(await fileExists(prefsPath))) {
     await createPreferencesFile(prefsPath, "Default");
   }

@@ -1,11 +1,4 @@
-// AppStateStore — loaded once at launch from ~/.dropkick/state.json.
-// Tracks known preferences/workspace paths and the last selection.
-//
-// Mutations are synchronous `set((state) => …)` over the latest store state,
-// followed by an `await flush()` that serializes the disk write per path.
-// Concurrent register / unregister calls all read and apply against the
-// latest state, and disk writes can never land out of order — same pattern
-// as task-list, workspace, and preferences stores.
+// Disposable view state and last selections; document lists belong to config.
 
 import { create } from "zustand";
 import { guardBackgroundWrite, type BackgroundWrite } from "./background-write";
@@ -13,9 +6,6 @@ import type { AppStateDto } from "../models";
 import { createDefaultAppState } from "../models";
 import { initializeAppState, flushAppState, log } from "../repositories";
 
-// The view-state fields callers may set through updateViewState. Restricting the
-// patch to these keeps the register/unregister list logic the sole writer of the
-// path fields — a generic setter would let a caller stomp knownPreferences.
 type ViewStateChanges = Partial<Pick<AppStateDto, "zoomLevel" | "sidebarWidth">>;
 
 interface AppStateStore {
@@ -38,10 +28,10 @@ interface AppStateStore {
     preferencesPath: string,
     workspacePath: string,
   ) => Promise<void>;
-  registerPreferences: (path: string) => Promise<void>;
-  registerWorkspace: (path: string) => Promise<void>;
-  unregisterPreferences: (path: string) => Promise<void>;
-  unregisterWorkspace: (path: string) => Promise<void>;
+  selectPreferences: (path: string) => Promise<void>;
+  selectWorkspace: (path: string) => Promise<void>;
+  forgetPreferences: (path: string, nextPath: string) => Promise<void>;
+  forgetWorkspace: (path: string, nextPath: string) => Promise<void>;
 }
 
 export const useAppStateStore = create<AppStateStore>((set, get) => {
@@ -87,76 +77,27 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
       await flush("savedLocations");
     },
 
-    registerPreferences: async (path) => {
-      set((state) => {
-        const known = state.appState.knownPreferences.includes(path)
-          ? state.appState.knownPreferences
-          : [...state.appState.knownPreferences, path];
-        return {
-          appState: {
-            ...state.appState,
-            knownPreferences: known,
-            lastPreferencesPath: path,
-          },
-        };
-      });
+    selectPreferences: async (path) => {
+      set((state) => ({ appState: { ...state.appState, lastPreferencesPath: path } }));
       await flush("savedLocations");
     },
-
-    registerWorkspace: async (path) => {
-      set((state) => {
-        const known = state.appState.knownWorkspaces.includes(path)
-          ? state.appState.knownWorkspaces
-          : [...state.appState.knownWorkspaces, path];
-        return {
-          appState: {
-            ...state.appState,
-            knownWorkspaces: known,
-            lastWorkspacePath: path,
-          },
-        };
-      });
+    selectWorkspace: async (path) => {
+      set((state) => ({ appState: { ...state.appState, lastWorkspacePath: path } }));
       await flush("savedLocations");
     },
-
-    unregisterPreferences: async (path) => {
-      set((state) => {
-        const known = state.appState.knownPreferences.filter((p) => p !== path);
-        const lastPreferencesPath =
-          state.appState.lastPreferencesPath === path
-            ? (known[0] ?? "")
-            : state.appState.lastPreferencesPath;
-        const lastLaunchedPreferencesPath =
-          state.appState.lastLaunchedPreferencesPath === path
-            ? ""
-            : state.appState.lastLaunchedPreferencesPath;
-        return {
-          appState: {
-            ...state.appState,
-            knownPreferences: known,
-            lastPreferencesPath,
-            lastLaunchedPreferencesPath,
-          },
-        };
-      });
+    forgetPreferences: async (path, nextPath) => {
+      set((state) => ({ appState: {
+        ...state.appState,
+        lastPreferencesPath: state.appState.lastPreferencesPath === path ? nextPath : state.appState.lastPreferencesPath,
+        lastLaunchedPreferencesPath: state.appState.lastLaunchedPreferencesPath === path ? "" : state.appState.lastLaunchedPreferencesPath,
+      } }));
       await flush("savedLocations");
     },
-
-    unregisterWorkspace: async (path) => {
-      set((state) => {
-        const known = state.appState.knownWorkspaces.filter((p) => p !== path);
-        const lastWorkspacePath =
-          state.appState.lastWorkspacePath === path
-            ? (known[0] ?? "")
-            : state.appState.lastWorkspacePath;
-        return {
-          appState: {
-            ...state.appState,
-            knownWorkspaces: known,
-            lastWorkspacePath,
-          },
-        };
-      });
+    forgetWorkspace: async (path, nextPath) => {
+      set((state) => ({ appState: {
+        ...state.appState,
+        lastWorkspacePath: state.appState.lastWorkspacePath === path ? nextPath : state.appState.lastWorkspacePath,
+      } }));
       await flush("savedLocations");
     },
   };

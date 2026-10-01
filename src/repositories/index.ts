@@ -1,3 +1,5 @@
+export { loadAppConfig, flushAppConfig } from "./app-config-repository";
+
 export { log, toErrorFields, loadFailureFields, initLogging } from "./logging";
 export type { LogFields } from "./logging";
 

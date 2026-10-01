@@ -27,6 +27,7 @@ import {
 import { DEFAULT_UI_FONT_STACK } from "./models";
 import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
+import { useAppConfigStore } from "./state/app-config-store";
 import { useAppStateStore } from "./state/app-state-store";
 import { useNoteDraftStore } from "./state/note-draft-store";
 import { useLanguageStore } from "./state/language-store";
@@ -39,7 +40,7 @@ import { MainWindow } from "./components/layout/MainWindow";
 import { AppDialogHost } from "./components/shared/AppDialogHost";
 import { ToastHost } from "./components/shared/ToastHost";
 import {
-  describeAppStateRecovery,
+  describeAppConfigRecovery,
   describeLoadFailure,
   describeNoteDraftRecovery,
 } from "./services";
@@ -55,6 +56,7 @@ function App() {
   const [mainChromeHeight, setMainChromeHeight] = useState(TAB_BAR_MIN_HEIGHT);
   const loadPreferences = usePreferencesStore((s) => s.load);
   const loadWorkspace = useWorkspaceStore((s) => s.load);
+  const initializeAppConfig = useAppConfigStore((s) => s.initialize);
   const initializeAppState = useAppStateStore((s) => s.initialize);
   const loadNoteDrafts = useNoteDraftStore((s) => s.load);
   const setLastPaths = useAppStateStore((s) => s.setLastPaths);
@@ -195,7 +197,8 @@ function App() {
     (async () => {
       try {
         await loadLanguageEnvironment();
-        const quarantinedTo = await initializeAppState();
+        await initializeAppState();
+        const configQuarantinedTo = await initializeAppConfig();
 
         // The picker appears before the user chooses a preferences document,
         // so preview the last successfully opened one. This gives the initial
@@ -214,10 +217,10 @@ function App() {
           }
         }
         setPhase({ kind: "startup" });
-        if (quarantinedTo) {
+        if (configQuarantinedTo) {
           await showMessage(
             message("startup.appStateReset.title"),
-            describeAppStateRecovery(quarantinedTo),
+            describeAppConfigRecovery(configQuarantinedTo),
           );
         }
       } catch (e) {
@@ -228,7 +231,7 @@ function App() {
         });
       }
     })();
-  }, [initializeAppState, loadLanguageEnvironment, loadPreferences]);
+  }, [initializeAppState, initializeAppConfig, loadLanguageEnvironment, loadPreferences]);
 
   const handleLaunch = async (
     preferencesPath: string,
