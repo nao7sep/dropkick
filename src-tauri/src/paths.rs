@@ -2,7 +2,7 @@
 //!
 //! Per the storage-path conventions, the Tauri **Rust core** is the only path
 //! resolver — the sandboxed webview never computes a data path. The root is
-//! `DROPKICK_HOME` when that variable is set and non-empty; otherwise it
+//! `DROPKICK_DATA_DIR` when that variable is set and non-empty; otherwise it
 //! defaults to `~/.dropkick`. The override value is expanded (a leading `~`
 //! becomes the home directory) and made absolute against the **home**
 //! directory — never the current working directory — so the location the app
@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 const DATA_DIR_NAME: &str = ".dropkick";
-const HOME_ENV_VAR: &str = "DROPKICK_HOME";
+const HOME_ENV_VAR: &str = "DROPKICK_DATA_DIR";
 
 // Resolves the absolute storage root and ensures it exists. Returns a clear
 // error (and the caller stops) if the home directory is unknown or the root
@@ -91,7 +91,7 @@ pub fn data_root_before_launch() -> Option<PathBuf> {
 }
 
 // Root resolution, factored out so it can be unit-tested with an injected home
-// directory. `override_value` is the raw `DROPKICK_HOME` value (if any). The
+// directory. `override_value` is the raw `DROPKICK_DATA_DIR` value (if any). The
 // value is expanded (environment references first, then a leading `~`) and made
 // absolute against the home directory. An override that is set but expands to
 // nothing — an unset `$VAR`/`%VAR%`, say — is a reported error, never a silent

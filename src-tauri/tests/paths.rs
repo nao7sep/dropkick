@@ -1,7 +1,7 @@
 // Integration tests for the storage-root resolver.
 //
 // resolve_root is the pure half of data_root: it takes the home directory and
-// the DROPKICK_HOME override as values, so every branch of the override grammar
+// the DROPKICK_DATA_DIR override as values, so every branch of the override grammar
 // can be exercised without touching the real environment or an AppHandle.
 
 use dropkick_lib::paths::{app_paths, resolve_root};
@@ -128,7 +128,7 @@ fn new_root_is_created_owner_only() {
     use std::os::unix::fs::PermissionsExt;
 
     let base = tempfile::tempdir().unwrap();
-    let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_HOME
+    let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_DATA_DIR
     std::fs::create_dir_all(&root).unwrap();
 
     secure_root(&root).unwrap();
@@ -163,7 +163,7 @@ fn existing_broader_root_is_tightened_on_launch() {
     use std::os::unix::fs::PermissionsExt;
 
     let base = tempfile::tempdir().unwrap();
-    let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_HOME
+    let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_DATA_DIR
     std::fs::create_dir_all(&root).unwrap();
     // Simulate a pre-existing root that is broader than owner-only, e.g. left
     // over from before this rule, or created with a permissive umask.

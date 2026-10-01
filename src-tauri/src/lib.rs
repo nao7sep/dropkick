@@ -533,11 +533,11 @@ fn ensure_dir(path: &str) -> Result<(), String> {
     }
 }
 
-// Returns the absolute storage root (`~/.dropkick`, or `DROPKICK_HOME`),
+// Returns the absolute storage root (`~/.dropkick`, or `DROPKICK_DATA_DIR`),
 // creating it if missing. The Rust core is the only path resolver: the webview
 // calls this once at startup and derives every subpath from the returned
 // absolute root, rather than reconstructing the root from `homeDir()` itself
-// (which cannot read `DROPKICK_HOME` and is forbidden by the per-stack rule).
+// (which cannot read `DROPKICK_DATA_DIR` and is forbidden by the per-stack rule).
 #[tauri::command(async)]
 fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
     let started = log_cmd_start("app_paths", json!({}));
@@ -689,7 +689,7 @@ pub fn run() {
             // core has filesystem access even though the webview is sandboxed, and
             // it routes through the single storage-root resolver (paths::data_root)
             // so the log directory and the data directory share one source of
-            // truth and both honor DROPKICK_HOME.
+            // truth and both honor DROPKICK_DATA_DIR.
             //
             // A storage-root failure must NOT abort the launch. This hook runs
             // before the logger is open and before the panic hook is installed,
@@ -710,7 +710,7 @@ pub fn run() {
                     install_panic_hook();
 
                     // Open the write-through data-backup store once, best-effort,
-                    // under the same DROPKICK_HOME-aware root (never a hardcoded
+                    // under the same DROPKICK_DATA_DIR-aware root (never a hardcoded
                     // path). If it cannot open, one warn is logged and recording is
                     // disabled for the session — it never blocks startup. Every
                     // managed-text save from now on records through it, strictly

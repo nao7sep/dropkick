@@ -1,6 +1,6 @@
 //! The write-through data-backup store (data-backup conventions). It owns one
 //! add-only SQLite file, `backups.sqlite3`, directly under dropkick's storage
-//! root (`DROPKICK_HOME` or `~/.dropkick`, resolved in one place by
+//! root (`DROPKICK_DATA_DIR` or `~/.dropkick`, resolved in one place by
 //! `paths::data_root` — never a hardcoded path). Every managed *text* save
 //! records the exact bytes it just wrote here, strictly AFTER its atomic rename
 //! lands (see `write_atomic` in lib.rs), so the history is always as current as
