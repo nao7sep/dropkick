@@ -28,13 +28,11 @@ Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows ar
 
 ## First run
 
-Dropkick keeps your settings and your open tabs in two JSON files you choose, so the first launch asks for both before it opens anything:
+Dropkick keeps your settings and your open tabs in separate preferences and workspace JSON files. On first launch, it creates and preselects the default files in the startup picker. Click **Open** to begin.
 
-1. Under **Preferences**, click **New** and save a preferences file — `~/.dropkick/preferences.json` is a fine default.
-2. Under **Workspace**, do the same for a workspace file.
-3. Click **Launch**.
+To use files elsewhere, choose **Open** under **Preferences** or **Workspace** to select an existing file, or **New** to create one at a path you choose. The picker remembers both selections on later launches, so opening the same pair takes one click.
 
-From then on both are remembered and Launch is one click. Task lists themselves are separate files, created from **New task list...** in the tab bar's ☰ menu, and can live anywhere — including inside a project repository.
+Task lists themselves are separate files, created from **New task list...** in the tab bar's ☰ menu, and can live anywhere — including inside a project repository.
 
 ## Run from source
 
