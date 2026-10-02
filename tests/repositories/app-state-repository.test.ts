@@ -68,9 +68,8 @@ describe("app-level view state", () => {
     { status: "success", data: { lastWorkspacePath: [] } },
   ])("quarantines damaged state before recreating view defaults", async (result) => {
     readJsonFileResult.mockResolvedValue(result);
-    const { appState, quarantinedTo } = await initializeAppState();
+    const { appState } = await initializeAppState();
     expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
-    expect(quarantinedTo).toBe(`${ROOT}/state-stamp.invalid`);
     expect(appState.zoomLevel).toBe(1);
     expect("knownWorkspaces" in appState).toBe(false);
     expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState, false);

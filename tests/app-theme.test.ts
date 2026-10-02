@@ -115,7 +115,6 @@ beforeEach(() => {
       appState: { ...appState, lastLaunchedPreferencesPath },
       loaded: true,
     });
-    return null;
   });
   useAppStateStore.setState({ appState, initialize, loaded: false });
   useAppConfigStore.setState({ initialize: vi.fn().mockResolvedValue(null) });
@@ -174,7 +173,7 @@ describe("startup theme", () => {
   });
 
   it("sends nothing while initialization is still running", async () => {
-    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<null>(() => {})) });
+    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<void>(() => {})) });
     await mountApp();
 
     expect(applyWindowTheme).not.toHaveBeenCalled();
@@ -230,7 +229,7 @@ describe("startup language", () => {
   });
 
   it("sends nothing while initialization is still running", async () => {
-    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<null>(() => {})) });
+    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<void>(() => {})) });
     await mountApp();
 
     expect(applyLanguage).not.toHaveBeenCalled();

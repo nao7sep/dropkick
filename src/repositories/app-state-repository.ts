@@ -52,7 +52,6 @@ function appStateShapeIssue(value: unknown): string | null {
 export async function initializeAppState(): Promise<{
   appState: AppStateDto;
   statePath: string;
-  quarantinedTo: string | null;
 }> {
   const {
     root,
@@ -114,7 +113,7 @@ export async function initializeAppState(): Promise<{
   }
 
   log.info("app state initialized", { statePath, created });
-  return { appState, statePath, quarantinedTo };
+  return { appState, statePath };
 }
 
 // Flushes the latest app state to disk. Calls are serialized per path,
