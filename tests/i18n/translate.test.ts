@@ -1,7 +1,7 @@
 import { isValidElement, type ReactElement } from "react";
 import type { MessageKey } from "../../src/i18n/catalogues";
 import { beforeAll, describe, expect, it } from "vitest";
-import { loadCatalogue } from "../../src/i18n/catalogues";
+import { loadCatalogue, loadedCatalogue } from "../../src/i18n/catalogues";
 import { createTranslator, message } from "../../src/i18n/translate";
 
 beforeAll(async () => {
@@ -48,7 +48,18 @@ describe("createTranslator", () => {
     expect(createTranslator("ja").list(["仕事", "家"])).toBe("仕事、家");
   });
 
-  it("shows a key the catalogue lacks instead of failing the render", () => {
+  it("reads a key the language's catalogue lacks in English", () => {
+    const ja = loadedCatalogue("ja") as Record<string, unknown>;
+    const kept = ja["about.version"];
+    delete ja["about.version"];
+    try {
+      expect(createTranslator("ja").t("about.version", { version: "1.2.0" })).toBe("Version 1.2.0");
+    } finally {
+      ja["about.version"] = kept;
+    }
+  });
+
+  it("shows a key no catalogue carries instead of failing the render", () => {
     // Types keep this out of the app; a stale build or a half-merged catalogue
     // could still reach it, and a window must not go down over one string.
     const missing = "gone.missing" as unknown as MessageKey;

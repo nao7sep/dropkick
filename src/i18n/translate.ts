@@ -47,6 +47,7 @@ export function createTranslator(language: Language, locale: string = language):
     throw new Error(`Catalogue not loaded: ${language}`);
   }
   const catalogue: Catalogue = loaded;
+  const english = loadedCatalogue("en") as Catalogue;
   const numberFormat = new Intl.NumberFormat(locale);
   const percentFormat = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
   const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();
@@ -55,13 +56,14 @@ export function createTranslator(language: Language, locale: string = language):
   const pluralRules = new Intl.PluralRules(language);
 
   function template(key: MessageKey, values: MessageValues | undefined): string {
-    const entry = catalogue[key];
+    // A key the catalogue does not carry reads in English, and a key English
+    // lacks too shows as itself rather than taking the window down; the
+    // catalogue gate and the on-screen-key check both fail on either, so it
+    // cannot reach a release unnoticed.
+    const entry = catalogue[key] ?? english[key];
     if (typeof entry === "string") {
       return entry;
     }
-    // A key the catalogue does not carry shows as itself rather than taking the
-    // window down; the catalogue gate and the on-screen-key check both fail on
-    // it, so it cannot reach a release unnoticed.
     if (entry === undefined || entry === null) {
       return key;
     }
