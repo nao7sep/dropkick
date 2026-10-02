@@ -1,6 +1,6 @@
-// Sparse app-level config sets. Reads never seed or reconcile a set's members.
-import type { AppConfigDto, AppConfigSetKey } from "../models";
-import { APP_CONFIG_SET_KEYS, createDefaultAppConfig } from "../models";
+// Sparse app-level config sets (config-sets-conventions).
+import type { AppConfigDto } from "../models";
+import { appConfigDocument, APP_CONFIG_SET_KEYS, createDefaultAppConfig, isValidAppConfigSet } from "../models";
 import { appPaths, readJsonFileResult, quarantineFile, writeJsonFile, withSerial } from "./file-system";
 import { log } from "./logging";
 
@@ -18,15 +18,20 @@ async function readMap(filePath: string): Promise<{ map: Record<string, unknown>
   return { map: {}, quarantinedTo };
 }
 
+async function builtInAppConfig(): Promise<AppConfigDto> {
+  const { preferencesFile, workspaceFile } = await appPaths();
+  return createDefaultAppConfig(preferencesFile, workspaceFile);
+}
+
 export async function loadAppConfig() {
-  const { configFile: filePath, preferencesFile, workspaceFile } = await appPaths();
+  const { configFile: filePath } = await appPaths();
   const { map, quarantinedTo } = await readMap(filePath);
-  const appConfig = createDefaultAppConfig(preferencesFile, workspaceFile);
+  const appConfig = await builtInAppConfig();
   for (const key of APP_CONFIG_SET_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(map, key)) continue;
     const value = map[key];
-    if (!Array.isArray(value) || !value.every((path) => typeof path === "string")) {
-      log.warn("app config set has wrong shape; using built-in", { filePath, key });
+    if (!isValidAppConfigSet(value)) {
+      log.warn("app config set is invalid; using built-in", { filePath, key });
       continue;
     }
     appConfig[key] = value;
@@ -34,19 +39,7 @@ export async function loadAppConfig() {
   return { appConfig, filePath, quarantinedTo };
 }
 
-export async function flushAppConfig(
-  filePath: string,
-  getAppConfig: () => AppConfigDto,
-  changedKeys: readonly AppConfigSetKey[],
-): Promise<void> {
-  await withSerial(filePath, async () => {
-    const { map } = await readMap(filePath);
-    const stored: Record<string, unknown> = {};
-    for (const key of APP_CONFIG_SET_KEYS) {
-      if (Object.prototype.hasOwnProperty.call(map, key)) stored[key] = map[key];
-    }
-    const config = getAppConfig();
-    for (const key of changedKeys) stored[key] = config[key];
-    await writeJsonFile(filePath, stored);
-  });
+export async function flushAppConfig(filePath: string, getAppConfig: () => AppConfigDto): Promise<void> {
+  const builtIn = await builtInAppConfig();
+  await withSerial(filePath, () => writeJsonFile(filePath, appConfigDocument(getAppConfig(), builtIn)));
 }

@@ -4,7 +4,7 @@ const loadAppConfig = vi.fn();
 const flushAppConfig = vi.fn();
 vi.mock("../../src/repositories", () => ({
   loadAppConfig: () => loadAppConfig(),
-  flushAppConfig: (path: string, getConfig: () => AppConfigDto, keys: readonly string[]) => flushAppConfig(path, getConfig, keys),
+  flushAppConfig: (path: string, getConfig: () => AppConfigDto) => flushAppConfig(path, getConfig),
   log: { error: vi.fn() }, toErrorFields: (e: unknown) => ({ error: String(e) }),
 }));
 import { useAppConfigStore } from "../../src/state/app-config-store";
@@ -22,17 +22,16 @@ describe("known-document list changes", () => {
     await useAppConfigStore.getState().registerPreferences("/preferences.json");
     expect(flushAppConfig).not.toHaveBeenCalled();
   });
-  it("registering one workspace writes only the workspace list set", async () => {
+  it("registering one workspace writes the config from memory", async () => {
     await useAppConfigStore.getState().registerWorkspace("/second.json");
     expect(flushAppConfig).toHaveBeenCalledOnce();
     expect(flushAppConfig.mock.calls[0][0]).toBe("/config.json");
-    expect(flushAppConfig.mock.calls[0][2]).toEqual(["knownWorkspaces"]);
     expect(flushAppConfig.mock.calls[0][1]()).toEqual({ ...defaults, knownWorkspaces: ["/workspace.json", "/second.json"] });
   });
   it("unregistering the final document writes an empty authored list", async () => {
     await useAppConfigStore.getState().unregisterPreferences("/preferences.json");
     expect(useAppConfigStore.getState().appConfig.knownPreferences).toEqual([]);
-    expect(flushAppConfig.mock.calls[0][2]).toEqual(["knownPreferences"]);
+    expect(flushAppConfig.mock.calls[0][1]()).toEqual({ ...defaults, knownPreferences: [] });
   });
   it("a failed write restores the confirmed list and leaves registration retryable", async () => {
     flushAppConfig.mockRejectedValueOnce(new Error("disk full"));

@@ -26,13 +26,13 @@ export const useAppConfigStore = create<AppConfigStore>((set, get) => {
     set((state) => ({ appConfig: { ...state.appConfig, [key]: next } }));
     const { filePath } = get();
     if (filePath) await guardBackgroundWrite("savedLocations", async () => {
-      let written = next;
+      let written = get().appConfig;
       try {
         await flushAppConfig(filePath, () => {
-          written = get().appConfig[key];
-          return get().appConfig;
-        }, [key]);
-        persisted = { ...persisted, [key]: written };
+          written = get().appConfig;
+          return written;
+        });
+        persisted = written;
       } catch (error) {
         if (get().appConfig[key] === next) {
           set((state) => ({ appConfig: { ...state.appConfig, [key]: persisted[key] } }));
