@@ -5,6 +5,8 @@ import { normalizeLanguagePreference, type LanguagePreference } from "../i18n/la
 import { generateId } from "../utils/ids";
 import { singleLine } from "../utils/textCleanup";
 import { isKnownTimeZone, SYSTEM_TIME_ZONE } from "../utils/timezone";
+import type { TaskListDto } from "./task-list";
+import type { PersistedWorkspaceDto } from "./workspace";
 
 export type ThemePreference = "system" | "light" | "dark";
 
@@ -125,10 +127,17 @@ export const PREFERENCE_SET_KEYS = [
 ] as const satisfies readonly (keyof PreferencesDto)[];
 export type PreferenceSetKey = (typeof PREFERENCE_SET_KEYS)[number];
 
-// User-picked JSON is a preferences document only when it carries its identity.
+// Keys only a workspace or a task list carries.
+const OTHER_DOCUMENT_KEYS = ["openTabs", "recentFiles", "tasks"] as const satisfies
+  readonly (keyof PersistedWorkspaceDto | keyof TaskListDto)[];
+
+// User-picked JSON is a preferences document only when it carries its identity
+// and no key of another kind of document.
 export function isPreferencesDocument(data: unknown): data is Record<string, unknown> & { id: string } {
-  return typeof data === "object" && data !== null && !Array.isArray(data)
-    && typeof (data as Record<string, unknown>).id === "string";
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return false;
+  const candidate = data as Record<string, unknown>;
+  return typeof candidate.id === "string"
+    && !OTHER_DOCUMENT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(candidate, key));
 }
 
 function builtInPreferenceSets(): Pick<PreferencesDto, PreferenceSetKey> {

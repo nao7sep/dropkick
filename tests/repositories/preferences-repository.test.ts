@@ -97,6 +97,15 @@ describe("preferences sets", () => {
   });
 
   it.each([
+    ["a workspace", { version: "1.0.0", id: "ws", name: "WS", openTabs: [], recentFiles: [] }],
+    ["a task list", { version: "1.0.0", id: "list", tasks: [] }],
+  ])("rejects %s, which carries its own identity, without rewriting it", async (_kind, data) => {
+    stored(data);
+    expect(await loadPreferences("/foreign.json")).toEqual({ status: "invalid", message: "not a preferences document" });
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
     { status: "missing" }, { status: "invalid", message: "bad JSON" }, { status: "error", message: "EACCES" },
   ])("propagates an unsuccessful read without writing", async (result) => {
     readJsonFileResult.mockResolvedValue(result);
@@ -129,6 +138,13 @@ describe("preferences sets", () => {
     stored({ id: "prefs", name: "Work" });
     const preferences = { ...createDefaultPreferences("Work"), timezone: "Not/AZone" };
     await expect(flushPreferences("/prefs.json", () => preferences)).rejects.toThrow("timezone");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it("never writes over a document of another kind on save", async () => {
+    stored({ version: "1.0.0", id: "prefs", name: "Work", openTabs: [], recentFiles: [] });
+    const preferences = { ...createDefaultPreferences("Work"), id: "prefs", theme: "dark" as const };
+    await expect(flushPreferences("/prefs.json", () => preferences)).rejects.toThrow();
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
