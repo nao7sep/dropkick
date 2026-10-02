@@ -40,14 +40,8 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
   const { t } = useI18n();
   const appState = useAppStateStore((s) => s.appState);
   const appConfig = useAppConfigStore((s) => s.appConfig);
-  const registerPreferences = async (path: string) => {
-    await useAppConfigStore.getState().registerPreferences(path);
-    await useAppStateStore.getState().selectPreferences(path);
-  };
-  const registerWorkspace = async (path: string) => {
-    await useAppConfigStore.getState().registerWorkspace(path);
-    await useAppStateStore.getState().selectWorkspace(path);
-  };
+  const registerAndSelect = useAppConfigStore((s) => s.registerAndSelect);
+  const unregisterAndReselect = useAppConfigStore((s) => s.unregisterAndReselect);
 
   const [selectedPrefs, setSelectedPrefs] = useState(
     appState.lastPreferencesPath,
@@ -111,8 +105,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
         );
         return;
       }
-      await registerPreferences(path);
-      setSelectedPrefs(path);
+      if (await registerAndSelect("preferences", path)) setSelectedPrefs(path);
     });
   };
 
@@ -121,8 +114,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
       const normalizedPath = await saveJsonFileDialog("preferences.json");
       if (!normalizedPath) return;
       await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-      await registerPreferences(normalizedPath);
-      setSelectedPrefs(normalizedPath);
+      if (await registerAndSelect("preferences", normalizedPath)) setSelectedPrefs(normalizedPath);
     });
   };
 
@@ -138,8 +130,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
         );
         return;
       }
-      await registerWorkspace(path);
-      setSelectedWorkspace(path);
+      if (await registerAndSelect("workspace", path)) setSelectedWorkspace(path);
     });
   };
 
@@ -148,23 +139,18 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
       const normalizedPath = await saveJsonFileDialog("workspace.json");
       if (!normalizedPath) return;
       await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-      await registerWorkspace(normalizedPath);
-      setSelectedWorkspace(normalizedPath);
+      if (await registerAndSelect("workspace", normalizedPath)) setSelectedWorkspace(normalizedPath);
     });
   };
 
   const handleRemovePreferences = async (path: string) => {
-    await useAppConfigStore.getState().unregisterPreferences(path);
-    await useAppStateStore.getState().forgetPreferences(path, useAppConfigStore.getState().appConfig.knownPreferences[0] ?? "");
-    if (selectedPrefs === path) {
+    if (await unregisterAndReselect("preferences", path) && selectedPrefs === path) {
       setSelectedPrefs(useAppStateStore.getState().appState.lastPreferencesPath);
     }
   };
 
   const handleRemoveWorkspace = async (path: string) => {
-    await useAppConfigStore.getState().unregisterWorkspace(path);
-    await useAppStateStore.getState().forgetWorkspace(path, useAppConfigStore.getState().appConfig.knownWorkspaces[0] ?? "");
-    if (selectedWorkspace === path) {
+    if (await unregisterAndReselect("workspace", path) && selectedWorkspace === path) {
       setSelectedWorkspace(
         useAppStateStore.getState().appState.lastWorkspacePath,
       );
