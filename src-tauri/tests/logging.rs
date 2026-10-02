@@ -1,13 +1,10 @@
 // Integration tests for the logging module's pure helpers: the timestamp
-// grammar the log filenames and envelopes use, and the redactor.
+// grammar the log filenames and envelopes use.
 //
 // The Logger's own internals are tested in-file — see the comment on that
 // module for why they cannot be reached through a public seam.
 
-use dropkick_lib::logging::{
-    default_denied, filename_stamp, iso_millis, redact_in_place, session_filename,
-};
-use serde_json::json;
+use dropkick_lib::logging::{filename_stamp, iso_millis, session_filename};
 
 #[test]
 fn iso_epoch() {
@@ -68,43 +65,4 @@ fn session_filename_is_the_plain_utc_stamp_with_milliseconds() {
     );
     assert_eq!(parts[3], "utc");
     assert_eq!(parts[2].len(), 3, "millisecond part must be zero-padded to 3 digits");
-}
-
-#[test]
-fn redact_matches_exact_key_case_insensitively() {
-    let denied = default_denied();
-    let mut value = json!({
-        "token": "abc",
-        "tokenCount": 5,
-        "broken": true,
-        "nested": { "PASSWORD": "x", "ok": 1 },
-        "list": [{ "secret": "y" }, { "fine": "z" }],
-    });
-    redact_in_place(&mut value, &denied);
-    assert_eq!(
-        value,
-        json!({
-            "token": "[redacted]",
-            "tokenCount": 5,
-            "broken": true,
-            "nested": { "PASSWORD": "[redacted]", "ok": 1 },
-            "list": [{ "secret": "[redacted]" }, { "fine": "z" }],
-        })
-    );
-}
-
-#[test]
-fn redact_replaces_whole_object_value() {
-    let denied = default_denied();
-    let mut value = json!({ "authorization": { "scheme": "Bearer", "creds": "xyz" } });
-    redact_in_place(&mut value, &denied);
-    assert_eq!(value, json!({ "authorization": "[redacted]" }));
-}
-
-#[test]
-fn redact_never_touches_message_prose() {
-    let denied = default_denied();
-    let mut value = json!({ "message": "token=abc password=def", "level": "info" });
-    redact_in_place(&mut value, &denied);
-    assert_eq!(value["message"], json!("token=abc password=def"));
 }

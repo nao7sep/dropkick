@@ -16,7 +16,6 @@ fn temp_logger(debug_enabled: bool) -> (Logger, std::path::PathBuf) {
     let logger = Logger {
         inner: Mutex::new(Inner { writer }),
         debug_enabled,
-        denied: default_denied(),
     };
     (logger, path)
 }
@@ -42,19 +41,6 @@ fn line_is_on_disk_immediately_without_an_explicit_flush() {
     assert_eq!(lines[0]["message"], json!("started"));
     assert_eq!(lines[0]["n"], json!(3));
     assert!(lines[0]["time"].as_str().unwrap().ends_with('Z'));
-}
-
-#[test]
-fn redaction_applies_to_the_written_line() {
-    let (logger, path) = temp_logger(false);
-    logger.emit(
-        Level::Info,
-        "creds",
-        json!({ "apiKey": "sk-secret", "count": 1 }),
-    );
-    let lines = read_lines(&path);
-    assert_eq!(lines[0]["apiKey"], json!("[redacted]"));
-    assert_eq!(lines[0]["count"], json!(1));
 }
 
 #[test]
@@ -173,7 +159,6 @@ fn write_failure_permanently_falls_back_and_stops_touching_the_dead_handle() {
             writer: Some(readonly),
         }),
         debug_enabled: false,
-        denied: default_denied(),
     };
 
     // The failing write must not panic, and must permanently drop the dead
