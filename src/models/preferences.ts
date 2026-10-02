@@ -140,7 +140,21 @@ export function isPreferencesDocument(data: unknown): data is Record<string, unk
     && !OTHER_DOCUMENT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(candidate, key));
 }
 
-function builtInPreferenceSets(): Pick<PreferencesDto, PreferenceSetKey> {
+export type PreferenceSets = Pick<PreferencesDto, PreferenceSetKey>;
+
+// The sets in `changes` that differ from `current`, compared whole, including
+// lists. The one decision of what a preferences update changes.
+export function changedPreferenceSets(
+  changes: Partial<PreferenceSets>,
+  current: PreferencesDto,
+): Partial<PreferenceSets> {
+  return Object.fromEntries(PREFERENCE_SET_KEYS
+    .filter((key) => Object.prototype.hasOwnProperty.call(changes, key)
+      && JSON.stringify(changes[key]) !== JSON.stringify(current[key]))
+    .map((key) => [key, changes[key]])) as Partial<PreferenceSets>;
+}
+
+function builtInPreferenceSets(): PreferenceSets {
   return {
     language: "system",
     fontFamily: "",

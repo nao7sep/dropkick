@@ -13,8 +13,10 @@ export type {
   PreferencesDto,
   ThemePreference,
   PreferenceSetKey,
+  PreferenceSets,
 } from "./preferences";
 export {
+  changedPreferenceSets,
   createDefaultPreferences,
   PREFERENCE_SET_KEYS,
   isPreferencesDocument,

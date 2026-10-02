@@ -11,9 +11,9 @@
 
 import { create } from "zustand";
 import { message } from "../i18n/translate";
-import type { PreferencesDto, PreferenceSetKey } from "../models";
+import type { PreferencesDto, PreferenceSets } from "../models";
 import type { ActionResult } from "./action-result";
-import { createDefaultPreferences, PREFERENCE_SET_KEYS } from "../models";
+import { changedPreferenceSets, createDefaultPreferences } from "../models";
 import type { LoadPreferencesResult } from "../repositories";
 import {
   loadPreferences,
@@ -33,7 +33,7 @@ interface PreferencesState {
 
   // Actions.
   load: (filePath: string) => Promise<LoadPreferencesResult>;
-  update: (changes: Partial<Pick<PreferencesDto, PreferenceSetKey>>) => Promise<ActionResult>;
+  update: (changes: Partial<PreferenceSets>) => Promise<ActionResult>;
 }
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => {
@@ -65,11 +65,12 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       return result;
     },
 
-    update: async (changes: Partial<Pick<PreferencesDto, PreferenceSetKey>>) => {
+    update: async (changes: Partial<PreferenceSets>) => {
       // The single funnel for every preference change: log which keys changed,
       // not the values, to keep the line stable and free of any future
       // setting's content.
-      const changedKeys = PREFERENCE_SET_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(changes, key) && JSON.stringify(changes[key]) !== JSON.stringify(get().preferences[key]));
+      const changed = changedPreferenceSets(changes, get().preferences);
+      const changedKeys = Object.keys(changed);
       if (changedKeys.length === 0) return { status: "success" };
       log.info("preferences updated", { changed: changedKeys });
 
@@ -79,7 +80,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       // atomically. Concurrent updates queue their own sync transitions and
       // each sees the prior one's result.
       set((state) => ({
-        preferences: { ...state.preferences, ...changes },
+        preferences: { ...state.preferences, ...changed },
       }));
 
       const { filePath } = get();

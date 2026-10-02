@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  changedPreferenceSets,
   normalizeKickDistances,
   normalizeThemePreference,
   createDefaultPreferences,
@@ -90,5 +91,15 @@ describe("preferencesDocument", () => {
       expect(isValidPreferenceSet(key, preferences[key])).toBe(true);
     }
     expect(preferencesDocument(preferences)).toEqual({ id: preferences.id, name: "Default" });
+  });
+});
+
+describe("changedPreferenceSets", () => {
+  it("keeps only sets that differ, compared whole, and never document identity", () => {
+    const c = createDefaultPreferences("Default");
+    const draft = { ...c, theme: "dark" as const, id: "other", name: "Other", kickDistances: [...c.kickDistances] };
+    expect(changedPreferenceSets(draft, c)).toEqual({ theme: "dark" });
+    expect(changedPreferenceSets({ kickDistances: [25, 5] }, c)).toEqual({ kickDistances: [25, 5] });
+    expect(changedPreferenceSets({ theme: c.theme }, c)).toEqual({});
   });
 });
