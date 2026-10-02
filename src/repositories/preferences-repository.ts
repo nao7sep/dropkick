@@ -47,7 +47,8 @@ export async function flushPreferences(
 ): Promise<void> {
   return withSerial(path, async () => {
     const result = await readJsonFileResult<unknown>(path);
-    if (result.status !== "success" || !isPreferencesDocument(result.data)) {
+    if (result.status !== "missing"
+      && (result.status !== "success" || !isPreferencesDocument(result.data))) {
       throw new Error("Cannot save an unavailable preferences document");
     }
     await writeJsonFile(path, preferencesDocument(getPreferences()));

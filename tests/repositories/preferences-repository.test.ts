@@ -148,6 +148,21 @@ describe("preferences sets", () => {
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
+  it("recreates a preferences file that has disappeared", async () => {
+    readJsonFileResult.mockResolvedValue({ status: "missing" });
+    const preferences = { ...createDefaultPreferences("Work"), id: "prefs", theme: "dark" as const };
+    await flushPreferences("/prefs.json", () => preferences);
+    expect(writeJsonFile).toHaveBeenCalledWith("/prefs.json", { id: "prefs", name: "Work", theme: "dark" });
+  });
+
+  it.each([
+    { status: "invalid", message: "bad JSON" }, { status: "error", message: "EACCES" },
+  ])("does not overwrite a file it cannot read (%j) on save", async (result) => {
+    readJsonFileResult.mockResolvedValue(result);
+    await expect(flushPreferences("/prefs.json", () => createDefaultPreferences("Work"))).rejects.toThrow();
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
   it("does not overwrite an unreadable or foreign document on save", async () => {
     stored({ name: "foreign" });
     await expect(flushPreferences("/prefs.json", () => createDefaultPreferences("Work"))).rejects.toThrow();
