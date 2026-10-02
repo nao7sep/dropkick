@@ -88,8 +88,9 @@ fn install_panic_hook() {
                 }
             }),
         );
-        // The error line is already on disk (the logger is unbuffered); defer to
-        // the previous hook so the process still aborts and prints as usual.
+        logging::flush();
+        // The error line is on disk unless the flush gave up; defer to the
+        // previous hook so the process still aborts and prints as usual.
         default_hook(info);
     }));
 }
@@ -590,10 +591,10 @@ fn apply_theme(window: tauri::WebviewWindow, preference: String) -> Result<(), S
     }
 }
 
-// Receives a structured log object from the webview frontend and writes it as a
-// record (the frontend has no filesystem access of its own). It runs on the
-// thread pool, so a slow or locked database never holds the window; the
-// frontend sends one entry at a time, so rows keep the order they were logged.
+// Receives a structured log object from the webview frontend and hands it to
+// the logger's writer thread (the frontend has no filesystem access of its
+// own). It runs on the thread pool, so it never holds the window; the frontend
+// sends one entry at a time, so rows keep the order they were logged.
 #[tauri::command(async)]
 fn log_event(entry: Value) {
     logging::emit_forwarded(entry);
@@ -816,6 +817,7 @@ pub fn run() {
         if let tauri::RunEvent::Exit = event {
             window_placement::save(app_handle, &placement_state);
             logging::info("app shutdown", json!({ "reason": "exit" }));
+            logging::flush();
         }
     });
 }

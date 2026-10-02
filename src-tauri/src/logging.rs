@@ -10,12 +10,19 @@
 // appended as one JSON line, carrying the database's error, to
 // `logs/<yyyymmdd-hhmmss-fff-utc>.log` named for the session; if that fails too
 // it goes to stderr. Logging never panics.
+//
+// The core's own entries are written by one writer thread, in the order they
+// were logged, so a slow or locked database never holds the thread that logged
+// them (the main thread, for window and menu events). `flush` waits, bounded,
+// for that thread to catch up; the exit and panic paths call it.
 
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, Sender, SyncSender};
 use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread::{self, ThreadId};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 use serde_json::{Map, Value};
@@ -136,11 +143,50 @@ CREATE INDEX IF NOT EXISTS idx_logs_task_id ON logs (task_id, id) WHERE task_id 
 // then takes the fallback.
 type Records = Result<Connection, String>;
 
+// How long a write waits for another running instance's write to finish.
+const BUSY_TIMEOUT_MS: u64 = 5_000;
+// Long enough for an entry that waits its full busy timeout to land.
+const FLUSH_BOUND: Duration = Duration::from_millis(BUSY_TIMEOUT_MS + 1_000);
+
+enum Job {
+    Write(Map<String, Value>),
+    Flush(SyncSender<()>),
+}
+
+struct Writer {
+    jobs: Sender<Job>,
+    thread: ThreadId,
+}
+
+impl Writer {
+    fn spawn(logger: &'static Logger) -> std::io::Result<Writer> {
+        let (jobs, queue) = mpsc::channel();
+        let handle = thread::Builder::new()
+            .name("dropkick-log".to_string())
+            .spawn(move || {
+                for job in queue {
+                    match job {
+                        Job::Write(obj) => logger.write_envelope(obj),
+                        Job::Flush(done) => {
+                            let _ = done.send(());
+                        }
+                    }
+                }
+            })?;
+        Ok(Writer {
+            jobs,
+            thread: handle.thread().id(),
+        })
+    }
+}
+
 pub struct Logger {
     records: Mutex<Records>,
     session: String,
     fallback_file: PathBuf,
     debug_enabled: bool,
+    // Unset until `init` starts the thread; entries are written inline until then.
+    writer: OnceLock<Writer>,
 }
 
 static LOGGER: OnceLock<Logger> = OnceLock::new();
@@ -153,6 +199,17 @@ impl Logger {
             session: iso_millis(started),
             fallback_file: logs_dir.join(format!("{}.log", filename_stamp(started))),
             debug_enabled,
+            writer: OnceLock::new(),
+        }
+    }
+
+    // Starts the writer thread. A logger without one writes inline.
+    fn start_writer(&'static self) {
+        match Writer::spawn(self) {
+            Ok(writer) => {
+                let _ = self.writer.set(writer);
+            }
+            Err(e) => eprintln!("[dropkick:logging] writer thread failed to start: {e}"),
         }
     }
 }
@@ -162,6 +219,10 @@ impl Logger {
 pub fn init(records_file: &Path, logs_dir: &Path, debug_enabled: bool) {
     if LOGGER.set(Logger::open(records_file, logs_dir, debug_enabled)).is_err() {
         eprintln!("[dropkick:logging] logger already initialized; ignoring re-init");
+        return;
+    }
+    if let Some(logger) = LOGGER.get() {
+        logger.start_writer();
     }
 }
 
@@ -176,7 +237,7 @@ fn open_records(records_file: &Path) -> Records {
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "synchronous", "NORMAL")
         .map_err(|e| e.to_string())?;
-    conn.pragma_update(None, "busy_timeout", 5000)
+    conn.pragma_update(None, "busy_timeout", BUSY_TIMEOUT_MS as i64)
         .map_err(|e| e.to_string())?;
     conn.execute_batch(SCHEMA).map_err(|e| e.to_string())?;
     Ok(conn)
@@ -251,8 +312,38 @@ impl Logger {
             .write_all(line.as_bytes())
     }
 
-    // Builds the envelope from a Rust-side event and writes it. `fields` is
-    // merged in; the envelope keys (time/level/message) always win.
+    // Hands an envelope to the writer thread, behind every entry handed to it
+    // before. It is written inline when there is no writer thread, when the
+    // writer has stopped, or when the writer itself is logging (its panic).
+    fn submit(&self, obj: Map<String, Value>) {
+        let Some(writer) = self.writer.get() else {
+            return self.write_envelope(obj);
+        };
+        if thread::current().id() == writer.thread {
+            return self.write_envelope(obj);
+        }
+        if let Err(mpsc::SendError(Job::Write(obj))) = writer.jobs.send(Job::Write(obj)) {
+            self.write_envelope(obj);
+        }
+    }
+
+    // Waits, within FLUSH_BOUND, until every entry submitted before it is
+    // written. Past the bound the remaining entries' outcome is unknown.
+    fn flush(&self) {
+        let Some(writer) = self.writer.get() else {
+            return;
+        };
+        if thread::current().id() == writer.thread {
+            return;
+        }
+        let (done, finished) = mpsc::sync_channel(1);
+        if writer.jobs.send(Job::Flush(done)).is_ok() {
+            let _ = finished.recv_timeout(FLUSH_BOUND);
+        }
+    }
+
+    // Builds the envelope from a Rust-side event, stamped now, and submits it.
+    // `fields` is merged in; the envelope keys (time/level/message) always win.
     fn emit(&self, level: Level, message: &str, fields: Value) {
         if level == Level::Debug && !self.debug_enabled {
             return;
@@ -274,7 +365,7 @@ impl Logger {
                 }
             }
         }
-        self.write_envelope(obj);
+        self.submit(obj);
     }
 
     // Writes an object the frontend already shaped (it stamped `time` at the
@@ -310,7 +401,7 @@ impl Logger {
         );
         obj.entry("message".to_string())
             .or_insert_with(|| Value::String(String::new()));
-        self.write_envelope(obj);
+        self.submit(obj);
     }
 }
 
@@ -348,6 +439,12 @@ pub fn error(message: &str, fields: Value) {
 pub fn emit_forwarded(value: Value) {
     if let Some(logger) = global() {
         logger.emit_forwarded(value);
+    }
+}
+
+pub fn flush() {
+    if let Some(logger) = global() {
+        logger.flush();
     }
 }
 
