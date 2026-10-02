@@ -136,7 +136,7 @@
   "load.workspace.error": "Die Arbeitsbereichsdatei konnte nicht gelesen werden. Prüfen Sie, ob sie noch verfügbar ist und Dropkick darauf zugreifen kann, und versuchen Sie es dann erneut.",
   "load.workspace.errorAt": "Die Arbeitsbereichsdatei konnte nicht gelesen werden:\n\n{path}\n\nPrüfen Sie, ob sie noch verfügbar ist und Dropkick darauf zugreifen kann, und versuchen Sie es dann erneut.",
 
-  "recovery.appState": "Dropkick konnte seine gespeicherte Liste von Arbeitsbereichs- und Einstellungsdateien nicht lesen. Eine aufbewahrte Kopie ist weiterhin verfügbar; ihr Speicherort steht im Anwendungsprotokoll. Die Arbeitsbereichs- und Einstellungsdateien selbst wurden nicht geändert; öffnen Sie alle noch verwendeten Dateien außer den Standarddateien erneut.",
+  "recovery.appConfig": "Dropkick konnte seine gespeicherte Liste von Arbeitsbereichs- und Einstellungsdateien nicht lesen. Eine aufbewahrte Kopie ist weiterhin verfügbar; ihr Speicherort steht im Anwendungsprotokoll. Die Arbeitsbereichs- und Einstellungsdateien selbst wurden nicht geändert; öffnen Sie alle noch verwendeten Dateien außer den Standarddateien erneut.",
   "recovery.noteDrafts": "Dropkick konnte den Notiztext, den Sie eingegeben, aber noch nicht gespeichert hatten, nicht lesen. Eine aufbewahrte Kopie ist weiterhin verfügbar; ihr Speicherort steht im Anwendungsprotokoll. Ihre Aufgabenlisten sind nicht betroffen.",
 
   "taskList.empty": "Noch keine Aufgaben.",
@@ -161,7 +161,7 @@
   "toast.unifiedDropkick": "Sie sind in der Gesamtansicht – Dropkick funktioniert nur in einer einzelnen Liste.",
   "toast.unifiedReorder": "Sie sind in der Gesamtansicht – Umsortieren funktioniert nur in einer einzelnen Liste.",
 
-  "startup.appStateReset.title": "Gemerkte Speicherorte wurden zurückgesetzt",
+  "startup.appConfigReset.title": "Gemerkte Speicherorte wurden zurückgesetzt",
   "startup.appStateFailed": "Dropkick konnte seinen gespeicherten Anwendungszustand nicht lesen. Ihre Arbeitsbereichs- und Einstellungsdateien wurden nicht geändert. Beenden Sie die App, prüfen Sie das Protokoll und versuchen Sie es erneut.",
   "startup.preferencesFailed.title": "Einstellungen konnten nicht geladen werden",
   "startup.workspaceFailed.title": "Arbeitsbereich konnte nicht geladen werden",

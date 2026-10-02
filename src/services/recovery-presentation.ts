@@ -1,7 +1,7 @@
 import { message, type Message } from "../i18n/translate";
 
 export function describeAppConfigRecovery(_quarantinedTo: string): Message {
-  return message("recovery.appState");
+  return message("recovery.appConfig");
 }
 
 export function describeNoteDraftRecovery(_quarantinedTo: string): Message {

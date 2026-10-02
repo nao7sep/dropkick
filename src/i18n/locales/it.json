@@ -136,7 +136,7 @@
   "load.workspace.error": "Impossibile leggere il file dell’area di lavoro. Verifica che sia ancora disponibile e che Dropkick possa accedervi, poi riprova.",
   "load.workspace.errorAt": "Impossibile leggere il file dell’area di lavoro:\n\n{path}\n\nVerifica che sia ancora disponibile e che Dropkick possa accedervi, poi riprova.",
 
-  "recovery.appState": "Dropkick non è riuscito a leggere l’elenco salvato di aree di lavoro e preferenze. Una copia conservata resta disponibile e la sua posizione è registrata nel log dell’applicazione. I file delle aree di lavoro e delle preferenze non sono stati modificati; riapri quelli non predefiniti che usi ancora.",
+  "recovery.appConfig": "Dropkick non è riuscito a leggere l’elenco salvato di aree di lavoro e preferenze. Una copia conservata resta disponibile e la sua posizione è registrata nel log dell’applicazione. I file delle aree di lavoro e delle preferenze non sono stati modificati; riapri quelli non predefiniti che usi ancora.",
   "recovery.noteDrafts": "Dropkick non è riuscito a leggere il testo delle note che avevi scritto ma non ancora salvato. Una copia conservata resta disponibile e la sua posizione è registrata nel log dell’applicazione. Le tue liste di attività non sono state toccate.",
 
   "taskList.empty": "Ancora nessuna attività.",
@@ -161,7 +161,7 @@
   "toast.unifiedDropkick": "Sei nella vista unificata: Dropkick funziona solo all’interno di una singola lista.",
   "toast.unifiedReorder": "Sei nella vista unificata: puoi riordinare solo all’interno di una singola lista.",
 
-  "startup.appStateReset.title": "Le posizioni salvate sono state reimpostate",
+  "startup.appConfigReset.title": "Le posizioni salvate sono state reimpostate",
   "startup.appStateFailed": "Dropkick non è riuscito a leggere lo stato salvato dell’applicazione. I file dell’area di lavoro e delle preferenze non sono stati modificati. Esci, controlla il log e riprova.",
   "startup.preferencesFailed.title": "Caricamento delle preferenze non riuscito",
   "startup.workspaceFailed.title": "Caricamento dell’area di lavoro non riuscito",

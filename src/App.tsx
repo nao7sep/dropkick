@@ -221,7 +221,7 @@ function App() {
         setPhase({ kind: "startup" });
         if (configQuarantinedTo) {
           await showMessage(
-            message("startup.appStateReset.title"),
+            message("startup.appConfigReset.title"),
             describeAppConfigRecovery(configQuarantinedTo),
           );
         }
@@ -280,10 +280,6 @@ function App() {
       // just loaded, so it is read here rather than alongside either of them.
       const draftsQuarantinedTo = await loadNoteDrafts();
 
-      // The just-in-case data backup is no longer a startup pass: it is now a
-      // write-through store in the Rust core that records every managed-text save
-      // the instant its atomic rename lands (see backup_store.rs). There is
-      // nothing to kick off here.
       const workspace = useWorkspaceStore.getState().workspace;
 
       // Record the effective configuration once the session is live: the

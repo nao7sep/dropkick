@@ -136,7 +136,7 @@
   "load.workspace.error": "The workspace file could not be read. Check that it is still available and that Dropkick has access, then try again.",
   "load.workspace.errorAt": "The workspace file could not be read:\n\n{path}\n\nCheck that it is still available and that Dropkick has access, then try again.",
 
-  "recovery.appState": "Dropkick could not read its saved workspace and preferences list. A preserved copy remains available, and its location is recorded in the application log. The underlying workspace and preferences files were not changed; reopen any non-default ones you still use.",
+  "recovery.appConfig": "Dropkick could not read its saved workspace and preferences list. A preserved copy remains available, and its location is recorded in the application log. The underlying workspace and preferences files were not changed; reopen any non-default ones you still use.",
   "recovery.noteDrafts": "Dropkick could not read the note text you had typed but not yet saved. A preserved copy remains available, and its location is recorded in the application log. Your task lists were not affected.",
 
   "taskList.empty": "No tasks yet.",
@@ -161,7 +161,7 @@
   "toast.unifiedDropkick": "You're in unified view — Dropkick works in a single list.",
   "toast.unifiedReorder": "You're in unified view — reordering works in a single list.",
 
-  "startup.appStateReset.title": "Saved Locations Were Reset",
+  "startup.appConfigReset.title": "Saved Locations Were Reset",
   "startup.appStateFailed": "Dropkick could not read its saved application state. Your workspace and preferences files were not changed. Quit, check the log, and try again.",
   "startup.preferencesFailed.title": "Preferences Load Failed",
   "startup.workspaceFailed.title": "Workspace Load Failed",

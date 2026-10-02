@@ -136,7 +136,7 @@
   "load.workspace.error": "Não foi possível ler o arquivo do espaço de trabalho. Verifique se ele ainda está disponível e se o Dropkick tem acesso a ele, depois tente novamente.",
   "load.workspace.errorAt": "Não foi possível ler o arquivo do espaço de trabalho:\n\n{path}\n\nVerifique se ele ainda está disponível e se o Dropkick tem acesso a ele, depois tente novamente.",
 
-  "recovery.appState": "O Dropkick não conseguiu ler sua lista salva de espaços de trabalho e preferências. Uma cópia preservada continua disponível, e o local dela está registrado no log do aplicativo. Os arquivos de espaço de trabalho e de preferências em si não foram alterados; abra novamente os arquivos não padrão que você ainda usa.",
+  "recovery.appConfig": "O Dropkick não conseguiu ler sua lista salva de espaços de trabalho e preferências. Uma cópia preservada continua disponível, e o local dela está registrado no log do aplicativo. Os arquivos de espaço de trabalho e de preferências em si não foram alterados; abra novamente os arquivos não padrão que você ainda usa.",
   "recovery.noteDrafts": "O Dropkick não conseguiu ler o texto das notas que você digitou e ainda não salvou. Uma cópia preservada continua disponível, e o local dela está registrado no log do aplicativo. Suas listas de tarefas não foram afetadas.",
 
   "taskList.empty": "Nenhuma tarefa ainda.",
@@ -161,7 +161,7 @@
   "toast.unifiedDropkick": "Você está na visão unificada: Dropkick só funciona dentro de uma única lista.",
   "toast.unifiedReorder": "Você está na visão unificada: só é possível reordenar dentro de uma única lista.",
 
-  "startup.appStateReset.title": "Os locais salvos foram redefinidos",
+  "startup.appConfigReset.title": "Os locais salvos foram redefinidos",
   "startup.appStateFailed": "O Dropkick não conseguiu ler o estado salvo do aplicativo. Seus arquivos de espaço de trabalho e de preferências não foram alterados. Saia, verifique o log e tente novamente.",
   "startup.preferencesFailed.title": "Falha ao carregar as preferências",
   "startup.workspaceFailed.title": "Falha ao carregar o espaço de trabalho",

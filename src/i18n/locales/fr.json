@@ -136,7 +136,7 @@
   "load.workspace.error": "Le fichier d’espace de travail n’a pas pu être lu. Vérifiez qu’il est toujours disponible et que Dropkick y a accès, puis réessayez.",
   "load.workspace.errorAt": "Le fichier d’espace de travail n’a pas pu être lu\u00a0:\n\n{path}\n\nVérifiez qu’il est toujours disponible et que Dropkick y a accès, puis réessayez.",
 
-  "recovery.appState": "Dropkick n’a pas pu lire sa liste enregistrée de fichiers d’espace de travail et de préférences. Une copie conservée reste disponible, et son emplacement est consigné dans le journal de l’application. Les fichiers d’espace de travail et de préférences eux-mêmes n’ont pas été modifiés\u00a0; rouvrez ceux que vous utilisez encore, hors fichiers par défaut.",
+  "recovery.appConfig": "Dropkick n’a pas pu lire sa liste enregistrée de fichiers d’espace de travail et de préférences. Une copie conservée reste disponible, et son emplacement est consigné dans le journal de l’application. Les fichiers d’espace de travail et de préférences eux-mêmes n’ont pas été modifiés\u00a0; rouvrez ceux que vous utilisez encore, hors fichiers par défaut.",
   "recovery.noteDrafts": "Dropkick n’a pas pu lire le texte de note que vous aviez saisi sans l’enregistrer. Une copie conservée reste disponible, et son emplacement est consigné dans le journal de l’application. Vos listes de tâches n’ont pas été affectées.",
 
   "taskList.empty": "Aucune tâche pour le moment.",
@@ -161,7 +161,7 @@
   "toast.unifiedDropkick": "Vous êtes dans la vue unifiée\u00a0: Dropkick ne fonctionne que dans une liste individuelle.",
   "toast.unifiedReorder": "Vous êtes dans la vue unifiée\u00a0: la réorganisation ne fonctionne que dans une liste individuelle.",
 
-  "startup.appStateReset.title": "Emplacements mémorisés réinitialisés",
+  "startup.appConfigReset.title": "Emplacements mémorisés réinitialisés",
   "startup.appStateFailed": "Dropkick n’a pas pu lire l’état enregistré de l’application. Vos fichiers d’espace de travail et de préférences n’ont pas été modifiés. Quittez l’app, consultez le journal et réessayez.",
   "startup.preferencesFailed.title": "Échec du chargement des préférences",
   "startup.workspaceFailed.title": "Échec du chargement de l’espace de travail",

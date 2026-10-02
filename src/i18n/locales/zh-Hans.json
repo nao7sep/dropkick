@@ -136,7 +136,7 @@
   "load.workspace.error": "无法读取工作区文件。请确认该文件仍然可用且 Dropkick 有权访问，然后重试。",
   "load.workspace.errorAt": "无法读取工作区文件：\n\n{path}\n\n请确认该文件仍然可用且 Dropkick 有权访问，然后重试。",
 
-  "recovery.appState": "Dropkick 无法读取已保存的工作区和偏好设置列表。已保留一份副本，其位置记录在应用日志中。工作区文件和偏好设置文件本身未被更改；请重新打开你仍在使用的非默认文件。",
+  "recovery.appConfig": "Dropkick 无法读取已保存的工作区和偏好设置列表。已保留一份副本，其位置记录在应用日志中。工作区文件和偏好设置文件本身未被更改；请重新打开你仍在使用的非默认文件。",
   "recovery.noteDrafts": "Dropkick 无法读取你已输入但尚未保存的备注文本。已保留一份副本，其位置记录在应用日志中。你的任务列表不受影响。",
 
   "taskList.empty": "还没有任务。",
@@ -161,7 +161,7 @@
   "toast.unifiedDropkick": "你正在统一视图中。Dropkick 只能在单个列表中使用。",
   "toast.unifiedReorder": "你正在统一视图中。重新排序只能在单个列表中进行。",
 
-  "startup.appStateReset.title": "已记录的文件位置已重置",
+  "startup.appConfigReset.title": "已记录的文件位置已重置",
   "startup.appStateFailed": "Dropkick 无法读取已保存的应用状态。你的工作区文件和偏好设置文件未被更改。请退出应用，查看日志后重试。",
   "startup.preferencesFailed.title": "无法加载偏好设置",
   "startup.workspaceFailed.title": "无法加载工作区",

@@ -136,7 +136,7 @@
   "load.workspace.error": "No se pudo leer el archivo del espacio de trabajo. Verifica que siga disponible y que Dropkick tenga acceso, y vuelve a intentarlo.",
   "load.workspace.errorAt": "No se pudo leer el archivo del espacio de trabajo:\n\n{path}\n\nVerifica que siga disponible y que Dropkick tenga acceso, y vuelve a intentarlo.",
 
-  "recovery.appState": "Dropkick no pudo leer su lista guardada de espacios de trabajo y preferencias. Se conserva una copia, y su ubicación figura en el registro de la aplicación. Los archivos de espacio de trabajo y de preferencias en sí no se modificaron; vuelve a abrir los que no sean los predeterminados y todavía uses.",
+  "recovery.appConfig": "Dropkick no pudo leer su lista guardada de espacios de trabajo y preferencias. Se conserva una copia, y su ubicación figura en el registro de la aplicación. Los archivos de espacio de trabajo y de preferencias en sí no se modificaron; vuelve a abrir los que no sean los predeterminados y todavía uses.",
   "recovery.noteDrafts": "Dropkick no pudo leer el texto de las notas que habías escrito pero aún no habías guardado. Se conserva una copia, y su ubicación figura en el registro de la aplicación. Tus listas de tareas no se vieron afectadas.",
 
   "taskList.empty": "Todavía no hay tareas.",
@@ -161,7 +161,7 @@
   "toast.unifiedDropkick": "Estás en la vista unificada: Dropkick solo funciona dentro de una lista.",
   "toast.unifiedReorder": "Estás en la vista unificada: solo puedes reordenar dentro de una lista.",
 
-  "startup.appStateReset.title": "Se restablecieron las ubicaciones guardadas",
+  "startup.appConfigReset.title": "Se restablecieron las ubicaciones guardadas",
   "startup.appStateFailed": "Dropkick no pudo leer el estado guardado de la aplicación. Tus archivos de espacio de trabajo y de preferencias no se modificaron. Sal de la app, revisa el registro y vuelve a intentarlo.",
   "startup.preferencesFailed.title": "Error al cargar las preferencias",
   "startup.workspaceFailed.title": "Error al cargar el espacio de trabajo",

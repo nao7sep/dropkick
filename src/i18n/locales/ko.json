@@ -136,7 +136,7 @@
   "load.workspace.error": "작업 공간 파일을 읽을 수 없습니다. 파일을 계속 사용할 수 있고 Dropkick에 접근 권한이 있는지 확인한 다음 다시 시도하십시오.",
   "load.workspace.errorAt": "다음 작업 공간 파일을 읽을 수 없습니다.\n\n{path}\n\n파일을 계속 사용할 수 있고 Dropkick에 접근 권한이 있는지 확인한 다음 다시 시도하십시오.",
 
-  "recovery.appState": "Dropkick이 저장된 작업 공간 및 환경설정 목록을 읽을 수 없습니다. 보존된 사본이 남아 있으며 그 위치는 애플리케이션 로그에 기록되어 있습니다. 작업 공간 파일과 환경설정 파일 자체는 변경되지 않았습니다. 기본값이 아닌 파일을 계속 사용하려면 다시 여십시오.",
+  "recovery.appConfig": "Dropkick이 저장된 작업 공간 및 환경설정 목록을 읽을 수 없습니다. 보존된 사본이 남아 있으며 그 위치는 애플리케이션 로그에 기록되어 있습니다. 작업 공간 파일과 환경설정 파일 자체는 변경되지 않았습니다. 기본값이 아닌 파일을 계속 사용하려면 다시 여십시오.",
   "recovery.noteDrafts": "입력했지만 아직 저장하지 않은 메모 텍스트를 Dropkick이 읽을 수 없습니다. 보존된 사본이 남아 있으며 그 위치는 애플리케이션 로그에 기록되어 있습니다. 할 일 목록에는 영향이 없습니다.",
 
   "taskList.empty": "아직 할 일이 없습니다.",
@@ -161,7 +161,7 @@
   "toast.unifiedDropkick": "통합 보기 상태입니다. Dropkick은 개별 목록에서만 사용할 수 있습니다.",
   "toast.unifiedReorder": "통합 보기 상태입니다. 순서 변경은 개별 목록에서만 할 수 있습니다.",
 
-  "startup.appStateReset.title": "등록된 파일 위치가 재설정됨",
+  "startup.appConfigReset.title": "등록된 파일 위치가 재설정됨",
   "startup.appStateFailed": "Dropkick이 저장된 애플리케이션 상태를 읽을 수 없습니다. 작업 공간 파일과 환경설정 파일은 변경되지 않았습니다. 앱을 종료하고 로그를 확인한 다음 다시 시도하십시오.",
   "startup.preferencesFailed.title": "환경설정을 불러오지 못함",
   "startup.workspaceFailed.title": "작업 공간을 불러오지 못함",

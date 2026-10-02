@@ -83,7 +83,7 @@ describe("focus on the first request", () => {
   });
 
   it("gives a message dialog's only button the focus", async () => {
-    await open(() => void showAppMessage(message("startup.appStateReset.title"), message("dialog.deleteNote.body")));
+    await open(() => void showAppMessage(message("startup.appConfigReset.title"), message("dialog.deleteNote.body")));
 
     expect(focusedControl()).toBe("OK");
   });
@@ -147,7 +147,7 @@ describe("focus on a queued request", () => {
   });
 
   it("keeps the rule for a third request behind two others", async () => {
-    await open(() => void showAppMessage(message("startup.appStateReset.title"), message("dialog.deleteNote.body")));
+    await open(() => void showAppMessage(message("startup.appConfigReset.title"), message("dialog.deleteNote.body")));
     await open(() => void showAppConfirm(message("dialog.deleteTask.title"), message("dialog.deleteNote.body")));
     await open(() =>
       void showAppConfirm(message("dialog.fileConflict.title"), message("dialog.deleteNote.body"), { noSafeAction: true }),

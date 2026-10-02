@@ -59,12 +59,12 @@ describe("enqueue + confirm/cancel", () => {
 
 describe("queueing", () => {
   it("queues subsequent requests behind the current one in FIFO order", () => {
-    void useDialogStore.getState().enqueueMessage(message("startup.appStateReset.title"), message("dialog.deleteNote.body"));
+    void useDialogStore.getState().enqueueMessage(message("startup.appConfigReset.title"), message("dialog.deleteNote.body"));
     void useDialogStore.getState().enqueueMessage(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"));
     void useDialogStore.getState().enqueueMessage(message("dialog.fileConflict.title"), message("dialog.deleteNote.body"));
 
     const state = useDialogStore.getState();
-    expect(state.current?.title).toEqual(message("startup.appStateReset.title"));
+    expect(state.current?.title).toEqual(message("startup.appConfigReset.title"));
     expect(state.queue.map((q) => q.title)).toEqual([
       message("dialog.deleteTask.title"),
       message("dialog.fileConflict.title"),
@@ -72,7 +72,7 @@ describe("queueing", () => {
   });
 
   it("advances to the next queued dialog after resolving the current one", () => {
-    const p1 = showAppMessage(message("startup.appStateReset.title"), message("dialog.deleteNote.body"));
+    const p1 = showAppMessage(message("startup.appConfigReset.title"), message("dialog.deleteNote.body"));
     void showAppMessage(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"));
 
     useDialogStore.getState().confirmCurrent();
@@ -82,7 +82,7 @@ describe("queueing", () => {
 
   it("resolves each queued promise as it is reached", async () => {
     const order: string[] = [];
-    const p1 = showAppConfirm(message("startup.appStateReset.title"), message("dialog.deleteNote.body")).then((v) => order.push(`first:${v}`));
+    const p1 = showAppConfirm(message("startup.appConfigReset.title"), message("dialog.deleteNote.body")).then((v) => order.push(`first:${v}`));
     const p2 = showAppConfirm(message("dialog.deleteTask.title"), message("dialog.deleteNote.body")).then((v) => order.push(`second:${v}`));
 
     useDialogStore.getState().confirmCurrent(); // first -> true
@@ -105,19 +105,19 @@ describe("withdrawal", () => {
 
   it("takes the showing dialog off screen and settles it as cancelled", async () => {
     const withdraw = new AbortController();
-    const queued = showAppConfirm(message("startup.appStateReset.title"), body);
+    const queued = showAppConfirm(message("startup.appConfigReset.title"), body);
     useDialogStore.getState().confirmCurrent();
     await queued;
 
     const answer = showAppConfirm(title, body, { signal: withdraw.signal });
-    const next = showAppConfirm(message("startup.appStateReset.title"), body);
+    const next = showAppConfirm(message("startup.appConfigReset.title"), body);
     expect(useDialogStore.getState().current?.title).toEqual(title);
 
     withdraw.abort();
 
     await expect(answer).resolves.toBe(false);
     expect(useDialogStore.getState().current?.title).toEqual(
-      message("startup.appStateReset.title"),
+      message("startup.appConfigReset.title"),
     );
     useDialogStore.getState().cancelCurrent();
     await next;
@@ -125,7 +125,7 @@ describe("withdrawal", () => {
 
   it("removes a queued dialog before it is ever shown", async () => {
     const withdraw = new AbortController();
-    const first = showAppConfirm(message("startup.appStateReset.title"), body);
+    const first = showAppConfirm(message("startup.appConfigReset.title"), body);
     const answer = showAppConfirm(title, body, { signal: withdraw.signal });
 
     withdraw.abort();

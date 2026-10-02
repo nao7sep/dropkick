@@ -20,11 +20,6 @@ export interface PreferencesDto {
   language: LanguagePreference;
   fontFamily: string;
   theme: ThemePreference;
-  // NOTE: zoomLevel and sidebarWidth used to live here but are VIEW STATE, not
-  // preferences — they moved to AppStateDto / state.json (see models/app-state.ts
-  // and persisted-store-separation-conventions). Theme stays: it is an authored
-  // appearance SETTING the user chooses, akin to fontFamily, and travels with the
-  // portable preferences document.
   // SYSTEM_TIME_ZONE follows the computer's zone; otherwise an IANA id.
   timezone: string;
   kickDistances: number[];
