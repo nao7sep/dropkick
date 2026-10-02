@@ -17,11 +17,10 @@ import {
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
 import { SYSTEM_TIME_ZONE, systemTimeZone, timeZoneOptions } from "../../utils/timezone";
-import { CATALOGUES } from "../../i18n/catalogues";
 import { useI18n } from "../../i18n/I18nContext";
 import type { MessageKey } from "../../i18n/catalogues";
 import { message, type Message } from "../../i18n/translate";
-import { LANGUAGES, normalizeLanguagePreference } from "../../i18n/languages";
+import { LANGUAGE_NAMES, LANGUAGES, normalizeLanguagePreference } from "../../i18n/languages";
 import { AppModal } from "../shared/AppModal";
 import { Button } from "../shared/Button";
 import {
@@ -154,7 +153,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <option value="system">{t("settings.languageSystem")}</option>
           {LANGUAGES.map((language) => (
             <option key={language} value={language} lang={language}>
-              {CATALOGUES[language]["language.name"] as string}
+              {LANGUAGE_NAMES[language]}
             </option>
           ))}
         </select>

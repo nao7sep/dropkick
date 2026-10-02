@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 
-import { LANGUAGES } from "../../../src/i18n/languages";
-import { CATALOGUES } from "../../../src/i18n/catalogues";
+import { LANGUAGE_NAMES, LANGUAGES } from "../../../src/i18n/languages";
 import { message } from "../../../src/i18n/translate";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -113,7 +112,7 @@ describe("SettingsModal language", () => {
     const options = [...languageSelect().options].map((option) => [option.value, option.textContent, option.lang]);
     expect(options).toEqual([
       ["system", "System", ""],
-      ...LANGUAGES.map((language) => [language, CATALOGUES[language]["language.name"], language]),
+      ...LANGUAGES.map((language) => [language, LANGUAGE_NAMES[language], language]),
     ]);
     expect(languageSelect().value).toBe("system");
   });

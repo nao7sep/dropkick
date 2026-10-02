@@ -13,6 +13,7 @@ const isFullscreen = vi.fn();
 const isMinimized = vi.fn();
 const onMoved = vi.fn();
 const onScaleChanged = vi.fn();
+const pickerLanguages = vi.hoisted((): string[] => []);
 
 vi.mock("@tauri-apps/api/window", () => ({
   LogicalSize: class LogicalSize {
@@ -47,9 +48,15 @@ vi.mock("../src/repositories", () => ({
   flushPreferences: vi.fn(),
 }));
 
-vi.mock("../src/components/layout/StartupPicker", () => ({
-  StartupPicker: () => "Startup picker",
-}));
+vi.mock("../src/components/layout/StartupPicker", async () => {
+  const { useI18n } = await import("../src/i18n/I18nContext");
+  return {
+    StartupPicker: () => {
+      pickerLanguages.push(useI18n().language);
+      return "Startup picker";
+    },
+  };
+});
 vi.mock("../src/components/layout/StartupErrorScreen", () => ({
   StartupErrorScreen: () => "Startup error",
 }));
@@ -66,7 +73,9 @@ vi.mock("../src/components/shared/ToastHost", () => ({
 import App from "../src/App";
 import { createDefaultAppState, createDefaultPreferences } from "../src/models";
 import type { ThemePreference } from "../src/models";
+import { loadCatalogue } from "../src/i18n/catalogues";
 import type { LanguagePreference } from "../src/i18n/languages";
+import { currentInterfaceLanguage } from "../src/hooks/useInterfaceLanguage";
 import { useLanguageStore } from "../src/state/language-store";
 import { useAppConfigStore } from "../src/state/app-config-store";
 import { useAppStateStore } from "../src/state/app-state-store";
@@ -86,6 +95,7 @@ beforeEach(() => {
   loadLanguageEnvironment.mockReset().mockResolvedValue({ systemLanguage: "ja", systemLocale: "ja-JP" });
   useLanguageStore.setState({ systemLanguage: "en", systemLocale: null });
   loadedLanguage = "system";
+  pickerLanguages.length = 0;
   setMinSize.mockReset().mockResolvedValue(undefined);
   show.mockReset().mockResolvedValue(undefined);
   isMaximized.mockReset().mockResolvedValue(false);
@@ -131,10 +141,14 @@ afterEach(async () => {
   await host.unmount();
 });
 
+// Lets initialization reach the interface language's catalogue load, waits
+// that load out, then the work queued behind it.
 async function mountApp() {
   host = await mount(createElement(App));
   await act(async () => {
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await loadCatalogue(currentInterfaceLanguage());
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
@@ -205,6 +219,14 @@ describe("startup language", () => {
 
     expect(applyLanguage.mock.calls).toEqual([["ru"]]);
     expect(document.documentElement.lang).toBe("ru");
+  });
+
+  it("shows the startup picker in the interface language from its first render", async () => {
+    loadedLanguage = "ko";
+    await mountApp();
+
+    expect(pickerLanguages.length).toBeGreaterThan(0);
+    expect(new Set(pickerLanguages)).toEqual(new Set(["ko"]));
   });
 
   it("sends nothing while initialization is still running", async () => {

@@ -31,8 +31,8 @@ import { useAppConfigStore } from "./state/app-config-store";
 import { useAppStateStore } from "./state/app-state-store";
 import { useNoteDraftStore } from "./state/note-draft-store";
 import { useLanguageStore } from "./state/language-store";
-import { useInterfaceLanguage } from "./hooks/useInterfaceLanguage";
-import { I18nProvider } from "./i18n/I18nContext";
+import { currentInterfaceLanguage, useInterfaceLanguage } from "./hooks/useInterfaceLanguage";
+import { I18nProvider, loadInterfaceCatalogue } from "./i18n/I18nContext";
 import { message, type Message } from "./i18n/translate";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
@@ -216,6 +216,8 @@ function App() {
             );
           }
         }
+        // The first text on screen is already in the interface language.
+        await loadInterfaceCatalogue(currentInterfaceLanguage());
         setPhase({ kind: "startup" });
         if (configQuarantinedTo) {
           await showMessage(
@@ -225,6 +227,7 @@ function App() {
         }
       } catch (e) {
         log.error("app initialization failed", toErrorFields(e));
+        await loadInterfaceCatalogue(currentInterfaceLanguage());
         setPhase({
           kind: "error",
           message: message("startup.appStateFailed"),

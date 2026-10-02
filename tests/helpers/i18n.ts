@@ -1,4 +1,4 @@
-import { CATALOGUES } from "../../src/i18n/catalogues";
+import { loadedCatalogue } from "../../src/i18n/catalogues";
 import { createTranslator, type Message } from "../../src/i18n/translate";
 
 // Renders a message the way an English interface shows it, so tests can keep
@@ -12,7 +12,7 @@ export function inEnglish(message: Message | null | undefined): string | null {
 // Catalogue keys that reached the screen untranslated: a key rendered as text
 // or given to an attribute a person reads or hears. The TypeScript types cannot
 // catch this, because a key is a string and React renders any string.
-const KEYS = new Set(Object.keys(CATALOGUES.en));
+const KEYS = new Set(Object.keys(loadedCatalogue("en") ?? {}));
 const READ_ATTRIBUTES = ["title", "aria-label", "aria-description", "placeholder", "alt", "label"];
 const KEY_LIKE = /[A-Za-z]\w*(?:\.\w+)+/g;
 

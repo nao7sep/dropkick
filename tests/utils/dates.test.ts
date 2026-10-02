@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import {
   nowUtc,
   todayInTimezone,
@@ -8,7 +8,12 @@ import {
   isOverdue,
   isDueInDayRange,
 } from "../../src/utils/dates";
+import { loadCatalogue } from "../../src/i18n/catalogues";
 import { createTranslator } from "../../src/i18n/translate";
+
+beforeAll(async () => {
+  await Promise.all([loadCatalogue("de"), loadCatalogue("ja")]);
+});
 
 // Pin "now" to a moment where UTC and Asia/Tokyo (UTC+9) fall on different
 // calendar dates, so timezone handling is actually exercised:

@@ -11,7 +11,7 @@ export default defineConfig(() => ({
 
   // Loaded from disk by the webview, not over a network: the default 500 kB
   // warning measures transfer cost. 2000 keeps a runaway bundle loud without
-  // flagging the ten-language catalogues on every build.
+  // flagging the main chunk on every build.
   build: {
     chunkSizeWarningLimit: 2000,
   },

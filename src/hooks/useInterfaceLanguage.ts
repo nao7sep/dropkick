@@ -13,3 +13,11 @@ export function useInterfaceLanguage(): { language: Language; locale: string } {
   const language = effectiveLanguage(preference, systemLanguage);
   return { language, locale: formattingLocale(language, systemLocale) };
 }
+
+// The same language, read outside React.
+export function currentInterfaceLanguage(): Language {
+  return effectiveLanguage(
+    usePreferencesStore.getState().preferences.language,
+    useLanguageStore.getState().systemLanguage,
+  );
+}

@@ -1,5 +1,5 @@
 import { Fragment, createElement, type ReactNode } from "react";
-import { CATALOGUES, type Catalogue, type MessageKey } from "./catalogues";
+import { loadedCatalogue, type Catalogue, type MessageKey } from "./catalogues";
 import type { Language } from "./languages";
 
 // A value is plain text, a number formatted for the locale, or another
@@ -40,8 +40,13 @@ export type Translator = {
   list: (items: readonly string[]) => string;
 };
 
+// The language's catalogue must already be loaded (loadCatalogue).
 export function createTranslator(language: Language, locale: string = language): Translator {
-  const catalogue: Catalogue = CATALOGUES[language];
+  const loaded = loadedCatalogue(language);
+  if (loaded === undefined) {
+    throw new Error(`Catalogue not loaded: ${language}`);
+  }
+  const catalogue: Catalogue = loaded;
   const numberFormat = new Intl.NumberFormat(locale);
   const percentFormat = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
   const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();

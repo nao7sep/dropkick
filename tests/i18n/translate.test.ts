@@ -1,7 +1,12 @@
 import { isValidElement, type ReactElement } from "react";
 import type { MessageKey } from "../../src/i18n/catalogues";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { loadCatalogue } from "../../src/i18n/catalogues";
 import { createTranslator, message } from "../../src/i18n/translate";
+
+beforeAll(async () => {
+  await Promise.all([loadCatalogue("de"), loadCatalogue("ja")]);
+});
 
 describe("createTranslator", () => {
   it("fills placeholders and formats numbers for the locale", () => {
