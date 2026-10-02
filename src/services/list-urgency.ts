@@ -19,7 +19,7 @@ export type ListUrgency = "PastDue" | "DueToday" | null;
 // array order does not matter.
 export function computeListUrgency(
   tasks: readonly TaskDto[],
-  timezone: string | null,
+  timezone: string,
 ): ListUrgency {
   let dueToday = false;
   for (const task of tasks) {
@@ -44,7 +44,7 @@ export function computeTabUrgencies(
   openTabs: readonly { isUnifiedView: boolean; filePath: string }[],
   files: Readonly<Record<string, { data: { tasks: readonly TaskDto[] } }>>,
   loadErrorPaths: ReadonlySet<string>,
-  timezone: string | null,
+  timezone: string,
 ): Record<string, ListUrgency> {
   const result: Record<string, ListUrgency> = {};
   for (const tab of openTabs) {

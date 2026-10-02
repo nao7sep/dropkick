@@ -6,7 +6,7 @@ import { isOverdue, isDueInDayRange } from "./dates";
 // Each task belongs to exactly one group — the highest applicable one.
 export function computeGroup(
   dto: TaskDto,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): TaskGroup {
   const hasDue = dto.dueDate !== null;
@@ -41,7 +41,7 @@ export function computeGroup(
 export function toTask(
   dto: TaskDto,
   sourceFile: string,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): Task {
   const hasActionableNotes = dto.notes.some(

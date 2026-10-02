@@ -26,7 +26,7 @@ function arraysShallowEqual<T>(a: T[], b: T[]): boolean {
 function groupSlots(
   tasks: TaskDto[],
   group: TaskGroup,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): number[] {
   const slots: number[] = [];
@@ -44,7 +44,7 @@ function groupSlots(
 function reorderWithinGroups(
   tasks: TaskDto[],
   selectedIds: Set<string>,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
   reorderFn: (groupTasks: TaskDto[], selected: Set<string>) => TaskDto[],
 ): TaskDto[] {
@@ -85,7 +85,7 @@ function reorderWithinGroups(
 export function sendTasksToFirst(
   tasks: TaskDto[],
   selectedIds: Set<string>,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): TaskDto[] {
   return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
@@ -103,7 +103,7 @@ export function sendTasksToFirst(
 export function sendTasksToLast(
   tasks: TaskDto[],
   selectedIds: Set<string>,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): TaskDto[] {
   return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
@@ -122,7 +122,7 @@ export function kickTasks(
   tasks: TaskDto[],
   selectedIds: Set<string>,
   distance: number,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): TaskDto[] {
   return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
@@ -149,7 +149,7 @@ export function kickTasks(
 export function moveTasksUp(
   tasks: TaskDto[],
   selectedIds: Set<string>,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): TaskDto[] {
   return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
@@ -167,7 +167,7 @@ export function moveTasksUp(
 export function moveTasksDown(
   tasks: TaskDto[],
   selectedIds: Set<string>,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): TaskDto[] {
   return reorderWithinGroups(tasks, selectedIds, timezone, dueSoonDays, (groupTasks, selected) => {
@@ -186,7 +186,7 @@ export function moveTasksDown(
 export function dropkickTasks(
   tasks: TaskDto[],
   selectedIds: Set<string>,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): TaskDto[] {
   const now = nowUtc();

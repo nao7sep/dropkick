@@ -3,6 +3,7 @@
 
 import type { LanguagePreference } from "../i18n/languages";
 import { generateId } from "../utils/ids";
+import { SYSTEM_TIME_ZONE } from "../utils/timezone";
 
 export type ThemePreference = "system" | "light" | "dark";
 
@@ -21,7 +22,8 @@ export interface PreferencesDto {
   // and persisted-store-separation-conventions). Theme stays: it is an authored
   // appearance SETTING the user chooses, akin to fontFamily, and travels with the
   // portable preferences document.
-  timezone: string | null; // IANA timezone e.g. "Asia/Tokyo"; null = system
+  // SYSTEM_TIME_ZONE follows the computer's zone; otherwise an IANA id.
+  timezone: string;
   kickDistances: number[];
   dueSoonDays: number;
   handledTasksPageSize: number;
@@ -135,7 +137,7 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     language: "system",
     fontFamily: "",
     theme: "system",
-    timezone: null,
+    timezone: SYSTEM_TIME_ZONE,
     kickDistances: [...DEFAULT_KICK_DISTANCES],
     dueSoonDays: DUE_SOON_DAYS_DEFAULT,
     handledTasksPageSize: HANDLED_TASKS_PAGE_SIZE_DEFAULT,

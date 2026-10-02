@@ -129,16 +129,20 @@ describe("SettingsModal language", () => {
 describe("SettingsModal time zone", () => {
   it("is chosen from a list that starts with System, never typed", () => {
     const select = timeZoneSelect();
-    expect(select.options[0].value).toBe("");
+    expect(select.options[0].value).toBe("system");
     expect(select.options[0].textContent).toMatch(/^System \(.+\)$/);
     expect([...select.options].map((option) => option.value)).toContain("Asia/Tokyo");
     expect([...document.querySelectorAll("button")].some((b) => b.textContent === "Detect")).toBe(false);
   });
 
-  it("saves a chosen zone, and System as no saved zone", async () => {
+  it("saves a chosen zone", async () => {
     await choose(timeZoneSelect(), "Europe/Berlin");
     await save();
     expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ timezone: "Europe/Berlin" }));
+  });
+
+  it("selects System for the system token", () => {
+    expect(timeZoneSelect().value).toBe("system");
   });
 
   it("keeps a saved zone the platform list lacks selectable", async () => {

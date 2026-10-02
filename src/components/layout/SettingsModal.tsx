@@ -16,7 +16,7 @@ import {
 } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
-import { systemTimeZone, timeZoneOptions } from "../../utils/timezone";
+import { SYSTEM_TIME_ZONE, systemTimeZone, timeZoneOptions } from "../../utils/timezone";
 import { CATALOGUES } from "../../i18n/catalogues";
 import { useI18n } from "../../i18n/I18nContext";
 import type { MessageKey } from "../../i18n/catalogues";
@@ -204,11 +204,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           computer's zone on every launch. */}
       <Field label={t("settings.timezone")}>
         <select
-          value={draft.timezone ?? ""}
-          onChange={(e) => setField("timezone", e.target.value || null)}
+          value={draft.timezone}
+          onChange={(e) => setField("timezone", e.target.value)}
           className="dk-field w-full"
         >
-          <option value="">{t("settings.timezoneSystem", { zone: systemTimeZone() })}</option>
+          <option value={SYSTEM_TIME_ZONE}>{t("settings.timezoneSystem", { zone: systemTimeZone() })}</option>
           {zones.map((zone) => (
             <option key={zone} value={zone}>
               {zone}

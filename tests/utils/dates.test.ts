@@ -43,7 +43,7 @@ describe("todayInTimezone / tomorrowInTimezone", () => {
   });
 
   it("falls back to system timezone for an invalid zone (no throw)", () => {
-    // coerceTimezone rejects the bad zone -> null -> system tz; just assert shape.
+    // An unknown zone reads as the system token; just assert shape.
     expect(todayInTimezone("Not/AZone")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

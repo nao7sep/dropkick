@@ -7,7 +7,7 @@ import {
   normalizeDueSoonDays, normalizeHandledTasksPageSize, normalizeKickDistances,
 } from "../models";
 import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
-import { coerceTimezone, normalizeTimezoneOrThrow } from "../utils/timezone";
+import { normalizeTimeZonePreference } from "../utils/timezone";
 import { isLanguage } from "../i18n/languages";
 import { log } from "./logging";
 
@@ -42,7 +42,7 @@ function effectivePreferences(data: Record<string, unknown> & { id: string }, pa
     Object.assign(preferences, { [key]: value });
   }
   // Existing value-use normalization remains separate from set shape.
-  preferences.timezone = coerceTimezone(preferences.timezone);
+  preferences.timezone = normalizeTimeZonePreference(preferences.timezone);
   preferences.kickDistances = normalizeKickDistances(preferences.kickDistances);
   preferences.dueSoonDays = normalizeDueSoonDays(preferences.dueSoonDays);
   preferences.handledTasksPageSize = normalizeHandledTasksPageSize(preferences.handledTasksPageSize);
@@ -75,7 +75,7 @@ export async function flushPreferences(
     }
     const preferences = getPreferences();
     for (const key of changedKeys) {
-      stored[key] = key === "timezone" ? normalizeTimezoneOrThrow(preferences.timezone)
+      stored[key] = key === "timezone" ? normalizeTimeZonePreference(preferences.timezone)
         : key === "kickDistances" ? normalizeKickDistances(preferences.kickDistances)
         : key === "dueSoonDays" ? normalizeDueSoonDays(preferences.dueSoonDays)
         : key === "handledTasksPageSize" ? normalizeHandledTasksPageSize(preferences.handledTasksPageSize)

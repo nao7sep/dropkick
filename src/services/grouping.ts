@@ -87,7 +87,7 @@ export function collectViewTasks(
   openTabs: TabDto[],
   filePath: string,
   isUnifiedView: boolean,
-  timezone: string | null,
+  timezone: string,
   dueSoonDays: number,
 ): Task[] {
   if (!isUnifiedView) {

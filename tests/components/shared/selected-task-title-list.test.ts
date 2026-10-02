@@ -17,8 +17,8 @@ afterEach(async () => {
 describe("SelectedTaskTitleList", () => {
   it("uses list semantics without typing bullet characters into task titles", async () => {
     const tasks = [
-      toTask(makeTask({ title: "First" }), "/tasks.json", null, 7),
-      toTask(makeTask({ title: "" }), "/tasks.json", null, 7),
+      toTask(makeTask({ title: "First" }), "/tasks.json", "system", 7),
+      toTask(makeTask({ title: "" }), "/tasks.json", "system", 7),
     ];
 
     host = await mount(createElement(SelectedTaskTitleList, { tasks }));

@@ -98,7 +98,7 @@ describe("collectViewTasks", () => {
       [tab("/a.json"), tab("/b.json")],
       "/a.json",
       false,
-      null,
+      "system",
       7,
     );
     expect(result.map((t) => t.id)).toEqual(["a1"]);
@@ -107,7 +107,7 @@ describe("collectViewTasks", () => {
 
   it("returns nothing for a list tab whose file is not loaded", () => {
     expect(
-      collectViewTasks({}, [tab("/a.json")], "/a.json", false, null, 7),
+      collectViewTasks({}, [tab("/a.json")], "/a.json", false, "system", 7),
     ).toEqual([]);
   });
 
@@ -121,7 +121,7 @@ describe("collectViewTasks", () => {
       [tab("", true), tab("/a.json"), tab("/b.json")],
       "",
       true,
-      null,
+      "system",
       7,
     );
     expect(result.map((t) => t.id)).toEqual(["a1", "b1"]);
@@ -137,7 +137,7 @@ describe("collectViewTasks", () => {
       [tab("", true), tab("/a.json"), tab("/gone.json")],
       "",
       true,
-      null,
+      "system",
       7,
     );
     expect(result.map((t) => t.id)).toEqual(["a1"]);

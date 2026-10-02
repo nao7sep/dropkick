@@ -58,7 +58,7 @@ describe("preferences sets", () => {
 
   it.each([
     ["language", "xx", "system"], ["theme", "sepia", "system"],
-    ["fontFamily", 42, ""], ["timezone", 3, null],
+    ["fontFamily", 42, ""], ["timezone", 3, "system"],
     ["kickDistances", "nope", [5, 25]], ["kickDistances", [5, "25"], [5, 25]],
     ["dueSoonDays", "abc", 7], ["handledTasksPageSize", null, 50],
     ["confirmPermanentDeletions", "no", true],
@@ -102,6 +102,15 @@ describe("preferences sets", () => {
     const freshRepository = await import("../../src/repositories/preferences-repository");
     await freshRepository.loadPreferences("/prefs.json");
     expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [{ id: "prefs" }], [{ id: "prefs", timezone: null }], [{ id: "prefs", timezone: "Not/AZone" }],
+  ])("reads the time zone of %j as the system token", async (data) => {
+    stored(data);
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status === "success" && result.preferences.timezone).toBe("system");
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("retains existing range normalization after reading a correctly shaped set", async () => {

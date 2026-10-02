@@ -1,25 +1,24 @@
 import { addDays, format, parseISO, isValid } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { coerceTimezone } from "./timezone";
+import { conversionTimeZone } from "./timezone";
 
 // Returns the current time as an ISO 8601 UTC string.
 export function nowUtc(): string {
   return new Date().toISOString();
 }
 
-// Returns today's date as "YYYY-MM-DD" in the given timezone.
-// If timezone is null, uses the system timezone.
-export function todayInTimezone(timezone: string | null): string {
+// Returns today's date as "YYYY-MM-DD" in the given time zone preference.
+export function todayInTimezone(timezone: string): string {
   const now = new Date();
-  const safeTimezone = coerceTimezone(timezone);
-  return safeTimezone
-    ? formatInTimeZone(now, safeTimezone, "yyyy-MM-dd")
+  const zone = conversionTimeZone(timezone);
+  return zone
+    ? formatInTimeZone(now, zone, "yyyy-MM-dd")
     : format(now, "yyyy-MM-dd");
 }
 
 // Returns tomorrow's date as "YYYY-MM-DD" in the given timezone.
 // The calculation starts from the timezone-adjusted calendar date, then adds one day.
-export function tomorrowInTimezone(timezone: string | null): string {
+export function tomorrowInTimezone(timezone: string): string {
   const today = parseISO(todayInTimezone(timezone));
   return format(addDays(today, 1), "yyyy-MM-dd");
 }
@@ -30,12 +29,12 @@ export function tomorrowInTimezone(timezone: string | null): string {
 // stored.
 export function formatTimestamp(
   isoUtc: string,
-  timezone: string | null,
+  timezone: string,
   dateTime: (date: Date, timeZone: string | null) => string,
 ): string {
   const date = parseISO(isoUtc);
   if (!isValid(date)) return isoUtc;
-  return dateTime(date, coerceTimezone(timezone));
+  return dateTime(date, conversionTimeZone(timezone) ?? null);
 }
 
 // Formats a date-only string ("YYYY-MM-DD") with the interface language's
@@ -53,7 +52,7 @@ export function formatDueDate(
 // Checks if a due date (YYYY-MM-DD) is in the past relative to today in the given timezone.
 export function isOverdue(
   dueDate: string,
-  timezone: string | null,
+  timezone: string,
 ): boolean {
   const today = todayInTimezone(timezone);
   return dueDate < today;
@@ -67,7 +66,7 @@ export function isDueInDayRange(
   dueDate: string,
   startOffset: number,
   count: number,
-  timezone: string | null,
+  timezone: string,
 ): boolean {
   if (count <= 0) return false;
 

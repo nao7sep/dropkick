@@ -62,15 +62,15 @@ describe("update", () => {
 
   it("absorbs repository normalization back into state", async () => {
     usePreferencesStore.setState({ filePath: "/p.json" });
-    // Repository coerces an invalid timezone to null on save.
+    // Repository reads an unknown time zone as the system token on save.
     flushPreferences.mockImplementation(async (_p, getPrefs: () => PreferencesDto) => ({
       ...getPrefs(),
-      timezone: null,
+      timezone: "system",
     }));
 
     await usePreferencesStore.getState().update({ timezone: "Bad/Zone" });
     expect(flushPreferences).toHaveBeenCalledTimes(1);
-    expect(usePreferencesStore.getState().preferences.timezone).toBeNull();
+    expect(usePreferencesStore.getState().preferences.timezone).toBe("system");
   });
 
   it("rolls back its optimistic fields after a failed write so Save can retry", async () => {

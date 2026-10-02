@@ -15,7 +15,7 @@ import { makeTask, ids } from "../helpers/task";
 // Default-priority, no-due-date tasks (all in the "Default" group) unless they
 // specifically exercise cross-group isolation.
 
-const TZ = null;
+const TZ = "system";
 const DUE_SOON = 7;
 
 // Extract ids in array order, for compact assertions.

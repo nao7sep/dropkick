@@ -19,7 +19,7 @@ afterEach(async () => {
   await host?.unmount();
 });
 
-const tasks = (...dtos: TaskDto[]) => dtos.map((dto) => toTask(dto, "/tasks.json", null, 7));
+const tasks = (...dtos: TaskDto[]) => dtos.map((dto) => toTask(dto, "/tasks.json", "system", 7));
 
 async function groupsOf(list: ReturnType<typeof tasks>): Promise<string[]> {
   host = await mount(createElement(TaskSummary, { tasks: list }));

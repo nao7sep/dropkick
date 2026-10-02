@@ -440,7 +440,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     apply: (
       tasks: TaskDto[],
       ids: Set<string>,
-      timezone: string | null,
+      timezone: string,
       dueSoonDays: number,
     ) => TaskDto[],
     extraFields: LogFields = {},

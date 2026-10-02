@@ -13,9 +13,8 @@
 // arrays are kept by reference (their inner keys are not filtered), and a stored
 // value of the wrong type for a present key is passed through. Fields that
 // accept a meaningful null, need range/format repair, or must be a specific
-// structural type get an explicit coercion at the call site — see coerceTimezone
-// and normalizeKickDistances (preferences) or the array coercion in
-// loadWorkspace.
+// structural type get an explicit coercion at the call site — see the array
+// coercion in loadWorkspace.
 export function mergeWithDefaults<T extends object>(
   defaults: T,
   data: Partial<T>,
