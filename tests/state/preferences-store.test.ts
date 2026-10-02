@@ -7,7 +7,7 @@ const flushPreferences = vi.fn();
 
 vi.mock("../../src/repositories", () => ({
   loadPreferences: (p: string) => loadPreferences(p),
-  flushPreferences: (p: string, getPrefs: () => PreferencesDto, keys: readonly string[]) => flushPreferences(p, getPrefs, keys),
+  flushPreferences: (p: string, getPrefs: () => PreferencesDto) => flushPreferences(p, getPrefs),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
@@ -60,21 +60,9 @@ describe("update", () => {
     expect(flushPreferences).not.toHaveBeenCalled();
   });
 
-  it("absorbs repository normalization back into state", async () => {
-    usePreferencesStore.setState({ filePath: "/p.json" });
-    // Repository reads an unknown time zone as the system token on save.
-    flushPreferences.mockImplementation(async (_p, getPrefs: () => PreferencesDto) => ({
-      ...getPrefs(),
-      timezone: "system",
-    }));
-
-    await usePreferencesStore.getState().update({ timezone: "Bad/Zone" });
-    expect(flushPreferences).toHaveBeenCalledTimes(1);
-    expect(usePreferencesStore.getState().preferences.timezone).toBe("system");
-  });
-
   it("rolls back its optimistic fields after a failed write so Save can retry", async () => {
-    usePreferencesStore.setState({ filePath: "/p.json" });
+    loadPreferences.mockResolvedValue({ status: "success", preferences: createDefaultPreferences("Default") });
+    await usePreferencesStore.getState().load("/p.json");
     flushPreferences.mockRejectedValue(new Error("disk full"));
 
     const result = await usePreferencesStore.getState().update({ dueSoonDays: 10 });

@@ -4,6 +4,9 @@ import {
   normalizeThemePreference,
   createDefaultPreferences,
   DEFAULT_KICK_DISTANCES,
+  isValidPreferenceSet,
+  PREFERENCE_SET_KEYS,
+  preferencesDocument,
 } from "../../src/models";
 
 describe("normalizeThemePreference", () => {
@@ -77,5 +80,15 @@ describe("createDefaultPreferences", () => {
     expect(createDefaultPreferences("Default").confirmPermanentDeletions).toBe(
       true,
     );
+  });
+});
+
+describe("preferencesDocument", () => {
+  it("holds only identity when every set is its built-in, each built-in valid", () => {
+    const preferences = createDefaultPreferences("Default");
+    for (const key of PREFERENCE_SET_KEYS) {
+      expect(isValidPreferenceSet(key, preferences[key])).toBe(true);
+    }
+    expect(preferencesDocument(preferences)).toEqual({ id: preferences.id, name: "Default" });
   });
 });

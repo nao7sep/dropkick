@@ -1,19 +1,18 @@
 import { describe, it, expect } from "vitest";
 import {
   conversionTimeZone,
-  normalizeTimeZonePreference,
+  isKnownTimeZone,
   SYSTEM_TIME_ZONE,
   timeZoneOptions,
 } from "../../src/utils/timezone";
 
-describe("normalizeTimeZonePreference", () => {
-  it("keeps the system token and an id the platform knows", () => {
-    expect(normalizeTimeZonePreference("system")).toBe(SYSTEM_TIME_ZONE);
-    expect(normalizeTimeZonePreference("Asia/Tokyo")).toBe("Asia/Tokyo");
+describe("isKnownTimeZone", () => {
+  it("accepts an id the platform knows", () => {
+    expect(isKnownTimeZone("Asia/Tokyo")).toBe(true);
   });
 
-  it.each([null, undefined, 42, "", "Not/AZone"])("reads %j as the system token", (value) => {
-    expect(normalizeTimeZonePreference(value)).toBe(SYSTEM_TIME_ZONE);
+  it.each([null, undefined, 42, "", "Not/AZone", SYSTEM_TIME_ZONE])("rejects %j", (value) => {
+    expect(isKnownTimeZone(value)).toBe(false);
   });
 });
 

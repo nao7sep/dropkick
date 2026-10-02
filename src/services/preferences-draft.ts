@@ -47,7 +47,7 @@ export function isPreferencesDraftDirty(
     .some((key) => draft[key] !== committed[key]);
 }
 
-// Save patches only sets whose effective values differ, including whole lists.
+// The sets the draft changes, compared whole, including lists.
 export function changedPreferenceSets(draft: StagedPreferences, committed: PreferencesDto) {
   return Object.fromEntries(PREFERENCE_SET_KEYS
     .filter((key) => JSON.stringify(draft[key]) !== JSON.stringify(committed[key]))

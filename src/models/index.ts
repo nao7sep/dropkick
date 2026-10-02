@@ -18,6 +18,8 @@ export {
   createDefaultPreferences,
   PREFERENCE_SET_KEYS,
   isPreferencesDocument,
+  isValidPreferenceSet,
+  preferencesDocument,
   normalizeDueSoonDays,
   normalizeHandledTasksPageSize,
   normalizeKickDistances,

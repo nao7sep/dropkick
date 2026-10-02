@@ -38,11 +38,8 @@ interface PreferencesState {
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => {
   // A write resolves after later updates may already have changed the store.
-  // Track the latest update per field so an older completion can normalize
-  // only the fields whose values it actually captured, never overwrite a
-  // newer edit. The confirmed snapshot provides a safe rollback point after
-  // the final outstanding write fails.
-  const fieldRevisions = new Map<keyof PreferencesDto, number>();
+  // The confirmed snapshot provides a safe rollback point after the final
+  // outstanding write fails.
   let nextRevision = 0;
   let documentRevision = 0;
   let pendingWrites = 0;
@@ -61,7 +58,6 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       // A newly loaded document supersedes any completion still in flight from
       // the previous one.
       documentRevision += 1;
-      fieldRevisions.clear();
       pendingWrites = 0;
       lastPersistedWrite = 0;
       persistedPreferences = result.preferences;
@@ -78,7 +74,6 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       log.info("preferences updated", { changed: changedKeys });
 
       const revision = ++nextRevision;
-      for (const key of changedKeys) fieldRevisions.set(key, revision);
 
       // Sync state transition first — reads the latest store, applies changes
       // atomically. Concurrent updates queue their own sync transitions and
@@ -97,15 +92,12 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       // reported. Once the final queued attempt fails, the last full snapshot
       // confirmed on disk is restored so an explicit Settings save remains
       // dirty and retryable.
-      let normalized: PreferencesDto;
-      const writeCapture: {
-        revisions?: Map<keyof PreferencesDto, number>;
-      } = {};
+      let written: PreferencesDto | undefined;
       try {
-        normalized = await flushPreferences(filePath, () => {
-          writeCapture.revisions = new Map(fieldRevisions);
-          return get().preferences;
-        }, changedKeys);
+        await flushPreferences(filePath, () => {
+          written = get().preferences;
+          return written;
+        });
       } catch (e) {
         if (documentRevision === writeDocumentRevision) {
           pendingWrites = Math.max(0, pendingWrites - 1);
@@ -120,7 +112,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       }
 
       // A write may capture edits from calls queued behind it, so its complete
-      // result—not merely this call's changed keys—is now confirmed on disk.
+      // snapshot—not merely this call's changed keys—is now confirmed on disk.
       // Ignore an out-of-order older completion when selecting the rollback
       // snapshot (the repository serializes these in production; this also
       // makes the store robust to an equivalent adapter).
@@ -128,25 +120,10 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
         return { status: "success" };
       }
       pendingWrites = Math.max(0, pendingWrites - 1);
-      if (revision > lastPersistedWrite) {
-        persistedPreferences = normalized;
+      if (written && revision > lastPersistedWrite) {
+        persistedPreferences = written;
         lastPersistedWrite = revision;
       }
-
-      // Absorb normalization only for fields whose revisions were captured by
-      // this write. Replacing the whole object would erase a later update that
-      // landed after the repository invoked its getter.
-      const capturedRevisions = writeCapture.revisions;
-      if (!capturedRevisions) return { status: "success" };
-      set((state) => {
-        let preferences = state.preferences;
-        for (const key of Object.keys(normalized) as (keyof PreferencesDto)[]) {
-          if (fieldRevisions.get(key) !== capturedRevisions.get(key)) continue;
-          if (Object.is(preferences[key], normalized[key])) continue;
-          preferences = { ...preferences, [key]: normalized[key] };
-        }
-        return preferences === state.preferences ? state : { preferences };
-      });
       return { status: "success" };
     },
   };

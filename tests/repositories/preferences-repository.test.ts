@@ -58,69 +58,35 @@ describe("preferences sets", () => {
 
   it.each([
     ["language", "xx", "system"], ["theme", "sepia", "system"],
-    ["fontFamily", 42, ""], ["timezone", 3, "system"],
-    ["kickDistances", "nope", [5, 25]], ["kickDistances", [5, "25"], [5, 25]],
-    ["dueSoonDays", "abc", 7], ["handledTasksPageSize", null, 50],
+    ["fontFamily", 42, ""], ["fontFamily", " Inter ", ""], ["timezone", 3, "system"], ["timezone", "Not/AZone", "system"],
+    ["kickDistances", "nope", [5, 25]], ["kickDistances", [5, "25"], [5, 25]], ["kickDistances", [5, 5, 1000], [5, 25]],
+    ["dueSoonDays", "abc", 7], ["dueSoonDays", 100000000, 7], ["handledTasksPageSize", null, 50], ["handledTasksPageSize", -5, 50],
     ["confirmPermanentDeletions", "no", true],
-  ])("uses the built-in for a wrong-shaped %s set and warns once", async (key, value, fallback) => {
+  ])("reads an invalid %s set (%j) as its built-in and warns", async (key, value, fallback) => {
     stored({ id: "prefs", name: "Work", [key as string]: value, theme: key === "theme" ? value : "dark" });
     const result = await loadPreferences("/prefs.json");
     expect(result.status).toBe("success");
     if (result.status !== "success") return;
     expect(result.preferences[key as keyof typeof result.preferences]).toEqual(fallback);
+    expect(result.preferences.theme).toBe(key === "theme" ? "system" : "dark");
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][1]).toEqual({ path: "/prefs.json", key });
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
-  it("warns once per key across repeated loads and saves of different documents", async () => {
-    stored({ id: "prefs", fontFamily: 42 });
-    const first = await loadPreferences("/prefs.json");
-    const second = await loadPreferences("/other-prefs.json");
-    expect(first.status === "success" && first.preferences.fontFamily).toBe("");
-    expect(second.status === "success" && second.preferences.fontFamily).toBe("");
-
-    const preferences = { ...createDefaultPreferences("Work"), theme: "dark" as const };
-    const saved = await flushPreferences("/prefs.json", () => preferences, ["theme"]);
-    expect(saved.fontFamily).toBe("");
-    expect(saved.theme).toBe("dark");
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith("preferences set has wrong shape; using built-in", { path: "/prefs.json", key: "fontFamily" });
-
-    stored({ id: "prefs", fontFamily: "Valid" });
-    await loadPreferences("/prefs.json");
-    stored({ id: "prefs", fontFamily: false, theme: "sepia" });
-    await loadPreferences("/prefs.json");
-    expect(warn).toHaveBeenCalledTimes(2);
-    expect(warn.mock.calls[1][1]).toEqual({ path: "/prefs.json", key: "theme" });
-  });
-
-  it("warns again when the repository starts a fresh process lifetime", async () => {
+  it("warns on every load of an invalid set", async () => {
     stored({ id: "prefs", theme: "sepia" });
     await loadPreferences("/prefs.json");
-    vi.resetModules();
-    const freshRepository = await import("../../src/repositories/preferences-repository");
-    await freshRepository.loadPreferences("/prefs.json");
+    await loadPreferences("/prefs.json");
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
   it.each([
-    [{ id: "prefs" }], [{ id: "prefs", timezone: null }], [{ id: "prefs", timezone: "Not/AZone" }],
-  ])("reads the time zone of %j as the system token", async (data) => {
+    [{ id: "prefs" }], [{ id: "prefs", timezone: null }],
+  ])("reads the time zone of %j as the system token without a warning", async (data) => {
     stored(data);
     const result = await loadPreferences("/prefs.json");
     expect(result.status === "success" && result.preferences.timezone).toBe("system");
-    expect(warn).not.toHaveBeenCalled();
-  });
-
-  it("retains existing range normalization after reading a correctly shaped set", async () => {
-    stored({ id: "prefs", kickDistances: [5, 5, 1000, 0, -3], dueSoonDays: 100000000, handledTasksPageSize: -5 });
-    const result = await loadPreferences("/prefs.json");
-    expect(result.status).toBe("success");
-    if (result.status !== "success") return;
-    expect(result.preferences.kickDistances).toEqual([5, 999]);
-    expect(result.preferences.dueSoonDays).toBe(365);
-    expect(result.preferences.handledTasksPageSize).toBe(10);
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -138,34 +104,37 @@ describe("preferences sets", () => {
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
-  it("changing one set writes exactly that set beside identity and drops a version key", async () => {
-    stored({ id: "prefs", name: "Work", version: "1.0.0", darkMode: true });
-    const preferences = { ...createDefaultPreferences("Work"), id: "prefs", theme: "dark" as const };
-    await flushPreferences("/prefs.json", () => preferences, ["theme"]);
+  it("writes identity and every set that differs from its built-in, from memory", async () => {
+    stored({ id: "prefs", name: "Work", version: "1.0.0", darkMode: true, fontFamily: "On disk" });
+    const preferences = { ...createDefaultPreferences("Work"), id: "prefs", theme: "dark" as const, dueSoonDays: 3 };
+    await flushPreferences("/prefs.json", () => preferences);
+    expect(writeJsonFile).toHaveBeenCalledWith("/prefs.json", { id: "prefs", name: "Work", theme: "dark", dueSoonDays: 3 });
+  });
+
+  it("drops the key of a set saved equal to its built-in", async () => {
+    stored({ id: "prefs", name: "Work", theme: "dark", timezone: "Asia/Tokyo" });
+    await flushPreferences("/prefs.json", () => ({ ...createDefaultPreferences("Work"), id: "prefs" }));
+    expect(writeJsonFile).toHaveBeenCalledWith("/prefs.json", { id: "prefs", name: "Work" });
+  });
+
+  it("heals an invalid set at the next save", async () => {
+    stored({ id: "prefs", name: "Work", timezone: "Not/AZone", kickDistances: [5, 5] });
+    const loaded = await loadPreferences("/prefs.json");
+    if (loaded.status !== "success") throw new Error("load failed");
+    await flushPreferences("/prefs.json", () => ({ ...loaded.preferences, theme: "dark" }));
     expect(writeJsonFile).toHaveBeenCalledWith("/prefs.json", { id: "prefs", name: "Work", theme: "dark" });
   });
 
-  it("re-reads the disk map and keeps unchanged sets exactly as stored", async () => {
-    stored({ id: "prefs", name: "Work", kickDistances: [2000, 5, 5], fontFamily: "External edit" });
-    const preferences = { ...createDefaultPreferences("Work"), theme: "dark" as const };
-    const saved = await flushPreferences("/prefs.json", () => preferences, ["theme"]);
-    expect(writeJsonFile).toHaveBeenCalledWith("/prefs.json", {
-      id: "prefs", name: "Work", kickDistances: [2000, 5, 5], fontFamily: "External edit", theme: "dark",
-    });
-    expect(saved.fontFamily).toBe("External edit");
-  });
-
-  it("normalizes only the whole changed set before writing", async () => {
+  it("refuses to write an invalid set", async () => {
     stored({ id: "prefs", name: "Work" });
-    const preferences = { ...createDefaultPreferences("Work"), kickDistances: [10, 10, 2000] };
-    const saved = await flushPreferences("/prefs.json", () => preferences, ["kickDistances"]);
-    expect(saved.kickDistances).toEqual([10, 999]);
-    expect(writeJsonFile).toHaveBeenCalledWith("/prefs.json", { id: "prefs", name: "Work", kickDistances: [10, 999] });
+    const preferences = { ...createDefaultPreferences("Work"), timezone: "Not/AZone" };
+    await expect(flushPreferences("/prefs.json", () => preferences)).rejects.toThrow("timezone");
+    expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
   it("does not overwrite an unreadable or foreign document on save", async () => {
     stored({ name: "foreign" });
-    await expect(flushPreferences("/prefs.json", () => createDefaultPreferences("Work"), ["theme"])).rejects.toThrow();
+    await expect(flushPreferences("/prefs.json", () => createDefaultPreferences("Work"))).rejects.toThrow();
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 });

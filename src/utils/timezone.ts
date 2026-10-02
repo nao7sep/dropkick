@@ -3,24 +3,20 @@
 
 export const SYSTEM_TIME_ZONE = "system";
 
-// The preference a stored or chosen value reads as: an id the platform knows,
-// spelled as the platform resolves it, or the token for anything else.
-export function normalizeTimeZonePreference(value: unknown): string {
-  if (typeof value !== "string" || value === SYSTEM_TIME_ZONE) {
-    return SYSTEM_TIME_ZONE;
-  }
+// Whether the platform knows the IANA id.
+export function isKnownTimeZone(value: unknown): value is string {
+  if (typeof value !== "string") return false;
   try {
-    return new Intl.DateTimeFormat(undefined, { timeZone: value })
-      .resolvedOptions().timeZone || value;
+    new Intl.DateTimeFormat(undefined, { timeZone: value });
+    return true;
   } catch {
-    return SYSTEM_TIME_ZONE;
+    return false;
   }
 }
 
 // The IANA id to convert into, or undefined for the computer's own zone.
 export function conversionTimeZone(preference: string): string | undefined {
-  const zone = normalizeTimeZonePreference(preference);
-  return zone === SYSTEM_TIME_ZONE ? undefined : zone;
+  return preference !== SYSTEM_TIME_ZONE && isKnownTimeZone(preference) ? preference : undefined;
 }
 
 // The zones the Settings list offers after System: every IANA zone the

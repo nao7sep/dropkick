@@ -1,9 +1,10 @@
 // User preferences stored as a portable JSON file at any path.
 // Controls display and behavior settings.
 
-import type { LanguagePreference } from "../i18n/languages";
+import { normalizeLanguagePreference, type LanguagePreference } from "../i18n/languages";
 import { generateId } from "../utils/ids";
-import { SYSTEM_TIME_ZONE } from "../utils/timezone";
+import { singleLine } from "../utils/textCleanup";
+import { isKnownTimeZone, SYSTEM_TIME_ZONE } from "../utils/timezone";
 
 export type ThemePreference = "system" | "light" | "dark";
 
@@ -130,10 +131,8 @@ export function isPreferencesDocument(data: unknown): data is Record<string, unk
     && typeof (data as Record<string, unknown>).id === "string";
 }
 
-export function createDefaultPreferences(name: string): PreferencesDto {
+function builtInPreferenceSets(): Pick<PreferencesDto, PreferenceSetKey> {
   return {
-    id: generateId(),
-    name,
     language: "system",
     fontFamily: "",
     theme: "system",
@@ -143,4 +142,41 @@ export function createDefaultPreferences(name: string): PreferencesDto {
     handledTasksPageSize: HANDLED_TASKS_PAGE_SIZE_DEFAULT,
     confirmPermanentDeletions: true,
   };
+}
+
+export function createDefaultPreferences(name: string): PreferencesDto {
+  return { id: generateId(), name, ...builtInPreferenceSets() };
+}
+
+// The one check per set, applied where a document is read and where Save
+// writes (config-sets-conventions, Reading and healing): a value is valid when
+// the normalizer the Settings surface applies would leave it unchanged.
+export function isValidPreferenceSet(key: PreferenceSetKey, value: unknown): boolean {
+  switch (key) {
+    case "language": return value === normalizeLanguagePreference(value);
+    case "fontFamily": return typeof value === "string" && value === singleLine(value);
+    case "theme": return value === normalizeThemePreference(value);
+    case "timezone": return value === SYSTEM_TIME_ZONE || isKnownTimeZone(value);
+    case "kickDistances":
+      return Array.isArray(value)
+        && JSON.stringify(value) === JSON.stringify(normalizeKickDistances(value));
+    case "dueSoonDays": return value === normalizeDueSoonDays(value);
+    case "handledTasksPageSize": return value === normalizeHandledTasksPageSize(value);
+    case "confirmPermanentDeletions": return typeof value === "boolean";
+  }
+}
+
+// The document Save writes: identity and every set that differs from its
+// built-in (config-sets-conventions). An invalid set is refused, not written.
+export function preferencesDocument(preferences: PreferencesDto): Record<string, unknown> {
+  const builtIn = builtInPreferenceSets();
+  const document: Record<string, unknown> = { id: preferences.id, name: preferences.name };
+  for (const key of PREFERENCE_SET_KEYS) {
+    const value = preferences[key];
+    if (!isValidPreferenceSet(key, value)) {
+      throw new Error(`Invalid preferences set: ${key}`);
+    }
+    if (JSON.stringify(value) !== JSON.stringify(builtIn[key])) document[key] = value;
+  }
+  return document;
 }
