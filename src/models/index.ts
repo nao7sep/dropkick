@@ -1,5 +1,12 @@
 export type { AppConfigDto, AppConfigSetKey } from "./app-config";
-export { appConfigDocument, createDefaultAppConfig, APP_CONFIG_SET_KEYS, isValidAppConfigSet } from "./app-config";
+export {
+  appConfigDocument,
+  createDefaultAppConfig,
+  APP_CONFIG_SET_KEYS,
+  isValidAppConfigSet,
+  registerDocument,
+  unregisterDocument,
+} from "./app-config";
 
 export type {
   AppStateDto,

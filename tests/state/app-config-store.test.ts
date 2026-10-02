@@ -54,22 +54,22 @@ describe("known-document list changes", () => {
     expect(flushAppConfig.mock.calls[0][1]()).toEqual({ ...defaults, knownPreferences: [] });
     expect(selection().lastPreferencesPath).toBe("");
   });
-  it("a failed register restores the confirmed list, selects nothing, and stays retryable", async () => {
+  it("a failed register keeps the list change, selects nothing, and the next write saves it", async () => {
     flushAppConfig.mockRejectedValueOnce(new Error("disk full"));
     expect(await useAppConfigStore.getState().registerAndSelect("workspace", "/second.json")).toBe(false);
-    expect(useAppConfigStore.getState().appConfig).toEqual(defaults);
+    expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual(["/workspace.json", "/second.json"]);
     expect(selection().lastWorkspacePath).toBe("/workspace.json");
     expect(flushAppState).not.toHaveBeenCalled();
     expect(useToastStore.getState().backgroundWriteError?.what).toBe("savedLocations");
-    expect(await useAppConfigStore.getState().registerAndSelect("workspace", "/second.json")).toBe(true);
-    expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual(["/workspace.json", "/second.json"]);
-    expect(selection().lastWorkspacePath).toBe("/second.json");
+    expect(await useAppConfigStore.getState().registerAndSelect("workspace", "/third.json")).toBe(true);
+    expect(flushAppConfig.mock.calls[1][1]().knownWorkspaces).toEqual(["/workspace.json", "/second.json", "/third.json"]);
+    expect(selection().lastWorkspacePath).toBe("/third.json");
     expect(useToastStore.getState().backgroundWriteError).toBeNull();
   });
-  it("a failed unregister keeps the document listed and selected", async () => {
+  it("a failed unregister keeps the list change and the selection", async () => {
     flushAppConfig.mockRejectedValueOnce(new Error("disk full"));
     expect(await useAppConfigStore.getState().unregisterAndReselect("preferences", "/preferences.json")).toBe(false);
-    expect(useAppConfigStore.getState().appConfig).toEqual(defaults);
+    expect(useAppConfigStore.getState().appConfig.knownPreferences).toEqual([]);
     expect(selection().lastPreferencesPath).toBe("/preferences.json");
     expect(flushAppState).not.toHaveBeenCalled();
   });

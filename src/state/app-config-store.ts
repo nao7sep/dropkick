@@ -3,8 +3,7 @@
 // selection only once the list change is saved.
 import { create } from "zustand";
 import type { AppConfigDto, AppConfigSetKey } from "../models";
-import { createDefaultAppConfig } from "../models";
-import { registerDocument, unregisterDocument } from "../models/app-config";
+import { createDefaultAppConfig, registerDocument, unregisterDocument } from "../models";
 import { loadAppConfig, flushAppConfig } from "../repositories";
 import { useAppStateStore } from "./app-state-store";
 import { guardBackgroundWrite } from "./background-write";
@@ -22,13 +21,12 @@ interface AppConfigStore {
   loaded: boolean;
   initialize: () => Promise<string | null>;
   // Each resolves true once the list change is saved and the selection has
-  // followed it; false leaves both as they were.
+  // followed it; false leaves the selection as it was.
   registerAndSelect: (kind: KnownDocumentKind, path: string) => Promise<boolean>;
   unregisterAndReselect: (kind: KnownDocumentKind, path: string) => Promise<boolean>;
 }
 
 export const useAppConfigStore = create<AppConfigStore>((set, get) => {
-  let persisted = createDefaultAppConfig();
   async function changeList(key: AppConfigSetKey, path: string, register: boolean): Promise<boolean> {
     const current = get().appConfig[key];
     const next = register ? registerDocument(current, path) : unregisterDocument(current, path);
@@ -38,20 +36,8 @@ export const useAppConfigStore = create<AppConfigStore>((set, get) => {
     if (!filePath) return true;
     let saved = false;
     await guardBackgroundWrite("savedLocations", async () => {
-      let written = get().appConfig;
-      try {
-        await flushAppConfig(filePath, () => {
-          written = get().appConfig;
-          return written;
-        });
-        persisted = written;
-        saved = true;
-      } catch (error) {
-        if (get().appConfig[key] === next) {
-          set((state) => ({ appConfig: { ...state.appConfig, [key]: persisted[key] } }));
-        }
-        throw error;
-      }
+      await flushAppConfig(filePath, () => get().appConfig);
+      saved = true;
     });
     return saved;
   }
@@ -59,7 +45,6 @@ export const useAppConfigStore = create<AppConfigStore>((set, get) => {
     appConfig: createDefaultAppConfig(), filePath: "", loaded: false,
     initialize: async () => {
       const { appConfig, filePath, quarantinedTo } = await loadAppConfig();
-      persisted = appConfig;
       set({ appConfig, filePath, loaded: true });
       return quarantinedTo;
     },
