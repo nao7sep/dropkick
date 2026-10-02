@@ -91,6 +91,7 @@ fn app_paths_puts_every_standard_subpath_under_the_root() {
         &layout.note_drafts_file,
         &layout.logs_dir,
         &layout.backups_file,
+        &layout.records_file,
     ] {
         assert!(
             std::path::Path::new(path).starts_with(&root),
@@ -110,6 +111,7 @@ fn app_paths_names_each_store_distinctly() {
         layout.note_drafts_file.clone(),
         layout.logs_dir.clone(),
         layout.backups_file.clone(),
+        layout.records_file.clone(),
     ];
     let unique: std::collections::HashSet<&String> = names.iter().collect();
     assert_eq!(unique.len(), names.len(), "two stores share a path");

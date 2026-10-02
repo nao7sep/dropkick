@@ -139,6 +139,7 @@ export interface AppPaths {
   noteDraftsFile: string;
   logsDir: string;
   backupsFile: string;
+  recordsFile: string;
 }
 
 export async function appPaths(): Promise<AppPaths> {

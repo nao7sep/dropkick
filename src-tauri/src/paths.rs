@@ -199,6 +199,7 @@ const WORKSPACE_FILE: &str = "workspace.json";
 const NOTE_DRAFTS_FILE: &str = "note-drafts.json";
 const LOGS_DIR: &str = "logs";
 const BACKUPS_FILE: &str = "backups.sqlite3";
+const RECORDS_FILE: &str = "records.sqlite3";
 
 /// Every path the app reads or writes under its storage root, resolved once.
 #[derive(Serialize)]
@@ -212,6 +213,7 @@ pub struct AppPaths {
     pub note_drafts_file: String,
     pub logs_dir: String,
     pub backups_file: String,
+    pub records_file: String,
 }
 
 pub fn app_paths(root: &Path) -> AppPaths {
@@ -225,5 +227,6 @@ pub fn app_paths(root: &Path) -> AppPaths {
         note_drafts_file: at(NOTE_DRAFTS_FILE),
         logs_dir: at(LOGS_DIR),
         backups_file: at(BACKUPS_FILE),
+        records_file: at(RECORDS_FILE),
     }
 }

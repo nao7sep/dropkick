@@ -1,38 +1,23 @@
-// Per-session JSON Lines logger. The privileged Rust core owns the log file;
-// the sandboxed webview frontend forwards structured log objects to it (see
-// `emit_forwarded` and the `log_event` command in lib.rs). This module is the
-// reference logger for our Tauri apps — keep it self-contained and dependency-free.
+// The logger: each log line is a row in `records.sqlite3` (logging-conventions,
+// data-lifecycle-conventions' Records). The privileged Rust core is the
+// database's only writer; the sandboxed webview frontend forwards structured
+// log objects to it (see `emit_forwarded` and the `log_event` command in
+// lib.rs).
 //
-// Design (mirrors ~/code/company/conventions/...-logging-conventions.md):
-//   - One file per process launch: ~/.dropkick/logs/<yyyymmdd-hhmmss-fff-utc.log>.
-//     Strictly that stamp — no pid or id suffix. Two launches in the same UTC
-//     millisecond collide on the name; the file is opened with exclusive
-//     create, so the second launch's open fails and it degrades to the
-//     stderr fallback rather than interleaving two sessions into one file.
-//   - One JSON object per line: { time, level, message, ...fields }.
-//   - `time` is UTC ISO 8601 with milliseconds and `Z`, generated here without a
-//     date crate (no new heavy deps) via a hand-rolled civil-time conversion.
-//   - Four levels. `debug` is developer-only and never written unless the debug
-//     gate is on (a dev build, or DROPKICK_DEBUG=1).
-//   - Every line is written straight through to the OS (unbuffered), so the
-//     convention's "last lines before a crash must reach disk" holds for free:
-//     once a line is logged the OS has it, surviving a panic, SIGKILL, or any
-//     signal — no buffer can strand it, and there is no flush to forget. (Log
-//     volume is human-paced and IO-bounded, so per-line writes cost nothing
-//     meaningful; only a kernel panic or power loss, which no userspace flush
-//     would prevent either, can lose an unsynced page.)
-//   - If the file cannot be opened or written, it degrades to stderr and never
-//     panics — the app must never crash because logging failed. A mid-session
-//     write failure permanently switches to the stderr fallback (the dead
-//     handle is dropped and never retried), and the line that failed to write
-//     is re-emitted to stderr so its content is never lost.
+// A row holds the event `time`, its `session` (this launch's start time), the
+// `level`, the `message`, the `task_id` when the entry names a `taskId`, and
+// every other field as one JSON object. An entry the database cannot take is
+// appended as one JSON line, carrying the database's error, to
+// `logs/<yyyymmdd-hhmmss-fff-utc>.log` named for the session; if that fails too
+// it goes to stderr. Logging never panics.
 
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use rusqlite::Connection;
 use serde_json::{Map, Value};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -123,75 +108,105 @@ pub fn filename_stamp(ms: i64) -> String {
     format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{ms3:03}-utc")
 }
 
-// `<yyyymmdd-hhmmss-fff-utc.log>` for the current launch — the plain UTC stamp
-// (with milliseconds) and no other suffix; a same-millisecond collision is
-// accepted rather than engineered around.
-pub fn session_filename() -> String {
-    format!("{}.log", filename_stamp(now_unix_millis()))
-}
-
 // The bare filename stamp for other derived-sibling names that carry a moment
 // discriminator (a quarantined store's `<stem>-<stamp>.invalid`) — the same
-// formatter as the session log name, so there is exactly one filename stamp.
+// formatter as the session's fallback log name, so there is exactly one
+// filename stamp.
 pub fn filename_stamp_now() -> String {
     filename_stamp(now_unix_millis())
 }
 
 // --- The logger itself ---
 
-struct Inner {
-    // Unbuffered: each line is written straight to the file so a crash or signal
-    // can never strand buffered lines. `None` means file logging failed at open
-    // and we degrade to stderr.
-    writer: Option<File>,
-}
+const SCHEMA: &str = "
+CREATE TABLE IF NOT EXISTS logs (
+  id      INTEGER PRIMARY KEY,
+  time    TEXT NOT NULL,
+  session TEXT NOT NULL,
+  level   TEXT NOT NULL,
+  message TEXT NOT NULL,
+  task_id TEXT,
+  fields  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_logs_session ON logs (session, id);
+CREATE INDEX IF NOT EXISTS idx_logs_task_id ON logs (task_id, id) WHERE task_id IS NOT NULL;
+";
+
+// `Err` holds why the database could not be opened; every entry of the session
+// then takes the fallback.
+type Records = Result<Connection, String>;
 
 pub struct Logger {
-    inner: Mutex<Inner>,
+    records: Mutex<Records>,
+    session: String,
+    fallback_file: PathBuf,
     debug_enabled: bool,
 }
 
 static LOGGER: OnceLock<Logger> = OnceLock::new();
 
-// Opens the session file (creating ~/.dropkick/logs/ if needed) and installs the
-// process-global logger. On any failure it installs a logger that writes to
-// stderr instead, so logging calls always have somewhere to go. Call once.
-pub fn init(file_path: &Path, debug_enabled: bool) {
-    let writer = open_writer(file_path);
-    let logger = Logger {
-        inner: Mutex::new(Inner { writer }),
-        debug_enabled,
-    };
-    if LOGGER.set(logger).is_err() {
+impl Logger {
+    fn open(records_file: &Path, logs_dir: &Path, debug_enabled: bool) -> Logger {
+        let started = now_unix_millis();
+        Logger {
+            records: Mutex::new(open_records(records_file)),
+            session: iso_millis(started),
+            fallback_file: logs_dir.join(format!("{}.log", filename_stamp(started))),
+            debug_enabled,
+        }
+    }
+}
+
+// Opens this launch's session against `records_file` and installs the
+// process-global logger. Call once.
+pub fn init(records_file: &Path, logs_dir: &Path, debug_enabled: bool) {
+    if LOGGER.set(Logger::open(records_file, logs_dir, debug_enabled)).is_err() {
         eprintln!("[dropkick:logging] logger already initialized; ignoring re-init");
     }
 }
 
-fn open_writer(file_path: &Path) -> Option<File> {
-    if let Some(parent) = file_path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            eprintln!(
-                "[dropkick:logging] could not create {}: {e}; logging to stderr",
-                parent.display()
-            );
-            return None;
-        }
+fn open_records(records_file: &Path) -> Records {
+    if let Some(parent) = records_file.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    // Exclusive create: a session file is always fresh, never appended into.
-    // Two launches landing on the same millisecond stamp are the one case this
-    // can legitimately fail on live filesystems; the second one loses the race
-    // and falls through to the stderr fallback below rather than interleaving
-    // both sessions into a single file.
-    match OpenOptions::new().create_new(true).write(true).open(file_path) {
-        Ok(file) => Some(file),
-        Err(e) => {
-            eprintln!(
-                "[dropkick:logging] could not open {}: {e}; logging to stderr",
-                file_path.display()
-            );
-            None
-        }
-    }
+    let conn = Connection::open(records_file).map_err(|e| e.to_string())?;
+    // WAL with synchronous=NORMAL keeps every committed row through an app
+    // crash; busy_timeout lets a second running instance's write wait its turn.
+    conn.pragma_update(None, "journal_mode", "WAL")
+        .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "synchronous", "NORMAL")
+        .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "busy_timeout", 5000)
+        .map_err(|e| e.to_string())?;
+    conn.execute_batch(SCHEMA).map_err(|e| e.to_string())?;
+    Ok(conn)
+}
+
+// The envelope keys a row holds in columns. One that is not a string stays in
+// `fields`, so nothing given is lost.
+fn insert(conn: &Connection, session: &str, obj: &Map<String, Value>) -> rusqlite::Result<()> {
+    let column = |key: &str| obj.get(key).and_then(Value::as_str);
+    let fields: Map<String, Value> = obj
+        .iter()
+        .filter(|(key, _)| {
+            !matches!(key.as_str(), "time" | "level" | "message" | "taskId")
+                || column(key).is_none()
+        })
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    conn.execute(
+        "INSERT INTO logs (time, session, level, message, task_id, fields) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![
+            column("time").map_or_else(now_iso_millis, str::to_string),
+            session,
+            column("level").unwrap_or_default(),
+            column("message").unwrap_or_default(),
+            column("taskId"),
+            Value::Object(fields).to_string(),
+        ],
+    )?;
+    Ok(())
 }
 
 fn global() -> Option<&'static Logger> {
@@ -203,43 +218,37 @@ pub fn debug_enabled() -> bool {
 }
 
 impl Logger {
-    // Serializes and writes one envelope as a single line. Both emit() and
-    // emit_forwarded() funnel through here, so every line in the file passes
-    // the identical write contract.
-    fn write_envelope(&self, obj: Map<String, Value>) {
-        let value = Value::Object(obj);
-        let mut line = match serde_json::to_string(&value) {
-            Ok(line) => line,
-            Err(e) => {
-                eprintln!("[dropkick:logging] serialize failed: {e}");
-                return;
-            }
-        };
-        line.push('\n');
+    // Writes one envelope as one row. Both emit() and emit_forwarded() funnel
+    // through here, so every entry passes the identical write contract.
+    fn write_envelope(&self, mut obj: Map<String, Value>) {
         // Recover from a poisoned mutex: a prior panic-while-writing must not
         // wedge logging shut, least of all the panic hook trying to record it.
-        let mut inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
-        match inner.writer.as_mut() {
-            // One write_all per line; the file is opened via exclusive create
-            // and this is the only writer in the process, so lines never
-            // interleave. The bytes reach the OS immediately — no buffer,
-            // nothing to flush.
-            Some(writer) => {
-                if let Err(e) = writer.write_all(line.as_bytes()) {
-                    // The handle is dead (disk full, permissions revoked, the
-                    // device went away). Never retry it: drop it permanently so
-                    // every later call takes the `None` branch below, and
-                    // re-emit this very line to stderr right now so its content
-                    // is degraded-to, not silently swallowed.
-                    eprintln!(
-                        "[dropkick:logging] write failed: {e}; switching to stderr fallback"
-                    );
-                    inner.writer = None;
-                    eprint!("{line}");
-                }
-            }
-            None => eprint!("{line}"),
+        let records = self.records.lock().unwrap_or_else(|p| p.into_inner());
+        let error = match &*records {
+            Ok(conn) => match insert(conn, &self.session, &obj) {
+                Ok(()) => return,
+                Err(e) => e.to_string(),
+            },
+            Err(e) => e.clone(),
+        };
+        obj.insert("recordsError".to_string(), Value::String(error));
+        let mut line = Value::Object(obj).to_string();
+        line.push('\n');
+        if let Err(e) = self.append_fallback(&line) {
+            eprintln!("[dropkick:logging] fallback write failed: {e}");
+            eprint!("{line}");
         }
+    }
+
+    fn append_fallback(&self, line: &str) -> std::io::Result<()> {
+        if let Some(parent) = self.fallback_file.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.fallback_file)?
+            .write_all(line.as_bytes())
     }
 
     // Builds the envelope from a Rust-side event and writes it. `fields` is
@@ -269,8 +278,8 @@ impl Logger {
     }
 
     // Writes an object the frontend already shaped (it stamped `time` at the
-    // event instant). We re-apply the debug gate so every line in the file went
-    // through the same writer contract.
+    // event instant). We re-apply the debug gate so every entry went through the
+    // same writer contract.
     fn emit_forwarded(&self, value: Value) {
         let mut obj = match value {
             Value::Object(map) => map,
@@ -343,9 +352,8 @@ pub fn emit_forwarded(value: Value) {
 }
 
 #[cfg(test)]
-// EXCEPTION to tests-folder conventions: these exercise the Logger's own internals, building a
-// Logger around an injected file handle and asserting on `inner.writer` after a failed write; no
-// public seam reaches that without exposing `Inner` and its fields purely for tests. The module's
-// pure helpers live in tests/logging.rs.
+// EXCEPTION to tests-folder conventions: these build Loggers against throwaway databases and call
+// their private emit methods; the only public seam is the process-global logger, which can be
+// installed once per process. The module's pure helpers live in tests/logging.rs.
 #[path = "../tests/unit/logging.rs"]
 mod tests;

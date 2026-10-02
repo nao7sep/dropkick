@@ -481,9 +481,9 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     // Managed durable text (config.json, preferences/workspaces/task-lists — internal
     // and external) is recorded on every save; dedup absorbs the churn. Not
     // recorded: volatile state saved through write_atomic_unrecorded (state.json, window.json),
-    // append-mode logs (logging.rs opens with create_new + per-line write_all,
-    // never atomically) and the backup_store's own SQLite file (written by the
-    // backup layer, not here).
+    // records (records.sqlite3 and its fallback logs, written by logging.rs, never
+    // atomically) and the backup_store's own SQLite file (written by the backup
+    // layer, not here).
     if record {
         backup_store::record(target, contents.as_bytes());
     }
@@ -590,8 +590,8 @@ fn apply_theme(window: tauri::WebviewWindow, preference: String) -> Result<(), S
     }
 }
 
-// Receives a structured log object from the webview frontend and writes it to
-// the session file (the frontend has no filesystem access of its own).
+// Receives a structured log object from the webview frontend and writes it as a
+// record (the frontend has no filesystem access of its own).
 #[tauri::command]
 fn log_event(entry: Value) {
     logging::emit_forwarded(entry);
@@ -703,10 +703,10 @@ pub fn run() {
             }
         })
         .setup(move |app| {
-            // Open the per-session log file under the app's own data dir. The Rust
+            // Open this session's logger under the app's own data dir. The Rust
             // core has filesystem access even though the webview is sandboxed, and
             // it routes through the single storage-root resolver (paths::data_root)
-            // so the log directory and the data directory share one source of
+            // so the records database and the data directory share one source of
             // truth and both honor DROPKICK_DATA_DIR.
             //
             // A storage-root failure must NOT abort the launch. This hook runs
@@ -714,17 +714,20 @@ pub fn run() {
             // so propagating the error here turns into a panic at the .expect()
             // below: the window is already built, so it flashes and vanishes
             // with exit code 101, and the carefully-worded message from
-            // paths::data_root reaches nowhere — no log file, no dialog — while
+            // paths::data_root reaches nowhere — no record, no dialog — while
             // StartupErrorScreen, built for exactly this class of failure, is
-            // never reached. Degrade instead: skip the log file and the backup
+            // never reached. Degrade instead: skip the logger and the backup
             // store, let the window open, and let the webview's own
             // app_paths call return the same error for that screen to show.
             match paths::data_root(app.handle()) {
                 Ok(data_root) => {
                     let layout = paths::app_paths(&data_root);
-                    let log_path = std::path::Path::new(&layout.logs_dir)
-                        .join(logging::session_filename());
-                    logging::init(&log_path, debug_enabled);
+                    let records_path = std::path::Path::new(&layout.records_file);
+                    logging::init(
+                        records_path,
+                        std::path::Path::new(&layout.logs_dir),
+                        debug_enabled,
+                    );
                     install_panic_hook();
 
                     // Open the write-through data-backup store once, best-effort,
@@ -741,15 +744,15 @@ pub fn run() {
                             "version": env!("CARGO_PKG_VERSION"),
                             "build": if cfg!(debug_assertions) { "debug" } else { "release" },
                             "debugLogging": debug_enabled,
-                            "logPath": log_path.to_string_lossy(),
+                            "recordsPath": records_path.to_string_lossy(),
                             "os": std::env::consts::OS,
                             "arch": std::env::consts::ARCH,
                         }),
                     );
                 }
                 Err(message) => {
-                    // There is no log file to write to — this IS the failure to
-                    // open one. stderr is the only channel left, and it reaches
+                    // There is nowhere to record to — this IS the failure to
+                    // resolve one. stderr is the only channel left, and it reaches
                     // a terminal launch; the user sees the error in the window.
                     install_panic_hook();
                     eprintln!("dropkick: storage root unavailable: {message}");

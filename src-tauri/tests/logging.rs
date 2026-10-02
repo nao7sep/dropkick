@@ -1,10 +1,10 @@
 // Integration tests for the logging module's pure helpers: the timestamp
-// grammar the log filenames and envelopes use.
+// grammar the fallback log filenames and records use.
 //
 // The Logger's own internals are tested in-file — see the comment on that
 // module for why they cannot be reached through a public seam.
 
-use dropkick_lib::logging::{filename_stamp, iso_millis, session_filename};
+use dropkick_lib::logging::{filename_stamp, iso_millis};
 
 #[test]
 fn iso_epoch() {
@@ -46,23 +46,4 @@ fn iso_handles_leap_day() {
 #[test]
 fn filename_stamp_matches_known_vector() {
     assert_eq!(filename_stamp(1_700_000_000_123), "20231114-221320-123-utc");
-}
-
-#[test]
-fn session_filename_is_the_plain_utc_stamp_with_milliseconds() {
-    let filename = session_filename();
-    // Strictly yyyymmdd-hhmmss-fff-utc.log — no pid or id suffix.
-    assert!(
-        filename.ends_with("-utc.log") && !filename.contains("-p"),
-        "filename {filename} must be the plain yyyymmdd-hhmmss-fff-utc.log form"
-    );
-    let stamp = filename.strip_suffix(".log").unwrap();
-    let parts: Vec<&str> = stamp.split('-').collect();
-    assert_eq!(
-        parts.len(),
-        4,
-        "stamp {stamp} must split on '-' into 4 parts: yyyymmdd, hhmmss, fff, utc"
-    );
-    assert_eq!(parts[3], "utc");
-    assert_eq!(parts[2].len(), 3, "millisecond part must be zero-padded to 3 digits");
 }

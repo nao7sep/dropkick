@@ -2,185 +2,217 @@ use super::*;
 use serde_json::json;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-fn temp_logger(debug_enabled: bool) -> (Logger, std::path::PathBuf) {
+fn temp_dir() -> PathBuf {
     static COUNTER: AtomicU32 = AtomicU32::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let path = std::env::temp_dir().join(format!(
-        "dropkick-log-test-{}-{}.log",
+    let dir = std::env::temp_dir().join(format!(
+        "dropkick-log-test-{}-{}",
         std::process::id(),
         n
     ));
-    let _ = std::fs::remove_file(&path);
-    let writer = open_writer(&path);
-    assert!(writer.is_some(), "temp log file should open");
-    let logger = Logger {
-        inner: Mutex::new(Inner { writer }),
-        debug_enabled,
-    };
-    (logger, path)
+    let _ = std::fs::remove_dir_all(&dir);
+    dir
 }
 
-fn read_lines(path: &std::path::Path) -> Vec<Value> {
-    std::fs::read_to_string(path)
+fn temp_logger(debug_enabled: bool) -> (Logger, PathBuf) {
+    let dir = temp_dir();
+    let logger = Logger::open(&dir.join("records.sqlite3"), &dir.join("logs"), debug_enabled);
+    assert!(logger.records.lock().unwrap().is_ok(), "temp records database should open");
+    (logger, dir)
+}
+
+struct Row {
+    time: String,
+    session: String,
+    level: String,
+    message: String,
+    task_id: Option<String>,
+    fields: Value,
+}
+
+fn rows(dir: &Path) -> Vec<Row> {
+    let conn = Connection::open(dir.join("records.sqlite3")).expect("open records");
+    let mut statement = conn
+        .prepare("SELECT time, session, level, message, task_id, fields FROM logs ORDER BY id")
+        .expect("prepare");
+    statement
+        .query_map([], |row| {
+            Ok(Row {
+                time: row.get(0)?,
+                session: row.get(1)?,
+                level: row.get(2)?,
+                message: row.get(3)?,
+                task_id: row.get(4)?,
+                fields: serde_json::from_str(&row.get::<_, String>(5)?).expect("fields are JSON"),
+            })
+        })
+        .expect("query")
+        .map(|row| row.expect("row"))
+        .collect()
+}
+
+fn fallback_lines(logger: &Logger) -> Vec<Value> {
+    std::fs::read_to_string(&logger.fallback_file)
         .unwrap_or_default()
         .lines()
-        .filter(|l| !l.is_empty())
-        .map(|l| serde_json::from_str::<Value>(l).expect("each log line is valid JSON"))
+        .map(|l| serde_json::from_str::<Value>(l).expect("each fallback line is valid JSON"))
         .collect()
 }
 
 #[test]
-fn line_is_on_disk_immediately_without_an_explicit_flush() {
-    // The logger is unbuffered: a line is readable right after emit with no
-    // flush call — this is what makes it survive a crash or signal.
-    let (logger, path) = temp_logger(false);
+fn entry_is_a_row_with_its_session_as_soon_as_it_is_logged() {
+    let (logger, dir) = temp_logger(false);
     logger.emit(Level::Info, "started", json!({ "n": 3 }));
-    let lines = read_lines(&path);
-    assert_eq!(lines.len(), 1);
-    assert_eq!(lines[0]["level"], json!("info"));
-    assert_eq!(lines[0]["message"], json!("started"));
-    assert_eq!(lines[0]["n"], json!(3));
-    assert!(lines[0]["time"].as_str().unwrap().ends_with('Z'));
+    let rows = rows(&dir);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].level, "info");
+    assert_eq!(rows[0].message, "started");
+    assert_eq!(rows[0].fields, json!({ "n": 3 }));
+    assert_eq!(rows[0].session, logger.session);
+    assert!(rows[0].time.ends_with('Z'));
+    assert!(rows[0].session.ends_with('Z'));
+}
+
+#[test]
+fn a_task_id_is_its_own_column() {
+    let (logger, dir) = temp_logger(false);
+    logger.emit_forwarded(json!({
+        "time": "2026-06-10T03:15:42.123Z",
+        "level": "info",
+        "message": "update task title",
+        "file": "/tasks.json",
+        "taskId": "t1",
+    }));
+    let rows = rows(&dir);
+    assert_eq!(rows[0].task_id.as_deref(), Some("t1"));
+    assert_eq!(rows[0].fields, json!({ "file": "/tasks.json" }));
+    assert_eq!(rows[0].time, "2026-06-10T03:15:42.123Z");
+}
+
+#[test]
+fn a_non_string_envelope_value_is_kept_in_fields() {
+    let (logger, dir) = temp_logger(false);
+    logger.emit_forwarded(json!({ "message": 7, "taskId": 9 }));
+    let rows = rows(&dir);
+    assert_eq!(rows[0].message, "");
+    assert_eq!(rows[0].task_id, None);
+    assert_eq!(rows[0].fields, json!({ "message": 7, "taskId": 9 }));
 }
 
 #[test]
 fn nested_error_message_is_preserved_as_a_field() {
-    let (logger, path) = temp_logger(false);
+    let (logger, dir) = temp_logger(false);
     logger.emit(
         Level::Warn,
         "read failed",
         json!({ "path": "/x.json", "error": { "message": "bad json" } }),
     );
-    let lines = read_lines(&path);
-    assert_eq!(lines[0]["message"], json!("read failed"));
-    assert_eq!(lines[0]["error"], json!({ "message": "bad json" }));
+    let rows = rows(&dir);
+    assert_eq!(rows[0].message, "read failed");
+    assert_eq!(rows[0].fields["error"], json!({ "message": "bad json" }));
 }
 
 #[test]
 fn rust_debug_is_dropped_when_the_gate_is_off() {
-    let (logger, path) = temp_logger(false);
+    let (logger, dir) = temp_logger(false);
     logger.emit(Level::Debug, "noise", json!({}));
-    assert!(read_lines(&path).is_empty());
+    assert!(rows(&dir).is_empty());
 }
 
 #[test]
 fn forwarded_unknown_level_is_normalized_to_the_gated_level() {
     // A forwarded level Level::parse cannot recognize is written as the level
     // we actually gated/handled it as (info), never kept verbatim.
-    let (logger, path) = temp_logger(false);
+    let (logger, dir) = temp_logger(false);
     logger.emit_forwarded(json!({
         "time": "2026-06-10T03:15:42.123Z",
         "level": "warning",
         "message": "odd",
     }));
-    let lines = read_lines(&path);
-    assert_eq!(lines[0]["level"], json!("info"));
-    assert_eq!(lines[0]["message"], json!("odd"));
+    let rows = rows(&dir);
+    assert_eq!(rows[0].level, "info");
+    assert_eq!(rows[0].message, "odd");
     // The frontend's own event time is preserved.
-    assert_eq!(lines[0]["time"], json!("2026-06-10T03:15:42.123Z"));
+    assert_eq!(rows[0].time, "2026-06-10T03:15:42.123Z");
 }
 
 #[test]
 fn forwarded_missing_envelope_fields_are_filled() {
-    let (logger, path) = temp_logger(false);
+    let (logger, dir) = temp_logger(false);
     logger.emit_forwarded(json!({ "detail": 1 }));
-    let lines = read_lines(&path);
-    assert_eq!(lines[0]["level"], json!("info"));
-    assert_eq!(lines[0]["message"], json!(""));
-    assert!(lines[0]["time"].as_str().unwrap().ends_with('Z'));
-    assert_eq!(lines[0]["detail"], json!(1));
+    let rows = rows(&dir);
+    assert_eq!(rows[0].level, "info");
+    assert_eq!(rows[0].message, "");
+    assert!(rows[0].time.ends_with('Z'));
+    assert_eq!(rows[0].fields, json!({ "detail": 1 }));
 }
 
 #[test]
 fn forwarded_debug_respects_the_gate() {
-    let (off, off_path) = temp_logger(false);
+    let (off, off_dir) = temp_logger(false);
     off.emit_forwarded(json!({ "level": "debug", "message": "frame" }));
-    assert!(read_lines(&off_path).is_empty());
+    assert!(rows(&off_dir).is_empty());
 
-    let (on, on_path) = temp_logger(true);
+    let (on, on_dir) = temp_logger(true);
     on.emit_forwarded(json!({ "level": "debug", "message": "frame" }));
-    assert_eq!(read_lines(&on_path)[0]["level"], json!("debug"));
+    assert_eq!(rows(&on_dir)[0].level, "debug");
 }
 
 #[test]
 fn forwarded_warn_keeps_its_level() {
-    let (logger, path) = temp_logger(false);
+    let (logger, dir) = temp_logger(false);
     logger.emit_forwarded(json!({ "level": "warn", "message": "careful" }));
-    assert_eq!(read_lines(&path)[0]["level"], json!("warn"));
+    assert_eq!(rows(&dir)[0].level, "warn");
 }
 
-// --- Exclusive create: same-path second open degrades to the fallback ---
-
 #[test]
-fn exclusive_create_second_open_of_same_path_falls_back_to_stderr() {
-    let path = std::env::temp_dir().join(format!(
-        "dropkick-log-test-exclusive-{}.log",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_file(&path);
+fn an_unopenable_database_sends_each_entry_to_the_session_fallback_file() {
+    let dir = temp_dir();
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    // A directory where the database file should be cannot be opened as one.
+    std::fs::create_dir_all(dir.join("records.sqlite3")).expect("block the database path");
+    let logger = Logger::open(&dir.join("records.sqlite3"), &dir.join("logs"), false);
 
-    let first = open_writer(&path);
-    assert!(first.is_some(), "the first open should create the file exclusively");
+    logger.emit(Level::Warn, "first", json!({ "n": 1 }));
+    logger.emit(Level::Info, "second", json!({}));
 
-    // A second open of the exact same path (the same-millisecond-clash case
-    // in practice) must not append into or truncate the first session's
-    // file — `create_new` makes it fail outright, and `open_writer` turns
-    // that failure into the `None` stderr-fallback sentinel.
-    let second = open_writer(&path);
-    assert!(
-        second.is_none(),
-        "a same-path second open must fail over to the stderr fallback, not interleave"
-    );
-
-    let _ = std::fs::remove_file(&path);
+    assert!(logger.fallback_file.starts_with(dir.join("logs")));
+    let name = logger.fallback_file.file_name().unwrap().to_str().unwrap();
+    assert!(name.ends_with("-utc.log"), "fallback file {name} is named for the session");
+    let lines = fallback_lines(&logger);
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["message"], json!("first"));
+    assert_eq!(lines[0]["n"], json!(1));
+    assert!(lines[0]["recordsError"].as_str().is_some_and(|e| !e.is_empty()));
+    assert_eq!(lines[1]["message"], json!("second"));
 }
 
-// --- Mid-session write failure: permanent fallback, dead handle dropped ---
-
 #[test]
-fn write_failure_permanently_falls_back_and_stops_touching_the_dead_handle() {
-    // Induce a real, deterministic write failure without abusing fd
-    // ownership (closing a live fd out from under an open `File` trips
-    // Rust's IO-safety double-close abort on the eventual second close).
-    // A file opened read-only is a legitimate, valid handle whose own
-    // close() always succeeds — but every write against it genuinely fails
-    // at the OS level (EBADF/"access denied"), the same shape `write_all`
-    // sees on a real mid-session failure (disk full, permissions revoked).
-    let path = std::env::temp_dir().join(format!(
-        "dropkick-log-test-write-fail-{}.log",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_file(&path);
-    std::fs::write(&path, b"").expect("create temp file");
-    let readonly = File::open(&path).expect("open temp file read-only");
+fn a_failed_insert_falls_back_for_that_entry_only() {
+    let (logger, dir) = temp_logger(false);
+    logger.emit(Level::Info, "before", json!({}));
+    logger
+        .records
+        .lock()
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .execute_batch("ALTER TABLE logs RENAME TO moved")
+        .expect("break the table");
+    logger.emit(Level::Error, "during", json!({}));
+    logger
+        .records
+        .lock()
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .execute_batch("ALTER TABLE moved RENAME TO logs")
+        .expect("restore the table");
+    logger.emit(Level::Info, "after", json!({}));
 
-    let logger = Logger {
-        inner: Mutex::new(Inner {
-            writer: Some(readonly),
-        }),
-        debug_enabled: false,
-    };
-
-    // The failing write must not panic, and must permanently drop the dead
-    // handle rather than retry it on the next call.
-    logger.emit(Level::Warn, "during-failure", json!({}));
-    {
-        let inner = logger.inner.lock().unwrap();
-        assert!(
-            inner.writer.is_none(),
-            "a write failure must permanently switch the logger to the stderr fallback"
-        );
-    }
-
-    // A later line must take the same `None` fallback branch as the failed
-    // line rather than retrying the dead handle — provable because the file
-    // on disk (never successfully written through the read-only handle)
-    // stays empty.
-    logger.emit(Level::Info, "after-failure", json!({}));
-    assert!(
-        read_lines(&path).is_empty(),
-        "no line should ever reach the dead (read-only) file handle"
-    );
-
-    let _ = std::fs::remove_file(&path);
+    let messages: Vec<String> = rows(&dir).into_iter().map(|row| row.message).collect();
+    assert_eq!(messages, ["before", "after"]);
+    let lines = fallback_lines(&logger);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0]["message"], json!("during"));
 }

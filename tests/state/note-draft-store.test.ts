@@ -62,6 +62,7 @@ beforeEach(async () => {
           noteDraftsFile: DRAFTS_PATH,
           logsDir: `${ROOT}/logs`,
           backupsFile: `${ROOT}/backups.sqlite3`,
+          recordsFile: `${ROOT}/records.sqlite3`,
         });
       case "read_text_file":
         return Promise.resolve(diskRead);
