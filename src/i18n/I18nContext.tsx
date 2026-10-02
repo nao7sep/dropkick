@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useReducer, useState, type ReactNode } from "react";
 import { log, toErrorFields } from "../repositories";
 import { loadCatalogue, loadedCatalogue } from "./catalogues";
+import { loadDayPickerLocale } from "./dayPickerLocales";
 import { isLanguage, type Language } from "./languages";
 import { createTranslator, type Translator } from "./translate";
 
@@ -8,14 +9,18 @@ import { createTranslator, type Translator } from "./translate";
 // (in a test, say) still has text.
 const I18nContext = createContext<Translator>(createTranslator("en"));
 
-// Loads the language's catalogue; a failure leaves the interface in the
-// language it already speaks.
+// Loads the language's catalogue and calendar locale; a failed catalogue
+// leaves the interface in the language it already speaks, a failed calendar
+// locale leaves the calendar in English.
 export async function loadInterfaceCatalogue(language: Language): Promise<void> {
-  try {
-    await loadCatalogue(language);
-  } catch (e) {
-    log.warn("catalogue load failed", { language, ...toErrorFields(e) });
-  }
+  await Promise.all([
+    loadCatalogue(language).catch((e: unknown) => {
+      log.warn("catalogue load failed", { language, ...toErrorFields(e) });
+    }),
+    loadDayPickerLocale(language).catch((e: unknown) => {
+      log.warn("date picker locale load failed", { language, ...toErrorFields(e) });
+    }),
+  ]);
 }
 
 // Speaks the language once its catalogue has loaded, and the previous one

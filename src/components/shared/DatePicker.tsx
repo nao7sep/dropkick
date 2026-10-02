@@ -10,7 +10,7 @@ import "react-day-picker/style.css";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { formatDueDate, todayInTimezone } from "../../utils";
 import { useI18n } from "../../i18n/I18nContext";
-import { DAY_PICKER_LOCALES } from "../../i18n/dayPickerLocales";
+import { dayPickerLocale } from "../../i18n/dayPickerLocales";
 
 interface DatePickerProps {
   value: string | null; // "YYYY-MM-DD" or null
@@ -105,7 +105,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
               numbers inherit the popover's text-ink. Inline vars reference the
               bare runtime tokens since @theme inline doesn't emit --color-*. */}
           <DayPicker
-            locale={DAY_PICKER_LOCALES[i18n.language]}
+            locale={dayPickerLocale(i18n.language)}
             mode="single"
             selected={selected}
             onSelect={handleSelect}
