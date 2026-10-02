@@ -13,7 +13,8 @@ vi.mock("../../src/repositories/file-system", () => ({
   quarantineFile: (p: string) => quarantineFile(p),
   withSerial: (_p: string, fn: () => unknown) => fn(),
 }));
-vi.mock("../../src/repositories/logging", () => ({ log: { info: vi.fn(), warn: vi.fn() } }));
+const warn = vi.fn();
+vi.mock("../../src/repositories/logging", () => ({ log: { info: vi.fn(), warn: (m: string, f: unknown) => warn(m, f) } }));
 import { initializeAppState, flushAppState } from "../../src/repositories/app-state-repository";
 import { createDefaultAppState } from "../../src/models";
 
@@ -22,6 +23,7 @@ beforeEach(() => {
   writeJsonFile.mockReset();
   fileExists.mockReset().mockResolvedValue(true);
   quarantineFile.mockReset().mockResolvedValue(`${ROOT}/state-stamp.invalid`);
+  warn.mockReset();
 });
 
 describe("app-level view state", () => {
@@ -72,6 +74,19 @@ describe("app-level view state", () => {
     expect(appState.zoomLevel).toBe(1);
     expect("knownWorkspaces" in appState).toBe(false);
     expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState, false);
+  });
+
+  it.each([
+    [{ status: "invalid", message: "bad JSON" }, { error: { message: "bad JSON" } }],
+    [{ status: "success", data: { zoomLevel: "large" } }, { issue: "zoomLevel is not a finite number" }],
+  ])("records a reset state file with its reason", async (result, reason) => {
+    readJsonFileResult.mockResolvedValue(result);
+    await initializeAppState();
+    expect(warn).toHaveBeenCalledExactlyOnceWith("state.json reset", {
+      statePath: `${ROOT}/state.json`,
+      quarantinedTo: `${ROOT}/state-stamp.invalid`,
+      ...reason,
+    });
   });
 
   it("halts after a failed quarantine without replacing preserved bytes", async () => {

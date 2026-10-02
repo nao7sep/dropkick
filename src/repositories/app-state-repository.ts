@@ -14,7 +14,7 @@ import {
 import { createPreferencesFile } from "./preferences-repository";
 import { createWorkspaceFile } from "./workspace-repository";
 import { mergeWithDefaults } from "../utils/merge-defaults";
-import { log } from "./logging";
+import { log, type LogFields } from "./logging";
 
 
 function appStateShapeIssue(value: unknown): string | null {
@@ -67,25 +67,19 @@ export async function initializeAppState(): Promise<{
   // Create or read app appState.
   const configResult = await readJsonFileResult<unknown>(statePath);
 
-  let quarantinedTo: string | null = null;
+  // State is disposable, so a reset is not reported to the user; its record
+  // says why (store-recovery-conventions).
+  let resetReason: LogFields | null = null;
   if (configResult.status === "invalid") {
-    quarantinedTo = await quarantineFile(statePath);
-    log.warn("corrupt state.json quarantined; recreating defaults", {
-      statePath,
-      quarantinedTo,
-      message: configResult.message,
-    });
+    resetReason = { error: { message: configResult.message } };
   } else if (configResult.status === "success") {
-    const data = configResult.data;
-    const shapeIssue = appStateShapeIssue(data);
-    if (shapeIssue) {
-      quarantinedTo = await quarantineFile(statePath);
-      log.warn("shape-damaged state.json quarantined; recreating defaults", {
-        statePath,
-        quarantinedTo,
-        issue: shapeIssue,
-      });
-    }
+    const shapeIssue = appStateShapeIssue(configResult.data);
+    if (shapeIssue) resetReason = { issue: shapeIssue };
+  }
+  let quarantinedTo: string | null = null;
+  if (resetReason) {
+    quarantinedTo = await quarantineFile(statePath);
+    log.warn("state.json reset", { statePath, quarantinedTo, ...resetReason });
   }
 
   let appState: AppStateDto;
