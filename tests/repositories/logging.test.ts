@@ -82,6 +82,26 @@ describe("envelope", () => {
   });
 });
 
+describe("ordering", () => {
+  it("sends an entry only after the previous one has been written", async () => {
+    let finishFirst: () => void = () => {};
+    invokeMock.mockImplementationOnce(() => new Promise<void>((resolve) => (finishFirst = resolve)));
+    log.info("first");
+    log.info("second");
+    await flush();
+    expect(invokeMock.mock.calls.map((c) => (c[1] as { entry: { message: string } }).entry.message)).toEqual([
+      "first",
+    ]);
+
+    finishFirst();
+    await flush();
+    expect(invokeMock.mock.calls.map((c) => (c[1] as { entry: { message: string } }).entry.message)).toEqual([
+      "first",
+      "second",
+    ]);
+  });
+});
+
 describe("toErrorFields", () => {
   it("captures name, message, and stack of an Error", () => {
     const error = new TypeError("boom");

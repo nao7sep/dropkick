@@ -591,8 +591,10 @@ fn apply_theme(window: tauri::WebviewWindow, preference: String) -> Result<(), S
 }
 
 // Receives a structured log object from the webview frontend and writes it as a
-// record (the frontend has no filesystem access of its own).
-#[tauri::command]
+// record (the frontend has no filesystem access of its own). It runs on the
+// thread pool, so a slow or locked database never holds the window; the
+// frontend sends one entry at a time, so rows keep the order they were logged.
+#[tauri::command(async)]
 fn log_event(entry: Value) {
     logging::emit_forwarded(entry);
 }

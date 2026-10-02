@@ -34,6 +34,9 @@ function debugEnabled(): boolean {
   return import.meta.env.DEV || runtimeDebug;
 }
 
+// The last entry forwarded; the next one is sent once it settles.
+let forwarding: Promise<void> = Promise.resolve();
+
 function emit(level: Level, message: string, fields?: LogFields): void {
   if (level === "debug" && !debugEnabled()) return;
 
@@ -48,11 +51,13 @@ function emit(level: Level, message: string, fields?: LogFields): void {
   };
 
   // Forward to the core (the authoritative writer).
-  // Fire-and-forget so logging never blocks the UI. On failure, degrade to the
+  // Fire-and-forget so logging never blocks the UI. Each entry waits for the
+  // previous one, because the core writes off the UI thread and two entries in
+  // flight at once could be written out of order. On failure, degrade to the
   // console — never swallow, never throw. The invoke is deferred into a promise
   // chain so a synchronous throw (or a non-promise return) can never escape.
-  void Promise.resolve()
-    .then(() => invoke("log_event", { entry }))
+  forwarding = forwarding
+    .then(() => invoke<void>("log_event", { entry }))
     .catch((forwardError) => {
       const consoleFn =
         level === "error"

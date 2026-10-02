@@ -75,11 +75,11 @@ describe("Tauri command dispatch (src-tauri/src/lib.rs)", () => {
     expect(inline).toEqual([]);
   });
 
-  it("keeps log_event inline, so log lines cannot be reordered", () => {
-    // The logger writes one unbuffered line per call and is cheap; dispatching
-    // it to a pool would let concurrent events land out of order in the file.
+  it("writes log records off the UI thread", () => {
+    // The frontend sends one entry at a time (src/repositories/logging.ts), so
+    // the pool cannot reorder them.
     const logEvent = all.find((c) => c.name === "log_event");
     expect(logEvent).toBeDefined();
-    expect(logEvent?.attribute).toBe("");
+    expect(logEvent?.attribute).toContain("async");
   });
 });
