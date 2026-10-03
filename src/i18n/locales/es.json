@@ -226,6 +226,7 @@
 
   "menu.label": "Menú",
   "menu.settings": "Configuración",
+  "menu.records": "Registros",
   "menu.shortcuts": "Atajos de teclado",
   "menu.zoom": "Zoom",
   "menu.zoomOut": "Alejar",
@@ -376,5 +377,29 @@
   "bulk.setStatus": "Cambiar estado",
   "bulk.setPriority": "Cambiar prioridad",
   "bulk.reorder": "Reordenar",
-  "bulk.reorderLabel": "Reordenar las tareas seleccionadas"
+  "bulk.reorderLabel": "Reordenar las tareas seleccionadas",
+
+  "records.title": "Registros",
+  "records.openFailed.title": "Error al abrir los registros",
+  "records.openFailed.body": "No se pudo abrir la ventana de registros. Inténtalo de nuevo.",
+  "records.search": "Buscar registros",
+  "records.launch": "Inicio",
+  "records.allLaunches": "Todos los inicios",
+  "records.thisLaunch": "{time} (este inicio)",
+  "records.level": "Nivel",
+  "records.allLevels": "Todos los niveles",
+  "records.levelAttention": "Requiere atención",
+  "records.levelError": "Error",
+  "records.levelWarn": "Advertencia",
+  "records.levelInfo": "Información",
+  "records.levelDebug": "Depuración",
+  "records.loading": "Cargando registros…",
+  "records.empty": "Ningún registro coincide con estos filtros.",
+  "records.loadFailed": "No se pudieron leer los registros.",
+  "records.noSelection": "Selecciona un registro para ver todo lo que contiene.",
+  "records.detailFailed": "No se pudo leer este registro.",
+  "records.resizeList": "Cambiar el tamaño de la lista",
+  "records.time": "Hora",
+  "records.task": "Tarea",
+  "records.details": "Detalles"
 }

@@ -14,6 +14,14 @@ export default defineConfig(() => ({
   // flagging the main chunk on every build.
   build: {
     chunkSizeWarningLimit: 2000,
+    // Two pages: the main window and the Records window
+    // (src-tauri/src/records_window.rs).
+    rolldownOptions: {
+      input: {
+        main: "index.html",
+        records: "records.html",
+      },
+    },
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -59,6 +67,7 @@ export default defineConfig(() => ({
       // Excluded as framework wiring with no decision to cover:
       exclude: [
         "src/main.tsx", // React DOM mount
+        "src/records-main.tsx", // the Records window's React DOM mount
         "src/vite-env.d.ts",
         "**/*.d.ts",
       ],

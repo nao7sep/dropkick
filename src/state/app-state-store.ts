@@ -6,7 +6,7 @@ import type { AppStateDto } from "../models";
 import { createDefaultAppState } from "../models";
 import { initializeAppState, flushAppState, log } from "../repositories";
 
-type ViewStateChanges = Partial<Pick<AppStateDto, "zoomLevel" | "sidebarWidth">>;
+type ViewStateChanges = Partial<Pick<AppStateDto, "zoomLevel" | "sidebarWidth" | "recordsListWidth">>;
 
 interface AppStateStore {
   // The current app-level state.
@@ -20,9 +20,10 @@ interface AppStateStore {
 
   // Actions.
   initialize: () => Promise<void>;
-  // Apply a live view adjustment (zoom / sidebar width) and persist it. The single
-  // funnel for zoom shortcuts, the hamburger-menu zoom, and the divider drag — the
-  // state-store analogue of the preferences store's `update`.
+  // Apply a live view adjustment (zoom / sidebar width / Records list width) and
+  // persist it. The single funnel for zoom shortcuts, the hamburger-menu zoom,
+  // and the divider drags — the state-store analogue of the preferences store's
+  // `update`.
   updateViewState: (changes: ViewStateChanges) => Promise<void>;
   setLastPaths: (
     preferencesPath: string,

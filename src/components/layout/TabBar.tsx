@@ -3,7 +3,7 @@
 // The hamburger icon opens a menu with Settings, Keyboard Shortcuts, and About.
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle } from "lucide-react";
+import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle, ScrollText } from "lucide-react";
 import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
@@ -34,7 +34,7 @@ import { useI18n } from "../../i18n/I18nContext";
 import type { MessageKey } from "../../i18n/catalogues";
 import { message } from "../../i18n/translate";
 
-type MenuItemId = "settings" | "shortcuts" | "about";
+type MenuItemId = "settings" | "records" | "shortcuts" | "about";
 
 const TAB_DRAG_TYPE = "workspace-tab";
 
@@ -503,6 +503,13 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 >
                   <Settings size={14} className="text-ink-muted" />
                   {t("menu.settings")}
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  onSelect={() => onMenuSelect("records")}
+                  className={MENU_ITEM_ICON_CLASS}
+                >
+                  <ScrollText size={14} className="text-ink-muted" />
+                  {t("menu.records")}
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("shortcuts")}

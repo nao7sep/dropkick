@@ -35,7 +35,7 @@ function appStateShapeIssue(value: unknown): string | null {
     }
   }
 
-  const numberFields = ["zoomLevel", "sidebarWidth"] as const;
+  const numberFields = ["zoomLevel", "sidebarWidth", "recordsListWidth"] as const;
   for (const field of numberFields) {
     const number = data[field];
     if (number !== undefined && (typeof number !== "number" || !Number.isFinite(number))) {

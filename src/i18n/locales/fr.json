@@ -226,6 +226,7 @@
 
   "menu.label": "Menu",
   "menu.settings": "Réglages",
+  "menu.records": "Journal",
   "menu.shortcuts": "Raccourcis clavier",
   "menu.zoom": "Zoom",
   "menu.zoomOut": "Zoom arrière",
@@ -376,5 +377,29 @@
   "bulk.setStatus": "Définir le statut",
   "bulk.setPriority": "Définir la priorité",
   "bulk.reorder": "Réorganiser",
-  "bulk.reorderLabel": "Réorganiser les tâches sélectionnées"
+  "bulk.reorderLabel": "Réorganiser les tâches sélectionnées",
+
+  "records.title": "Journal",
+  "records.openFailed.title": "Échec de l’ouverture du journal",
+  "records.openFailed.body": "La fenêtre du journal n’a pas pu être ouverte. Réessayez.",
+  "records.search": "Rechercher dans le journal",
+  "records.launch": "Lancement",
+  "records.allLaunches": "Tous les lancements",
+  "records.thisLaunch": "{time} (ce lancement)",
+  "records.level": "Niveau",
+  "records.allLevels": "Tous les niveaux",
+  "records.levelAttention": "Attention requise",
+  "records.levelError": "Erreur",
+  "records.levelWarn": "Avertissement",
+  "records.levelInfo": "Infos",
+  "records.levelDebug": "Débogage",
+  "records.loading": "Chargement du journal…",
+  "records.empty": "Aucune entrée ne correspond à ces filtres.",
+  "records.loadFailed": "Le journal n’a pas pu être lu.",
+  "records.noSelection": "Sélectionnez une entrée pour voir tout ce qu’elle contient.",
+  "records.detailFailed": "Cette entrée n’a pas pu être lue.",
+  "records.resizeList": "Redimensionner la liste",
+  "records.time": "Heure",
+  "records.task": "Tâche",
+  "records.details": "Détails"
 }

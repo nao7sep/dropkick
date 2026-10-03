@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, PhysicalPosition, PhysicalSize, Window, WindowEvent, Wry};
@@ -46,10 +46,40 @@ pub fn placement_after_close(
     }
 }
 
-pub(crate) type PlacementState = Arc<Mutex<Option<Placement>>>;
+/// One durable window whose placement is remembered, in its own volatile-state
+/// file: the main window, and the Records window.
+pub(crate) struct TrackedWindow {
+    label: &'static str,
+    file_name: &'static str,
+    state: Mutex<Option<Placement>>,
+}
 
-pub(crate) fn new_state() -> PlacementState {
-    Arc::new(Mutex::new(None))
+impl TrackedWindow {
+    fn new(label: &'static str, file_name: &'static str) -> Self {
+        TrackedWindow {
+            label,
+            file_name,
+            state: Mutex::new(None),
+        }
+    }
+}
+
+pub(crate) struct WindowPlacements {
+    pub(crate) main: TrackedWindow,
+    pub(crate) records: TrackedWindow,
+}
+
+impl WindowPlacements {
+    pub(crate) fn new() -> Self {
+        WindowPlacements {
+            main: TrackedWindow::new("main", paths::WINDOW_FILE_NAME),
+            records: TrackedWindow::new(crate::records_window::LABEL, paths::RECORDS_WINDOW_FILE_NAME),
+        }
+    }
+
+    fn all(&self) -> [&TrackedWindow; 2] {
+        [&self.main, &self.records]
+    }
 }
 
 fn current_rectangle(window: &Window<Wry>) -> tauri::Result<NormalRectangle> {
@@ -82,8 +112,8 @@ fn usable(window: &Window<Wry>, rectangle: NormalRectangle) -> tauri::Result<boo
     }))
 }
 
-fn set_state(state: &PlacementState, placement: Option<Placement>) {
-    match state.lock() {
+fn set_state(tracked: &TrackedWindow, placement: Option<Placement>) {
+    match tracked.state.lock() {
         Ok(mut current) => *current = placement,
         Err(error) => logging::warn(
             "window placement lock is unavailable",
@@ -92,8 +122,8 @@ fn set_state(state: &PlacementState, placement: Option<Placement>) {
     }
 }
 
-fn state_value(state: &PlacementState) -> Option<Placement> {
-    match state.lock() {
+fn state_value(tracked: &TrackedWindow) -> Option<Placement> {
+    match tracked.state.lock() {
         Ok(current) => *current,
         Err(error) => {
             logging::warn(
@@ -105,9 +135,9 @@ fn state_value(state: &PlacementState) -> Option<Placement> {
     }
 }
 
-fn load(app: &AppHandle) -> Result<Option<Placement>, String> {
+fn load(app: &AppHandle, file_name: &str) -> Result<Option<Placement>, String> {
     let root = paths::data_root(app)?;
-    let path = root.join(paths::WINDOW_FILE_NAME);
+    let path = root.join(file_name);
     match std::fs::read(&path) {
         Ok(bytes) => match serde_json::from_slice(&bytes) {
             Ok(placement) => Ok(Some(placement)),
@@ -129,12 +159,19 @@ fn load(app: &AppHandle) -> Result<Option<Placement>, String> {
     }
 }
 
-pub(crate) fn restore(app: &AppHandle, window: &Window<Wry>, state: &PlacementState) {
+// Applies the window's remembered placement to it while it is still hidden. A
+// window reopened in the same session takes the placement it closed with,
+// which is saved only at exit.
+pub(crate) fn restore(app: &AppHandle, window: &Window<Wry>, tracked: &TrackedWindow) {
     let fallback = current_rectangle(window).ok().map(|normal| Placement {
         normal,
         maximized: false,
     });
-    let saved = match load(app) {
+    let remembered = match state_value(tracked) {
+        Some(placement) => Ok(Some(placement)),
+        None => load(app, tracked.file_name),
+    };
+    let saved = match remembered {
         Ok(saved) => saved,
         Err(error) => {
             logging::warn(
@@ -189,10 +226,10 @@ pub(crate) fn restore(app: &AppHandle, window: &Window<Wry>, state: &PlacementSt
             }
         }
     }
-    set_state(state, restored);
+    set_state(tracked, restored);
 }
 
-pub(crate) fn capture(window: &Window<Wry>, state: &PlacementState) {
+pub(crate) fn capture(window: &Window<Wry>, tracked: &TrackedWindow) {
     let closing = (|| -> tauri::Result<ClosingState> {
         if window.is_minimized()? || window.is_fullscreen()? {
             return Ok(ClosingState::Transient);
@@ -204,8 +241,8 @@ pub(crate) fn capture(window: &Window<Wry>, state: &PlacementState) {
     })();
     match closing {
         Ok(closing) => set_state(
-            state,
-            placement_after_close(state_value(state), closing, cfg!(target_os = "windows")),
+            tracked,
+            placement_after_close(state_value(tracked), closing, cfg!(target_os = "windows")),
         ),
         Err(error) => logging::warn(
             "window placement could not be captured",
@@ -214,19 +251,30 @@ pub(crate) fn capture(window: &Window<Wry>, state: &PlacementState) {
     }
 }
 
-pub(crate) fn on_window_event(window: &Window<Wry>, event: &WindowEvent, state: &PlacementState) {
-    if window.label() == "main" && matches!(event, WindowEvent::CloseRequested { .. }) {
-        capture(window, state);
+pub(crate) fn on_window_event(window: &Window<Wry>, event: &WindowEvent, placements: &WindowPlacements) {
+    if !matches!(event, WindowEvent::CloseRequested { .. }) {
+        return;
+    }
+    if let Some(tracked) = placements.all().into_iter().find(|t| t.label == window.label()) {
+        capture(window, tracked);
     }
 }
 
-pub(crate) fn save(app: &AppHandle, state: &PlacementState) {
-    let Some(placement) = state_value(state) else {
+// Writes every placement this session holds. A window never opened this
+// session holds none, and its file is left as it is.
+pub(crate) fn save_all(app: &AppHandle, placements: &WindowPlacements) {
+    for tracked in placements.all() {
+        save(app, tracked);
+    }
+}
+
+fn save(app: &AppHandle, tracked: &TrackedWindow) {
+    let Some(placement) = state_value(tracked) else {
         return;
     };
     let result = (|| -> Result<(), String> {
         let root = paths::data_root(app)?;
-        let path = root.join(paths::WINDOW_FILE_NAME);
+        let path = root.join(tracked.file_name);
         let mut text = serde_json::to_string_pretty(&placement).map_err(|e| e.to_string())?;
         text.push('\n');
         write_atomic_unrecorded(&path.to_string_lossy(), &text).map(|_| ())
@@ -234,7 +282,7 @@ pub(crate) fn save(app: &AppHandle, state: &PlacementState) {
     if let Err(error) = result {
         logging::warn(
             "window placement could not be saved",
-            serde_json::json!({ "error": error }),
+            serde_json::json!({ "window": tracked.label, "error": error }),
         );
     }
 }

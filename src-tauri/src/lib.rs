@@ -18,6 +18,8 @@ pub mod logging;
 pub mod menu;
 pub mod nanoid;
 pub mod paths;
+pub mod records;
+pub mod records_window;
 pub mod theme;
 pub mod window_placement;
 
@@ -481,7 +483,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     // breaks this save that already succeeded above, and never crashes the app.
     // Managed durable text (config.json, preferences/workspaces/task-lists — internal
     // and external) is recorded on every save; dedup absorbs the churn. Not
-    // recorded: volatile state saved through write_atomic_unrecorded (state.json, window.json),
+    // recorded: volatile state saved through write_atomic_unrecorded (state.json, window.json, records-window.json),
     // records (records.sqlite3 and its fallback logs, written by logging.rs, never
     // atomically) and the backup_store's own SQLite file (written by the backup
     // layer, not here).
@@ -576,10 +578,17 @@ fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
 // Applies a saved theme preference to the calling window: the window theme,
 // which the page follows through prefers-color-scheme, and the matching window
 // background, together (app-chrome conventions, Theme).
+// The main window's theme is the app's, so the Records window takes it too.
 #[tauri::command]
 fn apply_theme(window: tauri::WebviewWindow, preference: String) -> Result<(), String> {
     let started = log_cmd_start("apply_theme", json!({ "preference": preference }));
-    match theme::apply(&window, theme::window_theme_for(&preference)) {
+    let result = theme::apply(&window, theme::window_theme_for(&preference)).and_then(|()| {
+        if window.label() == records_window::LABEL {
+            return Ok(());
+        }
+        records_window::apply_theme(window.app_handle(), &preference)
+    });
+    match result {
         Ok(()) => {
             log_cmd_ok("apply_theme", started, json!({}));
             Ok(())
@@ -651,11 +660,80 @@ fn apply_language(
     result
 }
 
+// Opens the Records window, or brings it forward. Window creation runs off the
+// main thread, where a synchronous command would deadlock it on Windows.
+#[tauri::command(async)]
+fn open_records_window(
+    app: AppHandle,
+    context: records_window::RecordsWindowContext,
+) -> Result<(), String> {
+    let started = log_cmd_start("open_records_window", json!({}));
+    let result = records_window::open(&app, &context);
+    match &result {
+        Ok(()) => log_cmd_ok("open_records_window", started, json!({})),
+        Err(message) => log_cmd_err("open_records_window", started, message.clone()),
+    }
+    result
+}
+
+// The records reads log only their failures (see records.rs): each stored
+// record signals the Records window, so a logged success would start the next
+// read. A failure is recorded once, and the window reads no further on
+// signals until a read succeeds.
+fn read_records<T>(
+    command: &str,
+    read: impl FnOnce(&rusqlite::Connection) -> rusqlite::Result<T>,
+) -> Result<T, String> {
+    let started = Instant::now();
+    let result = logging::records_file()
+        .ok_or_else(|| "the records database is not open".to_string())
+        .and_then(|path| records::open(&path).map_err(|e| e.to_string()))
+        .and_then(|conn| read(&conn).map_err(|e| e.to_string()));
+    if let Err(message) = &result {
+        log_cmd_err(command, started, message.clone());
+    }
+    result
+}
+
+#[tauri::command(async)]
+fn read_records_page(query: records::RecordsQuery) -> Result<records::RecordsPage, String> {
+    read_records("read_records_page", |conn| records::read_page(conn, &query))
+}
+
+#[tauri::command(async)]
+fn read_record_sources() -> Result<records::RecordSources, String> {
+    read_records("read_record_sources", |conn| {
+        records::read_sources(conn, logging::session())
+    })
+}
+
+#[tauri::command(async)]
+fn read_record_detail(id: i64) -> Result<Option<records::RecordDetail>, String> {
+    read_records("read_record_detail", |conn| records::read_detail(conn, id))
+}
+
 // Reports whether developer-only `debug` logging is on, so the frontend can
 // gate its own debug events identically (a dev build, or DROPKICK_DEBUG=1).
 #[tauri::command]
 fn logging_debug_enabled() -> bool {
     logging::debug_enabled()
+}
+
+#[cfg(target_os = "macos")]
+fn reopen_main(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let result = window.is_minimized().and_then(|minimized| {
+        if !minimized {
+            return Ok(());
+        }
+        window.unminimize()?;
+        window.set_focus()
+    });
+    if let Err(error) = result {
+        logging::warn("main window reopen failed", json!({ "error": error.to_string() }));
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -667,9 +745,6 @@ pub fn run() {
             .map(|v| v == "1")
             .unwrap_or(false);
 
-    let placement_state = window_placement::new_state();
-    let event_placement_state = placement_state.clone();
-    let setup_placement_state = placement_state.clone();
     // The interface language is settled before Tauri builds the app: macOS fixes
     // AppKit's language when the application object is created.
     let language = i18n::LanguageState::detect(
@@ -681,6 +756,7 @@ pub fn run() {
     i18n::align_appkit(language.current());
     let app = tauri::Builder::default()
         .manage(language)
+        .manage(window_placement::WindowPlacements::new())
         .plugin(instance_owner::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -690,7 +766,14 @@ pub fn run() {
             }
         })
         .on_window_event(move |window, event| {
-            window_placement::on_window_event(window, event, &event_placement_state);
+            window_placement::on_window_event(
+                window,
+                event,
+                &window.state::<window_placement::WindowPlacements>(),
+            );
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                records_window::close_with_main(window.app_handle());
+            }
             // Under System the OS appearance can change while the app runs; keep
             // the backing behind the page in step. (macOS reports only OS
             // changes here, which is why apply_theme sets the background itself.)
@@ -732,6 +815,8 @@ pub fn run() {
                         debug_enabled,
                     );
                     install_panic_hook();
+                    let handle = app.handle().clone();
+                    logging::on_stored(move || records_window::notify_changed(&handle));
 
                     // Open the write-through data-backup store once, best-effort,
                     // under the same DROPKICK_DATA_DIR-aware root (never a hardcoded
@@ -784,7 +869,7 @@ pub fn run() {
                 window_placement::restore(
                     app.handle(),
                     &window.as_ref().window(),
-                    &setup_placement_state,
+                    &app.state::<window_placement::WindowPlacements>().main,
                 );
                 window.show()?;
             }
@@ -803,19 +888,34 @@ pub fn run() {
             ensure_dir,
             app_paths,
             log_event,
-            logging_debug_enabled
+            logging_debug_enabled,
+            open_records_window,
+            read_records_page,
+            read_record_sources,
+            read_record_detail
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
     app.run(move |app_handle, event| {
         if let tauri::RunEvent::ExitRequested { .. } = event {
+            let placements = app_handle.state::<window_placement::WindowPlacements>();
             if let Some(window) = app_handle.get_webview_window("main") {
-                window_placement::capture(&window.as_ref().window(), &placement_state);
+                window_placement::capture(&window.as_ref().window(), &placements.main);
+            }
+            if let Some(window) = app_handle.get_webview_window(records_window::LABEL) {
+                window_placement::capture(&window.as_ref().window(), &placements.records);
             }
         }
+        // A Dock click brings a minimized main window back, also while the
+        // Records window is open, where AppKit would only bring the app
+        // forward.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = event {
+            reopen_main(app_handle);
+        }
         if let tauri::RunEvent::Exit = event {
-            window_placement::save(app_handle, &placement_state);
+            window_placement::save_all(app_handle, &app_handle.state::<window_placement::WindowPlacements>());
             logging::info("app shutdown", json!({ "reason": "exit" }));
             logging::flush();
         }

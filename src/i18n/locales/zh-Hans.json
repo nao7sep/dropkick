@@ -226,6 +226,7 @@
 
   "menu.label": "菜单",
   "menu.settings": "设置",
+  "menu.records": "日志",
   "menu.shortcuts": "键盘快捷键",
   "menu.zoom": "缩放",
   "menu.zoomOut": "缩小",
@@ -376,5 +377,29 @@
   "bulk.setStatus": "设置状态",
   "bulk.setPriority": "设置优先级",
   "bulk.reorder": "重新排序",
-  "bulk.reorderLabel": "重新排序选中的任务"
+  "bulk.reorderLabel": "重新排序选中的任务",
+
+  "records.title": "日志",
+  "records.openFailed.title": "无法打开日志",
+  "records.openFailed.body": "无法打开日志窗口，请重试。",
+  "records.search": "搜索日志",
+  "records.launch": "启动",
+  "records.allLaunches": "所有启动",
+  "records.thisLaunch": "{time}（本次启动）",
+  "records.level": "级别",
+  "records.allLevels": "所有级别",
+  "records.levelAttention": "需要关注",
+  "records.levelError": "错误",
+  "records.levelWarn": "警告",
+  "records.levelInfo": "信息",
+  "records.levelDebug": "调试",
+  "records.loading": "正在加载日志…",
+  "records.empty": "没有符合这些筛选条件的条目。",
+  "records.loadFailed": "无法读取日志。",
+  "records.noSelection": "选择一个条目即可查看其全部内容。",
+  "records.detailFailed": "无法读取此条目。",
+  "records.resizeList": "调整列表宽度",
+  "records.time": "时间",
+  "records.task": "任务",
+  "records.details": "详情"
 }

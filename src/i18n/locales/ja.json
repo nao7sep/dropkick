@@ -226,6 +226,7 @@
 
   "menu.label": "メニュー",
   "menu.settings": "設定",
+  "menu.records": "ログ",
   "menu.shortcuts": "キーボードショートカット",
   "menu.zoom": "ズーム",
   "menu.zoomOut": "縮小",
@@ -376,5 +377,29 @@
   "bulk.setStatus": "ステータスを設定",
   "bulk.setPriority": "優先度を設定",
   "bulk.reorder": "並べ替え",
-  "bulk.reorderLabel": "選択したタスクを並べ替え"
+  "bulk.reorderLabel": "選択したタスクを並べ替え",
+
+  "records.title": "ログ",
+  "records.openFailed.title": "ログを開けませんでした",
+  "records.openFailed.body": "ログウインドウを開けませんでした。もう一度お試しください。",
+  "records.search": "ログを検索",
+  "records.launch": "起動",
+  "records.allLaunches": "すべての起動",
+  "records.thisLaunch": "{time}（今回の起動）",
+  "records.level": "レベル",
+  "records.allLevels": "すべてのレベル",
+  "records.levelAttention": "要対応",
+  "records.levelError": "エラー",
+  "records.levelWarn": "警告",
+  "records.levelInfo": "情報",
+  "records.levelDebug": "デバッグ",
+  "records.loading": "ログを読み込み中…",
+  "records.empty": "条件に一致する項目はありません。",
+  "records.loadFailed": "ログを読み込めませんでした。",
+  "records.noSelection": "項目を選択すると、その内容がすべて表示されます。",
+  "records.detailFailed": "この項目を読み込めませんでした。",
+  "records.resizeList": "リストの幅を変更",
+  "records.time": "時刻",
+  "records.task": "タスク",
+  "records.details": "詳細"
 }

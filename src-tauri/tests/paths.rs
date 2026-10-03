@@ -179,3 +179,12 @@ fn existing_broader_root_is_tightened_on_launch() {
     let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o700);
 }
+
+#[test]
+fn the_records_window_keeps_its_placement_in_its_own_file() {
+    assert_eq!(dropkick_lib::paths::RECORDS_WINDOW_FILE_NAME, "records-window.json");
+    assert_ne!(
+        dropkick_lib::paths::RECORDS_WINDOW_FILE_NAME,
+        dropkick_lib::paths::WINDOW_FILE_NAME
+    );
+}

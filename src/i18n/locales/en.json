@@ -226,6 +226,7 @@
 
   "menu.label": "Menu",
   "menu.settings": "Settings",
+  "menu.records": "Records",
   "menu.shortcuts": "Keyboard Shortcuts",
   "menu.zoom": "Zoom",
   "menu.zoomOut": "Zoom out",
@@ -376,5 +377,29 @@
   "bulk.setStatus": "Set Status",
   "bulk.setPriority": "Set Priority",
   "bulk.reorder": "Reorder",
-  "bulk.reorderLabel": "Reorder selected tasks"
+  "bulk.reorderLabel": "Reorder selected tasks",
+
+  "records.title": "Records",
+  "records.openFailed.title": "Open Records Failed",
+  "records.openFailed.body": "The records window could not be opened. Try again.",
+  "records.search": "Search records",
+  "records.launch": "Launch",
+  "records.allLaunches": "All launches",
+  "records.thisLaunch": "{time} (this launch)",
+  "records.level": "Level",
+  "records.allLevels": "All levels",
+  "records.levelAttention": "Needs attention",
+  "records.levelError": "Error",
+  "records.levelWarn": "Warning",
+  "records.levelInfo": "Info",
+  "records.levelDebug": "Debug",
+  "records.loading": "Loading records…",
+  "records.empty": "No records match these filters.",
+  "records.loadFailed": "The records could not be read.",
+  "records.noSelection": "Select a record to see everything it holds.",
+  "records.detailFailed": "This record could not be read.",
+  "records.resizeList": "Resize list pane",
+  "records.time": "Time",
+  "records.task": "Task",
+  "records.details": "Details"
 }

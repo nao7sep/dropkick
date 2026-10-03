@@ -234,3 +234,46 @@ fn the_writer_thread_writes_entries_in_the_order_they_were_logged() {
     }
     assert_eq!(rows[50].message, "forwarded");
 }
+
+fn counting_listener(logger: &Logger) -> std::sync::Arc<AtomicU32> {
+    let count = std::sync::Arc::new(AtomicU32::new(0));
+    let seen = count.clone();
+    logger.set_stored_listener(move || {
+        seen.fetch_add(1, Ordering::SeqCst);
+    });
+    count
+}
+
+#[test]
+fn each_stored_entry_signals_once() {
+    let (logger, dir) = temp_logger(false);
+    let signals = counting_listener(&logger);
+
+    logger.emit(Level::Info, "one", json!({}));
+    logger.emit(Level::Debug, "gated off", json!({}));
+    logger.emit_forwarded(json!({ "level": "warn", "message": "two" }));
+
+    assert_eq!(rows(&dir).len(), 2);
+    assert_eq!(signals.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn an_entry_that_went_to_the_fallback_file_does_not_signal() {
+    let dir = temp_dir();
+    std::fs::create_dir_all(dir.join("records.sqlite3")).expect("block the database path");
+    let logger = Logger::open(&dir.join("records.sqlite3"), &dir.join("logs"), false);
+    let signals = counting_listener(&logger);
+
+    logger.emit(Level::Error, "not stored", json!({}));
+
+    assert_eq!(fallback_lines(&logger).len(), 1);
+    assert_eq!(signals.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn the_logger_names_its_database_and_session() {
+    let (logger, dir) = temp_logger(false);
+    assert_eq!(logger.records_file, dir.join("records.sqlite3"));
+    logger.emit(Level::Info, "one", json!({}));
+    assert_eq!(rows(&dir)[0].session, logger.session);
+}

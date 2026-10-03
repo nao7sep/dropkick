@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "records",
+  "description": "Capability for the Records window: it hears new records and the main window's settings, names itself, and hands its list width to the main window",
+  "windows": ["records"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:event:allow-emit-to",
+    "core:window:allow-set-title"
+  ]
+}

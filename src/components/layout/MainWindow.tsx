@@ -14,6 +14,7 @@ import { useNoteDraftStore } from "../../state/note-draft-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { useViewTasks } from "../../hooks/useViewTasks";
 import { useWindowClose } from "../../hooks/use-window-close";
+import { useRecordsWindow } from "../../hooks/useRecordsWindow";
 import { isComposingEvent } from "../../hooks/useComposing";
 import {
   pickNextActiveKey,
@@ -73,6 +74,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   const [showNewTask, setShowNewTask] = useState(false);
   const [showMoveTasks, setShowMoveTasks] = useState(false);
   const [focusNewNoteSignal, setFocusNewNoteSignal] = useState(0);
+  const openRecords = useRecordsWindow();
   const [taskActionIssues, setTaskActionIssues] = useState<
     Record<string, { title: Message; message: Message }>
   >({});
@@ -402,6 +404,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
         onChromeHeightChange={onChromeHeightChange}
         onMenuSelect={(item) => {
           if (item === "settings") setShowSettings(true);
+          else if (item === "records") void openRecords();
           else if (item === "shortcuts") setShowShortcuts(true);
           else if (item === "about") setShowAbout(true);
         }}

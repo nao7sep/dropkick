@@ -226,6 +226,7 @@
 
   "menu.label": "Меню",
   "menu.settings": "Настройки",
+  "menu.records": "Журнал",
   "menu.shortcuts": "Сочетания клавиш",
   "menu.zoom": "Масштаб",
   "menu.zoomOut": "Уменьшить",
@@ -376,5 +377,29 @@
   "bulk.setStatus": "Задать статус",
   "bulk.setPriority": "Задать приоритет",
   "bulk.reorder": "Изменить порядок",
-  "bulk.reorderLabel": "Изменить порядок выбранных задач"
+  "bulk.reorderLabel": "Изменить порядок выбранных задач",
+
+  "records.title": "Журнал",
+  "records.openFailed.title": "Ошибка открытия журнала",
+  "records.openFailed.body": "Не удалось открыть окно журнала. Попробуйте ещё раз.",
+  "records.search": "Поиск по журналу",
+  "records.launch": "Запуск",
+  "records.allLaunches": "Все запуски",
+  "records.thisLaunch": "{time} (этот запуск)",
+  "records.level": "Уровень",
+  "records.allLevels": "Все уровни",
+  "records.levelAttention": "Требует внимания",
+  "records.levelError": "Ошибка",
+  "records.levelWarn": "Предупреждение",
+  "records.levelInfo": "Информация",
+  "records.levelDebug": "Отладка",
+  "records.loading": "Загрузка журнала…",
+  "records.empty": "Нет элементов, подходящих под эти фильтры.",
+  "records.loadFailed": "Не удалось прочитать журнал.",
+  "records.noSelection": "Выберите элемент, чтобы увидеть всё, что он содержит.",
+  "records.detailFailed": "Не удалось прочитать этот элемент журнала.",
+  "records.resizeList": "Изменить ширину списка",
+  "records.time": "Время",
+  "records.task": "Задача",
+  "records.details": "Подробности"
 }

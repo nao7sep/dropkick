@@ -33,8 +33,11 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
     "detail.status",
     "shortcuts.heading.status",
     "shortcuts.heading.tabs",
+    "records.levelInfo",
+    "records.levelDebug",
+    "records.details",
   ],
-  es: ["menu.zoom", "nativeMenu.zoom"],
+  es: ["menu.zoom", "nativeMenu.zoom", "records.levelError"],
   fr: [
     "common.ok",
     "menu.label",
@@ -45,7 +48,7 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
     "detail.notes",
     "nativeMenu.services",
   ],
-  it: ["common.ok", "menu.label", "menu.zoom", "nativeMenu.file"],
+  it: ["common.ok", "menu.label", "menu.zoom", "nativeMenu.file", "records.levelInfo", "records.levelDebug"],
   ja: ["common.ok"],
   "pt-BR": ["common.ok", "menu.label", "menu.zoom", "nativeMenu.zoom", "detail.status", "shortcuts.heading.status"],
 };

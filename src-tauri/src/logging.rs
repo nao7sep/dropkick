@@ -15,6 +15,9 @@
 // were logged, so a slow or locked database never holds the thread that logged
 // them (the main thread, for window and menu events). `flush` waits, bounded,
 // for that thread to catch up; the exit and panic paths call it.
+//
+// After each entry the database stores, the listener set with `on_stored`
+// runs; it tells the Records window (records_window::notify_changed).
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -125,7 +128,8 @@ pub fn filename_stamp_now() -> String {
 
 // --- The logger itself ---
 
-const SCHEMA: &str = "
+// Public so the records reader's tests can build a database of this shape.
+pub const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS logs (
   id      INTEGER PRIMARY KEY,
   time    TEXT NOT NULL,
@@ -137,6 +141,7 @@ CREATE TABLE IF NOT EXISTS logs (
 );
 CREATE INDEX IF NOT EXISTS idx_logs_session ON logs (session, id);
 CREATE INDEX IF NOT EXISTS idx_logs_task_id ON logs (task_id, id) WHERE task_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_logs_time ON logs (time, id);
 ";
 
 // `Err` holds why the database could not be opened; every entry of the session
@@ -182,11 +187,15 @@ impl Writer {
 
 pub struct Logger {
     records: Mutex<Records>,
+    records_file: PathBuf,
     session: String,
     fallback_file: PathBuf,
     debug_enabled: bool,
     // Unset until `init` starts the thread; entries are written inline until then.
     writer: OnceLock<Writer>,
+    // Called after each entry the database stored; an entry that went to the
+    // fallback file is not in the database, so it calls nothing.
+    stored: OnceLock<Box<dyn Fn() + Send + Sync>>,
 }
 
 static LOGGER: OnceLock<Logger> = OnceLock::new();
@@ -196,10 +205,12 @@ impl Logger {
         let started = now_unix_millis();
         Logger {
             records: Mutex::new(open_records(records_file)),
+            records_file: records_file.to_path_buf(),
             session: iso_millis(started),
             fallback_file: logs_dir.join(format!("{}.log", filename_stamp(started))),
             debug_enabled,
             writer: OnceLock::new(),
+            stored: OnceLock::new(),
         }
     }
 
@@ -278,6 +289,23 @@ pub fn debug_enabled() -> bool {
     global().map(|l| l.debug_enabled).unwrap_or(false)
 }
 
+// This launch's session, as every record of it carries.
+pub fn session() -> Option<String> {
+    global().map(|l| l.session.clone())
+}
+
+// The records database this session writes to.
+pub fn records_file() -> Option<PathBuf> {
+    global().map(|l| l.records_file.clone())
+}
+
+// Sets what runs after each entry the database stored. Set once.
+pub fn on_stored(listener: impl Fn() + Send + Sync + 'static) {
+    if let Some(logger) = global() {
+        logger.set_stored_listener(listener);
+    }
+}
+
 impl Logger {
     // Writes one envelope as one row. Both emit() and emit_forwarded() funnel
     // through here, so every entry passes the identical write contract.
@@ -285,12 +313,19 @@ impl Logger {
         // Recover from a poisoned mutex: a prior panic-while-writing must not
         // wedge logging shut, least of all the panic hook trying to record it.
         let records = self.records.lock().unwrap_or_else(|p| p.into_inner());
-        let error = match &*records {
-            Ok(conn) => match insert(conn, &self.session, &obj) {
-                Ok(()) => return,
-                Err(e) => e.to_string(),
-            },
-            Err(e) => e.clone(),
+        let outcome = match &*records {
+            Ok(conn) => insert(conn, &self.session, &obj).map_err(|e| e.to_string()),
+            Err(e) => Err(e.clone()),
+        };
+        drop(records);
+        let error = match outcome {
+            Ok(()) => {
+                if let Some(listener) = self.stored.get() {
+                    listener();
+                }
+                return;
+            }
+            Err(error) => error,
         };
         obj.insert("recordsError".to_string(), Value::String(error));
         let mut line = Value::Object(obj).to_string();
@@ -298,6 +333,12 @@ impl Logger {
         if let Err(e) = self.append_fallback(&line) {
             eprintln!("[dropkick:logging] fallback write failed: {e}");
             eprint!("{line}");
+        }
+    }
+
+    fn set_stored_listener(&self, listener: impl Fn() + Send + Sync + 'static) {
+        if self.stored.set(Box::new(listener)).is_err() {
+            eprintln!("[dropkick:logging] stored listener already set; ignoring");
         }
     }
 

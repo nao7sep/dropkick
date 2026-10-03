@@ -226,6 +226,7 @@
 
   "menu.label": "Menu",
   "menu.settings": "Impostazioni",
+  "menu.records": "Log",
   "menu.shortcuts": "Scorciatoie da tastiera",
   "menu.zoom": "Zoom",
   "menu.zoomOut": "Riduci",
@@ -376,5 +377,29 @@
   "bulk.setStatus": "Imposta stato",
   "bulk.setPriority": "Imposta priorità",
   "bulk.reorder": "Riordina",
-  "bulk.reorderLabel": "Riordina le attività selezionate"
+  "bulk.reorderLabel": "Riordina le attività selezionate",
+
+  "records.title": "Log",
+  "records.openFailed.title": "Apertura del log non riuscita",
+  "records.openFailed.body": "Impossibile aprire la finestra del log. Riprova.",
+  "records.search": "Cerca nel log",
+  "records.launch": "Avvio",
+  "records.allLaunches": "Tutti gli avvii",
+  "records.thisLaunch": "{time} (questo avvio)",
+  "records.level": "Livello",
+  "records.allLevels": "Tutti i livelli",
+  "records.levelAttention": "Richiede attenzione",
+  "records.levelError": "Errore",
+  "records.levelWarn": "Avviso",
+  "records.levelInfo": "Info",
+  "records.levelDebug": "Debug",
+  "records.loading": "Caricamento del log…",
+  "records.empty": "Nessuna voce corrisponde a questi filtri.",
+  "records.loadFailed": "Impossibile leggere il log.",
+  "records.noSelection": "Seleziona una voce per vedere tutto ciò che contiene.",
+  "records.detailFailed": "Impossibile leggere questa voce.",
+  "records.resizeList": "Ridimensiona l’elenco",
+  "records.time": "Ora",
+  "records.task": "Attività",
+  "records.details": "Dettagli"
 }
