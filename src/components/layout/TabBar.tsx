@@ -3,7 +3,7 @@
 // The hamburger icon opens a menu with Settings, Records, Zoom, Keyboard Shortcuts, and About.
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle, ScrollText } from "lucide-react";
+import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle, ScrollText, ZoomIn } from "lucide-react";
 import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
@@ -513,10 +513,12 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 </DropdownMenu.Item>
                 {/* Zoom — a non-menuitem control embedded in the menu: arrow
                     navigation skips it, and it is driven by pointer and by the
-                    global zoom shortcuts. Left exactly as the standalone control. */}
+                    global zoom shortcuts. The row shares the item anatomy, so
+                    its icon and label sit in the items' columns. */}
                 <DropdownMenu.Separator className="dk-menu-separator" />
-                <div className="flex items-center justify-between gap-3 px-2.5 py-1">
-                  <span className="text-sm text-ink-soft">{t("menu.zoom")}</span>
+                <div className="dk-menu-control">
+                  <ZoomIn size={14} className="text-ink-muted" />
+                  <span className="flex-1">{t("menu.zoom")}</span>
                   <div className="flex items-center overflow-hidden rounded-[var(--radius-sm)] border border-control-edge bg-control">
                     <button
                       onClick={() => {

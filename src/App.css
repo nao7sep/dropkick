@@ -802,7 +802,11 @@ input[type="radio"] {
     color: var(--ink);
     box-shadow: 0 10px 30px rgb(0 0 0 / 0.14), 0 2px 6px rgb(0 0 0 / 0.08);
   }
-  .dk-menu-item {
+  /* A menu row: the anatomy shared by command items and by a contained
+     non-menuitem control row (the zoom stepper), so their icons and labels
+     sit in the same columns. */
+  .dk-menu-item,
+  .dk-menu-control {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -812,6 +816,8 @@ input[type="radio"] {
     font-size: 13px;
     color: var(--ink);
     white-space: nowrap;
+  }
+  .dk-menu-item {
     cursor: pointer;
     outline: none;
     transition: background-color var(--motion);

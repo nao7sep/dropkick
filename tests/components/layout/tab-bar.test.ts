@@ -476,4 +476,35 @@ describe("TabBar hamburger menu", () => {
       "About Dropkick",
     ]);
   });
+
+  it("builds the zoom row like an item row, so its icon and label share the items' columns", async () => {
+    // happy-dom does no layout, so offsets cannot be measured here; the
+    // columns follow from both rows sharing one anatomy (App.css, pinned in
+    // control-roles) and the same leading icon before the label.
+    const menu = await openMenu();
+    const zoomRow = [...menu.children].find((row) => row.textContent?.startsWith("Zoom"));
+    if (!zoomRow) throw new Error("zoom row not found");
+    expect(zoomRow.classList.contains("dk-menu-control")).toBe(true);
+    expect(zoomRow.getAttribute("role")).toBeNull();
+
+    const leadingIcon = (row: Element) => {
+      const icon = row.firstElementChild;
+      return icon && {
+        tag: icon.tagName.toLowerCase(),
+        width: icon.getAttribute("width"),
+        muted: icon.classList.contains("text-ink-muted"),
+      };
+    };
+    const items = [...menu.querySelectorAll('[role="menuitem"]')];
+    for (const item of items) {
+      expect(item.classList.contains("dk-menu-item")).toBe(true);
+      expect(leadingIcon(zoomRow)).toEqual(leadingIcon(item));
+    }
+    // The label follows the icon directly and fills the row, pushing the
+    // stepper to the row's right padding.
+    const label = zoomRow.children[1]!;
+    expect(label.textContent).toBe("Zoom");
+    expect(label.classList.contains("flex-1")).toBe(true);
+    expect(zoomRow.children).toHaveLength(3);
+  });
 });

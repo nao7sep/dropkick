@@ -96,7 +96,29 @@ describe("menus", () => {
       expect(className).not.toMatch(/(^|\s)w-(?!max)[\w[]/);
     }
     // Items never wrap: the shared item role keeps its label on one line.
-    expect(css).toMatch(/\.dk-menu-item\s*\{[^}]*white-space:\s*nowrap/);
+    expect(css).toMatch(/\.dk-menu-item,\s*\.dk-menu-control\s*\{[^}]*white-space:\s*nowrap/);
+  });
+
+  it("give a contained control row the item row's anatomy", () => {
+    // One rule owns padding, height, gap and text for both, so a control row's
+    // icon and label line up with the items' and its control keeps their inset.
+    const shared = css.match(/\.dk-menu-item,\s*\.dk-menu-control\s*\{([^}]*)\}/)?.[1];
+    expect(shared).toBeDefined();
+    for (const declaration of [
+      /display:\s*flex/,
+      /gap:\s*8px/,
+      /min-height:\s*30px/,
+      /padding:\s*5px 10px/,
+      /font-size:\s*13px/,
+    ]) {
+      expect(shared).toMatch(declaration);
+    }
+    // The control row takes no item state: no pointer cursor, no highlight.
+    const controlRules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]*)\{/g)]
+      .map((m) => m[1]!.trim())
+      .filter((selector) => selector.includes("dk-menu-control"));
+    expect(controlRules).toHaveLength(1);
+    expect(controlRules[0]).toMatch(/^\.dk-menu-item,\s*\.dk-menu-control$/);
   });
 });
 
