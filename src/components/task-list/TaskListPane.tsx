@@ -676,7 +676,7 @@ function TaskRow({
       // A rounded row with no fill of its own, sitting on its group's card tint
       // and set apart from its neighbours by space. Hover steps the tint toward
       // the group colour; selection is the accent fill; the keyboard cursor,
-      // while the list has focus, is a ring on the active row
+      // while the keyboard drives the list, is a ring on the active row
       // (composite-control-conventions).
       className={`mx-1.5 mb-[5px] flex cursor-pointer last:mb-0 flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
         isSelected
@@ -684,7 +684,7 @@ function TaskRow({
           : "bg-transparent hover:bg-[color-mix(in_srgb,var(--g-tint),var(--g-accent)_18%)]"
       } ${
         asOption && isActive
-          ? "group-focus-within:ring-[1.5px] group-focus-within:ring-inset group-focus-within:ring-primary-ring"
+          ? "group-focus-visible:ring-[1.5px] group-focus-visible:ring-inset group-focus-visible:ring-primary-ring"
           : ""
       }`}
     >
