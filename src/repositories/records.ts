@@ -4,7 +4,7 @@
 // settings and state.json, and the Records window talk through events.
 
 import { invoke } from "@tauri-apps/api/core";
-import { emitTo, listen } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
 import type { ThemePreference } from "../models";
 import type {
   RecordDetail,
@@ -13,7 +13,7 @@ import type {
   RecordsPage,
   RecordsQuery,
 } from "../models/records";
-import { log, toErrorFields } from "./logging";
+import { subscribe } from "./events";
 
 const MAIN_WINDOW = "main";
 // records_window::LABEL.
@@ -49,23 +49,6 @@ export function readRecordSources(): Promise<RecordSources> {
 
 export function readRecordDetail(id: number): Promise<RecordDetail | null> {
   return invoke<RecordDetail | null>("read_record_detail", { id });
-}
-
-// Listens until the returned function is called, which may happen before the
-// listener is registered.
-function subscribe<T>(event: string, listener: (payload: T) => void): () => void {
-  let unlisten: (() => void) | null = null;
-  let stopped = false;
-  void listen<T>(event, ({ payload }) => listener(payload))
-    .then((registered) => {
-      if (stopped) registered();
-      else unlisten = registered;
-    })
-    .catch((error) => log.warn("event listener failed", { event, ...toErrorFields(error) }));
-  return () => {
-    stopped = true;
-    unlisten?.();
-  };
 }
 
 export function onRecordsChanged(listener: () => void): () => void {

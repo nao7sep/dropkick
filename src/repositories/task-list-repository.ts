@@ -15,9 +15,12 @@ import {
   readJsonFileWithHash,
   writeJsonFile,
   hashFile,
+  watchFile,
+  unwatchFile,
   withSerial,
   withSerialTwo,
 } from "./file-system";
+import type { JsonReadWithHashResult } from "./file-system";
 import {
   showFileConflictDialog,
   showFileDeletedDialog,
@@ -33,6 +36,19 @@ export interface LoadedTaskList {
 
 export type LoadTaskListResult =
   | { status: "success"; taskList: LoadedTaskList }
+  | { status: "missing" }
+  | { status: "invalid"; message: string }
+  | { status: "error"; message: string };
+
+// Result of checking a loaded file against the disk after a change there.
+// `kept` means the disk differs but the caller declined the new copy, so the
+// stored hash still names the copy it holds and its next save meets the
+// conflict dialog. The failures leave the loaded copy and its hash as they were.
+export type RefreshResult =
+  | { status: "unchanged" }
+  | { status: "reloaded" }
+  | { status: "kept" }
+  | { status: "notLoaded" }
   | { status: "missing" }
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
@@ -71,12 +87,27 @@ function rememberHash(filePath: string, hash: string): void {
   knownHashes.set(filePath, hash);
 }
 
+// A list that cannot be watched still works; it just waits, as it always did,
+// for its next save to find an outside edit.
+async function startWatching(filePath: string): Promise<void> {
+  try {
+    await watchFile(filePath);
+  } catch (e) {
+    log.warn("task list watch failed", { path: filePath, ...toErrorFields(e) });
+  }
+}
+
 // Called by the store when a tab closes so the repository can release state.
 // Routed through the same serial chain as flushes so any queued write for this
 // path lands on disk before the hash is dropped.
 export async function forgetTaskList(filePath: string): Promise<void> {
   await withSerial(filePath, async () => {
     knownHashes.delete(filePath);
+    try {
+      await unwatchFile(filePath);
+    } catch (e) {
+      log.warn("task list unwatch failed", { path: filePath, ...toErrorFields(e) });
+    }
   });
 }
 
@@ -88,6 +119,8 @@ export async function loadTaskList(
   filePath: string,
 ): Promise<LoadTaskListResult> {
   return withSerial(filePath, async () => {
+    // Watched before it is read, so no outside edit falls between the two.
+    await startWatching(filePath);
     const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
     if (loaded.status !== "success") return loaded;
     // Materialize a missing id and persist it once, so this list's stable
@@ -116,7 +149,34 @@ export async function createTaskListFile(
   return withSerial(filePath, async () => {
     const data = createEmptyTaskList();
     rememberHash(filePath, await writeJsonFile(filePath, data));
+    await startWatching(filePath);
     return { filePath, data };
+  });
+}
+
+// Checks a loaded file against the disk after the watcher saw it change.
+// Serialized per path, so it runs after any write already queued: the app's own
+// save then reads back as `unchanged`, because the stored hash is the one that
+// save produced. A changed copy is offered to `adopt` inside the same slot, so
+// no flush can run between the caller's decision and the hash it implies.
+export async function refreshTaskList(
+  filePath: string,
+  adopt: (data: TaskListDto) => boolean,
+): Promise<RefreshResult> {
+  return withSerial(filePath, async () => {
+    const known = knownHashes.get(filePath);
+    if (known === undefined) return { status: "notLoaded" };
+    let loaded: JsonReadWithHashResult<TaskListDto>;
+    try {
+      loaded = await readJsonFileWithHash<TaskListDto>(filePath);
+    } catch (e) {
+      return { status: "error", message: e instanceof Error ? e.message : String(e) };
+    }
+    if (loaded.status !== "success") return loaded;
+    if (loaded.hash === known) return { status: "unchanged" };
+    if (!adopt(loaded.data)) return { status: "kept" };
+    rememberHash(filePath, loaded.hash);
+    return { status: "reloaded" };
   });
 }
 

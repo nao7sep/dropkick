@@ -26,7 +26,7 @@ import {
 } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useViewTasks } from "../../hooks/useViewTasks";
-import { describeLoadFailure, fieldDraftKey, fileNameWithoutExt } from "../../services";
+import { describeDiskFailure, describeLoadFailure, fieldDraftKey, fileNameWithoutExt } from "../../services";
 import { useNoteDraftStore } from "../../state/note-draft-store";
 import { Button } from "../shared/Button";
 import { useI18n } from "../../i18n/I18nContext";
@@ -88,6 +88,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const showMoreHandled = useTaskListStore((s) => s.showMoreHandled);
   const setHandledExpanded = useTaskListStore((s) => s.setHandledExpanded);
   const fileLoadError = useTaskListStore((s) => s.fileLoadErrors[filePath]);
+  const fileDiskError = useTaskListStore((s) => s.fileDiskErrors[filePath]);
   const fileLoadErrors = useTaskListStore((s) => s.fileLoadErrors);
   const loadFile = useTaskListStore((s) => s.loadFile);
   const activeTabIndex = useWorkspaceStore((s) => s.workspace.activeTabIndex);
@@ -444,6 +445,17 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           {`${primaryModifierLabel}+N`}
         </span>
       </button>
+
+      {/* The file changed on disk and could not be read back: say so above
+          the copy still loaded, until the file reads back or is saved. */}
+      {!isUnifiedView && fileDiskError && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-start border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
+        >
+          <span>{i18n.text(describeDiskFailure(fileDiskError))}</span>
+        </div>
+      )}
 
       {/* Unified view: warn about lists missing from the roll-up because their
           file failed to load, so an incomplete merge is never presented as the

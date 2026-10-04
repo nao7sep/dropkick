@@ -35,6 +35,7 @@ export {
 export {
   parseTaskKey,
   pickNextActiveKey,
+  retainSelection,
   taskKey,
   taskSelectionKey,
   rowDomId,

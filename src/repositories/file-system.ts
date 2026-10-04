@@ -8,6 +8,7 @@
 // src-tauri/src/lib.rs for the exposure this does and does not cover.
 
 import { invoke } from "@tauri-apps/api/core";
+import { subscribe } from "./events";
 import { log, toErrorFields } from "./logging";
 
 // Mirror of the Rust TextReadResult union (read_text_file command).
@@ -110,6 +111,25 @@ export async function quarantineFile(path: string): Promise<string> {
 // Returns null if the file does not exist.
 export async function hashFile(path: string): Promise<string | null> {
   return await invoke<string | null>("hash_file", { path });
+}
+
+// Watches a file for changes made by anything, this app included; the core
+// reports each one through onFileChanged under the path given here. Watching a
+// watched path, or unwatching one not watched, does nothing.
+export async function watchFile(path: string): Promise<void> {
+  await invoke("watch_file", { path });
+}
+
+export async function unwatchFile(path: string): Promise<void> {
+  await invoke("unwatch_file", { path });
+}
+
+// file_watch::CHANGED_EVENT. One call per change the watcher sees, so a save
+// arrives as a burst.
+const FILE_CHANGED = "task-list-file-changed";
+
+export function onFileChanged(listener: (path: string) => void): () => void {
+  return subscribe<string>(FILE_CHANGED, listener);
 }
 
 // Checks if a file exists on disk.

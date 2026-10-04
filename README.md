@@ -10,7 +10,7 @@ Let tasks sort themselves by urgency, kick the ones you can't do yet down the li
 - **Notes with actionability** — mark notes Informational, Actionable, or Resolved; a task with an unresolved actionable note can't be completed
 - **Durable drafts** — text typed into a task's title or description, a new-note composer, or an existing-note editor is written through to local draft storage as you type, so quitting never loses it. A title or description the app quit before saving is saved when you next open the task. A note draft returns when you revisit the task: saving commits it, **Cancel** deliberately discards it, and pressing **Escape** with a changed edit asks before discarding.
 - **Keyboard-first** — change status, priority, and due dates without leaving the keys
-- **Safe on disk** — SHA-256 change detection before overwrite, so an edit made to a task file outside the app is never silently clobbered
+- **Safe on disk** — an open list picks up edits made to its file outside the app; while you have unsaved text for one of its tasks it keeps your copy instead, and SHA-256 change detection before every overwrite means the outside edit is never silently clobbered
 - **IME-safe** — Japanese/Chinese/Korean input works in every text field
 - **Ten interface languages** — English, Japanese, Chinese, Korean, Spanish, Portuguese, French, German, Italian, and Russian, following the computer's language by default
 

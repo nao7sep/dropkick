@@ -13,6 +13,7 @@ const flushTaskList = vi.fn();
 const forceFlushTaskList = vi.fn();
 const flushMove = vi.fn();
 const forgetTaskList = vi.fn(async (_p: string) => {});
+const refreshTaskList = vi.fn();
 
 vi.mock("../../src/repositories", () => ({
   loadTaskList: (p: string) => loadTaskList(p),
@@ -21,6 +22,7 @@ vi.mock("../../src/repositories", () => ({
   forceFlushTaskList: (p: string, data: TaskListDto) => forceFlushTaskList(p, data),
   flushMove: (s: string, d: string, getInputs: () => unknown) => flushMove(s, d, getInputs),
   forgetTaskList: (p: string) => forgetTaskList(p),
+  refreshTaskList: (p: string, adopt: (data: TaskListDto) => boolean) => refreshTaskList(p, adopt),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   loadFailureFields: (path: string, result: { status: string; message?: string }) => ({
     path,
@@ -31,6 +33,8 @@ vi.mock("../../src/repositories", () => ({
 
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { usePreferencesStore } from "../../src/state/preferences-store";
+import { useNoteDraftStore } from "../../src/state/note-draft-store";
+import { composerDraftKey } from "../../src/services/note-drafts";
 import { makeTask, makeNote } from "../helpers/task";
 import { taskKey } from "../../src/utils";
 
@@ -48,6 +52,7 @@ function seedFile(tasks = [makeTask({ id: "a" }), makeTask({ id: "b" })]) {
   useTaskListStore.setState({
     files: { [FILE]: { data: { version: "1.0.0", id: "L1", tasks } } },
     fileLoadErrors: {},
+    fileDiskErrors: {},
     selectedKeys: new Set(),
     handledVisible: {},
     handledExpanded: {},
@@ -65,6 +70,8 @@ beforeEach(() => {
   forceFlushTaskList.mockReset();
   flushMove.mockReset();
   forgetTaskList.mockClear();
+  refreshTaskList.mockReset();
+  useNoteDraftStore.setState({ drafts: {} });
   flushSucceeds();
   // Reset preferences to a known timezone/window for reorder grouping.
   usePreferencesStore.setState({
@@ -73,6 +80,7 @@ beforeEach(() => {
   useTaskListStore.setState({
     files: {},
     fileLoadErrors: {},
+    fileDiskErrors: {},
     selectedKeys: new Set(),
     handledVisible: {},
     handledExpanded: {},
@@ -595,5 +603,92 @@ describe("handled pagination", () => {
   it("setHandledExpanded records expansion per view", () => {
     useTaskListStore.getState().setHandledExpanded(FILE, true);
     expect(useTaskListStore.getState().handledExpanded[FILE]).toBe(true);
+  });
+});
+
+describe("refreshFromDisk", () => {
+  // The repository offers a changed copy to the store and reports whether it
+  // was taken, as refreshTaskList does.
+  function diskHolds(tasks: TaskListDto["tasks"], id = "L1") {
+    refreshTaskList.mockImplementation(async (_p: string, adopt: (data: TaskListDto) => boolean) =>
+      adopt({ version: "1.0.0", id, tasks }) ? { status: "reloaded" } : { status: "kept" },
+    );
+  }
+
+  it("takes the file's new copy and keeps the selection where its tasks remain", async () => {
+    seedFile([makeTask({ id: "a" }), makeTask({ id: "b" })]);
+    const elsewhere = taskKey("/other.json", "b");
+    useTaskListStore.setState({ selectedKeys: new Set([taskKey(FILE, "a"), taskKey(FILE, "b"), elsewhere]) });
+    diskHolds([makeTask({ id: "a", title: "edited outside" }), makeTask({ id: "c" })]);
+
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+
+    expect(tasksOf().map((t) => [t.id, t.title])).toEqual([["a", "edited outside"], ["c", expect.any(String)]]);
+    expect(useTaskListStore.getState().selectedKeys).toEqual(new Set([taskKey(FILE, "a"), elsewhere]));
+  });
+
+  it("keeps the loaded copy while a draft for one of its tasks is unsaved", async () => {
+    seedFile([makeTask({ id: "a", title: "loaded" })]);
+    useNoteDraftStore.setState({ drafts: { [composerDraftKey("a")]: "half a note" } });
+    diskHolds([makeTask({ id: "a", title: "edited outside" })]);
+
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+
+    expect(tasksOf().map((t) => t.title)).toEqual(["loaded"]);
+    expect(await refreshTaskList.mock.results[0]?.value).toEqual({ status: "kept" });
+  });
+
+  it("keeps the loaded copy while one of its saves is on its way", async () => {
+    seedFile([makeTask({ id: "a", title: "loaded" })]);
+    let finish!: (result: unknown) => void;
+    flushTaskList.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+    const saving = useTaskListStore.getState().updateTitle(FILE, "a", "typed in app");
+    diskHolds([makeTask({ id: "a", title: "edited outside" })]);
+
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+
+    expect(tasksOf().map((t) => t.title)).toEqual(["typed in app"]);
+    finish({ status: "success" });
+    await saving;
+  });
+
+  it("keeps the list's identity when the file was saved without its id", async () => {
+    seedFile();
+    diskHolds([makeTask({ id: "a" })], "");
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+    expect(useTaskListStore.getState().files[FILE]?.data.id).toBe("L1");
+  });
+
+  it("keeps the loaded copy when the file is gone or unreadable, and says so until it reads back", async () => {
+    seedFile([makeTask({ id: "a" })]);
+    refreshTaskList.mockResolvedValueOnce({ status: "missing" });
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+    expect(tasksOf().map((t) => t.id)).toEqual(["a"]);
+    expect(useTaskListStore.getState().fileDiskErrors[FILE]).toEqual({ status: "missing" });
+
+    refreshTaskList.mockResolvedValueOnce({ status: "invalid", message: "bad json" });
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+    expect(useTaskListStore.getState().fileDiskErrors[FILE]).toEqual({ status: "invalid", message: "bad json" });
+
+    refreshTaskList.mockResolvedValueOnce({ status: "unchanged" });
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+    expect(useTaskListStore.getState().fileDiskErrors[FILE]).toBeUndefined();
+  });
+
+  it("clears the problem once the list is saved again or closed", async () => {
+    seedFile([makeTask({ id: "a" })]);
+    refreshTaskList.mockResolvedValue({ status: "missing" });
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+    await useTaskListStore.getState().updateTitle(FILE, "a", "saved");
+    expect(useTaskListStore.getState().fileDiskErrors[FILE]).toBeUndefined();
+
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+    await useTaskListStore.getState().unloadFile(FILE);
+    expect(useTaskListStore.getState().fileDiskErrors[FILE]).toBeUndefined();
+  });
+
+  it("leaves a list that is not loaded alone", async () => {
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+    expect(refreshTaskList).not.toHaveBeenCalled();
   });
 });

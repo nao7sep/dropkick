@@ -4,6 +4,7 @@ import {
   taskSelectionKey,
   parseTaskKey,
   pickNextActiveKey,
+  retainSelection,
   rowDomId,
   stepIndex,
   pageStepIndex,
@@ -253,5 +254,19 @@ describe("statusAdvancesSelection", () => {
     expect(statusAdvancesSelection("Completed")).toBe(true);
     expect(statusAdvancesSelection("Dismissed")).toBe(true);
     expect(statusAdvancesSelection("Pending")).toBe(false);
+  });
+});
+
+describe("retainSelection", () => {
+  it("drops only the reloaded file's keys whose tasks are gone", () => {
+    const selected = new Set([taskKey("/a.json", "kept"), taskKey("/a.json", "gone"), taskKey("/b.json", "gone")]);
+    expect(retainSelection(selected, "/a.json", new Set(["kept"]))).toEqual(
+      new Set([taskKey("/a.json", "kept"), taskKey("/b.json", "gone")]),
+    );
+  });
+
+  it("returns the same set when every selected task is still there", () => {
+    const selected = new Set([taskKey("/a.json", "kept")]);
+    expect(retainSelection(selected, "/a.json", new Set(["kept", "new"]))).toBe(selected);
   });
 });

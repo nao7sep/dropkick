@@ -9,6 +9,7 @@ import {
   editorDraftKey,
   fieldDraftKey,
   draftTaskId,
+  holdsDraftFor,
   reconcileDrafts,
 } from "../../src/services/note-drafts";
 import { makeTask, makeNote } from "../helpers/task";
@@ -102,5 +103,20 @@ describe("reconcileDrafts", () => {
       "t1:n1": "live",
       t2: "composer",
     });
+  });
+});
+
+describe("holdsDraftFor", () => {
+  const tasks = [makeTask({ id: "a" }), makeTask({ id: "b" })];
+
+  it("finds every kind of draft that belongs to one of the tasks", () => {
+    expect(holdsDraftFor({ [composerDraftKey("a")]: "typed" }, tasks)).toBe(true);
+    expect(holdsDraftFor({ [editorDraftKey("b", "n1")]: "edited" }, tasks)).toBe(true);
+    expect(holdsDraftFor({ [fieldDraftKey("a", "title")]: "renamed" }, tasks)).toBe(true);
+  });
+
+  it("ignores drafts for tasks elsewhere, and holds nothing without drafts", () => {
+    expect(holdsDraftFor({ [composerDraftKey("z")]: "typed" }, tasks)).toBe(false);
+    expect(holdsDraftFor({}, tasks)).toBe(false);
   });
 });

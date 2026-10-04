@@ -148,6 +148,9 @@
   "taskList.loadFailed": "Die Aufgabenliste konnte nicht geladen werden",
   "taskList.retry": "Erneut versuchen",
   "taskList.removeTab": "Tab entfernen",
+  "taskList.disk.missing": "Die Aufgabenlistendatei wurde nicht gefunden. Die Liste unten ist die Kopie, die Dropkick zuvor geladen hat.",
+  "taskList.disk.invalid": "Die Aufgabenlistendatei enthält keine gültigen Dropkick-Daten mehr. Die Liste unten ist die Kopie, die Dropkick zuvor geladen hat.",
+  "taskList.disk.error": "Die Aufgabenlistendatei konnte nicht gelesen werden. Die Liste unten ist die Kopie, die Dropkick zuvor geladen hat.",
 
   "group.pastDue": "Überfällig",
   "group.critical": "Kritisch",

@@ -148,6 +148,9 @@
   "taskList.loadFailed": "Impossibile caricare la lista di attività",
   "taskList.retry": "Riprova",
   "taskList.removeTab": "Rimuovi scheda",
+  "taskList.disk.missing": "Impossibile trovare il file della lista di attività. La lista qui sotto è la copia caricata in precedenza da Dropkick.",
+  "taskList.disk.invalid": "Il file della lista di attività non contiene più dati Dropkick validi. La lista qui sotto è la copia caricata in precedenza da Dropkick.",
+  "taskList.disk.error": "Impossibile leggere il file della lista di attività. La lista qui sotto è la copia caricata in precedenza da Dropkick.",
 
   "group.pastDue": "Scadute",
   "group.critical": "Critiche",

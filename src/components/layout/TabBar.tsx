@@ -77,6 +77,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   const loadFile = useTaskListStore((s) => s.loadFile);
   const createFile = useTaskListStore((s) => s.createFile);
   const fileLoadErrors = useTaskListStore((s) => s.fileLoadErrors);
+  const fileDiskErrors = useTaskListStore((s) => s.fileDiskErrors);
   const files = useTaskListStore((s) => s.files);
 
   // Deadline urgency per open list tab, keyed by file path. Recomputed when the
@@ -377,7 +378,9 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
           >
             {workspace.openTabs.map((tab, index) => {
             const hasLoadError =
-              !tab.isUnifiedView && fileLoadErrors[tab.filePath] !== undefined;
+              !tab.isUnifiedView &&
+              (fileLoadErrors[tab.filePath] !== undefined ||
+                fileDiskErrors[tab.filePath] !== undefined);
             // Unified view never gets a dot; computeTabUrgencies returns an
             // entry (possibly null) for every other open tab — load-errored and
             // not-yet-loaded ones resolve to null there. The `?? null` keeps the

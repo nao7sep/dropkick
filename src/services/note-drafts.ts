@@ -37,6 +37,16 @@ export function draftTaskId(key: string): string {
   return end === -1 ? key : key.slice(0, end);
 }
 
+// Whether any draft belongs to one of `tasks`: text typed for them that is not
+// saved yet, or a note editor open on one of them.
+export function holdsDraftFor(
+  drafts: Record<string, string>,
+  tasks: readonly { id: string }[],
+): boolean {
+  const ids = new Set(tasks.map((task) => task.id));
+  return Object.keys(drafts).some((key) => ids.has(draftTaskId(key)));
+}
+
 // Drops only the drafts whose subject is PROVABLY gone, judged against whatever
 // task lists happen to be loaded.
 //

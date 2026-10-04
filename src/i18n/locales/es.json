@@ -148,6 +148,9 @@
   "taskList.loadFailed": "No se pudo cargar la lista de tareas",
   "taskList.retry": "Reintentar",
   "taskList.removeTab": "Quitar pestaña",
+  "taskList.disk.missing": "No se encontró el archivo de la lista de tareas. La lista de abajo es la copia que Dropkick cargó antes.",
+  "taskList.disk.invalid": "El archivo de la lista de tareas ya no contiene datos válidos de Dropkick. La lista de abajo es la copia que Dropkick cargó antes.",
+  "taskList.disk.error": "No se pudo leer el archivo de la lista de tareas. La lista de abajo es la copia que Dropkick cargó antes.",
 
   "group.pastDue": "Vencidas",
   "group.critical": "Críticas",

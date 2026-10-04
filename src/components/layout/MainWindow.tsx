@@ -15,6 +15,7 @@ import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { useViewTasks } from "../../hooks/useViewTasks";
 import { useWindowClose } from "../../hooks/use-window-close";
 import { useRecordsWindow } from "../../hooks/useRecordsWindow";
+import { useTaskListFileWatch } from "../../hooks/useTaskListFileWatch";
 import { isComposingEvent } from "../../hooks/useComposing";
 import {
   pickNextActiveKey,
@@ -286,6 +287,10 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
   // Hold the window open until pending writes are on disk (see the hook for
   // which exits this can and cannot see).
   useWindowClose();
+
+  // An open list edited outside the app reloads itself (the store decides
+  // whether it may).
+  useTaskListFileWatch();
 
   // Load the active tab's file when the active tab changes. loadFile owns the
   // failed-load record; TaskListPane renders that record with retry/removal, so

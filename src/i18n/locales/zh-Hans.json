@@ -148,6 +148,9 @@
   "taskList.loadFailed": "无法加载任务列表",
   "taskList.retry": "重试",
   "taskList.removeTab": "移除标签页",
+  "taskList.disk.missing": "找不到任务列表文件。下方列表是 Dropkick 之前加载的副本。",
+  "taskList.disk.invalid": "任务列表文件不再包含有效的 Dropkick 数据。下方列表是 Dropkick 之前加载的副本。",
+  "taskList.disk.error": "无法读取任务列表文件。下方列表是 Dropkick 之前加载的副本。",
 
   "group.pastDue": "已逾期",
   "group.critical": "最重要",

@@ -69,6 +69,10 @@ sys-locale = "0.3.2"
 # The home directory, resolved exactly as Tauri's path resolver does, so the
 # saved language can be read before Tauri builds the app.
 dirs = "6.0.0"
+# Watches the open task lists for edits made outside the app (src/file_watch.rs).
+# The standard Rust watcher, the one Tauri's fs plugin is built on; the webview
+# carries no fs plugin, so the core watches and tells the window.
+notify = "8.2.0"
 
 # AppKit's language is aligned with the interface language before the app is
 # built (i18n::align_appkit).

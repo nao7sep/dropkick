@@ -27,6 +27,21 @@ export function parseTaskKey(key: string): TaskSelectionIdentity | null {
   };
 }
 
+// The selection after one file's tasks were replaced from disk: its keys for
+// tasks that are gone are dropped, and every other key stays. Returns the SAME
+// set when nothing was dropped, so the list neither re-renders nor re-scrolls.
+export function retainSelection(
+  selectedKeys: Set<string>,
+  filePath: string,
+  taskIds: ReadonlySet<string>,
+): Set<string> {
+  const kept = [...selectedKeys].filter((key) => {
+    const parsed = parseTaskKey(key);
+    return parsed?.sourceFile !== filePath || taskIds.has(parsed.taskId);
+  });
+  return kept.length === selectedKeys.size ? selectedKeys : new Set(kept);
+}
+
 // Pick the next active task in visual order after the current selection.
 // Returns null at the end of the active list so callers do not follow tasks
 // into the handled section after completion or dismissal.

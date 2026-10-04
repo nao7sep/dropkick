@@ -148,6 +148,9 @@
   "taskList.loadFailed": "La liste de tâches n’a pas pu être chargée",
   "taskList.retry": "Réessayer",
   "taskList.removeTab": "Retirer l’onglet",
+  "taskList.disk.missing": "Le fichier de liste de tâches est introuvable. La liste ci-dessous est la copie chargée précédemment par Dropkick.",
+  "taskList.disk.invalid": "Le fichier de liste de tâches ne contient plus de données Dropkick valides. La liste ci-dessous est la copie chargée précédemment par Dropkick.",
+  "taskList.disk.error": "Le fichier de liste de tâches n’a pas pu être lu. La liste ci-dessous est la copie chargée précédemment par Dropkick.",
 
   "group.pastDue": "En retard",
   "group.critical": "Critiques",

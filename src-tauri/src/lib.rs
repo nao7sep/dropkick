@@ -4,7 +4,7 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 // The modules are `pub` so the integration tests in `tests/` can reach them.
 // This crate's only real consumer is `main.rs`, so the "public API" is a seam
@@ -12,6 +12,7 @@ use tauri::{AppHandle, Manager, State};
 // tests-folder-conventions ask for: promote the helper, do not test it through
 // a shell, and keep shipped source free of test modules.
 pub mod backup_store;
+pub mod file_watch;
 pub mod i18n;
 mod instance_owner;
 pub mod logging;
@@ -392,7 +393,7 @@ pub fn atomic_temp_name(file_name: &str) -> String {
 // keeps the returned path in its original form — canonicalize hands back a
 // `\\?\` extended-length path on Windows, which would then leak into the temp
 // file's sibling name and the backup store's key.
-fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
+pub fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
     let mut current = path.to_path_buf();
     for _ in 0..8 {
         let is_link = std::fs::symlink_metadata(&current)
@@ -598,6 +599,31 @@ fn apply_theme(window: tauri::WebviewWindow, preference: String) -> Result<(), S
             Err(message)
         }
     }
+}
+
+// Starts and stops watching an open task list for edits made outside the app
+// (file_watch.rs). Resolving the list's directory touches the filesystem, so
+// both run on the thread pool.
+#[tauri::command(async)]
+fn watch_file(watches: State<file_watch::FileWatches>, path: &str) -> Result<(), String> {
+    let started = log_cmd_start("watch_file", json!({ "path": path }));
+    let result = watches.watch(path);
+    match &result {
+        Ok(()) => log_cmd_ok("watch_file", started, json!({ "path": path })),
+        Err(message) => log_cmd_err("watch_file", started, message.clone()),
+    }
+    result
+}
+
+#[tauri::command(async)]
+fn unwatch_file(watches: State<file_watch::FileWatches>, path: &str) -> Result<(), String> {
+    let started = log_cmd_start("unwatch_file", json!({ "path": path }));
+    let result = watches.unwatch(path);
+    match &result {
+        Ok(()) => log_cmd_ok("unwatch_file", started, json!({ "path": path })),
+        Err(message) => log_cmd_err("unwatch_file", started, message.clone()),
+    }
+    result
 }
 
 // Receives a structured log object from the webview frontend and hands it to
@@ -846,6 +872,17 @@ pub fn run() {
                     eprintln!("dropkick: storage root unavailable: {message}");
                 }
             }
+            // Changes to the open task lists go to the main window, the only
+            // one that holds them.
+            let handle = app.handle().clone();
+            app.manage(file_watch::FileWatches::new(move |path| {
+                if let Err(error) = handle.emit_to("main", file_watch::CHANGED_EVENT, path) {
+                    logging::warn(
+                        "file change event failed",
+                        json!({ "path": path, "error": error.to_string() }),
+                    );
+                }
+            }));
             // The native menu speaks the interface language from the first frame.
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             {
@@ -886,6 +923,8 @@ pub fn run() {
             file_exists,
             quarantine_file,
             ensure_dir,
+            watch_file,
+            unwatch_file,
             app_paths,
             log_event,
             logging_debug_enabled,

@@ -148,6 +148,9 @@
   "taskList.loadFailed": "Не удалось загрузить список задач",
   "taskList.retry": "Повторить",
   "taskList.removeTab": "Убрать вкладку",
+  "taskList.disk.missing": "Файл списка задач не найден. Ниже показана копия, загруженная Dropkick ранее.",
+  "taskList.disk.invalid": "Файл списка задач больше не содержит корректных данных Dropkick. Ниже показана копия, загруженная Dropkick ранее.",
+  "taskList.disk.error": "Не удалось прочитать файл списка задач. Ниже показана копия, загруженная Dropkick ранее.",
 
   "group.pastDue": "Просроченные",
   "group.critical": "Критические",

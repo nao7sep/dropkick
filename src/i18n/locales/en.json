@@ -148,6 +148,9 @@
   "taskList.loadFailed": "Task list could not be loaded",
   "taskList.retry": "Retry",
   "taskList.removeTab": "Remove tab",
+  "taskList.disk.missing": "The task list file could not be found. The list below is the copy Dropkick loaded earlier.",
+  "taskList.disk.invalid": "The task list file no longer contains valid Dropkick data. The list below is the copy Dropkick loaded earlier.",
+  "taskList.disk.error": "The task list file could not be read. The list below is the copy Dropkick loaded earlier.",
 
   "group.pastDue": "Past Due",
   "group.critical": "Critical",

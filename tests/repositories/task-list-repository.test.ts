@@ -1,6 +1,7 @@
 import { message } from "../../src/i18n/translate";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { TaskListDto } from "../../src/models";
+import { makeTask } from "../helpers/task";
 
 // Spies for the two mocked dependency modules. withSerial/withSerialTwo are
 // pass-throughs: the per-path serialization is not what these tests exercise.
@@ -8,6 +9,8 @@ const readJsonFileWithHash = vi.fn();
 const writeJsonFile = vi.fn();
 const hashFile = vi.fn();
 const fileExists = vi.fn();
+const watchFile = vi.fn();
+const unwatchFile = vi.fn();
 const showFileConflictDialog = vi.fn();
 const showFileDeletedDialog = vi.fn();
 
@@ -16,6 +19,8 @@ vi.mock("../../src/repositories/file-system", () => ({
   writeJsonFile: (p: string, d: unknown) => writeJsonFile(p, d),
   hashFile: (p: string) => hashFile(p),
   fileExists: (p: string) => fileExists(p),
+  watchFile: (p: string) => watchFile(p),
+  unwatchFile: (p: string) => unwatchFile(p),
   withSerial: (_p: string, fn: () => unknown) => fn(),
   withSerialTwo: (_a: string, _b: string, fn: () => unknown) => fn(),
 }));
@@ -31,10 +36,12 @@ let repo: typeof import("../../src/repositories/task-list-repository");
 const data = (tasks: TaskListDto["tasks"] = []): TaskListDto => ({ version: "1.0.0", id: "T0", tasks });
 
 beforeEach(async () => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   // The core hashes the bytes it wrote and returns the digest.
   writeJsonFile.mockResolvedValue("HW");
   fileExists.mockResolvedValue(true);
+  watchFile.mockResolvedValue(undefined);
+  unwatchFile.mockResolvedValue(undefined);
   vi.resetModules();
   repo = await import("../../src/repositories/task-list-repository");
 });
@@ -357,5 +364,91 @@ describe("flushMove", () => {
       status: "rollback-failed",
       message: message("move.rollbackFailed"),
     });
+  });
+});
+
+describe("watching an open list", () => {
+  it("watches a list before reading it, and still loads one it cannot watch", async () => {
+    const order: string[] = [];
+    watchFile.mockImplementation(async () => {
+      order.push("watch");
+      throw new Error("no watcher");
+    });
+    readJsonFileWithHash.mockImplementation(async () => {
+      order.push("read");
+      return { status: "success", data: data(), hash: "H0" };
+    });
+    const result = await repo.loadTaskList("/f.json");
+    expect(order).toEqual(["watch", "read"]);
+    expect(result.status).toBe("success");
+  });
+
+  it("watches a list it creates", async () => {
+    await repo.createTaskListFile("/new.json");
+    expect(watchFile).toHaveBeenCalledWith("/new.json");
+  });
+
+  it("stops watching when the list is forgotten", async () => {
+    await register("/f.json");
+    await repo.forgetTaskList("/f.json");
+    expect(unwatchFile).toHaveBeenCalledWith("/f.json");
+  });
+});
+
+describe("refreshTaskList", () => {
+  const changed = data([makeTask({ id: "x" })]);
+
+  it("does nothing for a list that is not loaded", async () => {
+    const adopt = vi.fn(() => true);
+    expect(await repo.refreshTaskList("/f.json", adopt)).toEqual({ status: "notLoaded" });
+    expect(readJsonFileWithHash).not.toHaveBeenCalled();
+    expect(adopt).not.toHaveBeenCalled();
+  });
+
+  it("reads the app's own save back as unchanged", async () => {
+    await register("/f.json", "H0");
+    writeJsonFile.mockResolvedValue("HOURS");
+    hashFile.mockResolvedValue("H0");
+    expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
+    readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: data(), hash: "HOURS" });
+    const adopt = vi.fn(() => true);
+    expect(await repo.refreshTaskList("/f.json", adopt)).toEqual({ status: "unchanged" });
+    expect(adopt).not.toHaveBeenCalled();
+  });
+
+  it("offers a changed copy, and an adopted one becomes the copy the next save checks against", async () => {
+    await register("/f.json", "H0");
+    readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: changed, hash: "HDISK" });
+    const adopt = vi.fn(() => true);
+    expect(await repo.refreshTaskList("/f.json", adopt)).toEqual({ status: "reloaded" });
+    expect(adopt).toHaveBeenCalledWith(changed);
+
+    hashFile.mockResolvedValue("HDISK");
+    expect(await repo.flushTaskList("/f.json", () => changed)).toEqual({ status: "success" });
+    expect(showFileConflictDialog).not.toHaveBeenCalled();
+  });
+
+  it("keeps the old copy's hash when the caller declines, so its save meets the conflict dialog", async () => {
+    await register("/f.json", "H0");
+    readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: changed, hash: "HDISK" });
+    expect(await repo.refreshTaskList("/f.json", () => false)).toEqual({ status: "kept" });
+
+    hashFile.mockResolvedValue("HDISK");
+    showFileConflictDialog.mockResolvedValue("overwrite");
+    await repo.flushTaskList("/f.json", () => data());
+    expect(showFileConflictDialog).toHaveBeenCalledWith("/f.json");
+  });
+
+  it("reports a missing, invalid or unreadable file and keeps the loaded copy's hash", async () => {
+    await register("/f.json", "H0");
+    readJsonFileWithHash.mockResolvedValueOnce({ status: "missing" });
+    expect(await repo.refreshTaskList("/f.json", () => true)).toEqual({ status: "missing" });
+    readJsonFileWithHash.mockResolvedValueOnce({ status: "invalid", message: "bad json" });
+    expect(await repo.refreshTaskList("/f.json", () => true)).toEqual({ status: "invalid", message: "bad json" });
+    readJsonFileWithHash.mockRejectedValueOnce(new Error("ipc down"));
+    expect(await repo.refreshTaskList("/f.json", () => true)).toEqual({ status: "error", message: "ipc down" });
+
+    hashFile.mockResolvedValue("H0");
+    expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
   });
 });

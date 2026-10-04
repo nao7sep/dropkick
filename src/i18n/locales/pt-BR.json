@@ -148,6 +148,9 @@
   "taskList.loadFailed": "Não foi possível carregar a lista de tarefas",
   "taskList.retry": "Tentar Novamente",
   "taskList.removeTab": "Remover Aba",
+  "taskList.disk.missing": "Não foi possível encontrar o arquivo da lista de tarefas. A lista abaixo é a cópia que o Dropkick carregou antes.",
+  "taskList.disk.invalid": "O arquivo da lista de tarefas não contém mais dados válidos do Dropkick. A lista abaixo é a cópia que o Dropkick carregou antes.",
+  "taskList.disk.error": "Não foi possível ler o arquivo da lista de tarefas. A lista abaixo é a cópia que o Dropkick carregou antes.",
 
   "group.pastDue": "Atrasadas",
   "group.critical": "Críticas",

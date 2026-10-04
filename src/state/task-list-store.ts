@@ -27,6 +27,7 @@ import type {
   MoveResult,
   MoveInputs,
   LogFields,
+  RefreshResult,
 } from "../repositories";
 import {
   loadTaskList,
@@ -35,12 +36,15 @@ import {
   forceFlushTaskList,
   flushMove,
   forgetTaskList,
+  refreshTaskList,
   log,
   loadFailureFields,
 } from "../repositories";
-import { createTask, createNote, parseTaskKey } from "../utils";
+import { createTask, createNote, parseTaskKey, retainSelection } from "../utils";
 import type { CreateTaskOptions } from "../utils";
 import { usePreferencesStore } from "./preferences-store";
+import { useNoteDraftStore } from "./note-draft-store";
+import { holdsDraftFor } from "../services/note-drafts";
 import {
   canTransitionStatus,
   kickTasks,
@@ -87,6 +91,11 @@ interface TaskListState {
 
   // Map of file path → latest failed load result.
   fileLoadErrors: Record<string, FileLoadError>;
+
+  // Map of file path → why a loaded list's file, changed on disk, could not be
+  // read back. The loaded copy stays in `files` and on screen; the entry goes
+  // once the file reads back or is saved again.
+  fileDiskErrors: Record<string, FileLoadError>;
 
   // Currently selected task keys (source file + task ID) for the active tab.
   selectedKeys: Set<string>;
@@ -190,6 +199,12 @@ interface TaskListState {
   // Actions: conflict resolution.
   forceWrite: (filePath: string) => Promise<void>;
   reloadFile: (filePath: string) => Promise<void>;
+
+  // Picks up a loaded list's file after it changed on disk, unless the app
+  // holds edits for it (a write still on its way, or a draft for one of its
+  // tasks): those keep the loaded copy, and their save meets the conflict
+  // dialog as before.
+  refreshFromDisk: (filePath: string) => Promise<void>;
 }
 
 function loadResultToStoreResult(result: LoadTaskListResult): LoadFileResult {
@@ -284,6 +299,12 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     });
   }
 
+  // A save or a read that lands proves the file is there and readable again.
+  function clearDiskError(filePath: string): void {
+    if (!get().fileDiskErrors[filePath]) return;
+    set((state) => ({ fileDiskErrors: removeRecordKey(state.fileDiskErrors, filePath) }));
+  }
+
   // Helper: queue a flush for the given file and translate the repository's
   // WriteResult into an ActionResult. If the disk was modified outside
   // Dropkick and the user chose Reload, the reloaded data is applied to the
@@ -329,6 +350,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       finishPendingWrite(filePath, {
         persisted: writtenData ?? get().files[filePath]?.data,
       });
+      clearDiskError(filePath);
       return { status: "success" };
     }
     if (result.status === "error") {
@@ -472,6 +494,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   return {
     files: {},
     fileLoadErrors: {},
+    fileDiskErrors: {},
     selectedKeys: new Set(),
     handledVisible: {},
     handledExpanded: {},
@@ -553,6 +576,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         return {
           files: rest,
           fileLoadErrors: restErrors,
+          fileDiskErrors: removeRecordKey(state.fileDiskErrors, filePath),
           handledVisible: restHandled,
           handledExpanded: restExpanded,
         };
@@ -862,9 +886,65 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           [filePath]: { data: loaded.taskList.data },
         },
         fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
+        fileDiskErrors: removeRecordKey(state.fileDiskErrors, filePath),
         selectedKeys: new Set(),
       }));
       persistedFiles.set(filePath, loaded.taskList.data);
+    },
+
+    refreshFromDisk: async (filePath: string) => {
+      if (!get().files[filePath]) return;
+      let result: RefreshResult;
+      try {
+        result = await refreshTaskList(filePath, (data) => {
+          const current = get().files[filePath];
+          if (!current) return false;
+          if (pendingWrites.has(filePath)) return false;
+          if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks)) {
+            return false;
+          }
+          // A file saved without its id keeps the list's identity; the next
+          // save writes it back.
+          const next: TaskListDto = { ...data, id: data.id || current.data.id };
+          const taskIds = new Set(next.tasks.map((task) => task.id));
+          set((state) => ({
+            files: { ...state.files, [filePath]: { data: next } },
+            selectedKeys: retainSelection(state.selectedKeys, filePath, taskIds),
+          }));
+          persistedFiles.set(filePath, next);
+          return true;
+        });
+      } catch (e) {
+        result = { status: "error", message: e instanceof Error ? e.message : String(e) };
+      }
+      switch (result.status) {
+        case "notLoaded":
+          return;
+        case "unchanged":
+          clearDiskError(filePath);
+          return;
+        case "reloaded":
+          log.info("task list reloaded from disk", {
+            path: filePath,
+            tasks: get().files[filePath]?.data.tasks.length ?? 0,
+          });
+          clearDiskError(filePath);
+          return;
+        case "kept":
+          log.info("task list changed on disk; kept the copy with unsaved edits", {
+            path: filePath,
+          });
+          clearDiskError(filePath);
+          return;
+        default: {
+          const failure = result;
+          log.warn("task list changed on disk and could not be read", loadFailureFields(filePath, failure));
+          if (!get().files[filePath]) return;
+          set((state) => ({
+            fileDiskErrors: { ...state.fileDiskErrors, [filePath]: failure },
+          }));
+        }
+      }
     },
   };
 });

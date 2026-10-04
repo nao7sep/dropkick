@@ -32,6 +32,12 @@ export function describeLoadFailure(
   return path ? message(key, { path }) : message(key);
 }
 
+// One message for an open task list whose file, changed on disk, could not be
+// read back, shown above the copy still loaded.
+export function describeDiskFailure(result: LoadFailure): Message {
+  return message(`taskList.disk.${result.status}`);
+}
+
 // A file path's base name without its .json extension, used as a document's
 // display label. `split` always yields at least one element, so the fallbacks
 // the copies carried were unreachable.

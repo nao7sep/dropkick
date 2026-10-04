@@ -10,6 +10,7 @@ export {
   quarantineFile,
   hashFile,
   fileExists,
+  onFileChanged,
   ensureDirectory,
   appPaths,
   withSerial,
@@ -64,6 +65,7 @@ export type {
   WriteResult,
   MoveResult,
   MoveInputs,
+  RefreshResult,
 } from "./task-list-repository";
 export {
   loadTaskList,
@@ -72,6 +74,7 @@ export {
   forceFlushTaskList,
   flushMove,
   forgetTaskList,
+  refreshTaskList,
 } from "./task-list-repository";
 
 export type { AppPaths } from "./file-system";

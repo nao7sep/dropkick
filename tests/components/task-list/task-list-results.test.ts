@@ -39,6 +39,7 @@ beforeEach(async () => {
       },
     },
     fileLoadErrors: {},
+    fileDiskErrors: {},
     selectedKeys: new Set(),
     updateTitle,
   });
@@ -110,5 +111,20 @@ describe("TaskListPane results", () => {
     expect(row.querySelector("input")).toBeNull();
     expect(useNoteDraftStore.getState().drafts["a#title"]).toBeUndefined();
     expect(row.querySelector('[role="alert"]')?.textContent).toContain("reloaded from disk");
+  });
+
+  it("says when the file changed on disk could not be read, above the copy still loaded", async () => {
+    await act(async () => {
+      useTaskListStore.setState({ fileDiskErrors: { "/one.json": { status: "missing" } } });
+    });
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "The task list file could not be found. The list below is the copy Dropkick loaded earlier.",
+    );
+    expect(document.querySelector('[role="option"]')?.textContent).toContain("Alpha");
+
+    await act(async () => {
+      useTaskListStore.setState({ fileDiskErrors: {} });
+    });
+    expect(document.querySelector('[role="alert"]')).toBeNull();
   });
 });

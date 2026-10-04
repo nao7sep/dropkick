@@ -107,7 +107,7 @@ describe("TabBar wrapped visibility", () => {
       filePath: "",
       loaded: true,
     });
-    useTaskListStore.setState({ files: {}, fileLoadErrors: {} });
+    useTaskListStore.setState({ files: {}, fileLoadErrors: {}, fileDiskErrors: {} });
 
     const onChromeHeightChange = vi.fn();
     host = await mount(
@@ -349,7 +349,7 @@ describe("TabBar wrapped visibility", () => {
       filePath: "",
       loaded: true,
     });
-    useTaskListStore.setState({ files: {}, fileLoadErrors: {} });
+    useTaskListStore.setState({ files: {}, fileLoadErrors: {}, fileDiskErrors: {} });
     flushWorkspace.mockClear();
 
     host = await mount(
@@ -417,6 +417,33 @@ describe("TabBar wrapped visibility", () => {
     expect(useWorkspaceStore.getState().workspace.activeTabIndex).toBe(0);
     expect(document.activeElement).toBe(first);
     expect(flushWorkspace).not.toHaveBeenCalled();
+  });
+});
+
+describe("TabBar load problems", () => {
+  it("marks a tab whose open list could not be read back from disk", async () => {
+    const openTabs = [createTab("/fixtures/a.json", "A"), createTab("/fixtures/b.json", "B")];
+    useWorkspaceStore.setState({
+      workspace: { ...createDefaultWorkspace("Test"), openTabs, activeTabIndex: 0 },
+      filePath: "",
+      loaded: true,
+    });
+    usePreferencesStore.setState({ preferences: createDefaultPreferences("Test"), filePath: "", loaded: true });
+    useAppStateStore.setState({ appState: createDefaultAppState(), filePath: "", loaded: true });
+    useTaskListStore.setState({
+      files: {
+        "/fixtures/a.json": { data: { version: "1.0.0", id: "A", tasks: [] } },
+        "/fixtures/b.json": { data: { version: "1.0.0", id: "B", tasks: [] } },
+      },
+      fileLoadErrors: {},
+      fileDiskErrors: { "/fixtures/b.json": { status: "invalid", message: "bad json" } },
+    });
+
+    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn(), onChromeHeightChange: vi.fn() }));
+
+    const tab = (path: string) => document.querySelector<HTMLElement>(`[data-tab-id="${path}"]`);
+    expect(tab("/fixtures/a.json")?.getAttribute("title")).toBeNull();
+    expect(tab("/fixtures/b.json")?.getAttribute("title")).toBe("Load failed: /fixtures/b.json");
   });
 });
 

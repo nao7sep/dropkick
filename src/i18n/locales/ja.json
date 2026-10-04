@@ -148,6 +148,9 @@
   "taskList.loadFailed": "タスクリストを読み込めませんでした",
   "taskList.retry": "再試行",
   "taskList.removeTab": "タブを削除",
+  "taskList.disk.missing": "タスクリストファイルが見つかりませんでした。下のリストは、Dropkick が以前に読み込んだ内容です。",
+  "taskList.disk.invalid": "タスクリストファイルに有効な Dropkick のデータが含まれなくなりました。下のリストは、Dropkick が以前に読み込んだ内容です。",
+  "taskList.disk.error": "タスクリストファイルを読み込めませんでした。下のリストは、Dropkick が以前に読み込んだ内容です。",
 
   "group.pastDue": "期限切れ",
   "group.critical": "最重要",
