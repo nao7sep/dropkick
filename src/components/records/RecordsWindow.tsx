@@ -581,9 +581,9 @@ function RecordDetailView({
         tabIndex={0}
         aria-label={t("records.details")}
       >
-        <dl className="m-0 grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-x-4 gap-y-3">
+        <dl className="m-0 flex flex-wrap gap-x-4 gap-y-3">
           {fields.map((field) => (
-            <div key={field.label} className="min-w-0">
+            <div key={field.label} className="min-w-[180px] max-w-full flex-initial">
               <dt className="dk-label">{field.label}</dt>
               <dd className="m-0 text-sm text-ink [overflow-wrap:anywhere]">{field.value}</dd>
             </div>
