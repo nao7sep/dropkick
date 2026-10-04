@@ -419,3 +419,61 @@ describe("TabBar wrapped visibility", () => {
     expect(flushWorkspace).not.toHaveBeenCalled();
   });
 });
+
+describe("TabBar hamburger menu", () => {
+  async function openMenu(): Promise<HTMLElement> {
+    useWorkspaceStore.setState({
+      workspace: {
+        ...createDefaultWorkspace("Test"),
+        openTabs: [createTab("/fixtures/a.json", "A")],
+        activeTabIndex: 0,
+      },
+      filePath: "",
+      loaded: true,
+    });
+    useAppStateStore.setState({
+      appState: createDefaultAppState(),
+      filePath: "",
+      loaded: true,
+    });
+    host = await mount(
+      createElement(TabBar, { onMenuSelect: vi.fn(), onChromeHeightChange: vi.fn() }),
+    );
+    const trigger = document.querySelector<HTMLElement>('button[aria-label="Menu"]');
+    if (!trigger) throw new Error("menu trigger not found");
+    await act(async () => {
+      trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    const menu = document.querySelector<HTMLElement>('[role="menu"]');
+    if (!menu) throw new Error("menu did not open");
+    return menu;
+  }
+
+  it("lists Settings, Records, Zoom, then Keyboard Shortcuts and About, with no doubled or dangling separator", async () => {
+    const menu = await openMenu();
+    // A separator reads "|"; the zoom row by its label, not its stepper's value.
+    const rows = [...menu.children].map((row) =>
+      row.getAttribute("role") === "separator"
+        ? "|"
+        : row.getAttribute("role") === "menuitem"
+          ? row.textContent
+          : row.querySelector("span")?.textContent,
+    );
+    expect(rows).toEqual([
+      "Settings",
+      "Records",
+      "|",
+      "Zoom",
+      "|",
+      "Keyboard Shortcuts",
+      "About Dropkick",
+    ]);
+    // Zoom is a contained control, not a command: arrow navigation skips it.
+    expect([...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual([
+      "Settings",
+      "Records",
+      "Keyboard Shortcuts",
+      "About Dropkick",
+    ]);
+  });
+});

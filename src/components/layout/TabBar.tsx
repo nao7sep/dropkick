@@ -1,6 +1,6 @@
 // Tab bar — displays open tabs with drag-to-reorder, close, and rename.
 // The [+] button opens a menu to create/open task list files.
-// The hamburger icon opens a menu with Settings, Keyboard Shortcuts, and About.
+// The hamburger icon opens a menu with Settings, Records, Zoom, Keyboard Shortcuts, and About.
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle, ScrollText } from "lucide-react";
@@ -511,14 +511,6 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                   <ScrollText size={14} className="text-ink-muted" />
                   {t("menu.records")}
                 </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onSelect={() => onMenuSelect("shortcuts")}
-                  className={MENU_ITEM_ICON_CLASS}
-                >
-                  <Keyboard size={14} className="text-ink-muted" />
-                  {t("menu.shortcuts")}
-                </DropdownMenu.Item>
-
                 {/* Zoom — a non-menuitem control embedded in the menu: arrow
                     navigation skips it, and it is driven by pointer and by the
                     global zoom shortcuts. Left exactly as the standalone control. */}
@@ -565,6 +557,13 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 </div>
                 <DropdownMenu.Separator className="dk-menu-separator" />
 
+                <DropdownMenu.Item
+                  onSelect={() => onMenuSelect("shortcuts")}
+                  className={MENU_ITEM_ICON_CLASS}
+                >
+                  <Keyboard size={14} className="text-ink-muted" />
+                  {t("menu.shortcuts")}
+                </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("about")}
                   className={MENU_ITEM_ICON_CLASS}
