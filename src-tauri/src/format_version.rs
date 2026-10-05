@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use rusqlite::Connection;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use serde_json::Value;
 
 const TABLE: &str = include_str!("../../src/models/format-versions.json");
@@ -62,23 +62,20 @@ impl Format {
 /// What a store's marker says about it.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Marker {
-    /// This build reads it: the current version, an older one, or no marker.
+    /// This build reads it: the current version or an older one.
     Readable,
     /// Written by a newer build. It is intact data this build cannot read, so
     /// it is reported and left exactly in place.
     Newer(u64),
 }
 
-// A marker that is present but not a positive integer is a shape failure; an
-// absent one reads as 1.
+// A store without a positive-integer marker is unreadable: nothing infers a
+// version from a file's shape.
 fn judge(found: Option<&Value>, format: Format) -> Result<Marker, String> {
-    let version = match found {
-        None => 1,
-        Some(value) => value
-            .as_u64()
-            .filter(|version| *version >= 1)
-            .ok_or_else(|| "formatVersion is not a positive integer".to_string())?,
-    };
+    let version = found
+        .and_then(Value::as_u64)
+        .filter(|version| *version >= 1)
+        .ok_or_else(|| "formatVersion is missing or not a positive integer".to_string())?;
     Ok(if version > u64::from(format.current()) {
         Marker::Newer(version)
     } else {
@@ -86,43 +83,43 @@ fn judge(found: Option<&Value>, format: Format) -> Result<Marker, String> {
     })
 }
 
-/// The marker of a parsed JSON document. A document that is not an object is
-/// left to its reader's own shape check.
+/// The marker of a parsed JSON document.
 pub fn json_value(document: &Value, format: Format) -> Result<Marker, String> {
-    match document {
-        Value::Object(map) => judge(map.get("formatVersion"), format),
-        _ => Ok(Marker::Readable),
-    }
+    judge(document.get("formatVersion"), format)
 }
 
-// Only the marker, so a store is judged before its body is parsed. A present
-// `null` is kept as a value, not read as absent.
+// Only the marker, so a store is judged before its body is parsed.
 #[derive(Deserialize)]
 struct MarkerOnly {
-    #[serde(default, rename = "formatVersion", deserialize_with = "present")]
+    #[serde(default, rename = "formatVersion")]
     format_version: Option<Value>,
 }
 
-fn present<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Value>, D::Error> {
-    Value::deserialize(deserializer).map(Some)
-}
-
-/// The marker of a JSON file's bytes. Bytes that are not a JSON object are
-/// left to the reader's own parse, which reports the real error.
+/// The marker of a JSON file's bytes; bytes that are not a JSON object are
+/// unreadable, with the parser's own error.
 pub fn json_bytes(bytes: &[u8], format: Format) -> Result<Marker, String> {
-    match serde_json::from_slice::<MarkerOnly>(bytes) {
-        Ok(marker) => judge(marker.format_version.as_ref(), format),
-        Err(_) => Ok(Marker::Readable),
-    }
+    let marker = serde_json::from_slice::<MarkerOnly>(bytes).map_err(|e| e.to_string())?;
+    judge(marker.format_version.as_ref(), format)
 }
 
-/// A SQLite store's marker, `PRAGMA user_version`. Reading it writes nothing;
-/// 0 is SQLite's value for a file that never set one, so it reads as 1.
+/// A SQLite store's marker, `PRAGMA user_version`; reading it writes nothing.
+/// 0 is SQLite's value for a database that never set one: a brand-new empty
+/// database, which the caller stamps as it creates it, or an existing one
+/// without its marker, which is unreadable.
 pub fn sqlite(conn: &Connection, format: Format) -> Result<Marker, String> {
-    let version: i64 = conn
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
-    judge(Some(&Value::from(version.max(1))), format)
+    let read = |sql: &str| -> Result<i64, String> {
+        conn.query_row(sql, [], |row| row.get(0))
+            .map_err(|e| e.to_string())
+    };
+    let version = read("PRAGMA user_version")?;
+    if version == 0 {
+        return if read("SELECT count(*) FROM sqlite_master")? == 0 {
+            Ok(Marker::Readable)
+        } else {
+            Err("user_version is missing".to_string())
+        };
+    }
+    judge(Some(&Value::from(version)), format)
 }
 
 /// Records this build's version in a SQLite store it has just opened and

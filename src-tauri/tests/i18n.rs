@@ -68,7 +68,7 @@ fn the_saved_choice_comes_from_the_previewed_document_without_touching_it() {
     let preferences = dir.join("preferences.json");
     let state = dir.join("state.json");
     let preferences_text = json!({ "formatVersion": 1, "language": "ko" }).to_string();
-    let state_text = json!({ "lastLaunchedPreferencesPath": preferences.to_string_lossy() }).to_string();
+    let state_text = json!({ "formatVersion": 1, "lastLaunchedPreferencesPath": preferences.to_string_lossy() }).to_string();
     fs::write(&preferences, &preferences_text).unwrap();
     fs::write(&state, &state_text).unwrap();
 

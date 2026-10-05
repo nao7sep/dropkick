@@ -84,16 +84,18 @@ fn reading_the_saved_theme_never_changes_either_file() {
     assert_eq!(read_saved_window_theme(&state), None);
     assert_eq!(fs::read_to_string(&state).expect("read state"), "{corrupt");
 
-    let state_body = json!({ "lastLaunchedPreferencesPath": preferences }).to_string();
+    let state_body =
+        json!({ "formatVersion": 1, "lastLaunchedPreferencesPath": preferences }).to_string();
     fs::write(&state, &state_body).expect("write state");
     assert_eq!(read_saved_window_theme(&state), None);
 
-    fs::write(&preferences, r#"{"theme":"dark","name":"Work"}"#).expect("write preferences");
+    let preferences_body = r#"{"formatVersion":1,"theme":"dark","name":"Work"}"#;
+    fs::write(&preferences, preferences_body).expect("write preferences");
     assert_eq!(read_saved_window_theme(&state), Some(Theme::Dark));
     assert_eq!(fs::read_to_string(&state).expect("read state"), state_body);
     assert_eq!(
         fs::read_to_string(&preferences).expect("read preferences"),
-        r#"{"theme":"dark","name":"Work"}"#
+        preferences_body
     );
 }
 
@@ -110,16 +112,25 @@ fn each_theme_has_its_own_window_background() {
 }
 
 #[test]
-fn a_newer_state_or_preferences_file_is_not_previewed() {
+fn an_unmarked_or_newer_state_or_preferences_file_is_not_previewed() {
     let dir = tempfile::tempdir().expect("temp dir");
     let state = dir.path().join("state.json");
     let preferences = dir.path().join("preferences.json");
-    fs::write(&preferences, r#"{"theme":"dark"}"#).expect("write preferences");
-    let state_body = json!({ "lastLaunchedPreferencesPath": preferences }).to_string();
+    fs::write(&preferences, r#"{"formatVersion":1,"theme":"dark"}"#).expect("write preferences");
+    let state_body =
+        json!({ "formatVersion": 1, "lastLaunchedPreferencesPath": preferences }).to_string();
     fs::write(&state, &state_body).expect("write state");
     assert_eq!(read_saved_window_theme(&state), Some(Theme::Dark));
 
+    fs::write(&preferences, r#"{"theme":"dark"}"#).expect("write preferences");
+    assert_eq!(read_saved_window_theme(&state), None);
+
     fs::write(&preferences, r#"{"formatVersion":2,"theme":"dark"}"#).expect("write preferences");
+    assert_eq!(read_saved_window_theme(&state), None);
+
+    fs::write(&preferences, r#"{"formatVersion":1,"theme":"dark"}"#).expect("write preferences");
+    let unmarked_state = json!({ "lastLaunchedPreferencesPath": preferences }).to_string();
+    fs::write(&state, &unmarked_state).expect("write state");
     assert_eq!(read_saved_window_theme(&state), None);
 
     fs::write(&preferences, r#"{"formatVersion":1,"theme":"dark"}"#).expect("write preferences");

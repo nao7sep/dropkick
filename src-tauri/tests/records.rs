@@ -22,6 +22,10 @@ fn fixture() -> Fixture {
         .pragma_update(None, "journal_mode", "WAL")
         .expect("wal");
     writer.execute_batch(SCHEMA).expect("schema");
+    // Stamped as the logger stamps the database it creates.
+    writer
+        .pragma_update(None, "user_version", 1)
+        .expect("format version");
     Fixture {
         _dir: dir,
         path,
@@ -311,6 +315,15 @@ fn the_query_arrives_as_the_window_sends_it() {
             id: 4
         })
     );
+}
+
+#[test]
+fn a_database_without_its_format_version_is_not_read() {
+    let f = fixture();
+    f.writer
+        .pragma_update(None, "user_version", 0)
+        .expect("clear version");
+    assert!(open(&f.path).is_err());
 }
 
 #[test]

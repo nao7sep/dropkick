@@ -1,8 +1,7 @@
 // Every store's format version (store-recovery-conventions), driven through the
 // real repositories and file-system module against an in-memory disk: a file
-// without a marker reads as version 1 and is written back at the current one,
-// the current version round-trips, and a newer build's file is refused and left
-// byte-identical. The Rust core's own stores and the task-list classifier are
+// without a marker takes its store's unreadable branch, the current version
+// round-trips, and a newer build's file is refused and left byte-identical. The Rust core's own stores and the task-list classifier are
 // covered in src-tauri/tests.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,7 +37,8 @@ const disk = new Map<string, string>();
 function readTaskList(path: string): unknown {
   const text = disk.get(path);
   if (text === undefined) return { status: "missing" };
-  const { formatVersion = 1, id = "", tasks } = JSON.parse(text);
+  const { formatVersion, id = "", tasks } = JSON.parse(text);
+  if (formatVersion === undefined) return { status: "invalid", message: "formatVersion is missing" };
   if (formatVersion > FORMAT_VERSIONS.taskList) return { status: "newer", formatVersion };
   return { status: "success", data: { id, tasks }, hash: text };
 }
@@ -95,13 +95,12 @@ function writesTo(path: string): unknown[] {
 }
 
 describe("state.json", () => {
-  it("reads a file without a marker as version 1 and writes it back at the current one", async () => {
-    put(PATHS.stateFile, { version: "1.0.0", zoomLevel: 1.5 });
-    const { appState, statePath } = await initializeAppState();
-    expect(appState.zoomLevel).toBe(1.5);
-    await flushAppState(statePath, () => appState);
-    expect(stored(PATHS.stateFile)).toMatchObject({ formatVersion: 1, zoomLevel: 1.5 });
-    expect(stored(PATHS.stateFile)).not.toHaveProperty("version");
+  it("sets aside a file without a marker and starts on the defaults", async () => {
+    const text = put(PATHS.stateFile, { version: "1.0.0", zoomLevel: 1.5 });
+    const { appState } = await initializeAppState();
+    expect(appState.zoomLevel).toBe(1);
+    expect(disk.get(`${PATHS.stateFile}.invalid`)).toBe(text);
+    expect(stored(PATHS.stateFile).formatVersion).toBe(1);
   });
 
   it("round-trips the current version", async () => {
@@ -122,19 +121,21 @@ describe("state.json", () => {
 });
 
 describe("config.json", () => {
-  it("reads a file without a marker as version 1 and writes it back at the current one", async () => {
-    put(PATHS.configFile, { knownWorkspaces: ["/w.json"] });
-    const { appConfig, filePath } = await loadAppConfig();
-    expect(appConfig.knownWorkspaces).toEqual(["/w.json"]);
-    await flushAppConfig(filePath, () => appConfig);
-    expect(stored(PATHS.configFile)).toEqual({ formatVersion: 1, knownWorkspaces: ["/w.json"] });
+  it("quarantines a file without a marker and uses the built-ins", async () => {
+    const text = put(PATHS.configFile, { knownWorkspaces: ["/w.json"] });
+    const { appConfig, recovery } = await loadAppConfig();
+    expect(recovery).toEqual({ kind: "quarantined", quarantinedTo: `${PATHS.configFile}.invalid` });
+    expect(appConfig.knownWorkspaces).toEqual([PATHS.workspaceFile]);
+    expect(disk.get(`${PATHS.configFile}.invalid`)).toBe(text);
   });
 
   it("round-trips the current version", async () => {
     put(PATHS.configFile, { formatVersion: 1, knownWorkspaces: ["/w.json"] });
-    const { appConfig, recovery } = await loadAppConfig();
+    const { appConfig, filePath, recovery } = await loadAppConfig();
     expect(recovery).toBeNull();
     expect(appConfig.knownWorkspaces).toEqual(["/w.json"]);
+    await flushAppConfig(filePath, () => appConfig);
+    expect(stored(PATHS.configFile)).toEqual({ formatVersion: 1, knownWorkspaces: ["/w.json"] });
   });
 
   it("leaves a newer build's file byte-identical and says so", async () => {
@@ -151,19 +152,20 @@ describe("config.json", () => {
 describe("preferences documents", () => {
   const path = "/docs/prefs.json";
 
-  it("reads a document without a marker as version 1 and writes it back at the current one", async () => {
-    put(path, { version: "1.0.0", id: "p", name: "Work", theme: "dark" });
-    const result = await loadPreferences(path);
-    expect(result.status).toBe("success");
-    if (result.status !== "success") return;
-    await flushPreferences(path, () => result.preferences);
-    expect(stored(path)).toEqual({ formatVersion: 1, id: "p", name: "Work", theme: "dark" });
+  it("reports a document without a marker as invalid and leaves it alone", async () => {
+    const text = put(path, { version: "1.0.0", id: "p", name: "Work", theme: "dark" });
+    expect((await loadPreferences(path)).status).toBe("invalid");
+    expect(disk.get(path)).toBe(text);
+    expect(writes()).toEqual([]);
   });
 
   it("round-trips the current version", async () => {
     put(path, { formatVersion: 1, id: "p", name: "Work", theme: "dark" });
     const result = await loadPreferences(path);
     expect(result).toMatchObject({ status: "success", preferences: { id: "p", theme: "dark" } });
+    if (result.status !== "success") return;
+    await flushPreferences(path, () => result.preferences);
+    expect(stored(path)).toEqual({ formatVersion: 1, id: "p", name: "Work", theme: "dark" });
   });
 
   it("refuses a newer build's document and leaves it byte-identical", async () => {
@@ -180,19 +182,20 @@ describe("preferences documents", () => {
 describe("workspace documents", () => {
   const path = "/docs/workspace.json";
 
-  it("reads a document without a marker as version 1 and writes it back at the current one", async () => {
-    put(path, { version: "1.0.0", id: "w", name: "Work", openTabs: [], recentFiles: [] });
-    const result = await loadWorkspace(path);
-    expect(result.status).toBe("success");
-    if (result.status !== "success") return;
-    await flushWorkspace(path, () => result.workspace);
-    expect(stored(path)).toEqual({ formatVersion: 1, id: "w", name: "Work", openTabs: [], recentFiles: [] });
+  it("reports a document without a marker as invalid and leaves it alone", async () => {
+    const text = put(path, { version: "1.0.0", id: "w", name: "Work", openTabs: [], recentFiles: [] });
+    expect((await loadWorkspace(path)).status).toBe("invalid");
+    expect(disk.get(path)).toBe(text);
+    expect(writes()).toEqual([]);
   });
 
   it("round-trips the current version", async () => {
-    put(path, { formatVersion: 1, id: "w", name: "Work", openTabs: [], recentFiles: [] });
-    expect(await loadWorkspace(path)).toMatchObject({ status: "success", workspace: { id: "w" } });
-    expect(writes()).toEqual([]);
+    const text = put(path, { formatVersion: 1, id: "w", name: "Work", openTabs: [], recentFiles: [] });
+    const result = await loadWorkspace(path);
+    expect(result).toMatchObject({ status: "success", workspace: { id: "w" } });
+    if (result.status !== "success") return;
+    await flushWorkspace(path, () => result.workspace);
+    expect(JSON.parse(disk.get(path)!)).toEqual(JSON.parse(text));
   });
 
   it("refuses a newer build's document and leaves it byte-identical, even without an id", async () => {
@@ -204,21 +207,26 @@ describe("workspace documents", () => {
 });
 
 describe("note-drafts.json", () => {
-  it("reads a file without a marker as version 1 and writes it back at the current one", async () => {
-    put(PATHS.noteDraftsFile, { version: "1.0.0", drafts: { t1: "typed" } });
-    const { drafts, filePath } = await loadNoteDrafts();
-    expect(drafts).toEqual({ t1: "typed" });
-    await flushNoteDrafts(filePath, () => drafts);
-    expect(stored(PATHS.noteDraftsFile)).toEqual({ formatVersion: 1, drafts: { t1: "typed" } });
+  it("quarantines a file without a marker and starts empty", async () => {
+    const text = put(PATHS.noteDraftsFile, { version: "1.0.0", drafts: { t1: "typed" } });
+    expect(await loadNoteDrafts()).toEqual({
+      drafts: {},
+      filePath: PATHS.noteDraftsFile,
+      recovery: { kind: "quarantined", quarantinedTo: `${PATHS.noteDraftsFile}.invalid` },
+    });
+    expect(disk.get(`${PATHS.noteDraftsFile}.invalid`)).toBe(text);
   });
 
   it("round-trips the current version", async () => {
     put(PATHS.noteDraftsFile, { formatVersion: 1, drafts: { t1: "typed" } });
-    expect(await loadNoteDrafts()).toEqual({
+    const loaded = await loadNoteDrafts();
+    expect(loaded).toEqual({
       drafts: { t1: "typed" },
       filePath: PATHS.noteDraftsFile,
       recovery: null,
     });
+    await flushNoteDrafts(loaded.filePath, () => loaded.drafts);
+    expect(stored(PATHS.noteDraftsFile)).toEqual({ formatVersion: 1, drafts: { t1: "typed" } });
   });
 
   it("leaves a newer build's file byte-identical and turns persistence off", async () => {
@@ -234,21 +242,22 @@ describe("note-drafts.json", () => {
 });
 
 describe("task lists", () => {
-  it("reads a list without a marker as version 1 and writes it back at the current one", async () => {
+  it("reports a list without a marker as invalid and leaves it alone", async () => {
     const path = "/repo/legacy.json";
-    put(path, { version: "1.0.0", id: "L1", tasks: [] });
-    const loaded = await loadTaskList(path);
-    expect(loaded.status).toBe("success");
-    if (loaded.status !== "success") return;
-    expect(await flushTaskList(path, () => loaded.taskList.data)).toEqual({ status: "success" });
-    expect(stored(path)).toEqual({ formatVersion: 1, id: "L1", tasks: [] });
+    const text = put(path, { version: "1.0.0", id: "L1", tasks: [] });
+    expect((await loadTaskList(path)).status).toBe("invalid");
+    expect(disk.get(path)).toBe(text);
+    expect(writes()).toEqual([]);
   });
 
   it("round-trips the current version", async () => {
     const path = "/repo/current.json";
     put(path, { formatVersion: 1, id: "L1", tasks: [] });
-    expect(await loadTaskList(path)).toMatchObject({ status: "success", taskList: { data: { id: "L1" } } });
-    expect(writes()).toEqual([]);
+    const loaded = await loadTaskList(path);
+    expect(loaded).toMatchObject({ status: "success", taskList: { data: { id: "L1" } } });
+    if (loaded.status !== "success") return;
+    expect(await flushTaskList(path, () => loaded.taskList.data)).toEqual({ status: "success" });
+    expect(stored(path)).toEqual({ formatVersion: 1, id: "L1", tasks: [] });
   });
 
   it("refuses a newer build's list and leaves it byte-identical, even without an id", async () => {

@@ -7,23 +7,19 @@ export type StoreFormat = keyof typeof FORMAT_VERSION_TABLE;
 
 export const FORMAT_VERSIONS: Readonly<Record<StoreFormat, number>> = FORMAT_VERSION_TABLE;
 
-// What a parsed document's marker says about it. A document that is not an
-// object is left to its loader's own shape check.
+// What a parsed document's marker says about it. A document without its
+// marker is unreadable: nothing infers a version from a file's shape.
 export type FormatVersionCheck =
   | { status: "readable" }
   | { status: "newer"; formatVersion: number }
   | { status: "invalid"; message: string };
 
 export function checkFormatVersion(data: unknown, format: StoreFormat): FormatVersionCheck {
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    return { status: "readable" };
-  }
-  const document = data as Record<string, unknown>;
-  const found = Object.prototype.hasOwnProperty.call(document, "formatVersion")
-    ? document.formatVersion
-    : 1;
+  const found = typeof data === "object" && data !== null && !Array.isArray(data)
+    ? (data as Record<string, unknown>).formatVersion
+    : undefined;
   if (typeof found !== "number" || !Number.isInteger(found) || found < 1) {
-    return { status: "invalid", message: "formatVersion is not a positive integer" };
+    return { status: "invalid", message: "formatVersion is missing or not a positive integer" };
   }
   return found > FORMAT_VERSIONS[format]
     ? { status: "newer", formatVersion: found }

@@ -197,18 +197,17 @@ fn a_new_store_is_stamped_with_its_format_version() {
 
 #[test]
 #[serial(backup_store)]
-fn a_store_without_a_marker_reads_as_version_one_and_keeps_recording() {
+fn an_existing_store_without_a_marker_is_left_byte_identical_and_records_nothing() {
     let file = unique_store_file("format-unmarked");
     {
         let conn = Connection::open(&file).unwrap();
         conn.execute_batch(SCHEMA).unwrap();
     }
-    assert_eq!(user_version(&file), 0);
+    let before = std::fs::read(&file).unwrap();
     init(file.clone());
     record(Path::new("/abs/a.json"), b"one");
     close_for_test();
-    assert_eq!(user_version(&file), 1);
-    assert_eq!(rows_for(&file, "/abs/a.json").len(), 1);
+    assert_eq!(std::fs::read(&file).unwrap(), before);
 }
 
 #[test]

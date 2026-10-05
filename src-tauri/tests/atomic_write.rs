@@ -64,13 +64,23 @@ fn classify_json_bytes_success_and_invalid() {
 
 // The task list's format version (store-recovery-conventions).
 #[test]
-fn a_task_list_without_a_marker_reads_as_version_one_and_drops_the_old_version_string() {
-    let json = br#"{"version":"1.0.0","id":"L1","tasks":[]}"#;
-    match classify_json_bytes(json) {
-        JsonFileWithHashResult::Success { data, .. } => {
-            let back = serde_json::to_value(&data).unwrap();
-            assert_eq!(back, serde_json::json!({ "id": "L1", "tasks": [] }));
-        }
+fn a_task_list_without_a_marker_is_invalid() {
+    for json in [
+        &br#"{"version":"1.0.0","id":"L1","tasks":[]}"#[..],
+        br#"{"id":"L1","tasks":[]}"#,
+        br#"[]"#,
+    ] {
+        assert!(matches!(classify_json_bytes(json), JsonFileWithHashResult::Invalid { .. }));
+    }
+}
+
+#[test]
+fn a_current_task_list_carries_no_version_field_back_to_the_webview() {
+    match classify_json_bytes(br#"{"formatVersion":1,"id":"L1","tasks":[]}"#) {
+        JsonFileWithHashResult::Success { data, .. } => assert_eq!(
+            serde_json::to_value(&data).unwrap(),
+            serde_json::json!({ "id": "L1", "tasks": [] })
+        ),
         other => panic!("expected Success, got {:?}", serde_json::to_string(&other)),
     }
 }
@@ -121,7 +131,7 @@ fn task_json(task_id: &str, notes: &[&str]) -> serde_json::Value {
 
 fn classify_tasks(tasks: Vec<serde_json::Value>) -> JsonFileWithHashResult {
     let bytes = serde_json::to_vec(&serde_json::json!({
-        "version": "1.0.0",
+        "formatVersion": 1,
         "id": "list-1",
         "tasks": tasks
     }))

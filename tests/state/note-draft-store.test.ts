@@ -170,7 +170,7 @@ describe("load", () => {
     diskRead = {
       status: "success",
       text: JSON.stringify({
-        version: "1.0.0",
+        formatVersion: 1,
         drafts: { t1: "survived the quit", "t1:n1": "a parked edit" },
       }),
     };
@@ -230,7 +230,7 @@ describe("reconcile", () => {
     diskRead = {
       status: "success",
       text: JSON.stringify({
-        version: "1.0.0",
+        formatVersion: 1,
         drafts: {
           "t1:n1": "edit of a live note",
           "t1:gone": "edit of a deleted note",
