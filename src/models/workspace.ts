@@ -4,7 +4,6 @@
 import { generateId } from "../utils/ids";
 
 export interface WorkspaceDto {
-  version: string;
   id: string; // stable identity, unique and generated once at creation
   name: string;
   openTabs: TabDto[];
@@ -30,9 +29,9 @@ export interface RecentFileDto {
 // — the loader still shape-checks the fields it finds. Without this gate any
 // JSON object passes, takes every field from defaults, and the id write-back
 // rewrites it as a workspace, so picking a neighbouring .json in the startup
-// picker destroys it. The test is version plus at least one field only a
-// workspace carries: that rejects a package.json or a task list while still
-// letting mergeWithDefaults heal a document that predates a newly added field.
+// picker destroys it. The test is a field only a workspace carries: that
+// rejects a package.json or a task list while still letting mergeWithDefaults
+// heal a document that predates a newly added field.
 export function isWorkspaceDocument(
   data: unknown,
 ): data is Partial<PersistedWorkspaceDto> {
@@ -40,15 +39,11 @@ export function isWorkspaceDocument(
     return false;
   }
   const candidate = data as Partial<PersistedWorkspaceDto>;
-  return (
-    typeof candidate.version === "string" &&
-    (candidate.openTabs !== undefined || candidate.recentFiles !== undefined)
-  );
+  return candidate.openTabs !== undefined || candidate.recentFiles !== undefined;
 }
 
 export function createDefaultWorkspace(name: string): WorkspaceDto {
   return {
-    version: "1.0.0",
     id: generateId(),
     name,
     openTabs: [],

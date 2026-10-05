@@ -11,6 +11,8 @@ use serde_json::Value;
 use tauri::window::Color;
 use tauri::{Theme, WebviewWindow};
 
+use crate::format_version::{self, Format, Marker};
+
 /// The window theme for a preference value: `Some` for "light" or "dark",
 /// `None` (follow the OS) for anything else.
 pub fn window_theme_for(preference: &str) -> Option<Theme> {
@@ -38,15 +40,24 @@ pub fn last_launched_preferences_path(state: &Value) -> Option<&str> {
     (!path.is_empty()).then_some(path)
 }
 
-/// Reads the saved choice without touching either file. Anything missing,
-/// unreadable, or unparseable follows the OS; recovery stays with the
-/// frontend's load path.
-pub fn read_saved_window_theme(state_file: &Path) -> Option<Theme> {
-    let state: Value = serde_json::from_str(&std::fs::read_to_string(state_file).ok()?).ok()?;
+/// The preferences document the startup picker will preview, read without
+/// touching it or state.json. Anything missing, unreadable, unparseable, or
+/// written by a newer build is None; recovery stays with the frontend's load
+/// path.
+pub fn previewed_preferences(state_file: &Path) -> Option<Value> {
+    let state = readable_document(state_file, Format::State)?;
     let preferences_path = last_launched_preferences_path(&state)?;
-    let preferences: Value =
-        serde_json::from_str(&std::fs::read_to_string(preferences_path).ok()?).ok()?;
-    preferences_window_theme(&preferences)
+    readable_document(Path::new(preferences_path), Format::Preferences)
+}
+
+fn readable_document(path: &Path, format: Format) -> Option<Value> {
+    let document: Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+    matches!(format_version::json_value(&document, format), Ok(Marker::Readable)).then_some(document)
+}
+
+/// The saved choice; without one the window follows the OS.
+pub fn read_saved_window_theme(state_file: &Path) -> Option<Theme> {
+    preferences_window_theme(&previewed_preferences(state_file)?)
 }
 
 /// The window background behind the page — App.css's --background in each

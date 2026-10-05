@@ -54,11 +54,11 @@ fn preference_normalizes_like_the_frontend() {
 
 #[test]
 fn saved_preference_reads_the_language_field() {
-    assert_eq!(saved_preference(r#"{"language":"de","theme":"dark"}"#), Some("de"));
-    assert_eq!(saved_preference(r#"{"language":"system"}"#), None);
-    assert_eq!(saved_preference(r#"{"language":7}"#), None);
-    assert_eq!(saved_preference(r#"{"theme":"dark"}"#), None);
-    assert_eq!(saved_preference("not json"), None);
+    assert_eq!(saved_preference(&json!({ "language": "de", "theme": "dark" })), Some("de"));
+    assert_eq!(saved_preference(&json!({ "language": "system" })), None);
+    assert_eq!(saved_preference(&json!({ "language": 7 })), None);
+    assert_eq!(saved_preference(&json!({ "theme": "dark" })), None);
+    assert_eq!(saved_preference(&json!("not a document")), None);
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn the_saved_choice_comes_from_the_previewed_document_without_touching_it() {
     fs::create_dir_all(&dir).unwrap();
     let preferences = dir.join("preferences.json");
     let state = dir.join("state.json");
-    let preferences_text = json!({ "version": "1.0.0", "language": "ko" }).to_string();
+    let preferences_text = json!({ "formatVersion": 1, "language": "ko" }).to_string();
     let state_text = json!({ "lastLaunchedPreferencesPath": preferences.to_string_lossy() }).to_string();
     fs::write(&preferences, &preferences_text).unwrap();
     fs::write(&state, &state_text).unwrap();

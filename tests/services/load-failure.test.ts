@@ -1,6 +1,6 @@
 import { inEnglish } from "../helpers/i18n";
 import { describe, expect, it } from "vitest";
-import { describeLoadFailure } from "../../src/services/load-failure";
+import { describeDiskFailure, describeLoadFailure } from "../../src/services/load-failure";
 
 describe("load failure presentation", () => {
   it("keeps diagnostic exception text out of user-facing copy", () => {
@@ -17,5 +17,16 @@ describe("load failure presentation", () => {
     expect(message).toContain("/Users/person/Documents/workspace.json");
     expect(message).not.toContain("HOSTILE-SENTINEL");
     expect(message).not.toContain("EACCES");
+  });
+
+  it("says a newer build's document was left unchanged, on every surface", () => {
+    const newer = { status: "newer", formatVersion: 2 } as const;
+    for (const kind of ["taskList", "preferences", "workspace"] as const) {
+      expect(inEnglish(describeLoadFailure(kind, newer))).toContain("newer version of Dropkick");
+      const at = inEnglish(describeLoadFailure(kind, newer, "/Users/person/list.json"));
+      expect(at).toContain("/Users/person/list.json");
+      expect(at).toContain("left unchanged");
+    }
+    expect(inEnglish(describeDiskFailure(newer))).toContain("the copy Dropkick loaded earlier");
   });
 });

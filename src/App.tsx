@@ -198,7 +198,7 @@ function App() {
       try {
         await loadLanguageEnvironment();
         await initializeAppState();
-        const configQuarantinedTo = await initializeAppConfig();
+        const configRecovery = await initializeAppConfig();
 
         // The picker appears before the user chooses a preferences document,
         // so preview the last successfully opened one. This gives the initial
@@ -219,11 +219,9 @@ function App() {
         // The first text on screen is already in the interface language.
         await loadInterfaceCatalogue(currentInterfaceLanguage());
         setPhase({ kind: "startup" });
-        if (configQuarantinedTo) {
-          await showMessage(
-            message("startup.appConfigReset.title"),
-            describeAppConfigRecovery(configQuarantinedTo),
-          );
+        if (configRecovery) {
+          const notice = describeAppConfigRecovery(configRecovery);
+          await showMessage(notice.title, notice.body);
         }
       } catch (e) {
         log.error("app initialization failed", toErrorFields(e));
@@ -278,7 +276,7 @@ function App() {
       // Note drafts — the user's uncommitted note text, written through as they
       // type. App-level like state.json, not part of the portable documents
       // just loaded, so it is read here rather than alongside either of them.
-      const draftsQuarantinedTo = await loadNoteDrafts();
+      const draftsRecovery = await loadNoteDrafts();
 
       const workspace = useWorkspaceStore.getState().workspace;
 
@@ -296,11 +294,9 @@ function App() {
 
       setPhase({ kind: "main" });
 
-      if (draftsQuarantinedTo) {
-        await showMessage(
-          message("startup.draftsReset.title"),
-          describeNoteDraftRecovery(draftsQuarantinedTo),
-        );
+      if (draftsRecovery) {
+        const notice = describeNoteDraftRecovery(draftsRecovery);
+        await showMessage(notice.title, notice.body);
       }
     } finally {
       // On failure, allow a retry; on success the picker unmounts so this is moot.

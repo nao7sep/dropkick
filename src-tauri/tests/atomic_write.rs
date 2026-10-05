@@ -48,10 +48,9 @@ fn quarantine_target_is_stem_stamp_dot_invalid_beside_the_source() {
 
 #[test]
 fn classify_json_bytes_success_and_invalid() {
-    let json = br#"{"version":"1.0.0","tasks":[]}"#;
+    let json = br#"{"formatVersion":1,"tasks":[]}"#;
     match classify_json_bytes(json) {
         JsonFileWithHashResult::Success { data, hash } => {
-            assert_eq!(data.version, "1.0.0");
             assert!(data.tasks.is_empty());
             assert_eq!(hash, sha256_hex(json));
         }
@@ -61,6 +60,43 @@ fn classify_json_bytes_success_and_invalid() {
         classify_json_bytes(b"{ not json"),
         JsonFileWithHashResult::Invalid { .. }
     ));
+}
+
+// The task list's format version (store-recovery-conventions).
+#[test]
+fn a_task_list_without_a_marker_reads_as_version_one_and_drops_the_old_version_string() {
+    let json = br#"{"version":"1.0.0","id":"L1","tasks":[]}"#;
+    match classify_json_bytes(json) {
+        JsonFileWithHashResult::Success { data, .. } => {
+            let back = serde_json::to_value(&data).unwrap();
+            assert_eq!(back, serde_json::json!({ "id": "L1", "tasks": [] }));
+        }
+        other => panic!("expected Success, got {:?}", serde_json::to_string(&other)),
+    }
+}
+
+#[test]
+fn a_newer_task_list_is_reported_before_its_body_is_parsed() {
+    // A newer format may reshape the body; it is still newer, not corrupt.
+    match classify_json_bytes(br#"{"formatVersion":2,"items":{}}"#) {
+        JsonFileWithHashResult::Newer { format_version } => assert_eq!(format_version, 2),
+        other => panic!("expected Newer, got {:?}", serde_json::to_string(&other)),
+    }
+    assert_eq!(
+        serde_json::to_value(classify_json_bytes(br#"{"formatVersion":2,"tasks":[]}"#)).unwrap(),
+        serde_json::json!({ "status": "newer", "formatVersion": 2 })
+    );
+}
+
+#[test]
+fn a_task_list_marker_that_is_not_a_positive_integer_is_invalid() {
+    for json in [
+        &br#"{"formatVersion":"1","tasks":[]}"#[..],
+        br#"{"formatVersion":0,"tasks":[]}"#,
+        br#"{"formatVersion":null,"tasks":[]}"#,
+    ] {
+        assert!(matches!(classify_json_bytes(json), JsonFileWithHashResult::Invalid { .. }));
+    }
 }
 
 fn task_json(task_id: &str, notes: &[&str]) -> serde_json::Value {

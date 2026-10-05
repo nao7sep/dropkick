@@ -85,7 +85,7 @@ describe("collectViewTasks", () => {
     isUnifiedView,
   });
   const listFile = (tasks: TaskDto[]) => ({
-    data: { version: "1.0.0", id: "L", tasks },
+    data: { id: "L", tasks },
   });
 
   it("returns one file's tasks for a list tab, stamped with its path", () => {

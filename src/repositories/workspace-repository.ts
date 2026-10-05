@@ -18,6 +18,7 @@ export type LoadWorkspaceResult =
   | { status: "success"; workspace: WorkspaceDto }
   | { status: "missing" }
   | { status: "invalid"; message: string }
+  | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
 // Loads a workspace file. Missing and invalid files are reported explicitly so
@@ -28,7 +29,7 @@ export type LoadWorkspaceResult =
 // corrupted file cannot crash startup, and activeTabIndex is runtime-only and is
 // re-injected after parsing.
 export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> {
-  const result = await readJsonFileResult<unknown>(path);
+  const result = await readJsonFileResult<unknown>(path, "workspace");
   if (result.status === "missing") {
     return { status: "missing" };
   }
@@ -76,7 +77,7 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
   if (!data.id) {
     const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
     try {
-      await writeJsonFile(path, persisted);
+      await writeJsonFile(path, "workspace", persisted);
     } catch {
       // Non-fatal — the id persists on the next successful save.
     }
@@ -95,7 +96,7 @@ export async function flushWorkspace(
   await withSerial(path, async () => {
     const workspace = getWorkspace();
     const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
-    await writeJsonFile(path, persisted);
+    await writeJsonFile(path, "workspace", persisted);
   });
 }
 
@@ -106,6 +107,6 @@ export async function createWorkspaceFile(
 ): Promise<WorkspaceDto> {
   const workspace = createDefaultWorkspace(name);
   const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
-  await writeJsonFile(path, persisted);
+  await writeJsonFile(path, "workspace", persisted);
   return workspace;
 }

@@ -1,8 +1,11 @@
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, PhysicalPosition, PhysicalSize, Window, WindowEvent, Wry};
 
+use crate::format_version::{self, Format, Marker};
 use crate::{logging, paths, write_atomic_unrecorded};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -52,6 +55,8 @@ pub(crate) struct TrackedWindow {
     label: &'static str,
     file_name: &'static str,
     state: Mutex<Option<Placement>>,
+    // Set when a newer build wrote the file: this session never writes it.
+    left_in_place: AtomicBool,
 }
 
 impl TrackedWindow {
@@ -60,8 +65,27 @@ impl TrackedWindow {
             label,
             file_name,
             state: Mutex::new(None),
+            left_in_place: AtomicBool::new(false),
         }
     }
+}
+
+/// A placement file as it is written: its format version, then the placement.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlacementFile {
+    format_version: u32,
+    #[serde(flatten)]
+    placement: Placement,
+}
+
+/// What a placement file holds for this build.
+#[derive(Debug, PartialEq, Eq)]
+pub enum SavedPlacement {
+    Absent,
+    Found(Placement),
+    /// Written by a newer build; read nothing and leave it as it is.
+    Newer(u64),
 }
 
 pub(crate) struct WindowPlacements {
@@ -135,27 +159,49 @@ fn state_value(tracked: &TrackedWindow) -> Option<Placement> {
     }
 }
 
-fn load(app: &AppHandle, file_name: &str) -> Result<Option<Placement>, String> {
-    let root = paths::data_root(app)?;
-    let path = root.join(file_name);
-    match std::fs::read(&path) {
-        Ok(bytes) => match serde_json::from_slice(&bytes) {
-            Ok(placement) => Ok(Some(placement)),
-            Err(error) => {
-                let quarantined = crate::quarantine_target(&path);
-                std::fs::rename(&path, &quarantined).map_err(|rename| rename.to_string())?;
-                logging::warn(
-                    "invalid window placement was set aside",
-                    serde_json::json!({
-                        "error": error.to_string(),
-                        "quarantinedTo": quarantined.to_string_lossy(),
-                    }),
-                );
-                Ok(None)
-            }
-        },
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error.to_string()),
+/// Reads a placement file. An unreadable one is quarantined and reads as
+/// absent; a newer build's file is left exactly as it is.
+pub fn load_file(path: &Path) -> Result<SavedPlacement, String> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(SavedPlacement::Absent),
+        Err(error) => return Err(error.to_string()),
+    };
+    let parsed = match format_version::json_bytes(&bytes, Format::WindowPlacement) {
+        Ok(Marker::Newer(found)) => return Ok(SavedPlacement::Newer(found)),
+        Ok(Marker::Readable) => serde_json::from_slice(&bytes).map_err(|error| error.to_string()),
+        Err(error) => Err(error),
+    };
+    match parsed {
+        Ok(placement) => Ok(SavedPlacement::Found(placement)),
+        Err(error) => {
+            let quarantined = crate::quarantine_target(path);
+            std::fs::rename(path, &quarantined).map_err(|rename| rename.to_string())?;
+            logging::warn(
+                "invalid window placement was set aside",
+                serde_json::json!({
+                    "error": error,
+                    "quarantinedTo": quarantined.to_string_lossy(),
+                }),
+            );
+            Ok(SavedPlacement::Absent)
+        }
+    }
+}
+
+fn load(app: &AppHandle, tracked: &TrackedWindow) -> Result<Option<Placement>, String> {
+    let path = paths::data_root(app)?.join(tracked.file_name);
+    match load_file(&path)? {
+        SavedPlacement::Absent => Ok(None),
+        SavedPlacement::Found(placement) => Ok(Some(placement)),
+        SavedPlacement::Newer(found) => {
+            tracked.left_in_place.store(true, Ordering::Relaxed);
+            logging::warn(
+                "window placement is newer than this build; left in place and not written this session",
+                serde_json::json!({ "file": path.to_string_lossy(), "formatVersion": found }),
+            );
+            Ok(None)
+        }
     }
 }
 
@@ -169,7 +215,7 @@ pub(crate) fn restore(app: &AppHandle, window: &Window<Wry>, tracked: &TrackedWi
     });
     let remembered = match state_value(tracked) {
         Some(placement) => Ok(Some(placement)),
-        None => load(app, tracked.file_name),
+        None => load(app, tracked),
     };
     let saved = match remembered {
         Ok(saved) => saved,
@@ -268,16 +314,28 @@ pub(crate) fn save_all(app: &AppHandle, placements: &WindowPlacements) {
     }
 }
 
+/// The text a placement file holds.
+pub fn file_text(placement: Placement) -> Result<String, String> {
+    let file = PlacementFile {
+        format_version: Format::WindowPlacement.current(),
+        placement,
+    };
+    let mut text = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;
+    text.push('\n');
+    Ok(text)
+}
+
 fn save(app: &AppHandle, tracked: &TrackedWindow) {
+    if tracked.left_in_place.load(Ordering::Relaxed) {
+        return;
+    }
     let Some(placement) = state_value(tracked) else {
         return;
     };
     let result = (|| -> Result<(), String> {
         let root = paths::data_root(app)?;
         let path = root.join(tracked.file_name);
-        let mut text = serde_json::to_string_pretty(&placement).map_err(|e| e.to_string())?;
-        text.push('\n');
-        write_atomic_unrecorded(&path.to_string_lossy(), &text).map(|_| ())
+        write_atomic_unrecorded(&path.to_string_lossy(), &file_text(placement)?).map(|_| ())
     })();
     if let Err(error) = result {
         logging::warn(

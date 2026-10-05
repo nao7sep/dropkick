@@ -66,6 +66,7 @@ import {
   updateNoteContent,
   changeNoteActionability,
   prepareMoveOperation,
+  type LoadFailure,
 } from "../services";
 
 // Per-file loaded state. The repository owns the hash; the store holds data.
@@ -73,16 +74,9 @@ interface FileState {
   data: TaskListDto;
 }
 
-type LoadFileResult =
-  | { status: "success" }
-  | { status: "missing" }
-  | { status: "invalid"; message: string }
-  | { status: "error"; message: string };
+type LoadFileResult = { status: "success" } | LoadFailure;
 
-type FileLoadError =
-  | { status: "missing" }
-  | { status: "invalid"; message: string }
-  | { status: "error"; message: string };
+type FileLoadError = LoadFailure;
 
 
 interface TaskListState {

@@ -432,8 +432,8 @@ describe("TabBar load problems", () => {
     useAppStateStore.setState({ appState: createDefaultAppState(), filePath: "", loaded: true });
     useTaskListStore.setState({
       files: {
-        "/fixtures/a.json": { data: { version: "1.0.0", id: "A", tasks: [] } },
-        "/fixtures/b.json": { data: { version: "1.0.0", id: "B", tasks: [] } },
+        "/fixtures/a.json": { data: { id: "A", tasks: [] } },
+        "/fixtures/b.json": { data: { id: "B", tasks: [] } },
       },
       fileLoadErrors: {},
       fileDiskErrors: { "/fixtures/b.json": { status: "invalid", message: "bad json" } },

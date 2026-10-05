@@ -38,6 +38,7 @@ export type LoadTaskListResult =
   | { status: "success"; taskList: LoadedTaskList }
   | { status: "missing" }
   | { status: "invalid"; message: string }
+  | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
 // Result of checking a loaded file against the disk after a change there.
@@ -51,6 +52,7 @@ export type RefreshResult =
   | { status: "notLoaded" }
   | { status: "missing" }
   | { status: "invalid"; message: string }
+  | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
 // Result of a flush as the store sees it. The repository has already handled
@@ -148,7 +150,7 @@ export async function createTaskListFile(
 ): Promise<LoadedTaskList> {
   return withSerial(filePath, async () => {
     const data = createEmptyTaskList();
-    rememberHash(filePath, await writeJsonFile(filePath, data));
+    rememberHash(filePath, await writeJsonFile(filePath, "taskList", data));
     await startWatching(filePath);
     return { filePath, data };
   });
@@ -190,7 +192,7 @@ async function writeAndRemember(
   // no read-back here: it would cost a second full read of the file per save,
   // and it could hash a concurrent writer's content rather than what this call
   // actually wrote — which is exactly the hash this stores as "ours".
-  rememberHash(filePath, await writeJsonFile(filePath, data));
+  rememberHash(filePath, await writeJsonFile(filePath, "taskList", data));
 }
 
 type HashCheckedWrite =
@@ -220,6 +222,13 @@ async function resolveConflict(
   filePath: string,
   data: TaskListDto,
 ): Promise<WriteResult> {
+  // A newer build's file is intact data this build cannot read, so it is never
+  // offered for overwriting (store-recovery-conventions). The stored hash stays,
+  // so the next save finds the same file and says the same.
+  const disk = await readJsonFileWithHash<TaskListDto>(filePath);
+  if (disk.status === "newer") {
+    return { status: "error", message: message("write.newerOnDisk") };
+  }
   const choice = await showFileConflictDialog(filePath);
   if (choice === "overwrite") {
     await writeAndRemember(filePath, data);

@@ -28,7 +28,7 @@
 // residual exposure is the coalescing window, not the session.
 
 import { create } from "zustand";
-import type { TaskListDto } from "../models";
+import type { StoreRecovery, TaskListDto } from "../models";
 import { flushNoteDrafts, loadNoteDrafts, log, toErrorFields } from "../repositories";
 import { draftTaskId, reconcileDrafts } from "../services/note-drafts";
 
@@ -98,13 +98,14 @@ export async function flushNoteDraftsNow(): Promise<void> {
 interface NoteDraftState {
   drafts: Record<string, string>;
   // Path of ~/.dropkick/note-drafts.json, or "" when persistence is disabled
-  // for this session (the file exists but could not be read).
+  // for this session (the file exists but could not be read, or a newer build
+  // wrote it).
   filePath: string;
   loaded: boolean;
 
-  // Reads the persisted drafts. Returns the `.invalid` path when a corrupt file
-  // was quarantined, so the caller can name it to the user.
-  load: () => Promise<string | null>;
+  // Reads the persisted drafts. Returns how the file was recovered when it was
+  // quarantined or left in place as newer, so the caller can tell the user.
+  load: () => Promise<StoreRecovery | null>;
   // Create or update a draft. The composer has no explicit open moment — its
   // first keystroke creates it.
   setDraft: (key: string, text: string) => void;
@@ -147,11 +148,11 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
     justOpenedKey: null,
 
     load: async () => {
-      const { drafts, filePath, quarantinedTo } = await loadNoteDrafts();
+      const { drafts, filePath, recovery } = await loadNoteDrafts();
       // Loading replaces the draft world, so a mark naming an editor from
       // before it is meaningless and must not survive.
       set({ drafts, filePath, loaded: true, justOpenedKey: null });
-      return quarantinedTo;
+      return recovery;
     },
 
     setDraft: (key, text) => {

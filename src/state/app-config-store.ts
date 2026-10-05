@@ -2,7 +2,7 @@
 // A list change and the selection that follows it are made together here, the
 // selection only once the list change is saved.
 import { create } from "zustand";
-import type { AppConfigDto, AppConfigSetKey } from "../models";
+import type { AppConfigDto, AppConfigSetKey, StoreRecovery } from "../models";
 import { createDefaultAppConfig, registerDocument, unregisterDocument } from "../models";
 import { loadAppConfig, flushAppConfig } from "../repositories";
 import { useAppStateStore } from "./app-state-store";
@@ -19,7 +19,7 @@ interface AppConfigStore {
   appConfig: AppConfigDto;
   filePath: string;
   loaded: boolean;
-  initialize: () => Promise<string | null>;
+  initialize: () => Promise<StoreRecovery | null>;
   // Each resolves true once the list change is saved and the selection has
   // followed it; false leaves the selection as it was.
   registerAndSelect: (kind: KnownDocumentKind, path: string) => Promise<boolean>;
@@ -44,9 +44,9 @@ export const useAppConfigStore = create<AppConfigStore>((set, get) => {
   return {
     appConfig: createDefaultAppConfig(), filePath: "", loaded: false,
     initialize: async () => {
-      const { appConfig, filePath, quarantinedTo } = await loadAppConfig();
+      const { appConfig, filePath, recovery } = await loadAppConfig();
       set({ appConfig, filePath, loaded: true });
-      return quarantinedTo;
+      return recovery;
     },
     registerAndSelect: async (kind, path) => {
       if (!(await changeList(LIST_KEY[kind], path, true))) return false;

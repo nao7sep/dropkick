@@ -82,7 +82,6 @@ beforeEach(async () => {
     files: {
       [FILE]: {
         data: {
-          version: "1.0.0",
           id: "list",
           tasks: [makeTask({ id: "a", title: "A" })],
         },

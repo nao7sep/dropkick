@@ -33,6 +33,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
+use crate::format_version::{self, Format, Marker};
 use crate::logging;
 
 /// The one add-only table. `content` is a BLOB of the exact bytes written —
@@ -112,6 +113,11 @@ fn open(store_file: &Path) -> Result<Connection, String> {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let conn = Connection::open(store_file).map_err(|e| e.to_string())?;
+    // The marker is read before anything is written: a newer build's history is
+    // left exactly as it is, and recording is off for the session.
+    if let Marker::Newer(found) = format_version::sqlite(&conn, Format::Backups)? {
+        return Err(format_version::newer_message(store_file, found, Format::Backups));
+    }
     // WAL for the tolerated two-instance case; busy_timeout so a contended write
     // waits (~5s) instead of dropping the record with SQLITE_BUSY.
     conn.pragma_update(None, "journal_mode", "WAL")
@@ -119,6 +125,7 @@ fn open(store_file: &Path) -> Result<Connection, String> {
     conn.pragma_update(None, "busy_timeout", 5000)
         .map_err(|e| e.to_string())?;
     conn.execute_batch(SCHEMA).map_err(|e| e.to_string())?;
+    format_version::stamp_sqlite(&conn, Format::Backups)?;
     Ok(conn)
 }
 

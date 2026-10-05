@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 // a shell, and keep shipped source free of test modules.
 pub mod backup_store;
 pub mod file_watch;
+pub mod format_version;
 pub mod i18n;
 mod instance_owner;
 pub mod logging;
@@ -129,7 +130,6 @@ pub struct TaskDto {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskListDto {
-    pub version: String,
     // A stable identity materialized on load (see task-list-repository.ts). Legacy
     // files predate the field, so it defaults to empty on read; the frontend fills
     // and persists it. It rides through this struct so read_json_file_with_hash —
@@ -139,12 +139,18 @@ pub struct TaskListDto {
     pub tasks: Vec<TaskDto>,
 }
 
+// The task list's format version is not a field: classify_json_bytes judges
+// it before the body is parsed, and the frontend's write stamps the current one.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum JsonFileWithHashResult {
     Success { data: TaskListDto, hash: String },
     Missing,
     Invalid { message: String },
+    Newer {
+        #[serde(rename = "formatVersion")]
+        format_version: u64,
+    },
     Error { message: String },
 }
 
@@ -237,18 +243,31 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
             started,
             json!({ "path": path, "bytes": bytes.len(), "outcome": "invalid", "error": { "message": message } }),
         ),
-        // classify_json_bytes only yields Success or Invalid; Missing/Error are
-        // decided by the filesystem read above.
+        JsonFileWithHashResult::Newer { format_version } => log_cmd_ok(
+            "read_json_file_with_hash",
+            started,
+            json!({ "path": path, "bytes": bytes.len(), "outcome": "newer", "formatVersion": format_version }),
+        ),
+        // classify_json_bytes only yields Success, Invalid or Newer;
+        // Missing/Error are decided by the filesystem read above.
         _ => {}
     }
     Ok(result)
 }
 
 // The pure parse/classify half of read_json_file_with_hash: given a file's
-// bytes, either parse them into a TaskListDto (Success, with the content hash)
-// or report the parse failure (Invalid). No filesystem access, so it is testable
-// against in-memory bytes.
+// bytes, either parse them into a TaskListDto (Success, with the content hash),
+// report a newer build's file (Newer), or report the parse failure (Invalid).
+// The format version is judged first, so a newer file is never mistaken for a
+// corrupt one. No filesystem access, so it is testable against in-memory bytes.
 pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
+    match format_version::json_bytes(bytes, format_version::Format::TaskList) {
+        Ok(format_version::Marker::Readable) => {}
+        Ok(format_version::Marker::Newer(format_version)) => {
+            return JsonFileWithHashResult::Newer { format_version };
+        }
+        Err(message) => return JsonFileWithHashResult::Invalid { message },
+    }
     match serde_json::from_slice::<TaskListDto>(bytes) {
         Ok(data) => match validate_task_list_identities(&data) {
             Ok(()) => JsonFileWithHashResult::Success {
@@ -754,7 +773,7 @@ fn read_records<T>(
     let started = Instant::now();
     let result = logging::records_file()
         .ok_or_else(|| "the records database is not open".to_string())
-        .and_then(|path| records::open(&path).map_err(|e| e.to_string()))
+        .and_then(|path| records::open(&path))
         .and_then(|conn| read(&conn).map_err(|e| e.to_string()));
     if let Err(message) = &result {
         log_cmd_err(command, started, message.clone());

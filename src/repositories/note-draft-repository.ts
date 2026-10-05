@@ -4,7 +4,7 @@
 // persists (persisted-store-separation conventions). The store above owns the
 // draft map and the write cadence; this module owns I/O only.
 
-import type { NoteDraftsDto } from "../models";
+import type { NoteDraftsDto, StoreRecovery } from "../models";
 import { createDefaultNoteDrafts } from "../models";
 import {
   readJsonFileResult,
@@ -23,9 +23,10 @@ export interface LoadNoteDraftsResult {
   // failed to read (storage-path conventions: never reset defaults over bytes
   // that may carry the user's work).
   filePath: string;
-  // Set when a present-but-unreadable file was renamed aside. The caller uses
-  // this only to decide whether to show recovery copy; the path stays in logs.
-  quarantinedTo: string | null;
+  // Set when a present-but-unreadable file was renamed aside, or when a newer
+  // build's file was left in place. The caller uses this only to decide which
+  // recovery copy to show; the path stays in logs.
+  recovery: StoreRecovery | null;
 }
 
 // Returns null when the value is a usable drafts document, or the reason it is
@@ -37,10 +38,6 @@ function noteDraftsShapeIssue(value: unknown): string | null {
   }
 
   const data = value as Record<string, unknown>;
-  if (data.version !== undefined && typeof data.version !== "string") {
-    return "version is not a string";
-  }
-
   const drafts = data.drafts;
   if (drafts === undefined) return null;
   if (typeof drafts !== "object" || drafts === null || Array.isArray(drafts)) {
@@ -55,15 +52,28 @@ function noteDraftsShapeIssue(value: unknown): string | null {
 
 // Reads the drafts file. Missing is the normal first-run case and yields an
 // empty map. A present-but-unreadable file is quarantined and reported, never
-// silently overwritten. A file that cannot be read at all (permissions, I/O)
+// silently overwritten. A file a newer build wrote is reported and left in
+// place, with persistence disabled for the session. A file that cannot be read at all (permissions, I/O)
 // leaves `filePath` empty so the session keeps drafts in memory and writes
 // nothing over the bytes it could not read.
 export async function loadNoteDrafts(): Promise<LoadNoteDraftsResult> {
   const { noteDraftsFile: filePath } = await appPaths();
-  const result = await readJsonFileResult<unknown>(filePath);
+  const result = await readJsonFileResult<unknown>(filePath, "noteDrafts");
 
   if (result.status === "missing") {
-    return { drafts: {}, filePath, quarantinedTo: null };
+    return { drafts: {}, filePath, recovery: null };
+  }
+
+  if (result.status === "newer") {
+    log.warn("note-drafts.json is newer than this build; left in place and drafts will not persist this session", {
+      filePath,
+      formatVersion: result.formatVersion,
+    });
+    return {
+      drafts: {},
+      filePath: "",
+      recovery: { kind: "newer", formatVersion: result.formatVersion },
+    };
   }
 
   if (result.status === "error") {
@@ -71,7 +81,7 @@ export async function loadNoteDrafts(): Promise<LoadNoteDraftsResult> {
       filePath,
       message: result.message,
     });
-    return { drafts: {}, filePath: "", quarantinedTo: null };
+    return { drafts: {}, filePath: "", recovery: null };
   }
 
   const issue =
@@ -90,14 +100,14 @@ export async function loadNoteDrafts(): Promise<LoadNoteDraftsResult> {
         quarantinedTo,
         issue,
       });
-      return { drafts: {}, filePath, quarantinedTo };
+      return { drafts: {}, filePath, recovery: { kind: "quarantined", quarantinedTo } };
     } catch (e) {
       log.error("note-drafts quarantine failed; drafts will not persist this session", {
         filePath,
         issue,
         ...toErrorFields(e),
       });
-      return { drafts: {}, filePath: "", quarantinedTo: null };
+      return { drafts: {}, filePath: "", recovery: null };
     }
   }
 
@@ -105,7 +115,7 @@ export async function loadNoteDrafts(): Promise<LoadNoteDraftsResult> {
   return {
     drafts: { ...(data.drafts ?? {}) },
     filePath,
-    quarantinedTo: null,
+    recovery: null,
   };
 }
 
@@ -122,6 +132,6 @@ export async function flushNoteDrafts(
       ...createDefaultNoteDrafts(),
       drafts: getDrafts(),
     };
-    await writeJsonFile(filePath, document);
+    await writeJsonFile(filePath, "noteDrafts", document);
   });
 }

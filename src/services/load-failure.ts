@@ -15,6 +15,7 @@ import { message, type Message } from "../i18n/translate";
 export type LoadFailure =
   | { status: "missing" }
   | { status: "invalid"; message: string }
+  | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
 // What kind of document failed. Each kind has whole sentences of its own, so

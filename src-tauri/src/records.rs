@@ -14,6 +14,8 @@ use rusqlite::types::Value as SqlValue;
 use rusqlite::{params_from_iter, Connection, OpenFlags, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 
+use crate::format_version::{self, Format, Marker};
+
 pub const PAGE_SIZE: usize = 100;
 
 // How long a read waits for a writer's lock before it fails.
@@ -101,12 +103,18 @@ pub struct RecordSources {
     pub sessions: Vec<String>,
 }
 
-pub fn open(path: &Path) -> rusqlite::Result<Connection> {
+/// Opens the database for reading. A newer build's records are not read: this
+/// build cannot know what their rows mean.
+pub fn open(path: &Path) -> Result<Connection, String> {
     let conn = Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )?;
-    conn.busy_timeout(BUSY_TIMEOUT)?;
+    )
+    .map_err(|e| e.to_string())?;
+    conn.busy_timeout(BUSY_TIMEOUT).map_err(|e| e.to_string())?;
+    if let Marker::Newer(found) = format_version::sqlite(&conn, Format::Records)? {
+        return Err(format_version::newer_message(path, found, Format::Records));
+    }
     Ok(conn)
 }
 

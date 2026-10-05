@@ -35,7 +35,7 @@ beforeEach(async () => {
   useTaskListStore.setState({
     files: {
       "/one.json": {
-        data: { version: "1.0.0", id: "list-one", tasks: [makeTask({ id: "a", title: "Alpha" })] },
+        data: { id: "list-one", tasks: [makeTask({ id: "a", title: "Alpha" })] },
       },
     },
     fileLoadErrors: {},

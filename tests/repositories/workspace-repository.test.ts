@@ -7,7 +7,7 @@ const writeJsonFile = vi.fn();
 
 vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileResult: (p: string) => readJsonFileResult(p),
-  writeJsonFile: (p: string, d: unknown) => writeJsonFile(p, d),
+  writeJsonFile: (p: string, _format: string, d: unknown) => writeJsonFile(p, d),
   withSerial: (_p: string, fn: () => unknown) => fn(),
 }));
 

@@ -16,7 +16,7 @@ const showFileDeletedDialog = vi.fn();
 
 vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileWithHash: (p: string) => readJsonFileWithHash(p),
-  writeJsonFile: (p: string, d: unknown) => writeJsonFile(p, d),
+  writeJsonFile: (p: string, _format: string, d: unknown) => writeJsonFile(p, d),
   hashFile: (p: string) => hashFile(p),
   fileExists: (p: string) => fileExists(p),
   watchFile: (p: string) => watchFile(p),
@@ -33,7 +33,7 @@ vi.mock("../../src/repositories/dialogs", () => ({
 // Re-imported fresh per test so the module-level knownHashes map is isolated.
 let repo: typeof import("../../src/repositories/task-list-repository");
 
-const data = (tasks: TaskListDto["tasks"] = []): TaskListDto => ({ version: "1.0.0", id: "T0", tasks });
+const data = (tasks: TaskListDto["tasks"] = []): TaskListDto => ({ id: "T0", tasks });
 
 beforeEach(async () => {
   vi.resetAllMocks();
@@ -68,7 +68,7 @@ describe("loadTaskList", () => {
     // A legacy file surfaces id === "" (the Rust TaskListDto default).
     readJsonFileWithHash.mockResolvedValue({
       status: "success",
-      data: { version: "1.0.0", id: "", tasks: [] },
+      data: { id: "", tasks: [] },
       hash: "OLD",
     });
     // The core returns the hash of the bytes it wrote; nothing is read back.
@@ -95,7 +95,7 @@ describe("loadTaskList", () => {
   it("does not rewrite a file that already has an id", async () => {
     readJsonFileWithHash.mockResolvedValue({
       status: "success",
-      data: { version: "1.0.0", id: "EXISTING", tasks: [] },
+      data: { id: "EXISTING", tasks: [] },
       hash: "H1",
     });
     const result = await repo.loadTaskList("/f.json");
@@ -142,6 +142,19 @@ describe("flushTaskList — conflict resolution", () => {
     await register("/f.json", "H0");
     // Pre-write check sees a different hash -> conflict.
     hashFile.mockResolvedValue("DIFFERENT");
+    // The conflict first reads the disk copy, to refuse a newer build's file.
+    readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: data(), hash: "DIFFERENT" });
+  });
+
+  it("never offers to overwrite a file a newer build saved", async () => {
+    readJsonFileWithHash.mockReset();
+    readJsonFileWithHash.mockResolvedValue({ status: "newer", formatVersion: 2 });
+    const result = await repo.flushTaskList("/f.json", () => data());
+    expect(result).toEqual({ status: "error", message: message("write.newerOnDisk") });
+    expect(showFileConflictDialog).not.toHaveBeenCalled();
+    expect(writeJsonFile).not.toHaveBeenCalled();
+    // The hash stays, so the next save finds the same file and says the same.
+    expect(await repo.flushTaskList("/f.json", () => data())).toEqual(result);
   });
 
   it("overwrites when the user chooses overwrite", async () => {
@@ -434,6 +447,7 @@ describe("refreshTaskList", () => {
     expect(await repo.refreshTaskList("/f.json", () => false)).toEqual({ status: "kept" });
 
     hashFile.mockResolvedValue("HDISK");
+    readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: changed, hash: "HDISK" });
     showFileConflictDialog.mockResolvedValue("overwrite");
     await repo.flushTaskList("/f.json", () => data());
     expect(showFileConflictDialog).toHaveBeenCalledWith("/f.json");

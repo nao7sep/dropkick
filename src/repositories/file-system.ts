@@ -8,6 +8,7 @@
 // src-tauri/src/lib.rs for the exposure this does and does not cover.
 
 import { invoke } from "@tauri-apps/api/core";
+import { checkFormatVersion, withFormatVersion, type StoreFormat } from "../models/store-format";
 import { subscribe } from "./events";
 import { log, toErrorFields } from "./logging";
 
@@ -17,21 +18,31 @@ type TextReadResult =
   | { status: "missing" }
   | { status: "error"; message: string };
 
+// `newer`: the file's format version is newer than this build reads. It is
+// intact data, so the caller reports it and leaves the file exactly as it is
+// (store-recovery-conventions).
 export type JsonReadResult<T> =
   | { status: "success"; data: T }
   | { status: "missing" }
   | { status: "invalid"; message: string }
+  | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
+// Mirror of the Rust JsonFileWithHashResult union (read_json_file_with_hash
+// command), which checks the task-list format version the same way.
 export type JsonReadWithHashResult<T> =
   | { status: "success"; data: T; hash: string }
   | { status: "missing" }
   | { status: "invalid"; message: string }
+  | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
-// Reads a JSON file from disk and returns an explicit load result.
+// Reads a store's JSON file and returns an explicit load result. The format
+// version is judged here, before the caller's shape check, so every store
+// treats a newer or malformed marker the same way.
 export async function readJsonFileResult<T>(
   path: string,
+  format: StoreFormat,
 ): Promise<JsonReadResult<T>> {
   let result: TextReadResult;
   try {
@@ -44,14 +55,18 @@ export async function readJsonFileResult<T>(
   }
   if (result.status === "missing") return { status: "missing" };
   if (result.status === "error") return { status: "error", message: result.message };
+  let data: unknown;
   try {
-    return { status: "success", data: JSON.parse(result.text) as T };
+    data = JSON.parse(result.text);
   } catch (e) {
     return {
       status: "invalid",
       message: e instanceof Error ? e.message : String(e),
     };
   }
+  const check = checkFormatVersion(data, format);
+  if (check.status !== "readable") return check;
+  return { status: "success", data: data as T };
 }
 
 // Reads a JSON file once via the backend and returns the parsed data plus a
@@ -64,22 +79,24 @@ export async function readJsonFileWithHash<T>(
   });
 }
 
-// Writes an object to disk as formatted JSON. This is the single write boundary
-// for every JSON file (preferences, workspace, app config, task lists), so it
-// logs the write (debug) and surfaces any failure (error) with its path before
-// re-propagating it. This is also the write path for external documents saved
+// Writes a store's document to disk as formatted JSON, its format's current
+// version first. This is the single write boundary for every JSON file
+// (preferences, workspace, app config, task lists), so it logs the write
+// (debug) and surfaces any failure (error) with its path before re-propagating
+// it. This is also the write path for external documents saved
 // at user-picked locations (preferences/task lists outside ~/.dropkick) — the
 // Rust side stages its temp file beside `path` wherever that is, never under
 // ~/.dropkick.
 // Volatile state opts out of the history while using the same atomic writer.
 // Returns the SHA-256 the core computed from the bytes it wrote, so a caller
 // that tracks the file's hash does not have to read it back.
-export async function writeJsonFile<T>(
+export async function writeJsonFile(
   path: string,
-  data: T,
+  format: StoreFormat,
+  document: object,
   recordBackup = true,
 ): Promise<string> {
-  const text = JSON.stringify(data, null, 2);
+  const text = JSON.stringify(withFormatVersion(format, document), null, 2);
   try {
     // Atomic on the Rust side (temp + fsync + rename), so a crash mid-write
     // never leaves a half-written file. The staging file

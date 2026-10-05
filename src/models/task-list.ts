@@ -33,7 +33,6 @@ export interface TaskDto {
 }
 
 export interface TaskListDto {
-  version: string;
   // Stable identity for this list. Generated once at creation and materialized
   // on load for legacy files that lack one — see loadTaskList.
   id: string;
@@ -42,7 +41,6 @@ export interface TaskListDto {
 
 export function createEmptyTaskList(): TaskListDto {
   return {
-    version: "1.0.0",
     id: generateId(),
     tasks: [],
   };

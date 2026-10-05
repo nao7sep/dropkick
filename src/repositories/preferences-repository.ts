@@ -13,6 +13,7 @@ export type LoadPreferencesResult =
   | { status: "success"; preferences: PreferencesDto }
   | { status: "missing" }
   | { status: "invalid"; message: string }
+  | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
 function effectivePreferences(data: Record<string, unknown> & { id: string }, path: string): PreferencesDto {
@@ -33,7 +34,7 @@ function effectivePreferences(data: Record<string, unknown> & { id: string }, pa
 }
 
 export async function loadPreferences(path: string): Promise<LoadPreferencesResult> {
-  const result = await readJsonFileResult<unknown>(path);
+  const result = await readJsonFileResult<unknown>(path, "preferences");
   if (result.status !== "success") return result;
   if (!isPreferencesDocument(result.data)) {
     return { status: "invalid", message: "not a preferences document" };
@@ -46,17 +47,18 @@ export async function flushPreferences(
   getPreferences: () => PreferencesDto,
 ): Promise<void> {
   return withSerial(path, async () => {
-    const result = await readJsonFileResult<unknown>(path);
+    // A newer build's document is refused like any other unavailable one.
+    const result = await readJsonFileResult<unknown>(path, "preferences");
     if (result.status !== "missing"
       && (result.status !== "success" || !isPreferencesDocument(result.data))) {
       throw new Error("Cannot save an unavailable preferences document");
     }
-    await writeJsonFile(path, preferencesDocument(getPreferences()));
+    await writeJsonFile(path, "preferences", preferencesDocument(getPreferences()));
   });
 }
 
 export async function createPreferencesFile(path: string, name: string): Promise<PreferencesDto> {
   const preferences = createDefaultPreferences(name);
-  await writeJsonFile(path, preferencesDocument(preferences));
+  await writeJsonFile(path, "preferences", preferencesDocument(preferences));
   return preferences;
 }

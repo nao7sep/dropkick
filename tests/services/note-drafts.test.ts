@@ -18,7 +18,7 @@ import type { TaskListDto } from "../../src/models";
 let listSeq = 0;
 function makeList(tasks: TaskListDto["tasks"]): TaskListDto {
   listSeq += 1;
-  return { version: "1.0.0", id: `l${listSeq}`, tasks };
+  return { id: `l${listSeq}`, tasks };
 }
 
 describe("draft keys", () => {

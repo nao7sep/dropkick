@@ -108,3 +108,23 @@ fn each_theme_has_its_own_window_background() {
         Color(0xf9, 0xfa, 0xfb, 0xff)
     );
 }
+
+#[test]
+fn a_newer_state_or_preferences_file_is_not_previewed() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let state = dir.path().join("state.json");
+    let preferences = dir.path().join("preferences.json");
+    fs::write(&preferences, r#"{"theme":"dark"}"#).expect("write preferences");
+    let state_body = json!({ "lastLaunchedPreferencesPath": preferences }).to_string();
+    fs::write(&state, &state_body).expect("write state");
+    assert_eq!(read_saved_window_theme(&state), Some(Theme::Dark));
+
+    fs::write(&preferences, r#"{"formatVersion":2,"theme":"dark"}"#).expect("write preferences");
+    assert_eq!(read_saved_window_theme(&state), None);
+
+    fs::write(&preferences, r#"{"formatVersion":1,"theme":"dark"}"#).expect("write preferences");
+    let newer_state = json!({ "formatVersion": 2, "lastLaunchedPreferencesPath": preferences }).to_string();
+    fs::write(&state, &newer_state).expect("write state");
+    assert_eq!(read_saved_window_theme(&state), None);
+    assert_eq!(fs::read_to_string(&state).expect("read state"), newer_state);
+}

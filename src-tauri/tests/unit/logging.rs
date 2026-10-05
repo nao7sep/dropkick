@@ -277,3 +277,35 @@ fn the_logger_names_its_database_and_session() {
     logger.emit(Level::Info, "one", json!({}));
     assert_eq!(rows(&dir)[0].session, logger.session);
 }
+
+// The records database's format version (store-recovery-conventions).
+
+#[test]
+fn a_new_records_database_is_stamped_with_its_format_version() {
+    let (logger, dir) = temp_logger(false);
+    drop(logger);
+    let conn = Connection::open(dir.join("records.sqlite3")).expect("open records");
+    let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).expect("version");
+    assert_eq!(version, 1);
+}
+
+#[test]
+fn a_newer_records_database_is_left_byte_identical_and_entries_take_the_fallback() {
+    let dir = temp_dir();
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let file = dir.join("records.sqlite3");
+    {
+        let conn = Connection::open(&file).expect("open records");
+        conn.pragma_update(None, "user_version", 2).expect("set version");
+        conn.execute_batch("CREATE TABLE entries (anything TEXT);").expect("schema");
+    }
+    let before = std::fs::read(&file).expect("read records");
+
+    let logger = Logger::open(&file, &dir.join("logs"), false);
+    logger.emit(Level::Warn, "kept aside", json!({}));
+    drop(logger);
+
+    assert_eq!(std::fs::read(&file).expect("read records"), before);
+    let fallback = std::fs::read_dir(dir.join("logs")).expect("fallback dir").count();
+    assert_eq!(fallback, 1);
+}

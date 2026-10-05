@@ -88,17 +88,19 @@ export function toErrorFields(error: unknown): LogFields {
   return { error: describeError(error) };
 }
 
-// Standard fields for a failed load/parse result (the missing/invalid/error
-// arms of the repositories' discriminated unions). Centralizes the `path` +
-// `status` + optional `error.message` shape so every load-failure log line is
-// uniform while preserving the envelope's reserved `message` key.
+// Standard fields for a failed load/parse result (the missing/invalid/newer/
+// error arms of the repositories' discriminated unions). Centralizes the `path`
+// + `status` + optional `error.message` or `formatVersion` shape so every
+// load-failure log line is uniform while preserving the envelope's reserved
+// `message` key.
 export function loadFailureFields(
   path: string,
-  result: { status: string; message?: string },
+  result: { status: string; message?: string; formatVersion?: number },
 ): LogFields {
-  return result.message !== undefined
-    ? { path, status: result.status, error: { message: result.message } }
-    : { path, status: result.status };
+  const fields: LogFields = { path, status: result.status };
+  if (result.message !== undefined) fields.error = { message: result.message };
+  if (result.formatVersion !== undefined) fields.formatVersion = result.formatVersion;
+  return fields;
 }
 
 function describeError(error: unknown): unknown {

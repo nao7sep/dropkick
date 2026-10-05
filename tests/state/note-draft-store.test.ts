@@ -193,21 +193,21 @@ describe("load", () => {
   it("quarantines an unparseable file and reports the path instead of losing it silently", async () => {
     diskRead = { status: "success", text: "{ not json" };
 
-    const quarantinedTo = await useNoteDraftStore.getState().load();
+    const recovery = await useNoteDraftStore.getState().load();
 
-    expect(quarantinedTo).toContain(".invalid");
+    expect(recovery).toEqual({ kind: "quarantined", quarantinedTo: expect.stringContaining(".invalid") });
     expect(invokeMock.mock.calls.some((c) => c[0] === "quarantine_file")).toBe(true);
   });
 
   it("quarantines a file whose drafts are not text, rather than feeding it to an editor", async () => {
     diskRead = {
       status: "success",
-      text: JSON.stringify({ version: "1.0.0", drafts: { t1: { text: "wrong shape" } } }),
+      text: JSON.stringify({ drafts: { t1: { text: "wrong shape" } } }),
     };
 
-    const quarantinedTo = await useNoteDraftStore.getState().load();
+    const recovery = await useNoteDraftStore.getState().load();
 
-    expect(quarantinedTo).toContain(".invalid");
+    expect(recovery).toEqual({ kind: "quarantined", quarantinedTo: expect.stringContaining(".invalid") });
     expect(useNoteDraftStore.getState().drafts).toEqual({});
   });
 
@@ -243,7 +243,6 @@ describe("reconcile", () => {
     // that is provably absent is dropped.
     useNoteDraftStore.getState().reconcile([
       {
-        version: "1.0.0",
         id: "L1",
         tasks: [makeTask({ id: "t1", notes: [makeNote({ id: "n1" })] })],
       },

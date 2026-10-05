@@ -177,3 +177,52 @@ fn record_never_panics_on_a_broken_connection() {
     close_for_test();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// The store's format version (store-recovery-conventions).
+
+fn user_version(file: &Path) -> i64 {
+    Connection::open(file)
+        .unwrap()
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap()
+}
+
+#[test]
+#[serial(backup_store)]
+fn a_new_store_is_stamped_with_its_format_version() {
+    with_store("format-new", |file| {
+        assert_eq!(user_version(file), 1);
+    });
+}
+
+#[test]
+#[serial(backup_store)]
+fn a_store_without_a_marker_reads_as_version_one_and_keeps_recording() {
+    let file = unique_store_file("format-unmarked");
+    {
+        let conn = Connection::open(&file).unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+    }
+    assert_eq!(user_version(&file), 0);
+    init(file.clone());
+    record(Path::new("/abs/a.json"), b"one");
+    close_for_test();
+    assert_eq!(user_version(&file), 1);
+    assert_eq!(rows_for(&file, "/abs/a.json").len(), 1);
+}
+
+#[test]
+#[serial(backup_store)]
+fn a_newer_store_is_left_byte_identical_and_records_nothing() {
+    let file = unique_store_file("format-newer");
+    {
+        let conn = Connection::open(&file).unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+        conn.execute_batch("CREATE TABLE history (anything BLOB);").unwrap();
+    }
+    let before = std::fs::read(&file).unwrap();
+    init(file.clone());
+    record(Path::new("/abs/a.json"), b"one");
+    close_for_test();
+    assert_eq!(std::fs::read(&file).unwrap(), before);
+}

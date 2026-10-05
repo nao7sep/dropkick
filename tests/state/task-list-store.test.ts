@@ -50,7 +50,7 @@ function flushSucceeds() {
 
 function seedFile(tasks = [makeTask({ id: "a" }), makeTask({ id: "b" })]) {
   useTaskListStore.setState({
-    files: { [FILE]: { data: { version: "1.0.0", id: "L1", tasks } } },
+    files: { [FILE]: { data: { id: "L1", tasks } } },
     fileLoadErrors: {},
     fileDiskErrors: {},
     selectedKeys: new Set(),
@@ -91,7 +91,7 @@ describe("loadFile", () => {
   it("stores loaded data on success", async () => {
     loadTaskList.mockResolvedValue({
       status: "success",
-      taskList: { filePath: FILE, data: { version: "1.0.0", tasks: [makeTask({ id: "x" })] } },
+      taskList: { filePath: FILE, data: { tasks: [makeTask({ id: "x" })] } },
     });
     const result = await useTaskListStore.getState().loadFile(FILE);
     expect(result).toEqual({ status: "success" });
@@ -146,7 +146,7 @@ describe("loadFile", () => {
 
     resolveRead({
       status: "success",
-      taskList: { filePath: FILE, data: { version: "1.0.0", tasks: [makeTask({ id: "z" })] } },
+      taskList: { filePath: FILE, data: { tasks: [makeTask({ id: "z" })] } },
     });
     const [r1, r2] = await Promise.all([first, second]);
     expect(r1).toEqual({ status: "success" });
@@ -165,7 +165,7 @@ describe("loadFile", () => {
     // missing result.
     loadTaskList.mockResolvedValueOnce({
       status: "success",
-      taskList: { filePath: FILE, data: { version: "1.0.0", tasks: [makeTask({ id: "ok" })] } },
+      taskList: { filePath: FILE, data: { tasks: [makeTask({ id: "ok" })] } },
     });
     const second = await useTaskListStore.getState().loadFile(FILE);
     expect(second).toEqual({ status: "success" });
@@ -187,7 +187,7 @@ describe("mutating actions — the never-reject contract", () => {
       status: "success",
       taskList: {
         filePath: FILE,
-        data: { version: "1.0.0", id: "L1", tasks: [original] },
+        data: { id: "L1", tasks: [original] },
       },
     });
     await useTaskListStore.getState().loadFile(FILE);
@@ -211,7 +211,7 @@ describe("mutating actions — the never-reject contract", () => {
       status: "success",
       taskList: {
         filePath: FILE,
-        data: { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "a" })] },
+        data: { id: "L1", tasks: [makeTask({ id: "a" })] },
       },
     });
     await useTaskListStore.getState().loadFile(FILE);
@@ -232,7 +232,7 @@ describe("mutating actions — the never-reject contract", () => {
       status: "success",
       taskList: {
         filePath: FILE,
-        data: { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "a", title: "before" })] },
+        data: { id: "L1", tasks: [makeTask({ id: "a", title: "before" })] },
       },
     });
     await useTaskListStore.getState().loadFile(FILE);
@@ -270,7 +270,7 @@ describe("mutating actions — the never-reject contract", () => {
       status: "success",
       taskList: {
         filePath: FILE,
-        data: { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "a", title: "before" })] },
+        data: { id: "L1", tasks: [makeTask({ id: "a", title: "before" })] },
       },
     });
     await useTaskListStore.getState().loadFile(FILE);
@@ -309,8 +309,8 @@ describe("mutating actions — the never-reject contract", () => {
   it("reports an error instead of rejecting when a cross-file move write throws", async () => {
     useTaskListStore.setState({
       files: {
-        "/src.json": { data: { version: "1.0.0", id: "S", tasks: [makeTask({ id: "m" })] } },
-        "/dst.json": { data: { version: "1.0.0", id: "D", tasks: [] } },
+        "/src.json": { data: { id: "S", tasks: [makeTask({ id: "m" })] } },
+        "/dst.json": { data: { id: "D", tasks: [] } },
       },
       fileLoadErrors: {},
       selectedKeys: new Set(),
@@ -517,7 +517,7 @@ describe("reorderTick scroll-follow signal", () => {
 describe("flush conflict reload", () => {
   it("applies reloaded disk data and reports the reload apart from a failed write", async () => {
     seedFile([makeTask({ id: "a", title: "local" })]);
-    const reloaded: TaskListDto = { version: "1.0.0", id: "L1", tasks: [makeTask({ id: "z", title: "from disk" })] };
+    const reloaded: TaskListDto = { id: "L1", tasks: [makeTask({ id: "z", title: "from disk" })] };
     flushTaskList.mockResolvedValue({ status: "reloaded", data: reloaded, message: "changed externally" });
 
     const result = await useTaskListStore.getState().addNewTask(FILE, { title: "x" });
@@ -546,8 +546,8 @@ describe("moveTasks", () => {
   function seedTwoFiles() {
     useTaskListStore.setState({
       files: {
-        [SRC]: { data: { version: "1.0.0", id: "SRC", tasks: [makeTask({ id: "s1" }), makeTask({ id: "s2" })] } },
-        [DST]: { data: { version: "1.0.0", id: "DST", tasks: [makeTask({ id: "d1" })] } },
+        [SRC]: { data: { id: "SRC", tasks: [makeTask({ id: "s1" }), makeTask({ id: "s2" })] } },
+        [DST]: { data: { id: "DST", tasks: [makeTask({ id: "d1" })] } },
       },
       fileLoadErrors: {},
       selectedKeys: new Set(),
@@ -565,8 +565,8 @@ describe("moveTasks", () => {
   it("applies both files' data and clears the selection on success", async () => {
     seedTwoFiles();
     useTaskListStore.getState().setSelection(new Set([taskKey(SRC, "s1")]));
-    const sourceData: TaskListDto = { version: "1.0.0", id: "SRC", tasks: [makeTask({ id: "s2" })] };
-    const destData: TaskListDto = { version: "1.0.0", id: "DST", tasks: [makeTask({ id: "s1" }), makeTask({ id: "d1" })] };
+    const sourceData: TaskListDto = { id: "SRC", tasks: [makeTask({ id: "s2" })] };
+    const destData: TaskListDto = { id: "DST", tasks: [makeTask({ id: "s1" }), makeTask({ id: "d1" })] };
     flushMove.mockImplementation(async (_s, _d, getInputs: () => unknown) => {
       getInputs(); // exercise the closure that reads latest store state
       return { status: "success", sourceData, destData };
@@ -611,7 +611,7 @@ describe("refreshFromDisk", () => {
   // was taken, as refreshTaskList does.
   function diskHolds(tasks: TaskListDto["tasks"], id = "L1") {
     refreshTaskList.mockImplementation(async (_p: string, adopt: (data: TaskListDto) => boolean) =>
-      adopt({ version: "1.0.0", id, tasks }) ? { status: "reloaded" } : { status: "kept" },
+      adopt({ id, tasks }) ? { status: "reloaded" } : { status: "kept" },
     );
   }
 

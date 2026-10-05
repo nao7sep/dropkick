@@ -5,7 +5,7 @@ const quarantineFile = vi.fn();
 const warn = vi.fn();
 vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileResult: (p: string) => readJsonFileResult(p),
-  writeJsonFile: (p: string, d: unknown) => writeJsonFile(p, d),
+  writeJsonFile: (p: string, _format: string, d: unknown) => writeJsonFile(p, d),
   quarantineFile: (p: string) => quarantineFile(p),
   appPaths: async () => ({ configFile: "/root/config.json", preferencesFile: "/root/preferences.json", workspaceFile: "/root/workspace.json" }),
   withSerial: (_p: string, fn: () => unknown) => fn(),
@@ -21,7 +21,7 @@ beforeEach(() => {
 describe("known-document config sets", () => {
   it("uses the built-in lists on first run without creating config.json", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
-    expect(await loadAppConfig()).toEqual({ appConfig: defaults, filePath: "/root/config.json", quarantinedTo: null });
+    expect(await loadAppConfig()).toEqual({ appConfig: defaults, filePath: "/root/config.json", recovery: null });
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
   it("reads one whole set while the other remains its live built-in", async () => {
@@ -60,7 +60,11 @@ describe("known-document config sets", () => {
   });
   it.each([{ status: "invalid", message: "bad JSON" }, { status: "success", data: null }])("quarantines an unreadable map and leaves it absent", async (result) => {
     readJsonFileResult.mockResolvedValue(result);
-    expect(await loadAppConfig()).toEqual({ appConfig: defaults, filePath: "/root/config.json", quarantinedTo: "/root/config-stamp.invalid" });
+    expect(await loadAppConfig()).toEqual({
+      appConfig: defaults,
+      filePath: "/root/config.json",
+      recovery: { kind: "quarantined", quarantinedTo: "/root/config-stamp.invalid" },
+    });
     expect(quarantineFile).toHaveBeenCalledWith("/root/config.json");
     expect(writeJsonFile).not.toHaveBeenCalled();
   });

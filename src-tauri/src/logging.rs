@@ -30,6 +30,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rusqlite::Connection;
 use serde_json::{Map, Value};
 
+use crate::format_version::{self, Format, Marker};
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Level {
     Debug,
@@ -242,6 +244,12 @@ fn open_records(records_file: &Path) -> Records {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let conn = Connection::open(records_file).map_err(|e| e.to_string())?;
+    // The marker is read before anything is written: a newer build's records
+    // are left exactly as they are, and every entry takes the fallback file,
+    // which carries this error.
+    if let Marker::Newer(found) = format_version::sqlite(&conn, Format::Records)? {
+        return Err(format_version::newer_message(records_file, found, Format::Records));
+    }
     // WAL with synchronous=NORMAL keeps every committed row through an app
     // crash; busy_timeout lets a second running instance's write wait its turn.
     conn.pragma_update(None, "journal_mode", "WAL")
@@ -251,6 +259,7 @@ fn open_records(records_file: &Path) -> Records {
     conn.pragma_update(None, "busy_timeout", BUSY_TIMEOUT_MS as i64)
         .map_err(|e| e.to_string())?;
     conn.execute_batch(SCHEMA).map_err(|e| e.to_string())?;
+    format_version::stamp_sqlite(&conn, Format::Records)?;
     Ok(conn)
 }
 

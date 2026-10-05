@@ -6,7 +6,7 @@ const quarantineFile = vi.fn();
 const ROOT = "/home/tester/.dropkick";
 vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileResult: (p: string) => readJsonFileResult(p),
-  writeJsonFile: (p: string, d: unknown, recorded?: boolean) => recorded === undefined ? writeJsonFile(p, d) : writeJsonFile(p, d, recorded),
+  writeJsonFile: (p: string, _format: string, d: unknown, recorded?: boolean) => recorded === undefined ? writeJsonFile(p, d) : writeJsonFile(p, d, recorded),
   ensureDirectory: vi.fn(),
   fileExists: (p: string) => fileExists(p),
   appPaths: async () => ({ root: ROOT, stateFile: `${ROOT}/state.json`, configFile: `${ROOT}/config.json`, preferencesFile: `${ROOT}/preferences.json`, workspaceFile: `${ROOT}/workspace.json` }),

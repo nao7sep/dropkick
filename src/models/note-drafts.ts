@@ -15,13 +15,11 @@
 // task's composer, `taskId:noteId` for an in-progress edit of one note.
 
 export interface NoteDraftsDto {
-  version: string;
   drafts: Record<string, string>;
 }
 
 export function createDefaultNoteDrafts(): NoteDraftsDto {
   return {
-    version: "1.0.0",
     drafts: {},
   };
 }

@@ -312,3 +312,11 @@ fn the_query_arrives_as_the_window_sends_it() {
         })
     );
 }
+
+#[test]
+fn a_newer_database_is_not_read() {
+    let f = fixture();
+    f.writer.pragma_update(None, "user_version", 2).expect("set version");
+    let error = open(&f.path).expect_err("a newer database is refused");
+    assert!(error.contains("records.sqlite3"), "{error}");
+}

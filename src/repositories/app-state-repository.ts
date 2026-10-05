@@ -24,7 +24,6 @@ function appStateShapeIssue(value: unknown): string | null {
 
   const data = value as Record<string, unknown>;
   const stringFields = [
-    "version",
     "lastPreferencesPath",
     "lastLaunchedPreferencesPath",
     "lastWorkspacePath",
@@ -49,6 +48,9 @@ function appStateShapeIssue(value: unknown): string | null {
 // First-launch setup: creates ~/.dropkick/ with the default state, preferences
 // and workspace documents. Once the state file exists, selected files are never
 // recreated implicitly; missing selections are reported by their loaders.
+//
+// `statePath` is empty when state.json was written by a newer build: the
+// session runs on the default state and writes nothing over that file.
 export async function initializeAppState(): Promise<{
   appState: AppStateDto;
   statePath: string;
@@ -64,7 +66,7 @@ export async function initializeAppState(): Promise<{
   await ensureDirectory(root);
 
   // Create or read app appState.
-  const configResult = await readJsonFileResult<unknown>(statePath);
+  const configResult = await readJsonFileResult<unknown>(statePath, "state");
 
   // State is disposable, so a reset is not reported to the user; its record
   // says why (store-recovery-conventions).
@@ -81,13 +83,24 @@ export async function initializeAppState(): Promise<{
     log.warn("state.json reset", { statePath, quarantinedTo, ...resetReason });
   }
 
+  const firstRunState = (): AppStateDto => ({
+    ...createDefaultAppState(),
+    lastPreferencesPath: prefsPath,
+    lastWorkspacePath: workspacePath,
+  });
   let appState: AppStateDto;
   const created = configResult.status === "missing" || quarantinedTo !== null;
-  if (created) {
-    appState = createDefaultAppState();
-    appState.lastPreferencesPath = prefsPath;
-    appState.lastWorkspacePath = workspacePath;
-    await writeJsonFile(statePath, appState, false);
+  const newer = configResult.status === "newer";
+  if (newer) {
+    // Disposable view state: the log names the file the session leaves alone.
+    log.warn("state.json is newer than this build; left in place and not written this session", {
+      statePath,
+      formatVersion: configResult.formatVersion,
+    });
+    appState = firstRunState();
+  } else if (created) {
+    appState = firstRunState();
+    await writeJsonFile(statePath, "state", appState, false);
   } else if (configResult.status === "success") {
     // Fill any newly added fields from defaults and drop keys no longer part of
     // AppStateDto, so a retired field is never re-emitted — the same
@@ -113,7 +126,7 @@ export async function initializeAppState(): Promise<{
   }
 
   log.info("app state initialized", { statePath, created });
-  return { appState, statePath };
+  return { appState, statePath: newer ? "" : statePath };
 }
 
 // Flushes the latest app state to disk. Calls are serialized per path,
@@ -125,6 +138,6 @@ export async function flushAppState(
   getAppState: () => AppStateDto,
 ): Promise<void> {
   await withSerial(filePath, async () => {
-    await writeJsonFile(filePath, getAppState(), false);
+    await writeJsonFile(filePath, "state", getAppState(), false);
   });
 }

@@ -113,7 +113,7 @@ describe("close request", () => {
     await requestClose();
 
     expect(windowStub.events).toEqual([
-      'write:{"version":"1.0.0","drafts":{"t1":"typedasecondago"}}',
+      'write:{"formatVersion":1,"drafts":{"t1":"typedasecondago"}}',
       "destroy",
     ]);
   });

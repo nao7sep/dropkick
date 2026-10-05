@@ -53,21 +53,16 @@ pub fn normalize_preference(value: Option<&str>) -> Option<&'static str> {
     LANGUAGES.iter().copied().find(|tag| *tag == value)
 }
 
-/// The preference saved in a preferences document's body; anything unparseable
-/// is System.
-pub fn saved_preference(config: &str) -> Option<&'static str> {
-    let value: JsonValue = serde_json::from_str(config).ok()?;
-    normalize_preference(value.get("language")?.as_str())
+/// The preference saved in a preferences document; anything else is System.
+pub fn saved_preference(preferences: &JsonValue) -> Option<&'static str> {
+    normalize_preference(preferences.get("language")?.as_str())
 }
 
 /// The choice saved in the preferences document the startup picker will
-/// preview — the same document the native theme is read from. Reads both files
-/// without touching them; anything missing, unreadable, or unparseable is
-/// System, and recovery stays with the frontend's load path.
+/// preview — the same document the native theme is read from
+/// (theme::previewed_preferences). Without one, System.
 pub fn read_saved_preference(state_file: &Path) -> Option<&'static str> {
-    let state: JsonValue = serde_json::from_str(&std::fs::read_to_string(state_file).ok()?).ok()?;
-    let preferences_path = crate::theme::last_launched_preferences_path(&state)?;
-    saved_preference(&std::fs::read_to_string(preferences_path).ok()?)
+    saved_preference(&crate::theme::previewed_preferences(state_file)?)
 }
 
 /// The language the computer and the saved choice settle on at launch, and the
