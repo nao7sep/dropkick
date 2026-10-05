@@ -235,3 +235,74 @@ fn write_atomic_keeps_the_target_permissions() {
     let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o600, "permissions must survive the save");
 }
+
+#[test]
+fn write_atomic_takes_the_save_as_the_modified_time() {
+    // A save changes the content, so the replace must not carry the replaced
+    // file's modified time over along with the metadata it does keep.
+    let dir = unique_temp_dir("mtime");
+    let path = dir.join("f.json");
+    std::fs::write(&path, "before").unwrap();
+    let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_577_836_800);
+    std::fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_modified(old)
+        .unwrap();
+
+    write_atomic(path.to_str().unwrap(), "after").unwrap();
+
+    let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    assert!(modified > old, "the save must stamp its own modified time");
+}
+
+#[cfg(target_os = "macos")]
+fn run(command: &str, args: &[&str]) -> String {
+    let output = std::process::Command::new(command).args(args).output().unwrap();
+    assert!(output.status.success(), "{command} {args:?}: {output:?}");
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn write_atomic_keeps_extended_attributes_finder_tags_and_the_acl() {
+    // The rename replaces the inode, so without carrying them a save dropped
+    // every Finder tag, extended attribute and access-control entry the user
+    // had put on the task list (content-lifecycle-conventions, Files).
+    let dir = unique_temp_dir("xattr-acl");
+    let path = dir.join("tagged.json");
+    std::fs::write(&path, "before").unwrap();
+    let p = path.to_str().unwrap();
+    let tags = "<plist><array><string>Red\n6</string></array></plist>";
+    run("xattr", &["-w", "com.apple.metadata:_kMDItemUserTags", tags, p]);
+    run("xattr", &["-w", "user.dropkick-test", "kept", p]);
+    run("chmod", &["+a", "everyone allow readattr", p]);
+
+    write_atomic(p, "after").unwrap();
+
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "after");
+    assert_eq!(
+        run("xattr", &["-p", "com.apple.metadata:_kMDItemUserTags", p]).trim_end(),
+        tags
+    );
+    assert_eq!(run("xattr", &["-p", "user.dropkick-test", p]).trim_end(), "kept");
+    let acl = run("ls", &["-le", p]);
+    assert!(acl.contains("everyone allow readattr"), "ACL lost: {acl}");
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn write_atomic_adds_no_metadata_to_a_file_that_had_none() {
+    let dir = unique_temp_dir("no-xattr");
+    let path = dir.join("plain.json");
+    let p = path.to_str().unwrap();
+    write_atomic(p, "first").unwrap();
+    write_atomic(p, "second").unwrap();
+    let names = run("xattr", &[p]);
+    assert!(
+        !names.lines().any(|n| n.starts_with("user.") || n.contains("_kMDItemUserTags")),
+        "unexpected attributes: {names}"
+    );
+    assert!(!run("ls", &["-le", p]).contains(" allow "), "unexpected ACL");
+}

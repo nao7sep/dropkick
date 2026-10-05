@@ -417,6 +417,49 @@ pub fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
     current
 }
 
+// The rename in write_atomic_impl replaces the target's inode, so whatever the
+// temp file carries is what survives. This carries what a replace keeps, per the
+// Files section of the content-lifecycle-conventions: the permissions, and on
+// macOS the extended attributes (Finder tags among them) and the ACL. Each piece
+// is best-effort and carried on its own, so a volume that refuses one still gets
+// the rest and the save goes ahead.
+fn carry_replaced_metadata(target: &std::path::Path, tmp: &std::fs::File) {
+    if let Ok(existing) = std::fs::metadata(target) {
+        let _ = tmp.set_permissions(existing.permissions());
+    }
+    #[cfg(target_os = "macos")]
+    if let Ok(original) = std::fs::File::open(target) {
+        macos_metadata::carry_xattrs_and_acl(&original, tmp);
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod macos_metadata {
+    use std::os::fd::AsRawFd;
+    use std::os::raw::{c_int, c_void};
+
+    // copyfile.h. COPYFILE_STAT is left out on purpose: it would also copy the
+    // replaced file's modified time onto a save that changed the content.
+    const COPYFILE_ACL: u32 = 1 << 0;
+    const COPYFILE_XATTR: u32 = 1 << 2;
+
+    extern "C" {
+        fn fcopyfile(from: c_int, to: c_int, state: *mut c_void, flags: u32) -> c_int;
+    }
+
+    // Two calls rather than one combined flag set, so an ACL the volume refuses
+    // never costs the extended attributes, nor the other way round.
+    pub fn carry_xattrs_and_acl(from: &std::fs::File, to: &std::fs::File) {
+        for flags in [COPYFILE_XATTR, COPYFILE_ACL] {
+            // SAFETY: both descriptors are open for the duration of the call,
+            // and a null state is the documented way to pass none.
+            unsafe {
+                fcopyfile(from.as_raw_fd(), to.as_raw_fd(), std::ptr::null_mut(), flags);
+            }
+        }
+    }
+}
+
 pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
     write_atomic_impl(path, contents, true)
 }
@@ -444,17 +487,11 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     let write_tmp = (|| -> std::io::Result<()> {
         let mut file = std::fs::File::create(&tmp)?;
         file.write_all(contents.as_bytes())?;
+        carry_replaced_metadata(target, &file);
+        // After the metadata, so the carried attributes are as durable as the bytes.
         file.sync_all()?;
         Ok(())
     })();
-    // The rename below replaces the target's inode, so the temp file's mode is
-    // what survives — `File::create` gives it 0666 & ~umask (typically 0644),
-    // which would silently widen a file the user had restricted to 0600. Carry
-    // the existing target's permissions over. Best-effort: a filesystem that
-    // cannot set them is not a reason to fail a save.
-    if let Ok(existing) = std::fs::metadata(target) {
-        let _ = std::fs::set_permissions(&tmp, existing.permissions());
-    }
     if let Err(e) = write_tmp {
         let _ = std::fs::remove_file(&tmp);
         return Err(e.to_string());
