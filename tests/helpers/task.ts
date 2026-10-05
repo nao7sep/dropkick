@@ -31,6 +31,7 @@ export function makeNote(overrides: Partial<NoteDto> = {}): NoteDto {
     content: overrides.content ?? "note",
     actionability: overrides.actionability ?? "Informational",
     createdAtUtc: overrides.createdAtUtc ?? "2026-01-01T00:00:00.000Z",
+    ...(overrides.editedAtUtc === undefined ? {} : { editedAtUtc: overrides.editedAtUtc }),
   };
 }
 

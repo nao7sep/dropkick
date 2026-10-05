@@ -14,6 +14,9 @@ export interface NoteDto {
   content: string;
   actionability: NoteActionability;
   createdAtUtc: string; // ISO 8601
+  // ISO 8601, the moment of the last content edit; absent until the note is
+  // first edited, so files written before the field read as never edited.
+  editedAtUtc?: string;
 }
 
 export interface TaskDto {

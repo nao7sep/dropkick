@@ -116,6 +116,7 @@
   "note.updateFailed": "La note n’a pas pu être mise à jour",
   "note.delete": "Supprimer la note",
   "note.save": "Enregistrer",
+  "note.edited": "Modifiée\u00a0: {time}",
 
   "load.taskList.missing": "Le fichier de liste de tâches est introuvable.",
   "load.taskList.missingAt": "Le fichier de liste de tâches est introuvable\u00a0:\n\n{path}",

@@ -116,6 +116,7 @@
   "note.updateFailed": "Die Notiz konnte nicht aktualisiert werden",
   "note.delete": "Notiz löschen",
   "note.save": "Speichern",
+  "note.edited": "Bearbeitet: {time}",
 
   "load.taskList.missing": "Die Aufgabenlistendatei wurde nicht gefunden.",
   "load.taskList.missingAt": "Die Aufgabenlistendatei wurde nicht gefunden:\n\n{path}",

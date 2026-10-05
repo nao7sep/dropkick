@@ -116,6 +116,7 @@
   "note.updateFailed": "メモを更新できませんでした",
   "note.delete": "メモを削除",
   "note.save": "保存",
+  "note.edited": "編集: {time}",
 
   "load.taskList.missing": "タスクリストファイルが見つかりませんでした。",
   "load.taskList.missingAt": "次のタスクリストファイルが見つかりませんでした。\n\n{path}",

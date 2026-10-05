@@ -157,6 +157,23 @@ describe("notes", () => {
     expect(result.notes.find((n) => n.id === "n2")!.content).toBe("b");
   });
 
+  it("updateNoteContent stamps the note's edit time and the task's updatedAtUtc together", () => {
+    const task = makeTask({
+      updatedAtUtc: EARLIER,
+      notes: [makeNote({ id: "n1", content: "a" }), makeNote({ id: "n2", content: "b" })],
+    });
+    const result = updateNoteContent(task, "n1", "z");
+    expect(result.notes[0].editedAtUtc).toBe(FIXED_NOW);
+    expect(result.notes[0].createdAtUtc).toBe(task.notes[0].createdAtUtc);
+    expect(result.notes[1]).toBe(task.notes[1]);
+    expect(result.updatedAtUtc).toBe(FIXED_NOW);
+  });
+
+  it("updateNoteContent moves an earlier edit time to the new edit", () => {
+    const task = makeTask({ notes: [makeNote({ id: "n1", content: "a", editedAtUtc: EARLIER })] });
+    expect(updateNoteContent(task, "n1", "z").notes[0].editedAtUtc).toBe(FIXED_NOW);
+  });
+
   it("updateNoteContent is a no-op for unchanged content", () => {
     const task = makeTask({ notes: [makeNote({ id: "n1", content: "a" })] });
     expect(updateNoteContent(task, "n1", "a")).toBe(task);
@@ -173,13 +190,14 @@ describe("notes", () => {
     expect(result.notes[0].actionability).toBe("Actionable");
   });
 
-  it("changeNoteActionability leaves the task's updatedAtUtc alone", () => {
+  it("changeNoteActionability moves neither the task's updatedAtUtc nor the note's edit time", () => {
     const task = makeTask({
       updatedAtUtc: EARLIER,
       notes: [makeNote({ id: "n1", actionability: "Actionable" })],
     });
     const result = changeNoteActionability(task, "n1", "Resolved");
     expect(result.updatedAtUtc).toBe(EARLIER);
+    expect(result.notes[0].editedAtUtc).toBeUndefined();
   });
 
   it("changeNoteActionability is a no-op when already in that state", () => {

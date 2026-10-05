@@ -116,6 +116,7 @@
   "note.updateFailed": "Note could not be updated",
   "note.delete": "Delete note",
   "note.save": "Save",
+  "note.edited": "Edited: {time}",
 
   "load.taskList.missing": "The task list file could not be found.",
   "load.taskList.missingAt": "The task list file could not be found:\n\n{path}",

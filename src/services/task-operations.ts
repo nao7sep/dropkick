@@ -1,7 +1,7 @@
 // Task-level operations: add, update, status transitions.
 // All functions return new arrays/objects — no mutation.
-// updatedAtUtc follows the Modified rule of the content-lifecycle-conventions;
-// status and note actionability are lifecycle.
+// updatedAtUtc, and a note's editedAtUtc, follow the Modified rule of the
+// content-lifecycle-conventions; status and note actionability are lifecycle.
 // No-op edits must return the original task object so callers can skip writes.
 
 import type { TaskDto, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../models";
@@ -71,7 +71,8 @@ export function addNote(task: TaskDto, note: NoteDto): TaskDto {
   };
 }
 
-// Updates a note's content.
+// Updates a note's content. The note records the edit's moment as its own
+// editedAtUtc, and the task's updatedAtUtc takes the same moment.
 export function updateNoteContent(
   task: TaskDto,
   noteId: string,
@@ -80,12 +81,13 @@ export function updateNoteContent(
   const note = task.notes.find((n) => n.id === noteId);
   if (!note || note.content === content) return task;
 
+  const now = nowUtc();
   return {
     ...task,
     notes: task.notes.map((n) =>
-      n.id === noteId ? { ...n, content } : n,
+      n.id === noteId ? { ...n, content, editedAtUtc: now } : n,
     ),
-    updatedAtUtc: nowUtc(),
+    updatedAtUtc: now,
   };
 }
 

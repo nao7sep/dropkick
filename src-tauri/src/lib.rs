@@ -105,6 +105,10 @@ pub struct NoteDto {
     pub content: String,
     pub actionability: String,
     pub created_at_utc: String,
+    // Absent until the note's content is first edited (task-list.ts), so it
+    // stays absent on the way back to the webview rather than arriving as null.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edited_at_utc: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]

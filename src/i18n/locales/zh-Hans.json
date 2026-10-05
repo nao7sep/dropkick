@@ -116,6 +116,7 @@
   "note.updateFailed": "无法更新备注",
   "note.delete": "删除备注",
   "note.save": "保存",
+  "note.edited": "编辑时间：{time}",
 
   "load.taskList.missing": "找不到任务列表文件。",
   "load.taskList.missingAt": "找不到任务列表文件：\n\n{path}",

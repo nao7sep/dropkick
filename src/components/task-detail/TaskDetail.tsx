@@ -914,6 +914,13 @@ function NoteItem({
           className="-mx-1.5 cursor-pointer rounded-[var(--radius-sm)] px-1.5 py-0.5 text-sm text-ink transition-colors duration-[var(--motion)] hover:bg-control-hover/60"
         >
           <p className="whitespace-pre-wrap break-words">{note.content}</p>
+          {note.editedAtUtc ? (
+            <p className="mt-1 text-xs text-ink-muted">
+              {t("note.edited", {
+                time: formatTimestamp(note.editedAtUtc, preferences.timezone, i18n.dateTime),
+              })}
+            </p>
+          ) : null}
         </div>
       )}
     </div>

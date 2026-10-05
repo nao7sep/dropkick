@@ -116,6 +116,7 @@
   "note.updateFailed": "메모를 업데이트할 수 없습니다",
   "note.delete": "메모 삭제",
   "note.save": "저장",
+  "note.edited": "편집: {time}",
 
   "load.taskList.missing": "할 일 목록 파일을 찾을 수 없습니다.",
   "load.taskList.missingAt": "다음 할 일 목록 파일을 찾을 수 없습니다.\n\n{path}",

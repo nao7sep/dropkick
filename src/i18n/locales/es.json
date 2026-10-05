@@ -116,6 +116,7 @@
   "note.updateFailed": "No se pudo actualizar la nota",
   "note.delete": "Eliminar la nota",
   "note.save": "Guardar",
+  "note.edited": "Editada: {time}",
 
   "load.taskList.missing": "No se encontró el archivo de la lista de tareas.",
   "load.taskList.missingAt": "No se encontró el archivo de la lista de tareas:\n\n{path}",

@@ -116,6 +116,7 @@
   "note.updateFailed": "Не удалось обновить заметку",
   "note.delete": "Удалить заметку",
   "note.save": "Сохранить",
+  "note.edited": "Изменена: {time}",
 
   "load.taskList.missing": "Файл списка задач не найден.",
   "load.taskList.missingAt": "Файл списка задач не найден:\n\n{path}",

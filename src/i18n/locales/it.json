@@ -116,6 +116,7 @@
   "note.updateFailed": "Impossibile aggiornare la nota",
   "note.delete": "Elimina la nota",
   "note.save": "Salva",
+  "note.edited": "Modificata: {time}",
 
   "load.taskList.missing": "Impossibile trovare il file della lista di attività.",
   "load.taskList.missingAt": "Impossibile trovare il file della lista di attività:\n\n{path}",

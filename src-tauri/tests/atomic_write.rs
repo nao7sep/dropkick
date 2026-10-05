@@ -121,6 +121,20 @@ fn classify_json_bytes_allows_the_same_note_id_in_different_tasks() {
 }
 
 #[test]
+fn classify_json_bytes_carries_a_note_edit_time_and_leaves_an_unedited_note_without_one() {
+    // The field is optional: a note never edited, including every note written
+    // before the field existed, reaches the webview without it rather than as null.
+    let mut edited = task_json("task-1", &["note-1", "note-2"]);
+    edited["notes"][0]["editedAtUtc"] = serde_json::json!("2026-10-05T01:02:03.004Z");
+    let JsonFileWithHashResult::Success { data, .. } = classify_tasks(vec![edited]) else {
+        panic!("expected Success");
+    };
+    let notes = serde_json::to_value(&data.tasks[0].notes).unwrap();
+    assert_eq!(notes[0]["editedAtUtc"], "2026-10-05T01:02:03.004Z");
+    assert!(notes[1].get("editedAtUtc").is_none(), "{notes}");
+}
+
+#[test]
 fn atomic_temp_name_is_stem_plus_nanoid_dot_tmp() {
     // Grammar: <stem>-<nanoid>.tmp — one final extension, the target's
     // extension dropped rather than dot-appended after it.
