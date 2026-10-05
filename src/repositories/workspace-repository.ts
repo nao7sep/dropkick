@@ -12,7 +12,6 @@ import {
   writeJsonFile,
   withSerial,
 } from "./file-system";
-import { mergeWithDefaults } from "../utils/merge-defaults";
 
 export type LoadWorkspaceResult =
   | { status: "success"; workspace: WorkspaceDto }
@@ -22,67 +21,25 @@ export type LoadWorkspaceResult =
   | { status: "error"; message: string };
 
 // Loads a workspace file. Missing and invalid files are reported explicitly so
-// selected files do not silently become default workspaces.
-// Merges with defaults so newly added fields (like id) are always present, and
-// drops stored keys no longer part of the shape so a retired field is never
-// re-emitted on the next save. Required list fields are coerced to arrays so a
-// corrupted file cannot crash startup, and activeTabIndex is runtime-only and is
-// re-injected after parsing.
+// selected files do not silently become default workspaces. activeTabIndex is
+// runtime-only and is set after parsing; unrecognized keys are left behind.
 export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> {
   const result = await readJsonFileResult<unknown>(path, "workspace");
-  if (result.status === "missing") {
-    return { status: "missing" };
-  }
-  if (result.status !== "success") {
-    return result;
-  }
-
+  if (result.status !== "success") return result;
   const data = result.data;
-  // A file that is not one of ours is corruption, the same branch as unparseable
-  // JSON. This has to run before the merge: the merge fills every field from
-  // defaults, so without it a foreign JSON object loads as an empty workspace
-  // and the id write-back below replaces the file with one — which is reachable
-  // straight from the startup picker's Open button.
   if (!isWorkspaceDocument(data)) {
     return { status: "invalid", message: "not a workspace document" };
   }
-  // A present-but-wrong-shape field is corruption too: coercing it to [] and
-  // letting the next flush write the emptied list back would destroy the user's
-  // tabs on a file that never looked corrupt (storage-path conventions). An
-  // absent field still takes its default below; the failing file is reported in
-  // place like any other unloadable document, and the rest of the app keeps
-  // working.
-  if (data.openTabs !== undefined && !Array.isArray(data.openTabs)) {
-    return { status: "invalid", message: "openTabs is not an array" };
-  }
-  if (data.recentFiles !== undefined && !Array.isArray(data.recentFiles)) {
-    return { status: "invalid", message: "recentFiles is not an array" };
-  }
-  const defaults = createDefaultWorkspace(data.name ?? "Default");
-  const merged = mergeWithDefaults(defaults, data);
-  const workspace: WorkspaceDto = {
-    ...merged,
-    openTabs: data.openTabs ?? defaults.openTabs,
-    recentFiles: data.recentFiles ?? defaults.recentFiles,
-    // A stored empty id is as absent as a missing one, and mergeWithDefaults
-    // deliberately preserves "" — so take the freshly minted default rather
-    // than re-persisting the empty value on every launch.
-    id: data.id || defaults.id,
-    activeTabIndex: defaults.activeTabIndex,
+  return {
+    status: "success",
+    workspace: {
+      id: data.id,
+      name: data.name,
+      openTabs: data.openTabs,
+      recentFiles: data.recentFiles,
+      activeTabIndex: -1,
+    },
   };
-  // Materialize a missing stable id by persisting it once, so this workspace's
-  // identity does not change between launches — without a write-back
-  // mergeWithDefaults mints a fresh one on every load. Best-effort: a failed
-  // write just defers materialization to the next load.
-  if (!data.id) {
-    const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
-    try {
-      await writeJsonFile(path, "workspace", persisted);
-    } catch {
-      // Non-fatal — the id persists on the next successful save.
-    }
-  }
-  return { status: "success", workspace };
 }
 
 // Flushes the latest workspace state to disk. Calls are serialized per path,

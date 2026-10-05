@@ -75,22 +75,27 @@ describe("preferences sets", () => {
   });
 
   it("warns on every load of an invalid set", async () => {
-    stored({ id: "prefs", theme: "sepia" });
+    stored({ id: "prefs", name: "Work", theme: "sepia" });
     await loadPreferences("/prefs.json");
     await loadPreferences("/prefs.json");
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
-  it.each([
-    [{ id: "prefs" }], [{ id: "prefs", timezone: null }],
-  ])("reads the time zone of %j as the system token without a warning", async (data) => {
-    stored(data);
+  it("reads an absent time zone as the system token without a warning", async () => {
+    stored({ id: "prefs", name: "Work" });
     const result = await loadPreferences("/prefs.json");
     expect(result.status === "success" && result.preferences.timezone).toBe("system");
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it.each([null, [], "preferences", 7, { name: "foreign", version: "1" }])("rejects a document without identity (%j) without rewriting", async (data) => {
+  it("reads a null time zone as an invalid set: its built-in, with a warning", async () => {
+    stored({ id: "prefs", name: "Work", timezone: null });
+    const result = await loadPreferences("/prefs.json");
+    expect(result.status === "success" && result.preferences.timezone).toBe("system");
+    expect(warn).toHaveBeenCalledExactlyOnceWith("preferences set is invalid; using built-in", { path: "/prefs.json", key: "timezone" });
+  });
+
+  it.each([null, [], "preferences", 7, { name: "foreign", version: "1" }, { id: "prefs" }])("rejects a document without identity and name (%j) without rewriting", async (data) => {
     stored(data);
     expect(await loadPreferences("/foreign.json")).toEqual({ status: "invalid", message: "not a preferences document" });
     expect(writeJsonFile).not.toHaveBeenCalled();

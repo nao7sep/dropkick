@@ -64,34 +64,6 @@ describe("loadTaskList", () => {
     expect(await repo.loadTaskList("/f.json")).toEqual({ status: "missing" });
   });
 
-  it("materializes a missing id: generates one, persists it, and re-hashes", async () => {
-    // A legacy file surfaces id === "" (the Rust TaskListDto default).
-    readJsonFileWithHash.mockResolvedValue({
-      status: "success",
-      data: { id: "", tasks: [] },
-      hash: "OLD",
-    });
-    // The core returns the hash of the bytes it wrote; nothing is read back.
-    writeJsonFile.mockResolvedValue("NEWHASH");
-
-    const result = await repo.loadTaskList("/legacy.json");
-
-    // The persisted file carries a freshly generated, non-empty id...
-    expect(writeJsonFile).toHaveBeenCalledTimes(1);
-    const [writtenPath, written] = writeJsonFile.mock.calls[0];
-    expect(writtenPath).toBe("/legacy.json");
-    expect((written as TaskListDto).id).toMatch(/.+/);
-    // ...and the returned data carries that same id.
-    if (result.status !== "success") throw new Error("expected success");
-    expect(result.taskList.data.id).toBe((written as TaskListDto).id);
-
-    // The write's own hash is now the registered hash: a matching flush uses
-    // it, no conflict.
-    hashFile.mockReset();
-    hashFile.mockResolvedValue("NEWHASH");
-    expect(await repo.flushTaskList("/legacy.json", () => data())).toEqual({ status: "success" });
-  });
-
   it("does not rewrite a file that already has an id", async () => {
     readJsonFileWithHash.mockResolvedValue({
       status: "success",

@@ -26,6 +26,15 @@ beforeEach(() => {
   warn.mockReset();
 });
 
+const STORED = {
+  lastPreferencesPath: "/selected.json",
+  lastLaunchedPreferencesPath: "/launched.json",
+  lastWorkspacePath: "/work.json",
+  zoomLevel: 1.5,
+  sidebarWidth: 440,
+  recordsListWidth: 400,
+};
+
 describe("app-level view state", () => {
   it("creates first-run state and default documents without a config file or known-document lists", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
@@ -39,13 +48,12 @@ describe("app-level view state", () => {
     expect(writeJsonFile.mock.calls[1][1]).toEqual({ id: expect.any(String), name: "Default" });
   });
 
-  it("reads last selections and geometry while dropping obsolete known-document lists", async () => {
+  it("reads last selections and geometry, leaving unrecognized keys behind", async () => {
     readJsonFileResult.mockResolvedValue({ status: "success", data: {
-      version: "1.0.0", lastPreferencesPath: "/selected.json", lastWorkspacePath: "/work.json",
-      knownPreferences: ["/old.json"], knownWorkspaces: "obsolete wrong shape", zoomLevel: 1.5, sidebarWidth: 440,
+      ...STORED, knownPreferences: ["/old.json"], knownWorkspaces: "unrecognized",
     } });
     const { appState } = await initializeAppState();
-    expect(appState).toEqual({ ...createDefaultAppState(), lastPreferencesPath: "/selected.json", lastLaunchedPreferencesPath: "/selected.json", lastWorkspacePath: "/work.json", zoomLevel: 1.5, sidebarWidth: 440 });
+    expect(appState).toEqual(STORED);
     expect(quarantineFile).not.toHaveBeenCalled();
     expect(writeJsonFile).not.toHaveBeenCalled();
     await flushAppState(`${ROOT}/state.json`, () => appState);
@@ -54,7 +62,7 @@ describe("app-level view state", () => {
   });
 
   it("recreates only a missing default preferences document, with identity only", async () => {
-    readJsonFileResult.mockResolvedValue({ status: "success", data: {} });
+    readJsonFileResult.mockResolvedValue({ status: "success", data: STORED });
     fileExists.mockImplementation(async (path: string) => path !== `${ROOT}/preferences.json`);
     await initializeAppState();
     expect(writeJsonFile).toHaveBeenCalledOnce();
@@ -64,9 +72,11 @@ describe("app-level view state", () => {
   it.each([
     { status: "invalid", message: "bad JSON" },
     { status: "success", data: null },
-    { status: "success", data: { zoomLevel: "large" } },
-    { status: "success", data: { lastWorkspacePath: [] } },
-  ])("quarantines damaged state before recreating view defaults", async (result) => {
+    { status: "success", data: { ...STORED, zoomLevel: "large" } },
+    { status: "success", data: { ...STORED, lastWorkspacePath: [] } },
+    { status: "success", data: { ...STORED, lastLaunchedPreferencesPath: undefined } },
+    { status: "success", data: {} },
+  ])("quarantines damaged or incomplete state before recreating view defaults", async (result) => {
     readJsonFileResult.mockResolvedValue(result);
     const { appState } = await initializeAppState();
     expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
@@ -77,7 +87,7 @@ describe("app-level view state", () => {
 
   it.each([
     [{ status: "invalid", message: "bad JSON" }, { error: { message: "bad JSON" } }],
-    [{ status: "success", data: { zoomLevel: "large" } }, { issue: "zoomLevel is not a finite number" }],
+    [{ status: "success", data: { ...STORED, zoomLevel: "large" } }, { issue: "zoomLevel is not a finite number" }],
   ])("records a reset state file with its reason", async (result, reason) => {
     readJsonFileResult.mockResolvedValue(result);
     await initializeAppState();

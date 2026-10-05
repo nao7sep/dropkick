@@ -127,11 +127,14 @@ const OTHER_DOCUMENT_KEYS = ["openTabs", "recentFiles", "tasks"] as const satisf
   readonly (keyof PersistedWorkspaceDto | keyof TaskListDto)[];
 
 // User-picked JSON is a preferences document only when it carries its identity
-// and no key of another kind of document.
-export function isPreferencesDocument(data: unknown): data is Record<string, unknown> & { id: string } {
+// and name and no key of another kind of document.
+export function isPreferencesDocument(
+  data: unknown,
+): data is Record<string, unknown> & { id: string; name: string } {
   if (typeof data !== "object" || data === null || Array.isArray(data)) return false;
   const candidate = data as Record<string, unknown>;
   return typeof candidate.id === "string"
+    && typeof candidate.name === "string"
     && !OTHER_DOCUMENT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(candidate, key));
 }
 

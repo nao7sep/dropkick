@@ -24,22 +24,19 @@ export interface RecentFileDto {
   lastOpenedAtUtc: string; // ISO 8601
 }
 
-// Recognizes a parsed JSON document as a workspace file. This answers "is this
-// one of ours?", which is a separate question from "are its fields well-formed?"
-// — the loader still shape-checks the fields it finds. Without this gate any
-// JSON object passes, takes every field from defaults, and the id write-back
-// rewrites it as a workspace, so picking a neighbouring .json in the startup
-// picker destroys it. The test is a field only a workspace carries: that
-// rejects a package.json or a task list while still letting mergeWithDefaults
-// heal a document that predates a newly added field.
-export function isWorkspaceDocument(
-  data: unknown,
-): data is Partial<PersistedWorkspaceDto> {
+// Recognizes a parsed JSON document as a workspace file with every field this
+// build writes. Anything else — a package.json, a task list, a document missing
+// a field — is not a workspace, so the startup picker reports it rather than
+// loading it and later writing a workspace over it.
+export function isWorkspaceDocument(data: unknown): data is PersistedWorkspaceDto {
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
     return false;
   }
-  const candidate = data as Partial<PersistedWorkspaceDto>;
-  return candidate.openTabs !== undefined || candidate.recentFiles !== undefined;
+  const candidate = data as Record<string, unknown>;
+  return typeof candidate.id === "string" && candidate.id !== ""
+    && typeof candidate.name === "string"
+    && Array.isArray(candidate.openTabs)
+    && Array.isArray(candidate.recentFiles);
 }
 
 export function createDefaultWorkspace(name: string): WorkspaceDto {

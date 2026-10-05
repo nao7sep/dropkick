@@ -15,7 +15,7 @@ export interface NoteDto {
   actionability: NoteActionability;
   createdAtUtc: string; // ISO 8601
   // ISO 8601, the moment of the last content edit; absent until the note is
-  // first edited, so files written before the field read as never edited.
+  // first edited.
   editedAtUtc?: string;
 }
 
@@ -33,8 +33,7 @@ export interface TaskDto {
 }
 
 export interface TaskListDto {
-  // Stable identity for this list. Generated once at creation and materialized
-  // on load for legacy files that lack one — see loadTaskList.
+  // Stable identity for this list, generated once at creation.
   id: string;
   tasks: TaskDto[];
 }

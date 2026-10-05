@@ -13,36 +13,36 @@ import {
 } from "./file-system";
 import { createPreferencesFile } from "./preferences-repository";
 import { createWorkspaceFile } from "./workspace-repository";
-import { mergeWithDefaults } from "../utils/merge-defaults";
 import { log, type LogFields } from "./logging";
 
 
-function appStateShapeIssue(value: unknown): string | null {
+const STRING_FIELDS = [
+  "lastPreferencesPath",
+  "lastLaunchedPreferencesPath",
+  "lastWorkspacePath",
+] as const satisfies readonly (keyof AppStateDto)[];
+const NUMBER_FIELDS = ["zoomLevel", "sidebarWidth", "recordsListWidth"] as const satisfies
+  readonly (keyof AppStateDto)[];
+
+// The state as this build writes it, every field present, or why the file is
+// not that. Unrecognized keys are left behind.
+function parseAppState(value: unknown): AppStateDto | string {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return "state root is not an object";
   }
-
   const data = value as Record<string, unknown>;
-  const stringFields = [
-    "lastPreferencesPath",
-    "lastLaunchedPreferencesPath",
-    "lastWorkspacePath",
-  ] as const;
-  for (const field of stringFields) {
-    if (data[field] !== undefined && typeof data[field] !== "string") {
-      return `${field} is not a string`;
-    }
+  for (const field of STRING_FIELDS) {
+    if (typeof data[field] !== "string") return `${field} is not a string`;
   }
-
-  const numberFields = ["zoomLevel", "sidebarWidth", "recordsListWidth"] as const;
-  for (const field of numberFields) {
+  for (const field of NUMBER_FIELDS) {
     const number = data[field];
-    if (number !== undefined && (typeof number !== "number" || !Number.isFinite(number))) {
+    if (typeof number !== "number" || !Number.isFinite(number)) {
       return `${field} is not a finite number`;
     }
   }
-
-  return null;
+  return Object.fromEntries(
+    [...STRING_FIELDS, ...NUMBER_FIELDS].map((field) => [field, data[field]]),
+  ) as unknown as AppStateDto;
 }
 
 // First-launch setup: creates ~/.dropkick/ with the default state, preferences
@@ -67,29 +67,26 @@ export async function initializeAppState(): Promise<{
 
   // Create or read app appState.
   const configResult = await readJsonFileResult<unknown>(statePath, "state");
+  if (configResult.status === "error") {
+    throw new Error(`Failed to load app appState: ${configResult.message}`);
+  }
 
   // State is disposable, so a reset is not reported to the user; its record
   // says why (store-recovery-conventions).
+  let appState: AppStateDto | null = null;
   let resetReason: LogFields | null = null;
   if (configResult.status === "invalid") {
     resetReason = { error: { message: configResult.message } };
   } else if (configResult.status === "success") {
-    const shapeIssue = appStateShapeIssue(configResult.data);
-    if (shapeIssue) resetReason = { issue: shapeIssue };
+    const parsed = parseAppState(configResult.data);
+    if (typeof parsed === "string") resetReason = { issue: parsed };
+    else appState = parsed;
   }
-  let quarantinedTo: string | null = null;
   if (resetReason) {
-    quarantinedTo = await quarantineFile(statePath);
+    const quarantinedTo = await quarantineFile(statePath);
     log.warn("state.json reset", { statePath, quarantinedTo, ...resetReason });
   }
 
-  const firstRunState = (): AppStateDto => ({
-    ...createDefaultAppState(),
-    lastPreferencesPath: prefsPath,
-    lastWorkspacePath: workspacePath,
-  });
-  let appState: AppStateDto;
-  const created = configResult.status === "missing" || quarantinedTo !== null;
   const newer = configResult.status === "newer";
   if (newer) {
     // Disposable view state: the log names the file the session leaves alone.
@@ -97,25 +94,16 @@ export async function initializeAppState(): Promise<{
       statePath,
       formatVersion: configResult.formatVersion,
     });
-    appState = firstRunState();
-  } else if (created) {
-    appState = firstRunState();
-    await writeJsonFile(statePath, "state", appState, false);
-  } else if (configResult.status === "success") {
-    // Fill any newly added fields from defaults and drop keys no longer part of
-    // AppStateDto, so a retired field is never re-emitted — the same
-    // load-boundary contract as the preferences and workspace repositories.
-    const stored = configResult.data as Partial<AppStateDto>;
-    appState = mergeWithDefaults(createDefaultAppState(), stored);
-    // Before startup theming existed, lastPreferencesPath was the only stored
-    // candidate. Treat it as the last launched document for existing state;
-    // new state starts empty and records this only after a successful launch.
-    if (!("lastLaunchedPreferencesPath" in stored)) {
-      appState.lastLaunchedPreferencesPath = appState.lastPreferencesPath;
-    }
-  } else {
-    throw new Error(`Failed to load app appState: ${configResult.message}`);
   }
+  const created = appState === null && !newer;
+  if (appState === null) {
+    appState = {
+      ...createDefaultAppState(),
+      lastPreferencesPath: prefsPath,
+      lastWorkspacePath: workspacePath,
+    };
+  }
+  if (created) await writeJsonFile(statePath, "state", appState, false);
 
   // Create missing default documents through their owning repositories.
   if (!(await fileExists(prefsPath))) {

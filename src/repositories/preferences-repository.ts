@@ -16,14 +16,15 @@ export type LoadPreferencesResult =
   | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
-function effectivePreferences(data: Record<string, unknown> & { id: string }, path: string): PreferencesDto {
-  const preferences = createDefaultPreferences(typeof data.name === "string" ? data.name : "Default");
+function effectivePreferences(
+  data: Record<string, unknown> & { id: string; name: string },
+  path: string,
+): PreferencesDto {
+  const preferences = createDefaultPreferences(data.name);
   preferences.id = data.id;
   for (const key of PREFERENCE_SET_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
     const value = data[key];
-    // A null time zone is how earlier documents stored the system zone.
-    if (key === "timezone" && value === null) continue;
     if (!isValidPreferenceSet(key, value)) {
       log.warn("preferences set is invalid; using built-in", { path, key });
       continue;

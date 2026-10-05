@@ -71,7 +71,7 @@ fn read_json_returns_invalid_for_bad_json() {
 fn read_json_returns_success_with_hash() {
     let dir = unique_temp_dir("read-success");
     let path = dir.join("good.json");
-    let json = br#"{"formatVersion":1,"tasks":[]}"#;
+    let json = br#"{"formatVersion":1,"id":"L1","tasks":[]}"#;
     std::fs::write(&path, json).unwrap();
     let result = read_json_file_with_hash(path.to_str().unwrap()).unwrap();
     match result {

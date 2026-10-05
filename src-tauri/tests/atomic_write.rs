@@ -48,7 +48,7 @@ fn quarantine_target_is_stem_stamp_dot_invalid_beside_the_source() {
 
 #[test]
 fn classify_json_bytes_success_and_invalid() {
-    let json = br#"{"formatVersion":1,"tasks":[]}"#;
+    let json = br#"{"formatVersion":1,"id":"L1","tasks":[]}"#;
     match classify_json_bytes(json) {
         JsonFileWithHashResult::Success { data, hash } => {
             assert!(data.tasks.is_empty());
@@ -69,6 +69,16 @@ fn a_task_list_without_a_marker_is_invalid() {
         &br#"{"version":"1.0.0","id":"L1","tasks":[]}"#[..],
         br#"{"id":"L1","tasks":[]}"#,
         br#"[]"#,
+    ] {
+        assert!(matches!(classify_json_bytes(json), JsonFileWithHashResult::Invalid { .. }));
+    }
+}
+
+#[test]
+fn a_task_list_without_its_id_is_invalid() {
+    for json in [
+        &br#"{"formatVersion":1,"tasks":[]}"#[..],
+        br#"{"formatVersion":1,"id":"","tasks":[]}"#,
     ] {
         assert!(matches!(classify_json_bytes(json), JsonFileWithHashResult::Invalid { .. }));
     }

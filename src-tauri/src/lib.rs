@@ -130,11 +130,7 @@ pub struct TaskDto {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskListDto {
-    // A stable identity materialized on load (see task-list-repository.ts). Legacy
-    // files predate the field, so it defaults to empty on read; the frontend fills
-    // and persists it. It rides through this struct so read_json_file_with_hash —
-    // which returns the deserialized DTO, not the raw text — never strips it.
-    #[serde(default)]
+    // The list's stable identity, generated once when the list is created.
     pub id: String,
     pub tasks: Vec<TaskDto>,
 }
@@ -283,6 +279,9 @@ pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
 }
 
 fn validate_task_list_identities(data: &TaskListDto) -> Result<(), String> {
+    if data.id.is_empty() {
+        return Err("task list id is empty".to_string());
+    }
     let mut task_ids = HashSet::new();
     for task in &data.tasks {
         if !task_ids.insert(task.id.as_str()) {

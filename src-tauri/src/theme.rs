@@ -29,14 +29,9 @@ pub fn preferences_window_theme(preferences: &Value) -> Option<Theme> {
 }
 
 /// The preferences document the startup picker previews: state.json's
-/// `lastLaunchedPreferencesPath`, or `lastPreferencesPath` in a state file
-/// written before that field existed — the same fallback the frontend's
-/// app-state migration applies.
+/// `lastLaunchedPreferencesPath`.
 pub fn last_launched_preferences_path(state: &Value) -> Option<&str> {
-    let path = match state.get("lastLaunchedPreferencesPath") {
-        Some(value) => value.as_str()?,
-        None => state.get("lastPreferencesPath")?.as_str()?,
-    };
+    let path = state.get("lastLaunchedPreferencesPath")?.as_str()?;
     (!path.is_empty()).then_some(path)
 }
 

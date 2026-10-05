@@ -51,7 +51,7 @@ fn a_document_without_a_valid_theme_follows_the_os() {
 }
 
 #[test]
-fn the_previewed_document_falls_back_to_the_older_state_field() {
+fn the_previewed_document_is_the_last_launched_one() {
     assert_eq!(
         last_launched_preferences_path(&json!({
             "lastLaunchedPreferencesPath": "/a.json",
@@ -61,16 +61,12 @@ fn the_previewed_document_falls_back_to_the_older_state_field() {
     );
     assert_eq!(
         last_launched_preferences_path(&json!({ "lastPreferencesPath": "/b.json" })),
-        Some("/b.json")
-    );
-    assert_eq!(
-        last_launched_preferences_path(&json!({
-            "lastLaunchedPreferencesPath": "",
-            "lastPreferencesPath": "/b.json"
-        })),
         None
     );
-    assert_eq!(last_launched_preferences_path(&json!({})), None);
+    assert_eq!(
+        last_launched_preferences_path(&json!({ "lastLaunchedPreferencesPath": "" })),
+        None
+    );
 }
 
 #[test]

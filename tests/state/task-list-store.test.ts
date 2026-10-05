@@ -609,9 +609,9 @@ describe("handled pagination", () => {
 describe("refreshFromDisk", () => {
   // The repository offers a changed copy to the store and reports whether it
   // was taken, as refreshTaskList does.
-  function diskHolds(tasks: TaskListDto["tasks"], id = "L1") {
+  function diskHolds(tasks: TaskListDto["tasks"]) {
     refreshTaskList.mockImplementation(async (_p: string, adopt: (data: TaskListDto) => boolean) =>
-      adopt({ id, tasks }) ? { status: "reloaded" } : { status: "kept" },
+      adopt({ id: "L1", tasks }) ? { status: "reloaded" } : { status: "kept" },
     );
   }
 
@@ -650,13 +650,6 @@ describe("refreshFromDisk", () => {
     expect(tasksOf().map((t) => t.title)).toEqual(["typed in app"]);
     finish({ status: "success" });
     await saving;
-  });
-
-  it("keeps the list's identity when the file was saved without its id", async () => {
-    seedFile();
-    diskHolds([makeTask({ id: "a" })], "");
-    await useTaskListStore.getState().refreshFromDisk(FILE);
-    expect(useTaskListStore.getState().files[FILE]?.data.id).toBe("L1");
   });
 
   it("keeps the loaded copy when the file is gone or unreadable, and says so until it reads back", async () => {

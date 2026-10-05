@@ -897,15 +897,12 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks)) {
             return false;
           }
-          // A file saved without its id keeps the list's identity; the next
-          // save writes it back.
-          const next: TaskListDto = { ...data, id: data.id || current.data.id };
-          const taskIds = new Set(next.tasks.map((task) => task.id));
+          const taskIds = new Set(data.tasks.map((task) => task.id));
           set((state) => ({
-            files: { ...state.files, [filePath]: { data: next } },
+            files: { ...state.files, [filePath]: { data } },
             selectedKeys: retainSelection(state.selectedKeys, filePath, taskIds),
           }));
-          persistedFiles.set(filePath, next);
+          persistedFiles.set(filePath, data);
           return true;
         });
       } catch (e) {
