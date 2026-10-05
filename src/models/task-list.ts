@@ -25,7 +25,7 @@ export interface TaskDto {
   dueDate: string | null; // date only "YYYY-MM-DD", no timezone
   createdAtUtc: string; // ISO 8601
   updatedAtUtc: string; // ISO 8601
-  completedAtUtc: string | null; // ISO 8601, set on Completed or Dismissed
+  completedAtUtc: string | null; // ISO 8601, the handled time: set on leaving Pending, kept between Completed and Dismissed
   notes: NoteDto[];
 }
 

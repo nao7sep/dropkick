@@ -1,9 +1,10 @@
 // Task-level operations: add, update, status transitions.
 // All functions return new arrays/objects — no mutation.
-// Rule: updatedAtUtc changes only when persisted task data changes.
+// updatedAtUtc follows the Modified rule of the content-lifecycle-conventions;
+// status and note actionability are lifecycle.
 // No-op edits must return the original task object so callers can skip writes.
 
-import type { TaskDto, TaskStatus, TaskPriority, NoteDto } from "../models";
+import type { TaskDto, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../models";
 import { nowUtc } from "../utils";
 
 // Adds a new task to the beginning of the task list.
@@ -29,23 +30,18 @@ export function updateTaskDescription(
   return { ...task, description, updatedAtUtc: nowUtc() };
 }
 
-// Changes a task's status. Sets completedAtUtc when transitioning to Completed/Dismissed.
-// Clears completedAtUtc when returning to Pending.
+// Changes a task's status. Completed and Dismissed share one handled time,
+// completedAtUtc: entering either from Pending sets it, moving between them
+// keeps it, and returning to Pending clears it.
 // Caller is responsible for validation (use canTransitionStatus first).
 export function changeTaskStatus(
   task: TaskDto,
   status: TaskStatus,
 ): TaskDto {
   if (task.status === status) return task;
-
-  const now = nowUtc();
-
-  if (status === "Completed" || status === "Dismissed") {
-    return { ...task, status, completedAtUtc: now, updatedAtUtc: now };
-  }
-
-  // Returning to Pending.
-  return { ...task, status, completedAtUtc: null, updatedAtUtc: now };
+  if (status === "Pending") return { ...task, status, completedAtUtc: null };
+  if (task.status !== "Pending") return { ...task, status };
+  return { ...task, status, completedAtUtc: nowUtc() };
 }
 
 // Changes a task's priority.
@@ -97,7 +93,7 @@ export function updateNoteContent(
 export function changeNoteActionability(
   task: TaskDto,
   noteId: string,
-  actionability: "Informational" | "Actionable" | "Resolved",
+  actionability: NoteActionability,
 ): TaskDto {
   const note = task.notes.find((n) => n.id === noteId);
   if (!note || note.actionability === actionability) return task;
@@ -107,7 +103,6 @@ export function changeNoteActionability(
     notes: task.notes.map((n) =>
       n.id === noteId ? { ...n, actionability } : n,
     ),
-    updatedAtUtc: nowUtc(),
   };
 }
 

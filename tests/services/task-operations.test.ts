@@ -16,10 +16,13 @@ import {
 import { makeTask, makeNote } from "../helpers/task";
 
 // The load-bearing contract here: an edit that changes nothing returns the SAME
-// object reference, and updatedAtUtc changes only when persisted data changes.
+// object reference, and updatedAtUtc follows the Modified rule of the
+// content-lifecycle-conventions: content edits move it, lifecycle does not.
 // Callers rely on reference identity to skip disk writes.
 
 const FIXED_NOW = "2026-06-04T12:00:00.000Z";
+const EARLIER = "2026-01-01T00:00:00.000Z";
+const HANDLED = "2026-03-01T00:00:00.000Z";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -108,6 +111,31 @@ describe("changeTaskStatus", () => {
     expect(result.completedAtUtc).toBeNull();
   });
 
+  it.each([
+    ["Completed", "Dismissed"],
+    ["Dismissed", "Completed"],
+  ] as const)("keeps the handled time moving from %s to %s", (from, to) => {
+    const task = makeTask({ status: from, completedAtUtc: HANDLED });
+    const result = changeTaskStatus(task, to);
+    expect(result.status).toBe(to);
+    expect(result.completedAtUtc).toBe(HANDLED);
+  });
+
+  it.each([
+    ["Pending", "Completed"],
+    ["Pending", "Dismissed"],
+    ["Completed", "Pending"],
+    ["Dismissed", "Pending"],
+    ["Completed", "Dismissed"],
+  ] as const)("leaves updatedAtUtc alone from %s to %s", (from, to) => {
+    const task = makeTask({
+      status: from,
+      completedAtUtc: from === "Pending" ? null : HANDLED,
+      updatedAtUtc: EARLIER,
+    });
+    expect(changeTaskStatus(task, to).updatedAtUtc).toBe(EARLIER);
+  });
+
   it("returns the same object when status is unchanged", () => {
     const task = makeTask({ status: "Pending" });
     expect(changeTaskStatus(task, "Pending")).toBe(task);
@@ -143,6 +171,15 @@ describe("notes", () => {
     const task = makeTask({ notes: [makeNote({ id: "n1", actionability: "Informational" })] });
     const result = changeNoteActionability(task, "n1", "Actionable");
     expect(result.notes[0].actionability).toBe("Actionable");
+  });
+
+  it("changeNoteActionability leaves the task's updatedAtUtc alone", () => {
+    const task = makeTask({
+      updatedAtUtc: EARLIER,
+      notes: [makeNote({ id: "n1", actionability: "Actionable" })],
+    });
+    const result = changeNoteActionability(task, "n1", "Resolved");
+    expect(result.updatedAtUtc).toBe(EARLIER);
   });
 
   it("changeNoteActionability is a no-op when already in that state", () => {
