@@ -573,6 +573,13 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| "path has no file name".to_string())?;
+
+    // A write that changes nothing is skipped (content-lifecycle-conventions,
+    // Files). A target that is missing or cannot be read takes the write below.
+    if std::fs::read(target).is_ok_and(|existing| existing == contents.as_bytes()) {
+        return Ok(sha256_hex(contents.as_bytes()));
+    }
+
     let tmp = parent.join(atomic_temp_name(file_name));
 
     let write_tmp = (|| -> std::io::Result<()> {

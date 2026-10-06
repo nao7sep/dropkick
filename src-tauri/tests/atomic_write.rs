@@ -327,6 +327,39 @@ fn write_atomic_takes_the_save_as_the_modified_time() {
     assert!(modified > old, "the save must stamp its own modified time");
 }
 
+#[test]
+fn an_unchanged_write_leaves_the_file_untouched_through_both_writers() {
+    // A write that changes nothing is skipped (content-lifecycle-conventions,
+    // Files), so the file keeps its modified time and, being the same file, its
+    // identity and metadata.
+    let dir = unique_temp_dir("unchanged");
+    let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_577_836_800);
+    let writers: [(&str, fn(&str, &str) -> Result<String, String>); 2] = [
+        ("recorded.json", write_atomic),
+        ("unrecorded.json", write_atomic_unrecorded),
+    ];
+    for (name, write) in writers {
+        let path = dir.join(name);
+        std::fs::write(&path, "same").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        #[cfg(unix)]
+        let inode = std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(&path).unwrap());
+
+        let hash = write(path.to_str().unwrap(), "same").unwrap();
+
+        assert_eq!(hash, sha256_hex(b"same"));
+        let metadata = std::fs::metadata(&path).unwrap();
+        assert_eq!(metadata.modified().unwrap(), old, "{name} was rewritten");
+        #[cfg(unix)]
+        assert_eq!(std::os::unix::fs::MetadataExt::ino(&metadata), inode, "{name} was replaced");
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn run(command: &str, args: &[&str]) -> String {
     let output = std::process::Command::new(command).args(args).output().unwrap();
