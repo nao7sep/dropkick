@@ -61,11 +61,13 @@ export {
 export type { TaskField } from "./note-drafts";
 
 export type { LoadFailure, DocumentKind } from "./load-failure";
-export { describeDiskFailure, describeLoadFailure, fileNameWithoutExt } from "./load-failure";
 export {
-  describeAppConfigRecovery,
-  describeNoteDraftRecovery,
-} from "./recovery-presentation";
+  describeDiskFailure,
+  describeLoadFailure,
+  describeNoteDraftsFailure,
+  fileNameWithoutExt,
+} from "./load-failure";
+export { describeAppConfigRecovery } from "./recovery-presentation";
 
 export type { StagedPreferences } from "./preferences-draft";
 

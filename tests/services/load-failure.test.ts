@@ -1,6 +1,10 @@
 import { inEnglish } from "../helpers/i18n";
 import { describe, expect, it } from "vitest";
-import { describeDiskFailure, describeLoadFailure } from "../../src/services/load-failure";
+import {
+  describeDiskFailure,
+  describeLoadFailure,
+  describeNoteDraftsFailure,
+} from "../../src/services/load-failure";
 
 describe("load failure presentation", () => {
   it("keeps diagnostic exception text out of user-facing copy", () => {
@@ -28,5 +32,19 @@ describe("load failure presentation", () => {
       expect(at).toContain("left unchanged");
     }
     expect(inEnglish(describeDiskFailure(newer))).toContain("the copy Dropkick loaded earlier");
+  });
+
+  it("names the note drafts file and says it was left unchanged, whatever went wrong", () => {
+    const path = "/Users/person/.dropkick/note-drafts.json";
+    for (const result of [
+      { status: "invalid", message: "HOSTILE-SENTINEL" },
+      { status: "newer", formatVersion: 2 },
+      { status: "error", message: "HOSTILE-SENTINEL EACCES" },
+    ] as const) {
+      const text = inEnglish(describeNoteDraftsFailure(result, path));
+      expect(text).toContain(path);
+      expect(text).toContain("left unchanged");
+      expect(text).not.toContain("HOSTILE-SENTINEL");
+    }
   });
 });

@@ -43,7 +43,7 @@ export { loadNoteDrafts, flushNoteDrafts } from "./note-draft-repository";
 export { applyWindowTheme } from "./window-theme";
 export { applyLanguage, loadLanguageEnvironment } from "./language";
 export type { LanguageEnvironment } from "./language";
-export type { LoadNoteDraftsResult } from "./note-draft-repository";
+export type { LoadNoteDraftsResult, NoteDraftsLoadFailure } from "./note-draft-repository";
 
 export {
   loadPreferences,

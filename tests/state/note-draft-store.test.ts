@@ -190,38 +190,38 @@ describe("load", () => {
     expect(useNoteDraftStore.getState().filePath).toBe(DRAFTS_PATH);
   });
 
-  it("quarantines an unparseable file and reports the path instead of losing it silently", async () => {
+  it("halts on an unparseable file and leaves it in place", async () => {
     diskRead = { status: "success", text: "{ not json" };
 
-    const recovery = await useNoteDraftStore.getState().load();
+    const failure = await useNoteDraftStore.getState().load();
 
-    expect(recovery).toEqual({ kind: "quarantined", quarantinedTo: expect.stringContaining(".invalid") });
-    expect(invokeMock.mock.calls.some((c) => c[0] === "quarantine_file")).toBe(true);
+    expect(failure).toMatchObject({ status: "invalid", filePath: DRAFTS_PATH });
+    expect(useNoteDraftStore.getState().loaded).toBe(false);
+    expect(invokeMock.mock.calls.some((c) => c[0] === "quarantine_file")).toBe(false);
   });
 
-  it("quarantines a file whose drafts are not text, rather than feeding it to an editor", async () => {
+  it("halts on a file whose drafts are not text, rather than feeding it to an editor", async () => {
     diskRead = {
       status: "success",
-      text: JSON.stringify({ drafts: { t1: { text: "wrong shape" } } }),
+      text: JSON.stringify({ formatVersion: 1, drafts: { t1: { text: "wrong shape" } } }),
     };
 
-    const recovery = await useNoteDraftStore.getState().load();
+    const failure = await useNoteDraftStore.getState().load();
 
-    expect(recovery).toEqual({ kind: "quarantined", quarantinedTo: expect.stringContaining(".invalid") });
+    expect(failure).toMatchObject({ status: "invalid", filePath: DRAFTS_PATH });
     expect(useNoteDraftStore.getState().drafts).toEqual({});
   });
 
-  it("never writes over bytes it failed to read", async () => {
+  it("halts on a file it cannot read and never writes over it", async () => {
     diskRead = { status: "error", message: "permission denied" };
 
-    await useNoteDraftStore.getState().load();
-    useNoteDraftStore.getState().setDraft("t1", "typed this session");
+    const failure = await useNoteDraftStore.getState().load();
+    useNoteDraftStore.getState().setDraft("t1", "typed anyway");
     await vi.advanceTimersByTimeAsync(3000);
 
-    expect(useNoteDraftStore.getState().filePath).toBe("");
+    expect(failure).toEqual({ status: "error", message: "permission denied", filePath: DRAFTS_PATH });
+    expect(useNoteDraftStore.getState().loaded).toBe(false);
     expect(draftWrites()).toEqual([]);
-    // The text is still usable in memory — only the disk copy is given up.
-    expect(useNoteDraftStore.getState().drafts).toEqual({ t1: "typed this session" });
   });
 });
 

@@ -28,8 +28,14 @@
 // residual exposure is the coalescing window, not the session.
 
 import { create } from "zustand";
-import type { StoreRecovery, TaskListDto } from "../models";
-import { flushNoteDrafts, loadNoteDrafts, log, toErrorFields } from "../repositories";
+import type { TaskListDto } from "../models";
+import {
+  flushNoteDrafts,
+  loadNoteDrafts,
+  log,
+  toErrorFields,
+  type NoteDraftsLoadFailure,
+} from "../repositories";
 import { draftTaskId, reconcileDrafts } from "../services/note-drafts";
 
 // Coalescing window for the write-through.
@@ -51,8 +57,8 @@ let writeTimer: ReturnType<typeof setTimeout> | null = null;
 let coalesceStartedAt = 0;
 
 function schedulePersist(): void {
-  // No path means the file could not be read; keep drafts in memory rather than
-  // writing over bytes we failed to read.
+  // No path means the drafts have not been loaded; nothing is written before
+  // the file has been read.
   if (!useNoteDraftStore.getState().filePath) return;
 
   const now = Date.now();
@@ -97,15 +103,13 @@ export async function flushNoteDraftsNow(): Promise<void> {
 
 interface NoteDraftState {
   drafts: Record<string, string>;
-  // Path of ~/.dropkick/note-drafts.json, or "" when persistence is disabled
-  // for this session (the file exists but could not be read, or a newer build
-  // wrote it).
+  // Path of ~/.dropkick/note-drafts.json once loaded, "" before.
   filePath: string;
   loaded: boolean;
 
-  // Reads the persisted drafts. Returns how the file was recovered when it was
-  // quarantined or left in place as newer, so the caller can tell the user.
-  load: () => Promise<StoreRecovery | null>;
+  // Reads the persisted drafts. Returns the failure, with nothing loaded, when
+  // the file exists but cannot be used, so the caller can halt and say so.
+  load: () => Promise<NoteDraftsLoadFailure | null>;
   // Create or update a draft. The composer has no explicit open moment — its
   // first keystroke creates it.
   setDraft: (key: string, text: string) => void;
@@ -148,11 +152,12 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
     justOpenedKey: null,
 
     load: async () => {
-      const { drafts, filePath, recovery } = await loadNoteDrafts();
+      const result = await loadNoteDrafts();
+      if (result.status !== "success") return result;
       // Loading replaces the draft world, so a mark naming an editor from
       // before it is meaningless and must not survive.
-      set({ drafts, filePath, loaded: true, justOpenedKey: null });
-      return recovery;
+      set({ drafts: result.drafts, filePath: result.filePath, loaded: true, justOpenedKey: null });
+      return null;
     },
 
     setDraft: (key, text) => {

@@ -207,34 +207,32 @@ describe("workspace documents", () => {
 });
 
 describe("note-drafts.json", () => {
-  it("quarantines a file without a marker and starts empty", async () => {
+  it("reports a file without a marker as invalid and leaves it alone", async () => {
     const text = put(PATHS.noteDraftsFile, { version: "1.0.0", drafts: { t1: "typed" } });
-    expect(await loadNoteDrafts()).toEqual({
-      drafts: {},
-      filePath: PATHS.noteDraftsFile,
-      recovery: { kind: "quarantined", quarantinedTo: `${PATHS.noteDraftsFile}.invalid` },
-    });
-    expect(disk.get(`${PATHS.noteDraftsFile}.invalid`)).toBe(text);
+    expect(await loadNoteDrafts()).toMatchObject({ status: "invalid", filePath: PATHS.noteDraftsFile });
+    expect(disk.get(PATHS.noteDraftsFile)).toBe(text);
+    expect(writes()).toEqual([]);
   });
 
   it("round-trips the current version", async () => {
     put(PATHS.noteDraftsFile, { formatVersion: 1, drafts: { t1: "typed" } });
     const loaded = await loadNoteDrafts();
     expect(loaded).toEqual({
+      status: "success",
       drafts: { t1: "typed" },
       filePath: PATHS.noteDraftsFile,
-      recovery: null,
     });
+    if (loaded.status !== "success") throw new Error("expected success");
     await flushNoteDrafts(loaded.filePath, () => loaded.drafts);
     expect(stored(PATHS.noteDraftsFile)).toEqual({ formatVersion: 1, drafts: { t1: "typed" } });
   });
 
-  it("leaves a newer build's file byte-identical and turns persistence off", async () => {
+  it("leaves a newer build's file byte-identical and reports it", async () => {
     const text = put(PATHS.noteDraftsFile, { formatVersion: 2, drafts: [{ key: "t1" }] });
     expect(await loadNoteDrafts()).toEqual({
-      drafts: {},
-      filePath: "",
-      recovery: { kind: "newer", formatVersion: 2 },
+      status: "newer",
+      formatVersion: 2,
+      filePath: PATHS.noteDraftsFile,
     });
     expect(disk.get(PATHS.noteDraftsFile)).toBe(text);
     expect(writes()).toEqual([]);

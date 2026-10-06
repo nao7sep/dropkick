@@ -12,9 +12,3 @@ export function describeAppConfigRecovery(recovery: StoreRecovery): RecoveryNoti
     ? { title: message("startup.appConfigNewer.title"), body: message("recovery.appConfigNewer") }
     : { title: message("startup.appConfigReset.title"), body: message("recovery.appConfig") };
 }
-
-export function describeNoteDraftRecovery(recovery: StoreRecovery): RecoveryNotice {
-  return recovery.kind === "newer"
-    ? { title: message("startup.draftsNewer.title"), body: message("recovery.noteDraftsNewer") }
-    : { title: message("startup.draftsReset.title"), body: message("recovery.noteDrafts") };
-}

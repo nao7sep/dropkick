@@ -42,7 +42,7 @@ import { ToastHost } from "./components/shared/ToastHost";
 import {
   describeAppConfigRecovery,
   describeLoadFailure,
-  describeNoteDraftRecovery,
+  describeNoteDraftsFailure,
 } from "./services";
 
 type AppPhase =
@@ -276,7 +276,20 @@ function App() {
       // Note drafts — the user's uncommitted note text, written through as they
       // type. App-level like state.json, not part of the portable documents
       // just loaded, so it is read here rather than alongside either of them.
-      const draftsRecovery = await loadNoteDrafts();
+      // Nothing else holds that text, so a file that cannot be used halts the
+      // launch with the file left in place (store-recovery-conventions).
+      const draftsFailure = await loadNoteDrafts();
+      if (draftsFailure) {
+        log.warn(
+          "note drafts load failed",
+          loadFailureFields(draftsFailure.filePath, draftsFailure),
+        );
+        await showMessage(
+          message("startup.draftsFailed.title"),
+          describeNoteDraftsFailure(draftsFailure, draftsFailure.filePath),
+        );
+        return;
+      }
 
       const workspace = useWorkspaceStore.getState().workspace;
 
@@ -293,11 +306,6 @@ function App() {
       });
 
       setPhase({ kind: "main" });
-
-      if (draftsRecovery) {
-        const notice = describeNoteDraftRecovery(draftsRecovery);
-        await showMessage(notice.title, notice.body);
-      }
     } finally {
       // On failure, allow a retry; on success the picker unmounts so this is moot.
       launchingRef.current = false;
