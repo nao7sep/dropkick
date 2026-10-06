@@ -75,6 +75,18 @@ describe("loadWorkspace", () => {
     expect((await loadWorkspace("/ws.json")).status).toBe("invalid");
   });
 
+  it.each([
+    ["a null tab", { openTabs: [null] }],
+    ["a tab without its path", { openTabs: [{ displayName: "A", isUnifiedView: false }] }],
+    ["a tab whose unified flag is not a boolean", { openTabs: [{ filePath: "", displayName: "U", isUnifiedView: "yes" }] }],
+    ["a null recent file", { recentFiles: [null] }],
+    ["a recent file without its time", { recentFiles: [{ filePath: "/a.json" }] }],
+  ])("reports %s as invalid and leaves it alone", async (_label, change) => {
+    readJsonFileResult.mockResolvedValue({ status: "success", data: { ...stored, ...change } });
+    expect((await loadWorkspace("/ws.json")).status).toBe("invalid");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
   it("rejects a JSON document that is not a workspace, without rewriting it", async () => {
     // The startup picker hands loadWorkspace whatever the user chose in a
     // *.json file dialog; a mis-picked package.json must not load as a

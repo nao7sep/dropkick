@@ -24,19 +24,34 @@ export interface RecentFileDto {
   lastOpenedAtUtc: string; // ISO 8601
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isTab(value: unknown): value is TabDto {
+  return isRecord(value)
+    && typeof value.filePath === "string"
+    && typeof value.displayName === "string"
+    && typeof value.isUnifiedView === "boolean";
+}
+
+function isRecentFile(value: unknown): value is RecentFileDto {
+  return isRecord(value)
+    && typeof value.filePath === "string"
+    && typeof value.lastOpenedAtUtc === "string";
+}
+
 // Recognizes a parsed JSON document as a workspace file with every field this
-// build writes. Anything else — a package.json, a task list, a document missing
-// a field — is not a workspace, so the startup picker reports it rather than
-// loading it and later writing a workspace over it.
+// build writes, down to each tab and recent file. Anything else — a
+// package.json, a task list, a document missing a field — is not a workspace,
+// so the startup picker reports it rather than loading it and later writing a
+// workspace over it.
 export function isWorkspaceDocument(data: unknown): data is PersistedWorkspaceDto {
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    return false;
-  }
-  const candidate = data as Record<string, unknown>;
-  return typeof candidate.id === "string" && candidate.id !== ""
-    && typeof candidate.name === "string"
-    && Array.isArray(candidate.openTabs)
-    && Array.isArray(candidate.recentFiles);
+  if (!isRecord(data)) return false;
+  return typeof data.id === "string" && data.id !== ""
+    && typeof data.name === "string"
+    && Array.isArray(data.openTabs) && data.openTabs.every(isTab)
+    && Array.isArray(data.recentFiles) && data.recentFiles.every(isRecentFile);
 }
 
 export function createDefaultWorkspace(name: string): WorkspaceDto {
