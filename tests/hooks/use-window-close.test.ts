@@ -1,18 +1,14 @@
 // @vitest-environment happy-dom
 //
 // The quit wiring — the seam the previous suite never reached, which is where
-// both defects on this path lived. Two properties matter here:
+// both defects on this path lived. What matters here:
 //
 //   1. The graceful close gets the last keystrokes onto disk BEFORE the window
-//      is destroyed, so the coalescing window costs nothing on the one exit
-//      this handler can actually see.
-//   2. It asks nothing about drafts that are on disk. The old design held
-//      drafts in memory and prompted here; that prompt could not run on macOS
-//      Cmd+Q (tao emits CloseRequested only from `windowShouldClose:`), so it
-//      protected nothing while nagging on the exits it did reach. Drafts are
-//      written through now. It asks only about a write that is stuck (the wait
-//      is bounded, and past the bound the user may close anyway) or a draft
-//      write that failed (Retry or Quit Anyway).
+//      is destroyed, so the coalescing window costs nothing.
+//   2. It asks nothing about work that is on disk. It asks only about a write
+//      that is stuck (the wait is bounded, and past the bound the user may
+//      close anyway) or a write of the user's own work — drafts or a task
+//      list — that failed (Retry or Quit Anyway).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
@@ -26,6 +22,26 @@ const windowStub = vi.hoisted(() => ({
   events: [] as string[],
   unlistened: 0,
 }));
+
+// Task-list writes go through the real per-file serial chain, so the close's
+// drain waits for them exactly as it does for the real ones; only the disk is
+// replaced, failing outright while `failListWrites` is set.
+const listDisk = vi.hoisted(() => ({ fail: false, written: [] as string[] }));
+
+vi.mock("../../src/repositories/task-list-repository", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/repositories/task-list-repository")>();
+  const { withSerial } = await import("../../src/repositories/file-system");
+  return {
+    ...actual,
+    flushTaskList: (path: string, getData: () => { tasks: { priority: string }[] }) =>
+      withSerial(path, async () => {
+        const data = getData();
+        if (listDisk.fail) throw new Error("read-only volume");
+        listDisk.written.push(`${path}:${data.tasks.map((task) => task.priority).join(",")}`);
+        return { status: "success" };
+      }),
+  };
+});
 
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
@@ -48,6 +64,8 @@ import { prepareWindowClose, useWindowClose } from "../../src/hooks/use-window-c
 import { withSerial } from "../../src/repositories/file-system";
 import { useNoteDraftStore, flushNoteDraftsNow } from "../../src/state/note-draft-store";
 import { useDialogStore } from "../../src/state/dialog-store";
+import { useTaskListStore } from "../../src/state/task-list-store";
+import { makeTask } from "../helpers/task";
 
 const invokeMock = invoke as unknown as Mock;
 const DRAFTS_PATH = "/home/u/.dropkick/note-drafts.json";
@@ -81,6 +99,10 @@ beforeEach(async () => {
   windowStub.handlers.length = 0;
   windowStub.events.length = 0;
   windowStub.unlistened = 0;
+  listDisk.fail = false;
+  listDisk.written.length = 0;
+  useTaskListStore.setState({ files: {} });
+  useTaskListStore.getState().forgetFailedWrites();
 
   useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: false });
   await flushNoteDraftsNow();
@@ -232,13 +254,13 @@ describe("a draft write that fails", () => {
 
     await waitForDialog();
     const dialog = useDialogStore.getState().current;
-    expect(dialog?.title.key).toBe("dialog.draftsNotSaved.title");
-    expect(dialog?.body.values).toEqual({ path: DRAFTS_PATH });
+    expect(dialog?.title.key).toBe("dialog.notSaved.title");
+    expect(dialog?.body.values).toEqual({ paths: DRAFTS_PATH });
 
     // Retry with the disk still full asks again.
     useDialogStore.getState().cancelCurrent();
     await waitForDialog();
-    expect(useDialogStore.getState().current?.title.key).toBe("dialog.draftsNotSaved.title");
+    expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
 
     // Retry once the disk has room writes the text and lets the close go ahead.
     failDraftWrites = false;
@@ -258,6 +280,98 @@ describe("a draft write that fails", () => {
     await waitForDialog();
     useDialogStore.getState().confirmCurrent();
 
+    await expect(closing).resolves.toBe(true);
+  });
+});
+
+const LIST = "/Users/u/Lists/home.json";
+
+// A loaded list whose last save landed, so a failed write has a confirmed copy
+// to roll back to.
+async function seedList(): Promise<void> {
+  useTaskListStore.setState({
+    files: { [LIST]: { data: { id: "L1", tasks: [makeTask({ id: "t1", priority: "Default" })] } } },
+  });
+  await useTaskListStore.getState().setPriority(LIST, "t1", "Important");
+  listDisk.written.length = 0;
+}
+
+function priorityOfT1(): string | undefined {
+  return useTaskListStore.getState().files[LIST]?.data.tasks[0]?.priority;
+}
+
+describe("a task-list write that fails outright", () => {
+  it("holds the close, names the list, and retries the change on request", async () => {
+    await mountHarness();
+    await seedList();
+    listDisk.fail = true;
+    // The change is still on its way when the quit starts.
+    void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
+    const closing = prepareWindowClose();
+
+    await waitForDialog();
+    const dialog = useDialogStore.getState().current;
+    expect(dialog?.title.key).toBe("dialog.notSaved.title");
+    expect(dialog?.body.values).toEqual({ paths: LIST });
+    expect(dialog?.confirmLabel.key).toBe("dialog.notSaved.quitAnyway");
+    expect(dialog?.kind === "confirm" && dialog.cancelLabel.key).toBe("dialog.notSaved.retry");
+    // Rolled back in memory, as any failed write is.
+    expect(priorityOfT1()).toBe("Important");
+
+    // Retry with the volume still failing asks again.
+    useDialogStore.getState().cancelCurrent();
+    await waitForDialog();
+    expect(useDialogStore.getState().current?.body.values).toEqual({ paths: LIST });
+
+    // Retry once the volume takes writes again saves the change and closes.
+    listDisk.fail = false;
+    useDialogStore.getState().cancelCurrent();
+    await expect(closing).resolves.toBe(true);
+    expect(listDisk.written).toEqual([`${LIST}:Critical`]);
+    expect(priorityOfT1()).toBe("Critical");
+  });
+
+  it("closes when the user quits anyway", async () => {
+    await mountHarness();
+    await seedList();
+    listDisk.fail = true;
+    void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
+    const closing = prepareWindowClose();
+
+    await waitForDialog();
+    useDialogStore.getState().confirmCurrent();
+
+    await expect(closing).resolves.toBe(true);
+    expect(listDisk.written).toEqual([]);
+  });
+
+  it("does not hold a close for a failure reported before it", async () => {
+    await mountHarness();
+    await seedList();
+    listDisk.fail = true;
+    await useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
+
+    await requestClose();
+
+    expect(useDialogStore.getState().current).toBeNull();
+    expect(windowStub.events).toEqual(["destroy"]);
+  });
+
+  it("is named in the same dialog as drafts that failed", async () => {
+    await mountHarness();
+    await seedList();
+    listDisk.fail = true;
+    failDraftWrites = true;
+    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
+    void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
+    const closing = prepareWindowClose();
+
+    await waitForDialog();
+    expect(useDialogStore.getState().current?.body.values).toEqual({
+      paths: `${LIST}\n${DRAFTS_PATH}`,
+    });
+    expect(useDialogStore.getState().queue).toEqual([]);
+    useDialogStore.getState().confirmCurrent();
     await expect(closing).resolves.toBe(true);
   });
 });

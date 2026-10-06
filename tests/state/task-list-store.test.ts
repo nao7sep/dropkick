@@ -85,6 +85,7 @@ beforeEach(() => {
     handledVisible: {},
     handledExpanded: {},
   });
+  useTaskListStore.getState().forgetFailedWrites();
 });
 
 describe("loadFile", () => {
@@ -327,6 +328,104 @@ describe("mutating actions — the never-reject contract", () => {
       status: "error",
       message: message("move.failed"),
     });
+  });
+});
+
+// Kept for a quit that meets them (hooks/use-window-close): a write that fails
+// outright is rolled back like any other, and can be made again on request.
+describe("writes that fail outright", () => {
+  async function loadOne(title = "before") {
+    useTaskListStore.setState({ files: {} });
+    loadTaskList.mockResolvedValue({
+      status: "success",
+      taskList: { filePath: FILE, data: { id: "L1", tasks: [makeTask({ id: "a", title })] } },
+    });
+    await useTaskListStore.getState().loadFile(FILE);
+  }
+
+  it("names the list, and a retry writes the rolled-back change again", async () => {
+    await loadOne();
+    flushTaskList.mockRejectedValueOnce(new Error("disk full"));
+    await useTaskListStore.getState().updateTitle(FILE, "a", "after");
+    expect(tasksOf()[0].title).toBe("before");
+    expect(useTaskListStore.getState().failedWritePaths()).toEqual([FILE]);
+
+    const written: string[] = [];
+    flushTaskList.mockImplementation(async (_p: string, getData: () => TaskListDto) => {
+      written.push(getData().tasks[0].title);
+      return { status: "success" };
+    });
+    useTaskListStore.getState().retryFailedWrites();
+    await vi.waitFor(() => expect(written).toEqual(["after"]));
+
+    expect(tasksOf()[0].title).toBe("after");
+    expect(useTaskListStore.getState().failedWritePaths()).toEqual([]);
+  });
+
+  it("is kept again when the retry fails too", async () => {
+    await loadOne();
+    flushTaskList.mockRejectedValue(new Error("disk full"));
+    await useTaskListStore.getState().updateTitle(FILE, "a", "after");
+
+    useTaskListStore.getState().retryFailedWrites();
+    await vi.waitFor(() => expect(flushTaskList).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(useTaskListStore.getState().failedWritePaths()).toEqual([FILE]));
+    expect(tasksOf()[0].title).toBe("before");
+  });
+
+  it("is not made again once the list has changed since", async () => {
+    await loadOne();
+    flushTaskList.mockRejectedValueOnce(new Error("disk full"));
+    await useTaskListStore.getState().updateTitle(FILE, "a", "after");
+    await useTaskListStore.getState().setPriority(FILE, "a", "Critical");
+    flushTaskList.mockClear();
+
+    useTaskListStore.getState().retryFailedWrites();
+
+    expect(flushTaskList).not.toHaveBeenCalled();
+    expect(tasksOf()[0].title).toBe("before");
+  });
+
+  it("is superseded by a later write of the list that lands", async () => {
+    await loadOne();
+    flushTaskList.mockRejectedValueOnce(new Error("disk full"));
+    await useTaskListStore.getState().updateTitle(FILE, "a", "after");
+    await useTaskListStore.getState().setPriority(FILE, "a", "Critical");
+
+    expect(useTaskListStore.getState().failedWritePaths()).toEqual([]);
+  });
+
+  it("is dropped on request", async () => {
+    await loadOne();
+    flushTaskList.mockRejectedValueOnce(new Error("disk full"));
+    await useTaskListStore.getState().updateTitle(FILE, "a", "after");
+
+    useTaskListStore.getState().forgetFailedWrites();
+
+    expect(useTaskListStore.getState().failedWritePaths()).toEqual([]);
+  });
+
+  it("names both lists of a move, and a retry makes the same move", async () => {
+    useTaskListStore.setState({
+      files: {
+        "/src.json": { data: { id: "S", tasks: [makeTask({ id: "m" })] } },
+        "/dst.json": { data: { id: "D", tasks: [] } },
+      },
+    });
+    flushMove.mockRejectedValueOnce(new Error("volume gone"));
+    await useTaskListStore.getState().moveTasks("/src.json", "/dst.json", new Set(["m"]));
+    expect(useTaskListStore.getState().failedWritePaths()).toEqual(["/src.json", "/dst.json"]);
+
+    flushMove.mockResolvedValueOnce({
+      status: "success",
+      sourceData: { id: "S", tasks: [] },
+      destData: { id: "D", tasks: [makeTask({ id: "m" })] },
+    });
+    useTaskListStore.getState().retryFailedWrites();
+    await vi.waitFor(() => expect(tasksOf("/dst.json").map((t) => t.id)).toEqual(["m"]));
+
+    expect(flushMove).toHaveBeenLastCalledWith("/src.json", "/dst.json", expect.any(Function));
+    expect(useTaskListStore.getState().failedWritePaths()).toEqual([]);
   });
 });
 

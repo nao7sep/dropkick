@@ -24,14 +24,16 @@ import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { drainAllSerial, log, pendingSerialKeys, toErrorFields } from "../repositories";
 import { flushNoteDraftsNow, useNoteDraftStore } from "../state/note-draft-store";
+import { useTaskListStore } from "../state/task-list-store";
 import { showAppConfirm } from "../state/dialog-store";
 import { message } from "../i18n/translate";
 
 export const CLOSE_WAIT_MS = 3000;
 
-// The work that must finish before the window is destroyed. Resolves false
-// when the note drafts could not be written.
-async function settlePendingWrites(): Promise<boolean> {
+// The work that must finish before the window is destroyed. Resolves to the
+// files the user's work could not be saved to: the drafts file, and every task
+// list whose write failed outright. Empty when everything is on disk.
+async function settlePendingWrites(): Promise<string[]> {
   // Blur first, so a field that commits on blur fires its write synchronously
   // and lands in the serial chain we are about to drain.
   if (document.activeElement instanceof HTMLElement) {
@@ -42,7 +44,10 @@ async function settlePendingWrites(): Promise<boolean> {
   // records what the drained commits cleared. Drafts are already on disk within
   // WRITE_IDLE_MS of the last keystroke; this makes the graceful close lose
   // nothing at all.
-  return await flushNoteDraftsNow();
+  const draftsSaved = await flushNoteDraftsNow();
+  const failed = useTaskListStore.getState().failedWritePaths();
+  if (!draftsSaved) failed.push(useNoteDraftStore.getState().filePath);
+  return failed;
 }
 
 function within(work: Promise<unknown>, ms: number): Promise<boolean> {
@@ -60,33 +65,38 @@ function within(work: Promise<unknown>, ms: number): Promise<boolean> {
 // false when the user chose to keep the window open. Exported so the close
 // path can be exercised without driving a real window.
 //
-// Note drafts are the user's own unsaved text, so a draft write that fails
-// holds the close and offers Retry or Quit Anyway (unsaved-edits-conventions,
-// Quitting). Retry runs the whole bounded settle again.
+// The task lists and the drafts are the user's own work, so a write of either
+// that fails holds the close and offers Retry or Quit Anyway
+// (unsaved-edits-conventions, Quitting). Retry makes the failed task-list
+// writes again and runs the whole bounded settle again. A write that failed
+// before the close was reported where it happened and rolled back, so only
+// the ones this close meets are asked about.
 export async function prepareWindowClose(waitMs = CLOSE_WAIT_MS): Promise<boolean> {
+  useTaskListStore.getState().forgetFailedWrites();
   for (;;) {
     const settled = settlePendingWrites();
     if (!(await within(settled, waitMs))) {
       const outcome = await askWhileStillSaving(settled, waitMs);
       if (outcome !== "settled") return outcome === "close-anyway";
     }
-    if (await settled) return true;
+    const paths = await settled;
+    if (paths.length === 0) return true;
 
-    const path = useNoteDraftStore.getState().filePath;
-    log.warn("window close held by unsaved note drafts", { path });
+    log.warn("window close held by changes not saved", { paths });
     const quitAnyway = await showAppConfirm(
-      message("dialog.draftsNotSaved.title"),
-      message("dialog.draftsNotSaved.body", { path }),
+      message("dialog.notSaved.title"),
+      message("dialog.notSaved.body", { paths: paths.join("\n") }),
       {
         tone: "warning",
-        confirmLabel: message("dialog.draftsNotSaved.quitAnyway"),
-        cancelLabel: message("dialog.draftsNotSaved.retry"),
+        confirmLabel: message("dialog.notSaved.quitAnyway"),
+        cancelLabel: message("dialog.notSaved.retry"),
       },
     );
     if (quitAnyway) {
-      log.warn("window closed with unsaved note drafts", { path });
+      log.warn("window closed with changes not saved", { paths });
       return true;
     }
+    useTaskListStore.getState().retryFailedWrites();
   }
 }
 
@@ -94,7 +104,7 @@ export async function prepareWindowClose(waitMs = CLOSE_WAIT_MS): Promise<boolea
 // anyway. The question stops mattering once the writes finish, so it is
 // withdrawn then and the close goes ahead as if it had never been asked.
 async function askWhileStillSaving(
-  settled: Promise<boolean>,
+  settled: Promise<string[]>,
   waitMs: number,
 ): Promise<"settled" | "close-anyway" | "keep-open"> {
   const paths = pendingSerialKeys();

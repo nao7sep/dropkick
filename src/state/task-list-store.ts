@@ -191,6 +191,14 @@ interface TaskListState {
     taskIds: Set<string>,
   ) => Promise<{ status: "success" } | { status: "error"; message: Message }>;
 
+  // Writes that failed outright, each rolled back as above, kept so a quit
+  // that meets one can offer to make it again (hooks/use-window-close).
+  // `failedWritePaths` names their files; `retryFailedWrites` queues each
+  // again, unless its file has changed since; `forgetFailedWrites` drops them.
+  failedWritePaths: () => string[];
+  retryFailedWrites: () => void;
+  forgetFailedWrites: () => void;
+
   // Actions: conflict resolution.
   forceWrite: (filePath: string) => Promise<void>;
   reloadFile: (filePath: string) => Promise<void>;
@@ -276,6 +284,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   const persistedFiles = new Map<string, TaskListDto>();
   const pendingWrites = new Map<string, number>();
 
+  // Writes that failed outright, by the files they name, each with the way to
+  // make it again. A later write of the same files that lands supersedes it.
+  const failedWrites = new Map<string, { paths: string[]; retry: () => void }>();
+
   function beginPendingWrite(filePath: string): void {
     pendingWrites.set(filePath, (pendingWrites.get(filePath) ?? 0) + 1);
   }
@@ -284,7 +296,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     filePath: string,
     outcome: { persisted?: TaskListDto; failed?: boolean },
   ): void {
-    if (outcome.persisted) persistedFiles.set(filePath, outcome.persisted);
+    if (outcome.persisted) {
+      persistedFiles.set(filePath, outcome.persisted);
+      failedWrites.delete(filePath);
+    }
     const remaining = Math.max(0, (pendingWrites.get(filePath) ?? 1) - 1);
     if (remaining === 0) pendingWrites.delete(filePath);
     else pendingWrites.set(filePath, remaining);
@@ -350,7 +365,22 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         return f.data;
       });
     } catch {
+      // Kept once rolled back, so it can be made again. A later write still
+      // queued carries this change with it, and is kept itself if it fails.
+      const attempted = get().files[filePath]?.data;
       finishPendingWrite(filePath, { failed: true });
+      const restored = get().files[filePath]?.data;
+      if (attempted && restored && !pendingWrites.has(filePath)) {
+        failedWrites.set(filePath, {
+          paths: [filePath],
+          retry: () => {
+            if (get().files[filePath]?.data !== restored) return;
+            applyData(filePath, attempted);
+            beginPendingWrite(filePath);
+            void flush(filePath, action, { ...fields, retry: true });
+          },
+        });
+      }
       return {
         status: "error",
         message: message("write.taskList"),
@@ -810,6 +840,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         };
       }
 
+      const moveKey = `${sourceFilePath}\n${destFilePath}`;
       log.info("move tasks between files", {
         source: sourceFilePath,
         dest: destFilePath,
@@ -838,6 +869,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           };
         });
       } catch {
+        // Nothing moved in memory, so making it again is the same move.
+        failedWrites.set(moveKey, {
+          paths: [sourceFilePath, destFilePath],
+          retry: () => void get().moveTasks(sourceFilePath, destFilePath, taskIds),
+        });
         return {
           status: "error",
           message: message("move.failed"),
@@ -845,6 +881,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       }
 
       if (result.status === "success") {
+        failedWrites.delete(moveKey);
         persistedFiles.set(sourceFilePath, result.sourceData);
         persistedFiles.set(destFilePath, result.destData);
         set((state) => ({
@@ -877,6 +914,18 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       });
       return { status: "error", message: failure };
     },
+
+    failedWritePaths: () => [
+      ...new Set([...failedWrites.values()].flatMap((failed) => failed.paths)),
+    ],
+
+    retryFailedWrites: () => {
+      const failed = [...failedWrites.values()];
+      failedWrites.clear();
+      for (const { retry } of failed) retry();
+    },
+
+    forgetFailedWrites: () => failedWrites.clear(),
 
     // --- Conflict resolution ---
 
