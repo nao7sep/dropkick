@@ -47,4 +47,17 @@ describe("load failure presentation", () => {
       expect(text).not.toContain("HOSTILE-SENTINEL");
     }
   });
+
+  it("names both files when a task list is already open from another one", () => {
+    const duplicate = { status: "duplicate", path: "/Users/person/copy.json", otherPath: "/Users/person/list.json" } as const;
+    for (const text of [
+      inEnglish(describeLoadFailure("taskList", duplicate)),
+      inEnglish(describeLoadFailure("taskList", duplicate, duplicate.path)),
+      inEnglish(describeDiskFailure(duplicate)),
+    ]) {
+      expect(text).toContain(duplicate.path);
+      expect(text).toContain(duplicate.otherPath);
+    }
+  });
 });
+

@@ -131,6 +131,7 @@
   "load.taskList.newerAt": "El archivo de la lista de tareas se guardó con una versión más reciente de Dropkick y esta versión no puede abrirlo:\n\n{path}\n\nEl archivo no se modificó.",
   "load.taskList.error": "No se pudo leer el archivo de la lista de tareas. Verifica que siga disponible y que Dropkick tenga acceso, y vuelve a intentarlo.",
   "load.taskList.errorAt": "No se pudo leer el archivo de la lista de tareas:\n\n{path}\n\nVerifica que siga disponible y que Dropkick tenga acceso, y vuelve a intentarlo.",
+  "load.taskList.duplicate": "Este archivo contiene la misma lista de tareas que un archivo que ya está abierto, así que probablemente uno de los dos se copió del otro.\n\nNo abierto:\n{path}\n\nYa abierto:\n{otherPath}\n\nPara abrir este archivo, primero cierra la pestaña del que ya está abierto.",
   "load.preferences.missing": "No se encontró el archivo de preferencias.",
   "load.preferences.missingAt": "No se encontró el archivo de preferencias:\n\n{path}",
   "load.preferences.invalid": "El archivo de preferencias no contiene datos válidos de Dropkick.",
@@ -167,6 +168,7 @@
   "taskList.disk.invalid": "El archivo de la lista de tareas ya no contiene datos válidos de Dropkick. La lista de abajo es la copia que Dropkick cargó antes.",
   "taskList.disk.newer": "El archivo de la lista de tareas se guardó con una versión más reciente de Dropkick y esta versión no puede leerlo. La lista de abajo es la copia que Dropkick cargó antes.",
   "taskList.disk.error": "No se pudo leer el archivo de la lista de tareas. La lista de abajo es la copia que Dropkick cargó antes.",
+  "taskList.disk.duplicate": "{path} cambió en el disco y ahora contiene la misma lista de tareas que {otherPath}, que ya está abierto, así que probablemente uno de los dos archivos se copió del otro. La lista de abajo es la copia que Dropkick cargó antes.",
 
   "group.pastDue": "Vencidas",
   "group.critical": "Críticas",

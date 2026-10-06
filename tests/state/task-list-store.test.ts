@@ -685,3 +685,74 @@ describe("refreshFromDisk", () => {
     expect(refreshTaskList).not.toHaveBeenCalled();
   });
 });
+
+describe("a list already open from another file", () => {
+  // A Finder or Explorer copy carries its source's list id; it is refused
+  // rather than opened beside it, and no id is ever reassigned.
+  const COPY = "/list copy.json";
+  const copied = (tasks = [makeTask({ id: "a" })]): TaskListDto => ({ id: "L1", tasks });
+  const refusal = { status: "duplicate", path: COPY, otherPath: FILE };
+
+  it("is not opened, and the failure names both files", async () => {
+    seedFile();
+    loadTaskList.mockResolvedValue({ status: "success", taskList: { filePath: COPY, data: copied() } });
+
+    expect(await useTaskListStore.getState().loadFile(COPY)).toEqual(refusal);
+
+    expect(useTaskListStore.getState().files[COPY]).toBeUndefined();
+    expect(useTaskListStore.getState().fileLoadErrors[COPY]).toEqual(refusal);
+  });
+
+  it("opens once the other file is closed", async () => {
+    seedFile();
+    await useTaskListStore.getState().unloadFile(FILE);
+    loadTaskList.mockResolvedValue({ status: "success", taskList: { filePath: COPY, data: copied() } });
+
+    expect(await useTaskListStore.getState().loadFile(COPY)).toEqual({ status: "success" });
+  });
+
+  it("is not taken on an explicit reload", async () => {
+    seedFile();
+    useTaskListStore.setState((state) => ({
+      files: { ...state.files, [COPY]: { data: { id: "L2", tasks: [] } } },
+    }));
+    loadTaskList.mockResolvedValue({ status: "success", taskList: { filePath: COPY, data: copied() } });
+
+    await useTaskListStore.getState().reloadFile(COPY);
+
+    expect(useTaskListStore.getState().files[COPY]?.data.id).toBe("L2");
+    expect(useTaskListStore.getState().fileLoadErrors[COPY]).toEqual(refusal);
+  });
+
+  it("is not taken when the file changes on disk, and the loaded copy stays", async () => {
+    seedFile();
+    useTaskListStore.setState((state) => ({
+      files: { ...state.files, [COPY]: { data: { id: "L2", tasks: [] } } },
+    }));
+    refreshTaskList.mockImplementation(async (_p: string, adopt: (data: TaskListDto) => boolean) =>
+      adopt(copied()) ? { status: "reloaded" } : { status: "kept" },
+    );
+
+    await useTaskListStore.getState().refreshFromDisk(COPY);
+
+    expect(useTaskListStore.getState().files[COPY]?.data.id).toBe("L2");
+    expect(useTaskListStore.getState().fileDiskErrors[COPY]).toEqual(refusal);
+  });
+
+  it("is not taken through a save conflict's reload", async () => {
+    seedFile();
+    loadTaskList.mockResolvedValue({
+      status: "success",
+      taskList: { filePath: COPY, data: { id: "L2", tasks: [makeTask({ id: "own" })] } },
+    });
+    await useTaskListStore.getState().loadFile(COPY);
+    flushTaskList.mockResolvedValue({ status: "reloaded", data: copied(), message: "changed externally" });
+
+    const result = await useTaskListStore.getState().addNewTask(COPY, { title: "x" });
+
+    expect(result.status).toBe("error");
+    expect(tasksOf(COPY).map((t) => t.id)).toEqual(["own"]);
+    expect(useTaskListStore.getState().files[COPY]?.data.id).toBe("L2");
+    expect(useTaskListStore.getState().fileDiskErrors[COPY]).toEqual(refusal);
+  });
+});

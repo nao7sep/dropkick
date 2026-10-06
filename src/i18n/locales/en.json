@@ -131,6 +131,7 @@
   "load.taskList.newerAt": "The task list file was saved by a newer version of Dropkick, and this version cannot open it:\n\n{path}\n\nThe file was left unchanged.",
   "load.taskList.error": "The task list file could not be read. Check that it is still available and that Dropkick has access, then try again.",
   "load.taskList.errorAt": "The task list file could not be read:\n\n{path}\n\nCheck that it is still available and that Dropkick has access, then try again.",
+  "load.taskList.duplicate": "This file holds the same task list as a file that is already open, so one file was probably copied from the other.\n\nNot opened:\n{path}\n\nAlready open:\n{otherPath}\n\nTo open this file, first close the tab of the one already open.",
   "load.preferences.missing": "The preferences file could not be found.",
   "load.preferences.missingAt": "The preferences file could not be found:\n\n{path}",
   "load.preferences.invalid": "The preferences file does not contain valid Dropkick data.",
@@ -167,6 +168,7 @@
   "taskList.disk.invalid": "The task list file no longer contains valid Dropkick data. The list below is the copy Dropkick loaded earlier.",
   "taskList.disk.newer": "The task list file was saved by a newer version of Dropkick, and this version cannot read it. The list below is the copy Dropkick loaded earlier.",
   "taskList.disk.error": "The task list file could not be read. The list below is the copy Dropkick loaded earlier.",
+  "taskList.disk.duplicate": "{path} was changed on disk and now holds the same task list as {otherPath}, which is already open, so one file was probably copied from the other. The list below is the copy Dropkick loaded earlier.",
 
   "group.pastDue": "Past Due",
   "group.critical": "Critical",

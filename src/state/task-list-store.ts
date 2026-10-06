@@ -66,6 +66,7 @@ import {
   updateNoteContent,
   changeNoteActionability,
   prepareMoveOperation,
+  describeDiskFailure,
   type LoadFailure,
 } from "../services";
 
@@ -201,7 +202,7 @@ interface TaskListState {
   refreshFromDisk: (filePath: string) => Promise<void>;
 }
 
-function loadResultToStoreResult(result: LoadTaskListResult): LoadFileResult {
+function loadResultToStoreResult(result: LoadTaskListResult | FileLoadError): LoadFileResult {
   if (result.status === "success") return { status: "success" };
   return result;
 }
@@ -219,6 +220,22 @@ async function safeLoadTaskList(filePath: string): Promise<LoadTaskListResult> {
       message: "The task list could not be read. Check that it is still available and that Dropkick has access, then try again.",
     };
   }
+}
+
+// A list is one entity wherever its file is, so a file carrying the id of a
+// list already open from another file (a Finder or Explorer copy) is refused
+// with both paths named, never opened beside it; ids are never reassigned.
+function duplicateOf(
+  files: Record<string, FileState>,
+  data: TaskListDto,
+  path: string,
+): FileLoadError | null {
+  for (const [otherPath, file] of Object.entries(files)) {
+    if (otherPath !== path && file.data.id === data.id) {
+      return { status: "duplicate", path, otherPath };
+    }
+  }
+  return null;
 }
 
 function selectedTaskIdsForFile(
@@ -352,6 +369,13 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       return { status: "error", message: result.message };
     }
     // reloaded
+    const duplicate = duplicateOf(get().files, result.data, filePath);
+    if (duplicate) {
+      log.warn("task list reload refused", loadFailureFields(filePath, duplicate));
+      finishPendingWrite(filePath, { failed: true });
+      set((state) => ({ fileDiskErrors: { ...state.fileDiskErrors, [filePath]: duplicate } }));
+      return { status: "error", message: describeDiskFailure(duplicate) };
+    }
     finishPendingWrite(filePath, { persisted: result.data });
     applyData(filePath, result.data);
     return { status: "reloaded", message: result.message };
@@ -503,7 +527,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       if (existing) return existing;
 
       const load = (async (): Promise<LoadFileResult> => {
-        const loaded = await safeLoadTaskList(filePath);
+        const read = await safeLoadTaskList(filePath);
+        const loaded =
+          read.status === "success"
+            ? (duplicateOf(get().files, read.taskList.data, filePath) ?? read)
+            : read;
         if (loaded.status !== "success") {
           // Single source for load-boundary failures — covers the active tab,
           // every eagerly background-loaded tab, and opens from the tab menu.
@@ -862,7 +890,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
 
     reloadFile: async (filePath: string) => {
       log.info("reload task list", { path: filePath });
-      const loaded = await safeLoadTaskList(filePath);
+      const read = await safeLoadTaskList(filePath);
+      const loaded =
+        read.status === "success"
+          ? (duplicateOf(get().files, read.taskList.data, filePath) ?? read)
+          : read;
       if (loaded.status !== "success") {
         log.warn("task list reload failed", loadFailureFields(filePath, loaded));
         set((state) => ({
@@ -888,7 +920,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
 
     refreshFromDisk: async (filePath: string) => {
       if (!get().files[filePath]) return;
-      let result: RefreshResult;
+      let result: RefreshResult | FileLoadError;
+      let duplicate: FileLoadError | null = null;
       try {
         result = await refreshTaskList(filePath, (data) => {
           const current = get().files[filePath];
@@ -897,6 +930,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks)) {
             return false;
           }
+          duplicate = duplicateOf(get().files, data, filePath);
+          if (duplicate) return false;
           const taskIds = new Set(data.tasks.map((task) => task.id));
           set((state) => ({
             files: { ...state.files, [filePath]: { data } },
@@ -908,6 +943,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       } catch (e) {
         result = { status: "error", message: e instanceof Error ? e.message : String(e) };
       }
+      if (duplicate) result = duplicate;
       switch (result.status) {
         case "notLoaded":
           return;

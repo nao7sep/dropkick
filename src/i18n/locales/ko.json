@@ -131,6 +131,7 @@
   "load.taskList.newerAt": "다음 할 일 목록 파일이 더 새로운 버전의 Dropkick에서 저장되어 이 버전에서는 열 수 없습니다.\n\n{path}\n\n파일은 변경되지 않았습니다.",
   "load.taskList.error": "할 일 목록 파일을 읽을 수 없습니다. 파일을 계속 사용할 수 있고 Dropkick에 접근 권한이 있는지 확인한 다음 다시 시도하십시오.",
   "load.taskList.errorAt": "다음 할 일 목록 파일을 읽을 수 없습니다.\n\n{path}\n\n파일을 계속 사용할 수 있고 Dropkick에 접근 권한이 있는지 확인한 다음 다시 시도하십시오.",
+  "load.taskList.duplicate": "이 파일은 이미 열려 있는 파일과 같은 할 일 목록을 담고 있습니다. 한 파일이 다른 파일에서 복사되었을 수 있습니다.\n\n열지 않은 파일:\n{path}\n\n이미 열려 있는 파일:\n{otherPath}\n\n이 파일을 열려면 먼저 이미 열려 있는 파일의 탭을 닫으십시오.",
   "load.preferences.missing": "환경설정 파일을 찾을 수 없습니다.",
   "load.preferences.missingAt": "다음 환경설정 파일을 찾을 수 없습니다.\n\n{path}",
   "load.preferences.invalid": "환경설정 파일에 올바른 Dropkick 데이터가 없습니다.",
@@ -167,6 +168,7 @@
   "taskList.disk.invalid": "할 일 목록 파일에 더 이상 올바른 Dropkick 데이터가 없습니다. 아래 목록은 Dropkick이 이전에 불러온 사본입니다.",
   "taskList.disk.newer": "할 일 목록 파일이 더 새로운 버전의 Dropkick에서 저장되어 이 버전에서는 읽을 수 없습니다. 아래 목록은 Dropkick이 이전에 불러온 사본입니다.",
   "taskList.disk.error": "할 일 목록 파일을 읽을 수 없습니다. 아래 목록은 Dropkick이 이전에 불러온 사본입니다.",
+  "taskList.disk.duplicate": "{path} 파일이 디스크에서 변경되어 이미 열려 있는 {otherPath} 파일과 같은 할 일 목록을 담게 되었습니다. 한 파일이 다른 파일에서 복사되었을 수 있습니다. 아래 목록은 Dropkick이 이전에 불러온 사본입니다.",
 
   "group.pastDue": "기한 지남",
   "group.critical": "최우선",

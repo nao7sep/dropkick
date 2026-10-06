@@ -131,6 +131,7 @@
   "load.taskList.newerAt": "Le fichier de liste de tâches a été enregistré par une version plus récente de Dropkick et ne peut pas être ouvert par cette version\u00a0:\n\n{path}\n\nLe fichier n’a pas été modifié.",
   "load.taskList.error": "Le fichier de liste de tâches n’a pas pu être lu. Vérifiez qu’il est toujours disponible et que Dropkick y a accès, puis réessayez.",
   "load.taskList.errorAt": "Le fichier de liste de tâches n’a pas pu être lu\u00a0:\n\n{path}\n\nVérifiez qu’il est toujours disponible et que Dropkick y a accès, puis réessayez.",
+  "load.taskList.duplicate": "Ce fichier contient la même liste de tâches qu’un fichier déjà ouvert\u00a0; l’un des deux a probablement été copié à partir de l’autre.\n\nNon ouvert\u00a0:\n{path}\n\nDéjà ouvert\u00a0:\n{otherPath}\n\nPour ouvrir ce fichier, fermez d’abord l’onglet de celui qui est déjà ouvert.",
   "load.preferences.missing": "Le fichier de préférences est introuvable.",
   "load.preferences.missingAt": "Le fichier de préférences est introuvable\u00a0:\n\n{path}",
   "load.preferences.invalid": "Le fichier de préférences ne contient pas de données Dropkick valides.",
@@ -167,6 +168,7 @@
   "taskList.disk.invalid": "Le fichier de liste de tâches ne contient plus de données Dropkick valides. La liste ci-dessous est la copie chargée précédemment par Dropkick.",
   "taskList.disk.newer": "Le fichier de liste de tâches a été enregistré par une version plus récente de Dropkick et ne peut pas être lu par cette version. La liste ci-dessous est la copie chargée précédemment par Dropkick.",
   "taskList.disk.error": "Le fichier de liste de tâches n’a pas pu être lu. La liste ci-dessous est la copie chargée précédemment par Dropkick.",
+  "taskList.disk.duplicate": "{path} a été modifié sur le disque et contient désormais la même liste de tâches que {otherPath}, déjà ouvert\u00a0; l’un des deux fichiers a probablement été copié à partir de l’autre. La liste ci-dessous est la copie chargée précédemment par Dropkick.",
 
   "group.pastDue": "En retard",
   "group.critical": "Critiques",

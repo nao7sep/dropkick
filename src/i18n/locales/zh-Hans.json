@@ -131,6 +131,7 @@
   "load.taskList.newerAt": "任务列表文件由较新版本的 Dropkick 保存，此版本无法打开：\n\n{path}\n\n该文件未被更改。",
   "load.taskList.error": "无法读取任务列表文件。请确认该文件仍然可用且 Dropkick 有权访问，然后重试。",
   "load.taskList.errorAt": "无法读取任务列表文件：\n\n{path}\n\n请确认该文件仍然可用且 Dropkick 有权访问，然后重试。",
+  "load.taskList.duplicate": "此文件与一个已打开的文件包含相同的任务列表，其中一个文件可能是从另一个文件复制而来的。\n\n未打开：\n{path}\n\n已打开：\n{otherPath}\n\n要打开此文件，请先关闭已打开文件的标签页。",
   "load.preferences.missing": "找不到偏好设置文件。",
   "load.preferences.missingAt": "找不到偏好设置文件：\n\n{path}",
   "load.preferences.invalid": "偏好设置文件不包含有效的 Dropkick 数据。",
@@ -167,6 +168,7 @@
   "taskList.disk.invalid": "任务列表文件不再包含有效的 Dropkick 数据。下方列表是 Dropkick 之前加载的副本。",
   "taskList.disk.newer": "任务列表文件由较新版本的 Dropkick 保存，此版本无法读取。下方列表是 Dropkick 之前加载的副本。",
   "taskList.disk.error": "无法读取任务列表文件。下方列表是 Dropkick 之前加载的副本。",
+  "taskList.disk.duplicate": "{path} 在磁盘上被更改，现在与已打开的 {otherPath} 包含相同的任务列表，其中一个文件可能是从另一个文件复制而来的。下方列表是 Dropkick 之前加载的副本。",
 
   "group.pastDue": "已逾期",
   "group.critical": "最重要",

@@ -11,12 +11,15 @@ import { message, type Message } from "../i18n/translate";
 // status to a result union compiles clean while some surfaces say the wrong
 // thing about it.
 
-// The non-success arms every document loader shares.
+// The non-success arms every document loader shares, and the one only a task
+// list has: its list is already open from another file, so one of the two is
+// a copy and it is not opened beside the other.
 export type LoadFailure =
   | { status: "missing" }
   | { status: "invalid"; message: string }
   | { status: "newer"; formatVersion: number }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string }
+  | { status: "duplicate"; path: string; otherPath: string };
 
 // What kind of document failed. Each kind has whole sentences of its own, so
 // no language has to fit a document name into a shared frame.
@@ -29,6 +32,9 @@ export function describeLoadFailure(
   result: LoadFailure,
   path?: string,
 ): Message {
+  if (result.status === "duplicate") {
+    return message("load.taskList.duplicate", { path: result.path, otherPath: result.otherPath });
+  }
   const key = `load.${kind}.${result.status}${path ? "At" : ""}` as MessageKey;
   return path ? message(key, { path }) : message(key);
 }
@@ -37,7 +43,7 @@ export function describeLoadFailure(
 // is never set aside, so the message names it: the user repairs or moves it,
 // then tries again.
 export function describeNoteDraftsFailure(
-  result: Exclude<LoadFailure, { status: "missing" }>,
+  result: Exclude<LoadFailure, { status: "missing" | "duplicate" }>,
   path: string,
 ): Message {
   return message(`load.noteDrafts.${result.status}`, { path });
@@ -46,6 +52,9 @@ export function describeNoteDraftsFailure(
 // One message for an open task list whose file, changed on disk, could not be
 // read back, shown above the copy still loaded.
 export function describeDiskFailure(result: LoadFailure): Message {
+  if (result.status === "duplicate") {
+    return message("taskList.disk.duplicate", { path: result.path, otherPath: result.otherPath });
+  }
   return message(`taskList.disk.${result.status}`);
 }
 

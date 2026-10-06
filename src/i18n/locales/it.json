@@ -131,6 +131,7 @@
   "load.taskList.newerAt": "Il file della lista di attività è stato salvato da una versione più recente di Dropkick e questa versione non può aprirlo:\n\n{path}\n\nIl file non è stato modificato.",
   "load.taskList.error": "Impossibile leggere il file della lista di attività. Verifica che sia ancora disponibile e che Dropkick possa accedervi, poi riprova.",
   "load.taskList.errorAt": "Impossibile leggere il file della lista di attività:\n\n{path}\n\nVerifica che sia ancora disponibile e che Dropkick possa accedervi, poi riprova.",
+  "load.taskList.duplicate": "Questo file contiene la stessa lista di attività di un file già aperto, quindi probabilmente uno dei due è stato copiato dall’altro.\n\nNon aperto:\n{path}\n\nGià aperto:\n{otherPath}\n\nPer aprire questo file, chiudi prima la scheda di quello già aperto.",
   "load.preferences.missing": "Impossibile trovare il file delle preferenze.",
   "load.preferences.missingAt": "Impossibile trovare il file delle preferenze:\n\n{path}",
   "load.preferences.invalid": "Il file delle preferenze non contiene dati Dropkick validi.",
@@ -167,6 +168,7 @@
   "taskList.disk.invalid": "Il file della lista di attività non contiene più dati Dropkick validi. La lista qui sotto è la copia caricata in precedenza da Dropkick.",
   "taskList.disk.newer": "Il file della lista di attività è stato salvato da una versione più recente di Dropkick e questa versione non può leggerlo. La lista qui sotto è la copia caricata in precedenza da Dropkick.",
   "taskList.disk.error": "Impossibile leggere il file della lista di attività. La lista qui sotto è la copia caricata in precedenza da Dropkick.",
+  "taskList.disk.duplicate": "{path} è stato modificato sul disco e ora contiene la stessa lista di attività di {otherPath}, già aperto, quindi probabilmente uno dei due file è stato copiato dall’altro. La lista qui sotto è la copia caricata in precedenza da Dropkick.",
 
   "group.pastDue": "Scadute",
   "group.critical": "Critiche",

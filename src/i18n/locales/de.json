@@ -131,6 +131,7 @@
   "load.taskList.newerAt": "Die Aufgabenlistendatei wurde von einer neueren Version von Dropkick gespeichert und kann mit dieser Version nicht geöffnet werden:\n\n{path}\n\nDie Datei wurde nicht geändert.",
   "load.taskList.error": "Die Aufgabenlistendatei konnte nicht gelesen werden. Prüfen Sie, ob sie noch verfügbar ist und Dropkick darauf zugreifen kann, und versuchen Sie es dann erneut.",
   "load.taskList.errorAt": "Die Aufgabenlistendatei konnte nicht gelesen werden:\n\n{path}\n\nPrüfen Sie, ob sie noch verfügbar ist und Dropkick darauf zugreifen kann, und versuchen Sie es dann erneut.",
+  "load.taskList.duplicate": "Diese Datei enthält dieselbe Aufgabenliste wie eine bereits geöffnete Datei; vermutlich wurde eine der beiden aus der anderen kopiert.\n\nNicht geöffnet:\n{path}\n\nBereits geöffnet:\n{otherPath}\n\nUm diese Datei zu öffnen, schließen Sie zuerst den Tab der bereits geöffneten.",
   "load.preferences.missing": "Die Einstellungsdatei wurde nicht gefunden.",
   "load.preferences.missingAt": "Die Einstellungsdatei wurde nicht gefunden:\n\n{path}",
   "load.preferences.invalid": "Die Einstellungsdatei enthält keine gültigen Dropkick-Daten.",
@@ -167,6 +168,7 @@
   "taskList.disk.invalid": "Die Aufgabenlistendatei enthält keine gültigen Dropkick-Daten mehr. Die Liste unten ist die Kopie, die Dropkick zuvor geladen hat.",
   "taskList.disk.newer": "Die Aufgabenlistendatei wurde von einer neueren Version von Dropkick gespeichert und kann mit dieser Version nicht gelesen werden. Die Liste unten ist die Kopie, die Dropkick zuvor geladen hat.",
   "taskList.disk.error": "Die Aufgabenlistendatei konnte nicht gelesen werden. Die Liste unten ist die Kopie, die Dropkick zuvor geladen hat.",
+  "taskList.disk.duplicate": "{path} wurde auf dem Datenträger geändert und enthält jetzt dieselbe Aufgabenliste wie die bereits geöffnete Datei {otherPath}; vermutlich wurde eine der beiden Dateien aus der anderen kopiert. Die Liste unten ist die Kopie, die Dropkick zuvor geladen hat.",
 
   "group.pastDue": "Überfällig",
   "group.critical": "Kritisch",

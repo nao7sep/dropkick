@@ -131,6 +131,7 @@
   "load.taskList.newerAt": "次のタスクリストファイルはより新しいバージョンの Dropkick で保存されているため、このバージョンでは開けません。\n\n{path}\n\nファイルは変更されていません。",
   "load.taskList.error": "タスクリストファイルを読み込めませんでした。ファイルが引き続き利用でき、Dropkick からアクセスできることを確認してから、もう一度お試しください。",
   "load.taskList.errorAt": "次のタスクリストファイルを読み込めませんでした。\n\n{path}\n\nファイルが引き続き利用でき、Dropkick からアクセスできることを確認してから、もう一度お試しください。",
+  "load.taskList.duplicate": "このファイルは、すでに開いているファイルと同じタスクリストを保持しています。どちらかのファイルがもう一方からコピーされた可能性があります。\n\n開かなかったファイル：\n{path}\n\nすでに開いているファイル：\n{otherPath}\n\nこのファイルを開くには、先にすでに開いているファイルのタブを閉じてください。",
   "load.preferences.missing": "環境設定ファイルが見つかりませんでした。",
   "load.preferences.missingAt": "次の環境設定ファイルが見つかりませんでした。\n\n{path}",
   "load.preferences.invalid": "環境設定ファイルに有効な Dropkick のデータが含まれていません。",
@@ -167,6 +168,7 @@
   "taskList.disk.invalid": "タスクリストファイルに有効な Dropkick のデータが含まれなくなりました。下のリストは、Dropkick が以前に読み込んだ内容です。",
   "taskList.disk.newer": "タスクリストファイルはより新しいバージョンの Dropkick で保存されているため、このバージョンでは読み込めません。下のリストは、Dropkick が以前に読み込んだ内容です。",
   "taskList.disk.error": "タスクリストファイルを読み込めませんでした。下のリストは、Dropkick が以前に読み込んだ内容です。",
+  "taskList.disk.duplicate": "{path} はディスク上で変更され、すでに開いている {otherPath} と同じタスクリストを保持するようになりました。どちらかのファイルがもう一方からコピーされた可能性があります。下のリストは、Dropkick が以前に読み込んだ内容です。",
 
   "group.pastDue": "期限切れ",
   "group.critical": "最重要",
