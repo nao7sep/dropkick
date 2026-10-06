@@ -442,7 +442,8 @@ pub fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
 // The rename in write_atomic_impl replaces the target's inode, so whatever the
 // temp file carries is what survives. This carries what a replace keeps, per the
 // Files section of the content-lifecycle-conventions: the permissions, and on
-// macOS the extended attributes (Finder tags among them) and the ACL. Each piece
+// macOS the extended attributes (Finder tags among them) and the ACL; Windows
+// keeps the ACL and attributes in replace_target instead. Each piece
 // is best-effort and carried on its own, so a volume that refuses one still gets
 // the rest and the save goes ahead.
 fn carry_replaced_metadata(target: &std::path::Path, tmp: &std::fs::File) {
@@ -479,6 +480,74 @@ mod macos_metadata {
                 fcopyfile(from.as_raw_fd(), to.as_raw_fd(), std::ptr::null_mut(), flags);
             }
         }
+    }
+}
+
+// Puts the staged temp file in the target's place. On Windows a rename takes the
+// temp file's inherited access rules, which drops a file-specific DACL, so an
+// existing target is replaced with ReplaceFileW, which keeps the replaced file's
+// ACL and attributes (content-lifecycle-conventions, Files). A target that does
+// not exist yet has nothing to keep and is renamed into place.
+#[cfg(not(windows))]
+fn replace_target(tmp: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+    std::fs::rename(tmp, target)
+}
+
+#[cfg(windows)]
+fn replace_target(tmp: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+    windows_replace::replace_file(tmp, target)
+}
+
+#[cfg(windows)]
+mod windows_replace {
+    use std::os::raw::c_void;
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::Path;
+
+    // winbase.h and winerror.h. The ignore flags keep the save going when a
+    // volume refuses to merge an ACL or stream, as the macOS carry does.
+    const REPLACEFILE_IGNORE_MERGE_ERRORS: u32 = 0x0000_0002;
+    const REPLACEFILE_IGNORE_ACL_ERRORS: u32 = 0x0000_0004;
+    const ERROR_FILE_NOT_FOUND: i32 = 2;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn ReplaceFileW(
+            replaced: *const u16,
+            replacement: *const u16,
+            backup: *const u16,
+            flags: u32,
+            exclude: *mut c_void,
+            reserved: *mut c_void,
+        ) -> i32;
+    }
+
+    fn wide(path: &Path) -> Vec<u16> {
+        path.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    pub fn replace_file(tmp: &Path, target: &Path) -> std::io::Result<()> {
+        let (replaced, replacement) = (wide(target), wide(tmp));
+        // SAFETY: both strings are NUL-terminated and outlive the call, and null
+        // is the documented way to pass no backup file and no reserved values.
+        let ok = unsafe {
+            ReplaceFileW(
+                replaced.as_ptr(),
+                replacement.as_ptr(),
+                std::ptr::null(),
+                REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_IGNORE_ACL_ERRORS,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+        if ok != 0 {
+            return Ok(());
+        }
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() == Some(ERROR_FILE_NOT_FOUND) {
+            return std::fs::rename(tmp, target);
+        }
+        Err(error)
     }
 }
 
@@ -519,7 +588,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         return Err(e.to_string());
     }
 
-    if let Err(e) = std::fs::rename(&tmp, target) {
+    if let Err(e) = replace_target(&tmp, target) {
         let _ = std::fs::remove_file(&tmp);
         return Err(e.to_string());
     }
