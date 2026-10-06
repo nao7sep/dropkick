@@ -125,7 +125,7 @@ fn task_json(task_id: &str, notes: &[&str]) -> serde_json::Value {
         "title": "Task",
         "description": "",
         "status": "Pending",
-        "priority": "None",
+        "priority": "Default",
         "dueDate": null,
         "createdAtUtc": "2026-08-22T00:00:00.000Z",
         "updatedAtUtc": "2026-08-22T00:00:00.000Z",
@@ -174,6 +174,51 @@ fn classify_json_bytes_allows_the_same_note_id_in_different_tasks() {
         ]),
         JsonFileWithHashResult::Success { .. }
     ));
+}
+
+#[test]
+fn classify_json_bytes_rejects_a_state_value_the_app_does_not_know() {
+    for (field, value) in [("status", "Archived"), ("priority", "None")] {
+        let mut task = task_json("task-1", &[]);
+        task[field] = serde_json::json!(value);
+        assert!(
+            matches!(classify_tasks(vec![task]), JsonFileWithHashResult::Invalid { .. }),
+            "{field}: {value}"
+        );
+    }
+    let mut task = task_json("task-1", &["note-1"]);
+    task["notes"][0]["actionability"] = serde_json::json!("Urgent");
+    assert!(matches!(classify_tasks(vec![task]), JsonFileWithHashResult::Invalid { .. }));
+}
+
+#[test]
+fn classify_json_bytes_round_trips_every_known_state_value() {
+    let mut tasks = Vec::new();
+    for (i, (status, priority, actionability)) in [
+        ("Pending", "Critical", "Informational"),
+        ("Completed", "Urgent", "Actionable"),
+        ("Dismissed", "Important", "Resolved"),
+        ("Pending", "Default", "Informational"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut task = task_json(&format!("task-{i}"), &["note-1"]);
+        task["status"] = serde_json::json!(status);
+        task["priority"] = serde_json::json!(priority);
+        task["notes"][0]["actionability"] = serde_json::json!(actionability);
+        tasks.push(task);
+    }
+    let JsonFileWithHashResult::Success { data, .. } = classify_tasks(tasks.clone()) else {
+        panic!("expected Success");
+    };
+    let returned = serde_json::to_value(&data.tasks).unwrap();
+    for (i, task) in tasks.iter().enumerate() {
+        for field in ["status", "priority"] {
+            assert_eq!(returned[i][field], task[field]);
+        }
+        assert_eq!(returned[i]["notes"][0]["actionability"], task["notes"][0]["actionability"]);
+    }
 }
 
 #[test]

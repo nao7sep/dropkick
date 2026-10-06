@@ -99,12 +99,37 @@ fn install_panic_hook() {
     }));
 }
 
+// The stored state values, as src/models/task-list.ts names them. Decoding them
+// as enums makes a file carrying any other value unreadable rather than loaded
+// with a task or note the app cannot place (store-recovery-conventions).
+#[derive(Deserialize, Serialize)]
+pub enum TaskStatus {
+    Pending,
+    Completed,
+    Dismissed,
+}
+
+#[derive(Deserialize, Serialize)]
+pub enum TaskPriority {
+    Critical,
+    Urgent,
+    Important,
+    Default,
+}
+
+#[derive(Deserialize, Serialize)]
+pub enum NoteActionability {
+    Informational,
+    Actionable,
+    Resolved,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteDto {
     pub id: String,
     pub content: String,
-    pub actionability: String,
+    pub actionability: NoteActionability,
     pub created_at_utc: String,
     // Absent until the note's content is first edited (task-list.ts), so it
     // stays absent on the way back to the webview rather than arriving as null.
@@ -118,8 +143,8 @@ pub struct TaskDto {
     pub id: String,
     pub title: String,
     pub description: String,
-    pub status: String,
-    pub priority: String,
+    pub status: TaskStatus,
+    pub priority: TaskPriority,
     pub due_date: Option<String>,
     pub created_at_utc: String,
     pub updated_at_utc: String,
