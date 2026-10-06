@@ -19,6 +19,7 @@ mod instance_owner;
 pub mod logging;
 pub mod menu;
 pub mod nanoid;
+mod os_quit;
 pub mod paths;
 pub mod records;
 pub mod records_window;
@@ -905,6 +906,25 @@ fn logging_debug_enabled() -> bool {
     logging::debug_enabled()
 }
 
+// The main window's writes are settled for the end of the session
+// (src-tauri/src/os_quit.rs).
+#[tauri::command]
+fn session_end_settled() {
+    os_quit::session_end_settled();
+}
+
+// Takes the placement of every window still open, before the placements are
+// written. A window closed by the user had its placement taken as it closed.
+fn capture_open_windows(app_handle: &AppHandle) {
+    let placements = app_handle.state::<window_placement::WindowPlacements>();
+    if let Some(window) = app_handle.get_webview_window("main") {
+        window_placement::capture(&window.as_ref().window(), &placements.main);
+    }
+    if let Some(window) = app_handle.get_webview_window(records_window::LABEL) {
+        window_placement::capture(&window.as_ref().window(), &placements.records);
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn reopen_main(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
@@ -1070,6 +1090,7 @@ pub fn run() {
                 );
                 window.show()?;
             }
+            os_quit::install(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1091,20 +1112,15 @@ pub fn run() {
             open_records_window,
             read_records_page,
             read_record_sources,
-            read_record_detail
+            read_record_detail,
+            session_end_settled
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
     app.run(move |app_handle, event| {
         if let tauri::RunEvent::ExitRequested { .. } = event {
-            let placements = app_handle.state::<window_placement::WindowPlacements>();
-            if let Some(window) = app_handle.get_webview_window("main") {
-                window_placement::capture(&window.as_ref().window(), &placements.main);
-            }
-            if let Some(window) = app_handle.get_webview_window(records_window::LABEL) {
-                window_placement::capture(&window.as_ref().window(), &placements.records);
-            }
+            capture_open_windows(app_handle);
         }
         // A Dock click brings a minimized main window back, also while the
         // Records window is open, where AppKit would only bring the app
@@ -1114,6 +1130,8 @@ pub fn run() {
             reopen_main(app_handle);
         }
         if let tauri::RunEvent::Exit = event {
+            // The end of a session exits with its windows still open.
+            capture_open_windows(app_handle);
             window_placement::save_all(app_handle, &app_handle.state::<window_placement::WindowPlacements>());
             logging::info("app shutdown", json!({ "reason": "exit" }));
             logging::flush();

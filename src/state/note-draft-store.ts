@@ -9,20 +9,13 @@
 // live here, and the components are just views onto them: leaving a task parks
 // its draft and coming back restores it.
 //
-// They are also PERSISTED, and that is the point. An earlier design kept them
-// in memory and asked at quit through the window's close-request handler. On
-// macOS that handler is never reached by Dock > Quit: tao emits CloseRequested
-// only from `windowShouldClose:` (the red button and `performClose:`), Dock >
-// Quit goes to `terminate:`, and nothing in tao, wry, tauri or
-// tauri-runtime-wry implements `applicationShouldTerminate:`. (Cmd+Q and the
-// app menu's Quit now close the window instead — src-tauri/src/menu.rs — but
-// that covers only the routes the app owns.) Force-quit, a crash and power
-// loss are unreachable by any guard at all.
-// Writing through removes the whole class instead of plugging one route, so
-// the close asks about drafts only when writing them failed. Title
-// and description commit on blur, which no quit route that bypasses the close
-// request ever fires, so they are written through here for the same reason
-// (services/note-drafts has the key grammar).
+// They are also PERSISTED, and that is the point. Every quit reaches the
+// window's close path (hooks/use-window-close), but force-quit, a crash and
+// power loss reach no guard at all, so writing through is what keeps the text,
+// and the close asks about drafts only when writing them failed. Title and
+// description commit on blur, which none of those exits fires, so they are
+// written through here for the same reason (services/note-drafts has the key
+// grammar).
 //
 // The write is coalesced (see below) rather than fired per keystroke, so the
 // residual exposure is the coalescing window, not the session.
@@ -46,8 +39,8 @@ import { draftTaskId, reconcileDrafts } from "../services/note-drafts";
 // sustained typing with no pause long enough to trigger it — so text can never
 // sit unwritten for longer than that however the user types.
 //
-// Together they set the only remaining exposure: an ungraceful exit (Cmd+Q,
-// force-quit, crash, power loss) can lose at most the keystrokes typed since
+// Together they set the only remaining exposure: an ungraceful exit (force-quit,
+// crash, power loss) can lose at most the keystrokes typed since
 // the last write. A graceful close closes even that window by flushing before
 // the window is destroyed (hooks/use-window-close).
 const WRITE_IDLE_MS = 500;

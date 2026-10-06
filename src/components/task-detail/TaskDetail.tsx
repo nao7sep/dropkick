@@ -105,7 +105,7 @@ export function TaskDetail({
 
   // Title and description commit on blur, and while they are being edited the
   // typed text is a draft in the same store: a quit that never blurs the field
-  // (Dock > Quit, force-quit, a crash) must not lose it. A draft's presence is
+  // (force-quit, a crash) must not lose it. A draft's presence is
   // the "edited, not yet committed" state; with none, the field shows the task.
   const titleKey = fieldDraftKey(task.id, "title");
   const descriptionKey = fieldDraftKey(task.id, "description");

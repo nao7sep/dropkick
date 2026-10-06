@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 //
 // The quit wiring — the seam the previous suite never reached, which is where
-// both defects on this path lived. What matters here:
+// both defects on this path lived. Every quit reaches it: the close request
+// (red button, Cmd+Q and the menu's Quit, Dock > Quit) and the end of an OS
+// session (unsaved-edits-conventions, Quitting). What matters here:
 //
 //   1. The graceful close gets the last keystrokes onto disk BEFORE the window
 //      is destroyed, so the coalescing window costs nothing.
@@ -9,6 +11,8 @@
 //      that is stuck (the wait is bounded, and past the bound the user may
 //      close anyway) or a write of the user's own work — drafts or a task
 //      list — that failed (Retry or Quit Anyway).
+//   3. The end of a session asks nothing at all: it settles within the bound,
+//      logs what failed, and tells the core.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
@@ -21,6 +25,15 @@ const windowStub = vi.hoisted(() => ({
   handlers: [] as Array<(event: { preventDefault: () => void }) => unknown>,
   events: [] as string[],
   unlistened: 0,
+  // Listeners for events the core sends, by event name.
+  listeners: new Map<string, (event: { payload: unknown }) => void>(),
+}));
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: async (event: string, handler: (event: { payload: unknown }) => void) => {
+    windowStub.listeners.set(event, handler);
+    return () => windowStub.listeners.delete(event);
+  },
 }));
 
 // Task-list writes go through the real per-file serial chain, so the close's
@@ -60,7 +73,11 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { prepareWindowClose, useWindowClose } from "../../src/hooks/use-window-close";
+import {
+  CLOSE_WAIT_MS,
+  prepareWindowClose,
+  useWindowClose,
+} from "../../src/hooks/use-window-close";
 import { withSerial } from "../../src/repositories/file-system";
 import { useNoteDraftStore, flushNoteDraftsNow } from "../../src/state/note-draft-store";
 import { useDialogStore } from "../../src/state/dialog-store";
@@ -99,6 +116,7 @@ beforeEach(async () => {
   windowStub.handlers.length = 0;
   windowStub.events.length = 0;
   windowStub.unlistened = 0;
+  windowStub.listeners.clear();
   listDisk.fail = false;
   listDisk.written.length = 0;
   useTaskListStore.setState({ files: {} });
@@ -129,6 +147,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   document.body.innerHTML = "";
 });
 
@@ -371,6 +390,107 @@ describe("a task-list write that fails outright", () => {
       paths: `${LIST}\n${DRAFTS_PATH}`,
     });
     expect(useDialogStore.getState().queue).toEqual([]);
+    useDialogStore.getState().confirmCurrent();
+    await expect(closing).resolves.toBe(true);
+  });
+});
+
+// The core's session-ending event, as os_quit sends it at logout, restart or
+// shutdown.
+async function endSession(): Promise<void> {
+  const listener = windowStub.listeners.get("session-ending");
+  if (!listener) throw new Error("useWindowClose is not listening for the end of a session");
+  listener({ payload: null });
+}
+
+function reported(): number {
+  return invokeMock.mock.calls.filter(([cmd]) => cmd === "session_end_settled").length;
+}
+
+describe("the end of an OS session", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  });
+
+  it("writes what is pending without asking, reports to the core, and leaves the window", async () => {
+    await mountHarness();
+    useNoteDraftStore.getState().setDraft("t1", "typed as the session ended");
+
+    await endSession();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(windowStub.events).toEqual([
+      'write:{"formatVersion":1,"drafts":{"t1":"typedasthesessionended"}}',
+    ]);
+    expect(reported()).toBe(1);
+    expect(useDialogStore.getState().current).toBeNull();
+  });
+
+  it("asks nothing about a write that fails, and still reports", async () => {
+    await mountHarness();
+    await seedList();
+    listDisk.fail = true;
+    failDraftWrites = true;
+    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
+    void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
+
+    await endSession();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useDialogStore.getState().current).toBeNull();
+    expect(reported()).toBe(1);
+    expect(windowStub.events).not.toContain("destroy");
+  });
+
+  it("reports once the bound passes when a write does not finish", async () => {
+    await mountHarness();
+    const release = stuckWrite(LIST);
+
+    await endSession();
+    await vi.advanceTimersByTimeAsync(CLOSE_WAIT_MS - 1);
+    expect(reported()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(reported()).toBe(1);
+    expect(useDialogStore.getState().current).toBeNull();
+    release();
+  });
+
+  it("joins a close the user started, withdrawing its question", async () => {
+    await mountHarness();
+    failDraftWrites = true;
+    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
+    const handler = windowStub.handlers.at(-1)!;
+    const userClose = handler({ preventDefault: () => {} });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
+
+    await endSession();
+    await vi.advanceTimersByTimeAsync(0);
+    await act(async () => {
+      await userClose;
+    });
+
+    expect(useDialogStore.getState().current).toBeNull();
+    expect(reported()).toBe(1);
+    expect(windowStub.events).not.toContain("destroy");
+  });
+
+  it("leaves dialogs working when the session goes on after all", async () => {
+    await mountHarness();
+    await endSession();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reported()).toBe(1);
+
+    // Windows lets another app cancel the end of a session; the next quit is
+    // an ordinary one again.
+    await seedList();
+    listDisk.fail = true;
+    void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
+    const closing = prepareWindowClose();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
     useDialogStore.getState().confirmCurrent();
     await expect(closing).resolves.toBe(true);
   });

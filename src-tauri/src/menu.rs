@@ -52,9 +52,8 @@ pub const KEYS: [&str; 22] = [
 /// never commits, and writes still queued in the webview are dropped. This item
 /// instead asks the main window to close, which is the one exit the webview
 /// sees (`CloseRequested`), so Cmd+Q and the menu's Quit finish pending work
-/// exactly as the red close button does. Dock > Quit and force-quit still go
-/// straight to `terminate:`; typed text survives those because it is written
-/// through as it is typed (state/note-draft-store).
+/// exactly as the red close button does. Dock > Quit and the end of a session
+/// still arrive as `terminate:`, and `os_quit` routes them to the same close.
 pub const QUIT_ID: &str = "dropkick-quit";
 
 /// Quits through the main window's close path, or exits directly when there is

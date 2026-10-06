@@ -1,6 +1,11 @@
 import { message } from "../../src/i18n/translate";
 import { describe, it, expect, beforeEach } from "vitest";
-import { useDialogStore, showAppMessage, showAppConfirm } from "../../src/state/dialog-store";
+import {
+  useDialogStore,
+  showAppMessage,
+  showAppConfirm,
+  refuseDialogs,
+} from "../../src/state/dialog-store";
 
 // dialog-store is pure zustand (no Tauri). It models a single visible dialog
 // plus a FIFO queue, and resolves the awaiting promise when the user
@@ -143,5 +148,38 @@ describe("withdrawal", () => {
     useDialogStore.getState().confirmCurrent();
     withdraw.abort();
     await expect(answer).resolves.toBe(true);
+  });
+});
+
+// The end of an OS session: no dialog may wait on the user
+// (modal-dialog-conventions).
+describe("refusing dialogs while the session ends", () => {
+  const title = message("dialog.deleteTask.title");
+  const body = message("dialog.deleteNote.body");
+
+  it("cancels the dialog on screen and every queued one", async () => {
+    const onScreen = showAppConfirm(title, body);
+    const queuedConfirm = showAppConfirm(title, body);
+    const queuedMessage = showAppMessage(title, body);
+
+    refuseDialogs(true);
+
+    await expect(onScreen).resolves.toBe(false);
+    await expect(queuedConfirm).resolves.toBe(false);
+    await expect(queuedMessage).resolves.toBeUndefined();
+    expect(useDialogStore.getState()).toMatchObject({ current: null, queue: [] });
+    refuseDialogs(false);
+  });
+
+  it("cancels each new request as it arrives, until turned off", async () => {
+    refuseDialogs(true);
+    await expect(showAppConfirm(title, body)).resolves.toBe(false);
+    expect(useDialogStore.getState().current).toBeNull();
+
+    refuseDialogs(false);
+    const shown = showAppConfirm(title, body);
+    expect(useDialogStore.getState().current).not.toBeNull();
+    useDialogStore.getState().confirmCurrent();
+    await expect(shown).resolves.toBe(true);
   });
 });

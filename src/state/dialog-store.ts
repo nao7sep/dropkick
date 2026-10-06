@@ -69,6 +69,10 @@ type SetDialogState = (
   partial: Partial<Pick<DialogState, "current" | "queue">>,
 ) => void;
 
+// True while the OS ends the session, when no dialog may wait on the user
+// (modal-dialog-conventions); see refuseDialogs.
+let refusing = false;
+
 // Shows the request now, or queues it behind the one on screen, and wires its
 // withdrawal to `signal`.
 function present(
@@ -78,7 +82,7 @@ function present(
   set: SetDialogState,
   settleCancelled: () => void,
 ): void {
-  if (signal?.aborted) {
+  if (signal?.aborted || refusing) {
     settleCancelled();
     return;
   }
@@ -163,6 +167,16 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     }
   },
 }));
+
+// While the OS ends the session, every request on screen or queued resolves
+// through its cancel path and each new one is cancelled as it arrives; turned
+// off again if the session goes on after all.
+export function refuseDialogs(refuse: boolean): void {
+  refusing = refuse;
+  while (refuse && useDialogStore.getState().current) {
+    useDialogStore.getState().cancelCurrent();
+  }
+}
 
 export async function showAppMessage(
   title: Message,
