@@ -1,6 +1,5 @@
 use super::*;
 use serial_test::serial;
-use std::sync::atomic::{AtomicU32, Ordering};
 
 // The store singleton is process-global, so every test that touches it is
 // marked `#[serial(backup_store)]`. `cargo test` runs tests in parallel threads
@@ -10,29 +9,37 @@ use std::sync::atomic::{AtomicU32, Ordering};
 // another. Each test opens a fresh throwaway store file, exercises it, then
 // closes it so the next test re-opens cleanly.
 
-fn unique_store_file(label: &str) -> PathBuf {
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let dir = std::env::temp_dir().join(format!(
-        "dropkick-backupstore-test-{}-{}-{}",
-        label,
-        std::process::id(),
-        n
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir.join("backups.sqlite3")
+// A throwaway store file in its own temporary directory. Dropping it closes
+// the singleton before the directory goes, even when an assertion fails, since
+// Windows cannot remove a directory that holds an open SQLite file.
+struct TempStore {
+    file: PathBuf,
+    _dir: tempfile::TempDir,
+}
+
+impl Drop for TempStore {
+    fn drop(&mut self) {
+        close_for_test();
+    }
+}
+
+fn temp_store() -> TempStore {
+    let dir = tempfile::tempdir().unwrap();
+    TempStore {
+        file: dir.path().join("backups.sqlite3"),
+        _dir: dir,
+    }
 }
 
 // Opens a throwaway store, runs `body` against a direct connection to the same
-// file for assertions, and always closes the singleton afterward.
+// file for assertions, and closes the singleton afterward.
 // Serialization is provided by `#[serial(backup_store)]` on each caller, not by
 // an in-module lock, so this group is also mutually exclusive with the lib.rs
 // atomic-write test that shares the same key.
-fn with_store<F: FnOnce(&Path)>(label: &str, body: F) {
-    let file = unique_store_file(label);
-    init(file.clone());
-    body(&file);
-    close_for_test();
+fn with_store<F: FnOnce(&Path)>(body: F) {
+    let store = temp_store();
+    init(store.file.clone());
+    body(&store.file);
 }
 
 // A read-only view of every row for a path, in insert order, for assertions.
@@ -62,7 +69,7 @@ fn rows_for(file: &Path, path: &str) -> Vec<(Vec<u8>, String, i64, String)> {
 #[test]
 #[serial(backup_store)]
 fn content_blob_is_byte_identical_including_crlf_and_non_utf8() {
-    with_store("blob-fidelity", |file| {
+    with_store(|file| {
         // A CR/LF pair, a UTF-8 BOM, and a lone 0xFF byte (invalid UTF-8):
         // proves the BLOB stores raw bytes, never decoded/normalized text.
         let raw: &[u8] = &[0xEF, 0xBB, 0xBF, b'a', b'\r', b'\n', b'b', 0xFF];
@@ -81,7 +88,7 @@ fn content_blob_is_byte_identical_including_crlf_and_non_utf8() {
 #[test]
 #[serial(backup_store)]
 fn written_at_utc_is_serialized_iso_ms_not_the_filename_stamp() {
-    with_store("iso-shape", |file| {
+    with_store(|file| {
         let p = "/abs/a.json";
         record(Path::new(p), b"x");
         let rows = rows_for(file, p);
@@ -107,7 +114,7 @@ fn written_at_utc_is_serialized_iso_ms_not_the_filename_stamp() {
 #[test]
 #[serial(backup_store)]
 fn dedup_skips_an_unchanged_re_save() {
-    with_store("dedup", |file| {
+    with_store(|file| {
         let p = "/abs/b.json";
         record(Path::new(p), b"same");
         record(Path::new(p), b"same"); // identical -> deduped, no new row
@@ -118,7 +125,7 @@ fn dedup_skips_an_unchanged_re_save() {
 #[test]
 #[serial(backup_store)]
 fn a_changed_save_and_a_revert_each_insert_a_row() {
-    with_store("changed-and-revert", |file| {
+    with_store(|file| {
         let p = "/abs/c.json";
         record(Path::new(p), b"v1");
         record(Path::new(p), b"v2"); // changed -> new row
@@ -134,7 +141,7 @@ fn a_changed_save_and_a_revert_each_insert_a_row() {
 #[test]
 #[serial(backup_store)]
 fn dedup_is_per_path_not_global() {
-    with_store("per-path", |file| {
+    with_store(|file| {
         // Identical content under two different paths each records (dedup is
         // per-path against that path's latest row, never global).
         record(Path::new("/abs/x.json"), b"same");
@@ -162,20 +169,13 @@ fn record_never_panics_on_a_broken_connection() {
     // un-creatable path — the open fails, recording is disabled, and a
     // subsequent record is a silent no-op (never a panic, never a crash).
     // A path whose parent is a FILE, so create_dir_all + open must fail.
-    let dir = std::env::temp_dir().join(format!(
-        "dropkick-backupstore-badpath-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    let file_as_parent = dir.join("not-a-dir");
+    let store = temp_store();
+    let file_as_parent = store.file.with_file_name("not-a-dir");
     std::fs::write(&file_as_parent, b"x").unwrap(); // a regular file
     let store_file = file_as_parent.join("backups.sqlite3"); // parent is a file -> mkdir fails
 
     init(store_file); // open fails -> disabled, one warn logged, no panic
     record(Path::new("/abs/whatever.json"), b"data"); // silent no-op, no panic
-    close_for_test();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 // The store's format version (store-recovery-conventions).
@@ -190,7 +190,7 @@ fn user_version(file: &Path) -> i64 {
 #[test]
 #[serial(backup_store)]
 fn a_new_store_is_stamped_with_its_format_version() {
-    with_store("format-new", |file| {
+    with_store(|file| {
         assert_eq!(user_version(file), 1);
     });
 }
@@ -198,30 +198,32 @@ fn a_new_store_is_stamped_with_its_format_version() {
 #[test]
 #[serial(backup_store)]
 fn an_existing_store_without_a_marker_is_left_byte_identical_and_records_nothing() {
-    let file = unique_store_file("format-unmarked");
+    let store = temp_store();
+    let file = &store.file;
     {
-        let conn = Connection::open(&file).unwrap();
+        let conn = Connection::open(file).unwrap();
         conn.execute_batch(SCHEMA).unwrap();
     }
-    let before = std::fs::read(&file).unwrap();
+    let before = std::fs::read(file).unwrap();
     init(file.clone());
     record(Path::new("/abs/a.json"), b"one");
     close_for_test();
-    assert_eq!(std::fs::read(&file).unwrap(), before);
+    assert_eq!(std::fs::read(file).unwrap(), before);
 }
 
 #[test]
 #[serial(backup_store)]
 fn a_newer_store_is_left_byte_identical_and_records_nothing() {
-    let file = unique_store_file("format-newer");
+    let store = temp_store();
+    let file = &store.file;
     {
-        let conn = Connection::open(&file).unwrap();
+        let conn = Connection::open(file).unwrap();
         conn.pragma_update(None, "user_version", 2).unwrap();
         conn.execute_batch("CREATE TABLE history (anything BLOB);").unwrap();
     }
-    let before = std::fs::read(&file).unwrap();
+    let before = std::fs::read(file).unwrap();
     init(file.clone());
     record(Path::new("/abs/a.json"), b"one");
     close_for_test();
-    assert_eq!(std::fs::read(&file).unwrap(), before);
+    assert_eq!(std::fs::read(file).unwrap(), before);
 }

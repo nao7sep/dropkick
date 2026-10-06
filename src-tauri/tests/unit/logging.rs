@@ -2,23 +2,22 @@ use super::*;
 use serde_json::json;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-fn temp_dir() -> PathBuf {
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let dir = std::env::temp_dir().join(format!(
-        "dropkick-log-test-{}-{}",
-        std::process::id(),
-        n
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir
+// A temporary directory removed when the test ends. A test declares its logger
+// after the directory (or takes both from temp_logger in that order), so the
+// logger closes its database before the directory goes, which Windows needs.
+fn temp_dir() -> tempfile::TempDir {
+    tempfile::tempdir().expect("temp dir")
 }
 
-fn temp_logger(debug_enabled: bool) -> (Logger, PathBuf) {
+fn temp_logger(debug_enabled: bool) -> (tempfile::TempDir, Logger) {
     let dir = temp_dir();
-    let logger = Logger::open(&dir.join("records.sqlite3"), &dir.join("logs"), debug_enabled);
+    let logger = Logger::open(
+        &dir.path().join("records.sqlite3"),
+        &dir.path().join("logs"),
+        debug_enabled,
+    );
     assert!(logger.records.lock().unwrap().is_ok(), "temp records database should open");
-    (logger, dir)
+    (dir, logger)
 }
 
 struct Row {
@@ -30,8 +29,8 @@ struct Row {
     fields: Value,
 }
 
-fn rows(dir: &Path) -> Vec<Row> {
-    let conn = Connection::open(dir.join("records.sqlite3")).expect("open records");
+fn rows(dir: impl AsRef<Path>) -> Vec<Row> {
+    let conn = Connection::open(dir.as_ref().join("records.sqlite3")).expect("open records");
     let mut statement = conn
         .prepare("SELECT time, session, level, message, task_id, fields FROM logs ORDER BY id")
         .expect("prepare");
@@ -61,7 +60,7 @@ fn fallback_lines(logger: &Logger) -> Vec<Value> {
 
 #[test]
 fn entry_is_a_row_with_its_session_as_soon_as_it_is_logged() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit(Level::Info, "started", json!({ "n": 3 }));
     let rows = rows(&dir);
     assert_eq!(rows.len(), 1);
@@ -75,7 +74,7 @@ fn entry_is_a_row_with_its_session_as_soon_as_it_is_logged() {
 
 #[test]
 fn a_task_id_is_its_own_column() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit_forwarded(json!({
         "time": "2026-06-10T03:15:42.123Z",
         "level": "info",
@@ -91,7 +90,7 @@ fn a_task_id_is_its_own_column() {
 
 #[test]
 fn a_non_string_envelope_value_is_kept_in_fields() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit_forwarded(json!({ "message": 7, "taskId": 9 }));
     let rows = rows(&dir);
     assert_eq!(rows[0].message, "");
@@ -101,7 +100,7 @@ fn a_non_string_envelope_value_is_kept_in_fields() {
 
 #[test]
 fn nested_error_message_is_preserved_as_a_field() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit(
         Level::Warn,
         "read failed",
@@ -114,7 +113,7 @@ fn nested_error_message_is_preserved_as_a_field() {
 
 #[test]
 fn rust_debug_is_dropped_when_the_gate_is_off() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit(Level::Debug, "noise", json!({}));
     assert!(rows(&dir).is_empty());
 }
@@ -123,7 +122,7 @@ fn rust_debug_is_dropped_when_the_gate_is_off() {
 fn forwarded_unknown_level_is_normalized_to_the_gated_level() {
     // A forwarded level Level::parse cannot recognize is written as the level
     // we actually gated/handled it as (info), never kept verbatim.
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit_forwarded(json!({
         "time": "2026-06-10T03:15:42.123Z",
         "level": "warning",
@@ -138,7 +137,7 @@ fn forwarded_unknown_level_is_normalized_to_the_gated_level() {
 
 #[test]
 fn forwarded_missing_envelope_fields_are_filled() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit_forwarded(json!({ "detail": 1 }));
     let rows = rows(&dir);
     assert_eq!(rows[0].level, "info");
@@ -149,26 +148,26 @@ fn forwarded_missing_envelope_fields_are_filled() {
 
 #[test]
 fn forwarded_debug_respects_the_gate() {
-    let (off, off_dir) = temp_logger(false);
+    let (off_dir, off) = temp_logger(false);
     off.emit_forwarded(json!({ "level": "debug", "message": "frame" }));
     assert!(rows(&off_dir).is_empty());
 
-    let (on, on_dir) = temp_logger(true);
+    let (on_dir, on) = temp_logger(true);
     on.emit_forwarded(json!({ "level": "debug", "message": "frame" }));
     assert_eq!(rows(&on_dir)[0].level, "debug");
 }
 
 #[test]
 fn forwarded_warn_keeps_its_level() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit_forwarded(json!({ "level": "warn", "message": "careful" }));
     assert_eq!(rows(&dir)[0].level, "warn");
 }
 
 #[test]
 fn an_unopenable_database_sends_each_entry_to_the_session_fallback_file() {
-    let dir = temp_dir();
-    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let tmp = temp_dir();
+    let dir = tmp.path();
     // A directory where the database file should be cannot be opened as one.
     std::fs::create_dir_all(dir.join("records.sqlite3")).expect("block the database path");
     let logger = Logger::open(&dir.join("records.sqlite3"), &dir.join("logs"), false);
@@ -189,7 +188,7 @@ fn an_unopenable_database_sends_each_entry_to_the_session_fallback_file() {
 
 #[test]
 fn a_failed_insert_falls_back_for_that_entry_only() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     logger.emit(Level::Info, "before", json!({}));
     logger
         .records
@@ -219,7 +218,7 @@ fn a_failed_insert_falls_back_for_that_entry_only() {
 
 #[test]
 fn the_writer_thread_writes_entries_in_the_order_they_were_logged() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     let logger: &'static Logger = Box::leak(Box::new(logger));
     logger.start_writer();
     for n in 0..50 {
@@ -227,6 +226,8 @@ fn the_writer_thread_writes_entries_in_the_order_they_were_logged() {
     }
     logger.emit_forwarded(json!({ "level": "info", "message": "forwarded" }));
     logger.flush();
+    // The leaked logger is never dropped, so close its database here.
+    *logger.records.lock().unwrap() = Err("closed".to_string());
     let rows = rows(&dir);
     assert_eq!(rows.len(), 51);
     for (n, row) in rows.iter().take(50).enumerate() {
@@ -246,7 +247,7 @@ fn counting_listener(logger: &Logger) -> std::sync::Arc<AtomicU32> {
 
 #[test]
 fn each_stored_entry_signals_once() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     let signals = counting_listener(&logger);
 
     logger.emit(Level::Info, "one", json!({}));
@@ -259,7 +260,8 @@ fn each_stored_entry_signals_once() {
 
 #[test]
 fn an_entry_that_went_to_the_fallback_file_does_not_signal() {
-    let dir = temp_dir();
+    let tmp = temp_dir();
+    let dir = tmp.path();
     std::fs::create_dir_all(dir.join("records.sqlite3")).expect("block the database path");
     let logger = Logger::open(&dir.join("records.sqlite3"), &dir.join("logs"), false);
     let signals = counting_listener(&logger);
@@ -272,8 +274,8 @@ fn an_entry_that_went_to_the_fallback_file_does_not_signal() {
 
 #[test]
 fn the_logger_names_its_database_and_session() {
-    let (logger, dir) = temp_logger(false);
-    assert_eq!(logger.records_file, dir.join("records.sqlite3"));
+    let (dir, logger) = temp_logger(false);
+    assert_eq!(logger.records_file, dir.path().join("records.sqlite3"));
     logger.emit(Level::Info, "one", json!({}));
     assert_eq!(rows(&dir)[0].session, logger.session);
 }
@@ -282,17 +284,17 @@ fn the_logger_names_its_database_and_session() {
 
 #[test]
 fn a_new_records_database_is_stamped_with_its_format_version() {
-    let (logger, dir) = temp_logger(false);
+    let (dir, logger) = temp_logger(false);
     drop(logger);
-    let conn = Connection::open(dir.join("records.sqlite3")).expect("open records");
+    let conn = Connection::open(dir.path().join("records.sqlite3")).expect("open records");
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).expect("version");
     assert_eq!(version, 1);
 }
 
 #[test]
 fn a_newer_records_database_is_left_byte_identical_and_entries_take_the_fallback() {
-    let dir = temp_dir();
-    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let tmp = temp_dir();
+    let dir = tmp.path();
     let file = dir.join("records.sqlite3");
     {
         let conn = Connection::open(&file).expect("open records");

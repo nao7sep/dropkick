@@ -1,23 +1,9 @@
 use super::*;
-use std::sync::atomic::{AtomicU32, Ordering};
-
-// Unique temp directory per call so parallel tests never collide.
-fn unique_temp_dir(label: &str) -> std::path::PathBuf {
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let dir = std::env::temp_dir().join(format!(
-        "dropkick-test-{}-{}-{}",
-        label,
-        std::process::id(),
-        n
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
 
 #[test]
 fn hash_file_hashes_actual_bytes() {
-    let dir = unique_temp_dir("hash");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("f.txt");
     std::fs::write(&path, b"abc").unwrap();
     let result = hash_file(path.to_str().unwrap()).unwrap();
@@ -26,14 +12,16 @@ fn hash_file_hashes_actual_bytes() {
 
 #[test]
 fn hash_file_returns_missing_for_an_absent_file() {
-    let dir = unique_temp_dir("hash-missing");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("absent.txt");
     assert_eq!(hash_file(path.to_str().unwrap()).unwrap(), None);
 }
 
 #[test]
 fn quarantine_file_renames_and_preserves_bytes() {
-    let dir = unique_temp_dir("quarantine");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("state.json");
     std::fs::write(&path, b"{ corrupt bytes").unwrap();
 
@@ -45,14 +33,16 @@ fn quarantine_file_renames_and_preserves_bytes() {
 
 #[test]
 fn quarantine_file_errors_for_missing_source() {
-    let dir = unique_temp_dir("quarantine-missing");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("absent.json");
     assert!(quarantine_file(path.to_str().unwrap()).is_err());
 }
 
 #[test]
 fn read_json_returns_missing_for_absent_file() {
-    let dir = unique_temp_dir("read-missing");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("nope.json");
     let result = read_json_file_with_hash(path.to_str().unwrap()).unwrap();
     assert!(matches!(result, JsonFileWithHashResult::Missing));
@@ -60,7 +50,8 @@ fn read_json_returns_missing_for_absent_file() {
 
 #[test]
 fn read_json_returns_invalid_for_bad_json() {
-    let dir = unique_temp_dir("read-invalid");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("bad.json");
     std::fs::write(&path, b"{ not json").unwrap();
     let result = read_json_file_with_hash(path.to_str().unwrap()).unwrap();
@@ -69,7 +60,8 @@ fn read_json_returns_invalid_for_bad_json() {
 
 #[test]
 fn read_json_returns_success_with_hash() {
-    let dir = unique_temp_dir("read-success");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("good.json");
     let json = br#"{"formatVersion":1,"id":"L1","tasks":[]}"#;
     std::fs::write(&path, json).unwrap();
@@ -85,7 +77,8 @@ fn read_json_returns_success_with_hash() {
 
 #[test]
 fn read_text_file_returns_missing_success_states() {
-    let dir = unique_temp_dir("read-text");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let missing = dir.join("nope.txt");
     assert!(matches!(
         read_text_file(missing.to_str().unwrap()).unwrap(),
@@ -102,7 +95,8 @@ fn read_text_file_returns_missing_success_states() {
 
 #[test]
 fn file_exists_reflects_presence() {
-    let dir = unique_temp_dir("exists");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("f.txt");
     assert!(!file_exists(path.to_string_lossy().into_owned()));
     std::fs::write(&path, b"x").unwrap();
@@ -111,7 +105,8 @@ fn file_exists_reflects_presence() {
 
 #[test]
 fn ensure_dir_creates_nested_and_is_idempotent() {
-    let dir = unique_temp_dir("ensure");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let nested = dir.join("a").join("b").join("c");
     let p = nested.to_str().unwrap();
     ensure_dir(p).unwrap();
@@ -123,9 +118,17 @@ fn ensure_dir_creates_nested_and_is_idempotent() {
 #[test]
 #[serial_test::serial(backup_store)]
 fn volatile_state_uses_the_atomic_writer_without_recording_backup_history() {
+    // Closes the store before the directory goes, even when an assertion fails.
+    struct CloseStore;
+    impl Drop for CloseStore {
+        fn drop(&mut self) {
+            backup_store::close_for_test();
+        }
+    }
     let dir = tempfile::tempdir().unwrap();
     let history = dir.path().join("backups.sqlite3");
     backup_store::init(history.clone());
+    let _close = CloseStore;
     let state = dir.path().join("state.json");
     let config = dir.path().join("config.json");
     let preferences = dir.path().join("preferences.json");
@@ -145,5 +148,4 @@ fn volatile_state_uses_the_atomic_writer_without_recording_backup_history() {
     assert_eq!(rows(&state), 0);
     assert_eq!(rows(&config), 1);
     assert_eq!(rows(&preferences), 1);
-    backup_store::close_for_test();
 }

@@ -63,8 +63,8 @@ fn saved_preference_reads_the_language_field() {
 
 #[test]
 fn the_saved_choice_comes_from_the_previewed_document_without_touching_it() {
-    let dir = std::env::temp_dir().join(format!("dropkick-i18n-{}", std::process::id()));
-    fs::create_dir_all(&dir).unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let preferences = dir.join("preferences.json");
     let state = dir.join("state.json");
     let preferences_text = json!({ "formatVersion": 1, "language": "ko" }).to_string();
@@ -79,7 +79,6 @@ fn the_saved_choice_comes_from_the_previewed_document_without_touching_it() {
     fs::remove_file(&preferences).unwrap();
     assert_eq!(read_saved_preference(&state), None);
     assert_eq!(read_saved_preference(&dir.join("missing.json")), None);
-    fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]

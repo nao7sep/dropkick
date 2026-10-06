@@ -6,21 +6,6 @@
 // on that module for why they cannot be reached from here.
 
 use dropkick_lib::*;
-use std::sync::atomic::{AtomicU32, Ordering};
-
-// Unique temp directory per call so parallel tests never collide.
-fn unique_temp_dir(label: &str) -> std::path::PathBuf {
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let dir = std::env::temp_dir().join(format!(
-        "dropkick-test-{}-{}-{}",
-        label,
-        std::process::id(),
-        n
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
 
 #[test]
 fn sha256_hex_matches_known_vectors() {
@@ -260,7 +245,8 @@ fn atomic_temp_name_is_stem_plus_nanoid_dot_tmp() {
 
 #[test]
 fn write_atomic_writes_and_replaces() {
-    let dir = unique_temp_dir("write-atomic");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("f.json");
     let p = path.to_str().unwrap();
 
@@ -287,7 +273,8 @@ fn write_atomic_returns_the_hash_of_what_it_wrote() {
     // and uses it to detect a later external modification. Returning it
     // from here is what lets the caller skip reading the whole file back —
     // and what stops a concurrent writer's bytes being hashed instead.
-    let dir = unique_temp_dir("write-hash");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("f.json");
     let p = path.to_str().unwrap();
 
@@ -303,7 +290,8 @@ fn write_atomic_returns_the_hash_of_what_it_wrote() {
 
 #[test]
 fn write_atomic_errors_when_parent_missing() {
-    let dir = unique_temp_dir("write-no-parent");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("missing-subdir").join("f.json");
     assert!(write_atomic(path.to_str().unwrap(), "x").is_err());
 }
@@ -317,7 +305,8 @@ fn write_atomic_writes_through_a_symlink_instead_of_replacing_it() {
     // the link's former location and the real file would go permanently stale.
     // Task lists are documented as living "at any path", and symlinking one
     // into a synced folder is exactly the setup that invites.
-    let dir = unique_temp_dir("symlink");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let real = dir.join("real.json");
     let link = dir.join("link.json");
     std::fs::write(&real, "before").unwrap();
@@ -340,7 +329,8 @@ fn write_atomic_keeps_the_target_permissions() {
     // had restricted to 0600 came back readable by every local account.
     use std::os::unix::fs::PermissionsExt;
 
-    let dir = unique_temp_dir("perms");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("private.json");
     std::fs::write(&path, "before").unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
@@ -355,7 +345,8 @@ fn write_atomic_keeps_the_target_permissions() {
 fn write_atomic_takes_the_save_as_the_modified_time() {
     // A save changes the content, so the replace must not carry the replaced
     // file's modified time over along with the metadata it does keep.
-    let dir = unique_temp_dir("mtime");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("f.json");
     std::fs::write(&path, "before").unwrap();
     let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_577_836_800);
@@ -377,7 +368,8 @@ fn an_unchanged_write_leaves_the_file_untouched_through_both_writers() {
     // A write that changes nothing is skipped (content-lifecycle-conventions,
     // Files), so the file keeps its modified time and, being the same file, its
     // identity and metadata.
-    let dir = unique_temp_dir("unchanged");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_577_836_800);
     let writers: [(&str, fn(&str, &str) -> Result<String, String>); 2] = [
         ("recorded.json", write_atomic),
@@ -418,7 +410,8 @@ fn write_atomic_keeps_extended_attributes_finder_tags_and_the_acl() {
     // The rename replaces the inode, so without carrying them a save dropped
     // every Finder tag, extended attribute and access-control entry the user
     // had put on the task list (content-lifecycle-conventions, Files).
-    let dir = unique_temp_dir("xattr-acl");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("tagged.json");
     std::fs::write(&path, "before").unwrap();
     let p = path.to_str().unwrap();
@@ -442,7 +435,8 @@ fn write_atomic_keeps_extended_attributes_finder_tags_and_the_acl() {
 #[test]
 #[cfg(target_os = "macos")]
 fn write_atomic_adds_no_metadata_to_a_file_that_had_none() {
-    let dir = unique_temp_dir("no-xattr");
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
     let path = dir.join("plain.json");
     let p = path.to_str().unwrap();
     write_atomic(p, "first").unwrap();
