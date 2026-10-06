@@ -39,6 +39,14 @@ export const useAppConfigStore = create<AppConfigStore>((set, get) => {
       await flushAppConfig(filePath, () => get().appConfig);
       saved = true;
     });
+    // A list change that did not reach the disk is undone, unless a later
+    // change has replaced it, so retrying it writes again rather than finding
+    // nothing to do.
+    if (!saved) {
+      set((state) =>
+        state.appConfig[key] === next ? { appConfig: { ...state.appConfig, [key]: current } } : state,
+      );
+    }
     return saved;
   }
   return {
