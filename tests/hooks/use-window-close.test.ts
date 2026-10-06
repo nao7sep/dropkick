@@ -6,12 +6,13 @@
 //   1. The graceful close gets the last keystrokes onto disk BEFORE the window
 //      is destroyed, so the coalescing window costs nothing on the one exit
 //      this handler can actually see.
-//   2. It asks nothing about drafts. The old design held drafts in memory and
-//      prompted here; that prompt could not run on macOS Cmd+Q (tao emits
-//      CloseRequested only from `windowShouldClose:`), so it protected nothing
-//      while nagging on the exits it did reach. Drafts are written through now.
-//      The one question it may ask is about a write that is stuck: the wait is
-//      bounded, and past the bound the user may close anyway.
+//   2. It asks nothing about drafts that are on disk. The old design held
+//      drafts in memory and prompted here; that prompt could not run on macOS
+//      Cmd+Q (tao emits CloseRequested only from `windowShouldClose:`), so it
+//      protected nothing while nagging on the exits it did reach. Drafts are
+//      written through now. It asks only about a write that is stuck (the wait
+//      is bounded, and past the bound the user may close anyway) or a draft
+//      write that failed (Retry or Quit Anyway).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
@@ -50,6 +51,8 @@ import { useDialogStore } from "../../src/state/dialog-store";
 
 const invokeMock = invoke as unknown as Mock;
 const DRAFTS_PATH = "/home/u/.dropkick/note-drafts.json";
+// Set per test to make every draft write fail, as on a full or read-only disk.
+let failDraftWrites = false;
 
 function Harness() {
   useWindowClose();
@@ -84,11 +87,13 @@ beforeEach(async () => {
   useDialogStore.setState({ current: null, queue: [] });
 
   invokeMock.mockReset();
+  failDraftWrites = false;
   invokeMock.mockImplementation((cmd: string, args: unknown) => {
     if (
       cmd === "write_text_file_atomic" &&
       (args as { path: string }).path === DRAFTS_PATH
     ) {
+      if (failDraftWrites) return Promise.reject(new Error("disk full"));
       windowStub.events.push(
         `write:${(args as { contents: string }).contents.replace(/\s+/g, "")}`,
       );
@@ -215,5 +220,44 @@ describe("a write that does not finish", () => {
       await first;
     });
     expect(windowStub.events).toEqual(["destroy"]);
+  });
+});
+
+describe("a draft write that fails", () => {
+  it("holds the close, names the file and retries on request", async () => {
+    await mountHarness();
+    failDraftWrites = true;
+    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
+    const closing = prepareWindowClose();
+
+    await waitForDialog();
+    const dialog = useDialogStore.getState().current;
+    expect(dialog?.title.key).toBe("dialog.draftsNotSaved.title");
+    expect(dialog?.body.values).toEqual({ path: DRAFTS_PATH });
+
+    // Retry with the disk still full asks again.
+    useDialogStore.getState().cancelCurrent();
+    await waitForDialog();
+    expect(useDialogStore.getState().current?.title.key).toBe("dialog.draftsNotSaved.title");
+
+    // Retry once the disk has room writes the text and lets the close go ahead.
+    failDraftWrites = false;
+    useDialogStore.getState().cancelCurrent();
+    await expect(closing).resolves.toBe(true);
+    expect(windowStub.events).toEqual([
+      'write:{"formatVersion":1,"drafts":{"t1":"typedonafulldisk"}}',
+    ]);
+  });
+
+  it("closes when the user quits anyway", async () => {
+    await mountHarness();
+    failDraftWrites = true;
+    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
+    const closing = prepareWindowClose();
+
+    await waitForDialog();
+    useDialogStore.getState().confirmCurrent();
+
+    await expect(closing).resolves.toBe(true);
   });
 });

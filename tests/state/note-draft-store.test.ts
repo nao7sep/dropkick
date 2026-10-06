@@ -165,6 +165,47 @@ describe("write-through", () => {
   });
 });
 
+describe("a failed write", () => {
+  let failing = false;
+  function failDraftWrites(fail: boolean): void {
+    failing = fail;
+  }
+
+  beforeEach(() => {
+    failing = false;
+    const base = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((cmd: string, args: unknown) => {
+      if (failing && cmd === "write_text_file_atomic" && (args as { path: string }).path === DRAFTS_PATH) {
+        return Promise.reject(new Error("disk full"));
+      }
+      return base(cmd, args);
+    });
+  });
+
+  it("stays owed, so a later flush writes it and reports success", async () => {
+    await loadEmpty();
+    failDraftWrites(true);
+    useNoteDraftStore.getState().setDraft("t1", "typed while the disk was full");
+    await vi.advanceTimersByTimeAsync(500);
+
+    failDraftWrites(false);
+    const writesBefore = draftWrites().length;
+    await expect(flushNoteDraftsNow()).resolves.toBe(true);
+
+    expect(draftWrites().length).toBe(writesBefore + 1);
+    expect(draftWrites().at(-1)).toEqual({ t1: "typed while the disk was full" });
+  });
+
+  it("reports a flush that still cannot write", async () => {
+    await loadEmpty();
+    failDraftWrites(true);
+    useNoteDraftStore.getState().setDraft("t1", "typed while the disk was full");
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(flushNoteDraftsNow()).resolves.toBe(false);
+  });
+});
+
 describe("load", () => {
   it("brings back the drafts a previous session left on disk", async () => {
     diskRead = {

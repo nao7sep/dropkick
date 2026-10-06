@@ -19,7 +19,7 @@
 // that covers only the routes the app owns.) Force-quit, a crash and power
 // loss are unreachable by any guard at all.
 // Writing through removes the whole class instead of plugging one route, so
-// there is no quit prompt any more: nothing is held back to ask about. Title
+// the close asks about drafts only when writing them failed. Title
 // and description commit on blur, which no quit route that bypasses the close
 // request ever fires, so they are written through here for the same reason
 // (services/note-drafts has the key grammar).
@@ -55,12 +55,18 @@ const WRITE_MAX_WAIT_MS = 3000;
 
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
 let coalesceStartedAt = 0;
+// True from a change until a write started after it succeeds, so a failed
+// write stays owed rather than being taken for a current disk copy.
+let unwritten = false;
+// The latest write, so a flush waits for one already under way.
+let latestWrite: Promise<boolean> = Promise.resolve(true);
 
 function schedulePersist(): void {
   // No path means the drafts have not been loaded; nothing is written before
   // the file has been read.
   if (!useNoteDraftStore.getState().filePath) return;
 
+  unwritten = true;
   const now = Date.now();
   if (writeTimer === null) {
     coalesceStartedAt = now;
@@ -73,32 +79,39 @@ function schedulePersist(): void {
   }, Math.min(WRITE_IDLE_MS, remainingMax));
 }
 
-async function persist(): Promise<void> {
+// Resolves true when the drafts reached the disk.
+function persist(): Promise<boolean> {
   if (writeTimer !== null) {
     clearTimeout(writeTimer);
     writeTimer = null;
   }
+  unwritten = false;
   const { filePath } = useNoteDraftStore.getState();
-  if (!filePath) return;
-  try {
-    await flushNoteDrafts(filePath, () => useNoteDraftStore.getState().drafts);
-  } catch (e) {
-    // A failed draft write is logged, not raised. The text is still on screen
-    // and still in memory, and every write the user actually asked for (adding
-    // a note, editing a task) reports its own failure at the affected field or
-    // pane — so a broken disk is never silent, and an alert per keystroke would
-    // be disruptive.
-    log.warn("note drafts write failed", { filePath, ...toErrorFields(e) });
-  }
+  if (!filePath) return Promise.resolve(true);
+  latestWrite = flushNoteDrafts(filePath, () => useNoteDraftStore.getState().drafts).then(
+    () => true,
+    (e: unknown) => {
+      // A failed draft write is logged, not raised: an alert per keystroke
+      // would be disruptive. The drafts stay owed, so the next change writes
+      // them again and a graceful close holds until they are written or the
+      // user quits anyway (hooks/use-window-close).
+      unwritten = true;
+      log.warn("note drafts write failed", { filePath, ...toErrorFields(e) });
+      return false;
+    },
+  );
+  return latestWrite;
 }
 
-// Writes any coalesced change immediately. Used on the graceful close path so
-// the last keystrokes land before the window is destroyed. With nothing
-// coalescing the disk copy is already current, so this costs nothing — closing
-// a session that typed no drafts must not rewrite the file.
-export async function flushNoteDraftsNow(): Promise<void> {
-  if (writeTimer === null) return;
-  await persist();
+// Writes any change not yet on disk immediately, after a write already under
+// way. Used on the graceful close path so the last keystrokes land before the
+// window is destroyed. Resolves false when the drafts could not be written.
+// With nothing owed the disk copy is already current, so this costs nothing —
+// closing a session that typed no drafts must not rewrite the file.
+export async function flushNoteDraftsNow(): Promise<boolean> {
+  await latestWrite;
+  if (writeTimer === null && !unwritten) return true;
+  return await persist();
 }
 
 interface NoteDraftState {
