@@ -29,6 +29,12 @@ const GROUP_LABELS: Record<TaskGroup, MessageKey> = {
   Default: "group.default",
 };
 
+function newestFirst(a: string | null, b: string | null): number {
+  if (!a) return b ? 1 : 0;
+  if (!b) return -1;
+  return Date.parse(b) - Date.parse(a);
+}
+
 // Groups and sorts active tasks for display.
 //
 // A list tab keeps each group's manual sort order (array position). The unified
@@ -41,9 +47,7 @@ export function groupTasks(tasks: Task[], isUnifiedView: boolean): GroupedTasks 
     .filter((t) => t.status === "Completed" || t.status === "Dismissed")
     .sort((a, b) => {
       // Most recently handled first.
-      const aTime = a.completedAtUtc ?? "";
-      const bTime = b.completedAtUtc ?? "";
-      return bTime.localeCompare(aTime);
+      return newestFirst(a.completedAtUtc, b.completedAtUtc);
     });
 
   const groupMap = new Map<TaskGroup, Task[]>();
@@ -58,7 +62,7 @@ export function groupTasks(tasks: Task[], isUnifiedView: boolean): GroupedTasks 
 
   if (isUnifiedView) {
     for (const groupTasks of groupMap.values()) {
-      groupTasks.sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc));
+      groupTasks.sort((a, b) => newestFirst(a.createdAtUtc, b.createdAtUtc));
     }
   }
 

@@ -168,3 +168,27 @@ describe("visualTaskOrder", () => {
     ]);
   });
 });
+
+describe("stored timestamp instants", () => {
+  it.each([false, true])("orders offset and fractional timestamps by instant (unified=%s)", (unified) => {
+    const inputs = [
+      ["offset", "2026-01-01T01:00:00+02:00"],
+      ["whole", "2026-01-01T00:00:00Z"],
+      ["fraction", "2026-01-01T00:00:00.100Z"],
+      ["newest", "2026-01-01T00:30:00Z"],
+    ].map(([id, timestamp]) => task({ id, createdAtUtc: timestamp, completedAtUtc: timestamp, status: unified ? "Pending" : "Completed" }));
+    const result = groupTasks(inputs, unified);
+    expect((unified ? result.groups[0].tasks : result.handled).map((t) => t.id))
+      .toEqual(["newest", "fraction", "whole", "offset"]);
+  });
+
+  it("retains equal-instant order and keeps absent handled timestamps last", () => {
+    const result = groupTasks([
+      task({ id: "missing", status: "Completed", completedAtUtc: null }),
+      task({ id: "first", status: "Completed", completedAtUtc: "2026-01-01T00:00:00Z" }),
+      task({ id: "second", status: "Completed", completedAtUtc: "2026-01-01T01:00:00+01:00" }),
+      task({ id: "empty", status: "Completed", completedAtUtc: "" }),
+    ], false);
+    expect(result.handled.map((t) => t.id)).toEqual(["first", "second", "missing", "empty"]);
+  });
+});
