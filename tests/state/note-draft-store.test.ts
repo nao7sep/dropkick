@@ -45,7 +45,7 @@ function draftWrites(): Record<string, string>[] {
 beforeEach(async () => {
   // Clear any coalescing window a previous spec left open before the fake clock
   // is swapped underneath it.
-  useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: false });
+  useNoteDraftStore.setState({ drafts: {}, draftVersions: {}, filePath: "", loaded: false });
   await flushNoteDraftsNow();
 
   vi.useFakeTimers();
@@ -319,8 +319,9 @@ describe("clearDraftIf", () => {
     await loadEmpty();
     const { setDraft, clearDraftIf } = useNoteDraftStore.getState();
     setDraft("t1:n1", "committed text");
+    const version = useNoteDraftStore.getState().draftVersions["t1:n1"];
 
-    clearDraftIf("t1:n1", "committed text");
+    clearDraftIf("t1:n1", "committed text", version);
 
     expect(useNoteDraftStore.getState().drafts["t1:n1"]).toBeUndefined();
   });
@@ -329,14 +330,41 @@ describe("clearDraftIf", () => {
     await loadEmpty();
     const { setDraft, clearDraftIf } = useNoteDraftStore.getState();
     setDraft("t1:n1", "committed text");
+    const version = useNoteDraftStore.getState().draftVersions["t1:n1"];
     // The user kept typing during the await; this text was never written.
     setDraft("t1:n1", "committed text and more");
 
-    clearDraftIf("t1:n1", "committed text");
+    clearDraftIf("t1:n1", "committed text", version);
 
     expect(useNoteDraftStore.getState().drafts["t1:n1"]).toBe(
       "committed text and more",
     );
+  });
+});
+
+describe("draft receipt generations", () => {
+  it.each(["t1#title", "t1#description", "t1", "t1:n1"])("keeps an A/B/A draft for %s", async (key) => {
+    await loadEmpty();
+    const { setDraft, clearDraftIf } = useNoteDraftStore.getState();
+    setDraft(key, "A");
+    const version = useNoteDraftStore.getState().draftVersions[key];
+    setDraft(key, "B");
+    setDraft(key, "A");
+    expect(clearDraftIf(key, "A", version)).toBe(false);
+    expect(useNoteDraftStore.getState().drafts[key]).toBe("A");
+  });
+
+  it("keeps a recreated draft but permits unrelated typing", async () => {
+    await loadEmpty();
+    const { setDraft, clearDraft, clearDraftIf } = useNoteDraftStore.getState();
+    setDraft("t1", "A");
+    const old = useNoteDraftStore.getState().draftVersions.t1;
+    clearDraft("t1");
+    setDraft("t1", "A");
+    expect(clearDraftIf("t1", "A", old)).toBe(false);
+    const current = useNoteDraftStore.getState().draftVersions.t1;
+    setDraft("t2", "B");
+    expect(clearDraftIf("t1", "A", current)).toBe(true);
   });
 });
 

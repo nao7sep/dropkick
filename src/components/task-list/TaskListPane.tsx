@@ -376,25 +376,26 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 
   // The typed title is a draft in the draft store, under the same key the
   // detail pane's title field uses, so a quit that never blurs the input still
-  // keeps it (state/note-draft-store). It is cleared only if it still reads as
-  // it did when the write started. A failed write keeps the input open for
-  // retry; Reload in the conflict dialog ends the rename and drops the draft,
-  // because the user chose the disk title and the draft would otherwise be
-  // written over it on the next blur or when the detail pane next shows it.
+  // keeps it (state/note-draft-store). Success or Reload clears only the
+  // submitted generation; later typing keeps its draft and editor. A failed
+  // write keeps the input open for retry.
   const handleRename = async (task: Task, newTitle: string) => {
     const selectionKey = taskSelectionKey(task);
     const draftKey = fieldDraftKey(task.id, "title");
+    const version = useNoteDraftStore.getState().draftVersions[draftKey];
     const cleaned = singleLine(newTitle, { minify: true });
     if (!cleaned) {
       // Don't allow empty titles — just cancel the rename.
-      useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle);
-      setEditingTaskKey(null);
+      const cleared = useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
+      if (cleared) {
+        setEditingTaskKey(null);
+      }
       setRenameErrors((errors) => {
         const { [selectionKey]: _removed, ...rest } = errors;
         return rest;
       });
-      focusList();
-      return true;
+      if (cleared) focusList();
+      return cleared;
     }
     if (cleaned !== task.title) {
       const result = await updateTitle(task.sourceFile, task.id, cleaned);
@@ -406,24 +407,28 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         return false;
       }
       if (result.status === "reloaded") {
-        useNoteDraftStore.getState().clearDraft(draftKey);
-        setEditingTaskKey(null);
+        const cleared = useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
+        if (cleared) {
+          setEditingTaskKey(null);
+        }
         setRenameErrors((errors) => ({
           ...errors,
           [selectionKey]: result.message,
         }));
-        focusList();
-        return true;
+        if (cleared) focusList();
+        return cleared;
       }
     }
-    useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle);
-    setEditingTaskKey(null);
+    const cleared = useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
+    if (cleared) {
+      setEditingTaskKey(null);
+    }
     setRenameErrors((errors) => {
       const { [selectionKey]: _removed, ...rest } = errors;
       return rest;
     });
-    focusList();
-    return true;
+    if (cleared) focusList();
+    return cleared;
   };
 
   const cancelRename = (task: Task) => {

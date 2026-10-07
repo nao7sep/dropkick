@@ -45,6 +45,7 @@ import type { CreateTaskOptions } from "../utils";
 import { usePreferencesStore } from "./preferences-store";
 import { useNoteDraftStore } from "./note-draft-store";
 import { holdsDraftFor } from "../services/note-drafts";
+import { markTaskListEdit, retainLaterTaskList, settleTaskMove } from "../services/task-list-settlement";
 import {
   canTransitionStatus,
   kickTasks,
@@ -219,9 +220,9 @@ function loadResultToStoreResult(result: LoadTaskListResult | FileLoadError): Lo
 // backend read can also reject outright (IPC / serialization error). Convert a
 // throw into an error result so callers always record it in fileLoadErrors and
 // surface it inline — load actions never reject.
-async function safeLoadTaskList(filePath: string): Promise<LoadTaskListResult> {
+async function safeLoadTaskList(filePath: string, onLoaded?: (data: TaskListDto) => void): Promise<LoadTaskListResult> {
   try {
-    return await loadTaskList(filePath);
+    return await loadTaskList(filePath, onLoaded);
   } catch (e) {
     return {
       status: "error",
@@ -355,6 +356,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     // boundary has already logged the cause.
     let result: WriteResult;
     let writtenData: TaskListDto | null = null;
+    let reloadSettled = false;
     try {
       result = await flushTaskList(filePath, () => {
         const f = get().files[filePath];
@@ -363,6 +365,17 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         }
         writtenData = f.data;
         return f.data;
+      }, (data) => {
+        if (duplicateOf(get().files, data, filePath)) return;
+        const current = get().files[filePath]?.data;
+        const retained = writtenData && current ? retainLaterTaskList(writtenData, current, data) : data;
+        finishPendingWrite(filePath, { persisted: data });
+        applyData(filePath, retained);
+        reloadSettled = true;
+        if (retained !== data && !pendingWrites.has(filePath)) {
+          beginPendingWrite(filePath);
+          void flush(filePath, action, fields);
+        }
       });
     } catch {
       // Kept once rolled back, so it can be made again. A later write still
@@ -406,8 +419,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       set((state) => ({ fileDiskErrors: { ...state.fileDiskErrors, [filePath]: duplicate } }));
       return { status: "error", message: describeDiskFailure(duplicate) };
     }
-    finishPendingWrite(filePath, { persisted: result.data });
-    applyData(filePath, result.data);
+    if (!reloadSettled) {
+      finishPendingWrite(filePath, { persisted: result.data });
+      applyData(filePath, result.data);
+    }
     return { status: "reloaded", message: result.message };
   }
 
@@ -446,10 +461,12 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       const tasks = transform(f.data.tasks, state);
       if (tasks === f.data.tasks) return state;
       changed = true;
+      const data = { ...f.data, tasks };
+      markTaskListEdit(f.data, data);
       return {
         files: {
           ...state.files,
-          [filePath]: { data: { ...f.data, tasks } },
+          [filePath]: { data },
         },
         ...(options.selection
           ? { selectedKeys: options.selection(state.selectedKeys) }
@@ -866,6 +883,30 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             destDataPreMove: destState.data,
             sourceTasksPostMove: moveResult.sourceTasks,
             destTasksPostMove: moveResult.destinationTasks,
+            onSaved: (sourceData, destData) => {
+              persistedFiles.set(sourceFilePath, sourceData);
+              persistedFiles.set(destFilePath, destData);
+              const source = get().files[sourceFilePath]?.data;
+              const destination = get().files[destFilePath]?.data;
+              if (!source || !destination) return;
+              const settled = settleTaskMove(
+                sourceState.data, destState.data, source, destination, sourceData, destData,
+              );
+              set((state) => ({ files: {
+                ...state.files,
+                [sourceFilePath]: { data: settled.sourceData },
+                [destFilePath]: { data: settled.destData },
+              }, selectedKeys: new Set() }));
+              for (const [path, retained, saved] of [
+                [sourceFilePath, settled.sourceData, sourceData],
+                [destFilePath, settled.destData, destData],
+              ] as const) {
+                if (retained !== saved) {
+                  beginPendingWrite(path);
+                  void flush(path, "save edits made during task move");
+                }
+              }
+            },
           };
         });
       } catch {
@@ -882,16 +923,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
 
       if (result.status === "success") {
         failedWrites.delete(moveKey);
-        persistedFiles.set(sourceFilePath, result.sourceData);
-        persistedFiles.set(destFilePath, result.destData);
-        set((state) => ({
-          files: {
-            ...state.files,
-            [sourceFilePath]: { data: result.sourceData },
-            [destFilePath]: { data: result.destData },
-          },
-          selectedKeys: new Set(),
-        }));
         return { status: "success" };
       }
 
@@ -939,7 +970,18 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
 
     reloadFile: async (filePath: string) => {
       log.info("reload task list", { path: filePath });
-      const read = await safeLoadTaskList(filePath);
+      const before = get().files[filePath]?.data;
+      const read = await safeLoadTaskList(filePath, (data) => {
+        if (duplicateOf(get().files, data, filePath)) return;
+        const current = get().files[filePath]?.data;
+        const retained = before && current ? retainLaterTaskList(before, current, data) : data;
+        persistedFiles.set(filePath, data);
+        applyData(filePath, retained);
+        if (retained !== data && !pendingWrites.has(filePath)) {
+          beginPendingWrite(filePath);
+          void flush(filePath, "save edits made during task list reload");
+        }
+      });
       const loaded =
         read.status === "success"
           ? (duplicateOf(get().files, read.taskList.data, filePath) ?? read)
@@ -958,13 +1000,12 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       set((state) => ({
         files: {
           ...state.files,
-          [filePath]: { data: loaded.taskList.data },
+          [filePath]: state.files[filePath] ?? { data: loaded.taskList.data },
         },
         fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
         fileDiskErrors: removeRecordKey(state.fileDiskErrors, filePath),
         selectedKeys: new Set(),
       }));
-      persistedFiles.set(filePath, loaded.taskList.data);
     },
 
     refreshFromDisk: async (filePath: string) => {

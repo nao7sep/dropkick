@@ -100,7 +100,6 @@ export function TaskDetail({
     (s) => s.drafts[composerDraftKey(task.id)] ?? "",
   );
   const setDraft = useNoteDraftStore((s) => s.setDraft);
-  const clearDraft = useNoteDraftStore((s) => s.clearDraft);
   const clearDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
 
   // Title and description commit on blur, and while they are being edited the
@@ -182,11 +181,11 @@ export function TaskDetail({
   // Commits a title draft. The draft is cleared only if it still reads as it
   // did when the write started, so a keystroke typed during the await survives;
   // a failed write keeps it for retry beside the field. Reload in the conflict
-  // dialog drops it outright: the user chose the disk version, and a draft left
-  // behind would be committed again, without a dialog, the next time the task
-  // is shown.
+  // dialog discards the submitted draft generation. Later typing remains a
+  // draft, even if its text has returned to the submitted value.
   const commitTitle = async (typed: string) => {
     const key = titleKey;
+    const version = useNoteDraftStore.getState().draftVersions[key];
     const cleaned = singleLine(typed, { minify: true });
     // An empty title is not allowed: dropping the draft reverts the field.
     if (cleaned && cleaned !== task.title) {
@@ -197,16 +196,17 @@ export function TaskDetail({
       }
       if (result.status === "reloaded") {
         setTitleError(result.message);
-        clearDraft(key);
+        clearDraftIf(key, typed, version);
         return;
       }
     }
     setTitleError(null);
-    clearDraftIf(key, typed);
+    clearDraftIf(key, typed, version);
   };
 
   const commitDescription = async (typed: string) => {
     const key = descriptionKey;
+    const version = useNoteDraftStore.getState().draftVersions[key];
     const cleaned = multiline(typed);
     if (cleaned !== task.description) {
       const result = await updateDescription(filePath, task.id, cleaned);
@@ -216,12 +216,12 @@ export function TaskDetail({
       }
       if (result.status === "reloaded") {
         setDescriptionError(result.message);
-        clearDraft(key);
+        clearDraftIf(key, typed, version);
         return;
       }
     }
     setDescriptionError(null);
-    clearDraftIf(key, typed);
+    clearDraftIf(key, typed, version);
   };
 
   // A title or description draft found when the task is shown was typed but
@@ -288,6 +288,8 @@ export function TaskDetail({
     actionability: NoteActionability = "Informational",
   ) => {
     if (addingNoteRef.current) return;
+    const composerKey = composerDraftKey(task.id);
+    const version = useNoteDraftStore.getState().draftVersions[composerKey];
     const cleaned = multiline(newNoteContent);
     if (!cleaned) return;
     addingNoteRef.current = true;
@@ -305,15 +307,13 @@ export function TaskDetail({
         return;
       }
       if (result.status === "reloaded") {
-        // The disk version is now in the store and the add was dropped on
-        // purpose; holding the text would only see it added again, without a
-        // dialog, next time the user hits Add.
+        // Reload discards the submitted generation, preserving later typing.
         setNoteComposerError(result.message);
-        clearDraft(composerDraftKey(task.id));
+        clearDraftIf(composerKey, newNoteContent, version);
         return;
       }
       setNoteComposerError(null);
-      clearDraftIf(composerDraftKey(task.id), newNoteContent);
+      clearDraftIf(composerKey, newNoteContent, version);
     } finally {
       addingNoteRef.current = false;
       setAddingNote(false);
@@ -726,6 +726,7 @@ function NoteItem({
   // carries an actionability the user may have picked from the dropdown, and
   // clearing that on an unrelated text save would be a new way to lose work.
   const handleSave = async (actionability?: NoteActionability) => {
+    const version = useNoteDraftStore.getState().draftVersions[draftKey];
     const cleaned = multiline(draft);
     if (!cleaned) {
       // Revert — don't allow empty notes.
@@ -741,10 +742,9 @@ function NoteItem({
         return;
       }
       if (result.status === "reloaded") {
-        // The user chose the disk version, so the editor closes onto it rather
-        // than holding the discarded text for a later Save to write over it.
+        // Close onto the disk note only if no later draft generation exists.
         setNoteError(result.message);
-        clearDraft(draftKey);
+        clearDraftIf(draftKey, draft, version);
         return;
       }
     }
@@ -758,7 +758,7 @@ function NoteItem({
       }
     }
     setNoteError(null);
-    clearDraftIf(draftKey, draft);
+    clearDraftIf(draftKey, draft, version);
   };
 
   // ESCAPE ONLY. The Cancel button below deliberately does NOT share this guard

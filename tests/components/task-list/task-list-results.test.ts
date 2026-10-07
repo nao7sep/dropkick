@@ -20,6 +20,7 @@ const updateTitle = vi.fn();
 let host: Mounted | null = null;
 
 beforeEach(async () => {
+  useNoteDraftStore.setState({ drafts: {}, draftVersions: {}, filePath: "", loaded: true });
   updateTitle.mockReset().mockResolvedValue({
     status: "error",
     message: message("write.taskList"),
@@ -127,4 +128,24 @@ describe("TaskListPane results", () => {
     });
     expect(document.querySelector('[role="alert"]')).toBeNull();
   });
+});
+
+it("keeps the rename editor and later draft after a held Reload", async () => {
+  let finish!: (value: unknown) => void;
+  updateTitle.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const row = document.querySelector('[role="option"]')! as HTMLElement;
+  await act(async () => { row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); });
+  const input = row.querySelector("input")!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "A");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+  await act(async () => {
+    useNoteDraftStore.getState().setDraft("a#title", "B");
+    useNoteDraftStore.getState().setDraft("a#title", "A");
+  });
+  await act(async () => { finish({ status: "reloaded", message: message("write.reloaded") }); });
+  expect(useNoteDraftStore.getState().drafts["a#title"]).toBe("A");
+  expect(row.querySelector("input")?.value).toBe("A");
 });

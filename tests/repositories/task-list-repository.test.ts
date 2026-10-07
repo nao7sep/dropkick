@@ -4,7 +4,12 @@ import type { TaskListDto } from "../../src/models";
 import { makeTask } from "../helpers/task";
 
 // Spies for the two mocked dependency modules. withSerial/withSerialTwo are
-// pass-throughs: the per-path serialization is not what these tests exercise.
+// pass-throughs with a boundary marker; the queue itself is tested separately.
+let insideSerial = false;
+async function inSerial(fn: () => unknown) {
+  insideSerial = true;
+  try { return await fn(); } finally { insideSerial = false; }
+}
 const readJsonFileWithHash = vi.fn();
 const writeJsonFile = vi.fn();
 const hashFile = vi.fn();
@@ -21,8 +26,8 @@ vi.mock("../../src/repositories/file-system", () => ({
   fileExists: (p: string) => fileExists(p),
   watchFile: (p: string) => watchFile(p),
   unwatchFile: (p: string) => unwatchFile(p),
-  withSerial: (_p: string, fn: () => unknown) => fn(),
-  withSerialTwo: (_a: string, _b: string, fn: () => unknown) => fn(),
+  withSerial: (_p: string, fn: () => unknown) => inSerial(fn),
+  withSerialTwo: (_a: string, _b: string, fn: () => unknown) => inSerial(fn),
 }));
 
 vi.mock("../../src/repositories/dialogs", () => ({
@@ -55,7 +60,9 @@ async function register(filePath: string, hash = "H0") {
 describe("loadTaskList", () => {
   it("records the hash and returns the loaded data on success", async () => {
     readJsonFileWithHash.mockResolvedValue({ status: "success", data: data(), hash: "H1" });
-    const result = await repo.loadTaskList("/f.json");
+    const adopted = vi.fn(() => { expect(insideSerial).toBe(true); });
+    const result = await repo.loadTaskList("/f.json", adopted);
+    expect(adopted).toHaveBeenCalledWith(data());
     expect(result).toEqual({ status: "success", taskList: { filePath: "/f.json", data: data() } });
   });
 
@@ -141,7 +148,9 @@ describe("flushTaskList — conflict resolution", () => {
   it("reloads disk data when the user chooses reload", async () => {
     showFileConflictDialog.mockResolvedValue("reload");
     readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: data(), hash: "HDISK" });
-    const result = await repo.flushTaskList("/f.json", () => data());
+    const adopted = vi.fn(() => { expect(insideSerial).toBe(true); });
+    const result = await repo.flushTaskList("/f.json", () => data(), adopted);
+    expect(adopted).toHaveBeenCalledWith(data());
     expect(result.status).toBe("reloaded");
     expect(result).toMatchObject({ data: data() });
     // Local change was NOT written on reload.
@@ -437,4 +446,17 @@ describe("refreshTaskList", () => {
     hashFile.mockResolvedValue("H0");
     expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
   });
+});
+
+it("settles a successful move inside both serial slots, after both writes", async () => {
+  await register("/src.json", "S0");
+  await register("/dst.json", "D0");
+  hashFile.mockImplementation(async (path) => path === "/src.json" ? "S0" : "D0");
+  const onSaved = vi.fn(() => {
+    expect(insideSerial).toBe(true);
+    expect(writeJsonFile.mock.calls.map(([path]) => path)).toEqual(["/dst.json", "/src.json"]);
+  });
+  const result = await repo.flushMove("/src.json", "/dst.json", () => ({ sourceDataPreMove: data(), destDataPreMove: data(), sourceTasksPostMove: [], destTasksPostMove: [], onSaved }));
+  expect(result.status).toBe("success");
+  expect(onSaved).toHaveBeenCalledTimes(1);
 });

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import type { ActionResult } from "../../../src/state";
 import { message } from "../../../src/i18n/translate";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -49,7 +50,7 @@ beforeEach(async () => {
   addNewNote.mockReset().mockResolvedValue({ status: "success" });
   usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
-  useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: true });
+  useNoteDraftStore.setState({ drafts: {}, draftVersions: {}, filePath: "", loaded: true });
   useTaskListStore.setState({
     setStatus,
     sendToFirst,
@@ -240,11 +241,9 @@ describe("TaskDetail title and description drafts", () => {
   });
 
   it("commits a title and description left from a quit when the task is shown", async () => {
-    useNoteDraftStore.setState({
-      drafts: {
-        "task-a#title": "Typed before quitting",
-        "task-a#description": "Also typed before quitting",
-      },
+    await act(async () => {
+      useNoteDraftStore.getState().setDraft("task-a#title", "Typed before quitting");
+      useNoteDraftStore.getState().setDraft("task-a#description", "Also typed before quitting");
     });
 
     await showTask();
@@ -289,7 +288,7 @@ describe("TaskDetail title and description drafts", () => {
       status: "reloaded",
       message: message("write.reloaded"),
     });
-    useNoteDraftStore.setState({ drafts: { "task-a#title": "Typed before quitting" } });
+    await act(async () => { useNoteDraftStore.getState().setDraft("task-a#title", "Typed before quitting"); });
 
     await showTask();
     expect(updateTitle).toHaveBeenCalledTimes(1);
@@ -322,7 +321,7 @@ describe("TaskDetail note composer", () => {
         finish = resolve;
       }),
     );
-    useNoteDraftStore.setState({ drafts: { "task-a": "One note" } });
+    await act(async () => { useNoteDraftStore.getState().setDraft("task-a", "One note"); });
     await showTask();
     const add = [...document.querySelectorAll("button")].find(
       (button) => button.textContent === "Add Note",
@@ -344,7 +343,7 @@ describe("TaskDetail note composer", () => {
       status: "reloaded",
       message: message("write.reloaded"),
     });
-    useNoteDraftStore.setState({ drafts: { "task-a": "Discarded by Reload" } });
+    await act(async () => { useNoteDraftStore.getState().setDraft("task-a", "Discarded by Reload"); });
     await showTask();
     const add = [...document.querySelectorAll("button")].find(
       (button) => button.textContent === "Add Note",
@@ -375,7 +374,7 @@ describe("TaskDetail note editor", () => {
       message: message("write.reloaded"),
     });
     useTaskListStore.setState({ updateNote });
-    useNoteDraftStore.setState({ drafts: { "task-a:note-a": "Discarded by Reload" } });
+    await act(async () => { useNoteDraftStore.getState().setDraft("task-a:note-a", "Discarded by Reload"); });
     await host?.unmount();
     host = await mount(
       createElement(TaskDetail, {
@@ -396,5 +395,48 @@ describe("TaskDetail note editor", () => {
     expect(useNoteDraftStore.getState().drafts["task-a:note-a"]).toBeUndefined();
     expect(document.body.textContent).toContain("On disk");
     expect(document.body.textContent).toContain("reloaded from disk");
+  });
+});
+
+describe("held draft receipts", () => {
+  it.each(["title", "description"] as const)("retains later %s input after delayed Reload", async (field) => {
+    let finish!: (value: unknown) => void;
+    (field === "title" ? updateTitle : updateDescription).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const input = document.querySelector(field === "title" ? 'textarea[placeholder="Task title..."]' : 'textarea[placeholder="Add a description..."]')! as HTMLTextAreaElement;
+    await act(async () => { input.focus(); typeInto(input, "submitted"); });
+    await act(async () => { input.blur(); });
+    await act(async () => { useNoteDraftStore.getState().setDraft(`task-a#${field}`, "later"); });
+    await act(async () => { finish({ status: "reloaded", message: message("write.reloaded") }); });
+    expect(useNoteDraftStore.getState().drafts[`task-a#${field}`]).toBe("later");
+    expect(input.value).toBe("later");
+  });
+
+  it.each(["success", "reloaded"])("retains composer A/B/A after delayed %s", async (status) => {
+    let finish!: (value: unknown) => void;
+    addNewNote.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await act(async () => { useNoteDraftStore.getState().setDraft("task-a", "A"); });
+    const add = [...document.querySelectorAll("button")].find((button) => button.textContent === "Add Note")!;
+    await act(async () => { add.click(); });
+    await act(async () => {
+      useNoteDraftStore.getState().setDraft("task-a", "B");
+      useNoteDraftStore.getState().setDraft("task-a", "A");
+    });
+    await act(async () => { finish({ status, message: message("write.reloaded") }); });
+    expect(useNoteDraftStore.getState().drafts["task-a"]).toBe("A");
+  });
+
+  it("retains later note text after delayed Reload", async () => {
+    let finish!: (value: unknown) => void;
+    const updateNote = vi.fn(() => new Promise<ActionResult>((resolve) => { finish = (value) => resolve(value as ActionResult); }));
+    useTaskListStore.setState({ updateNote });
+    useNoteDraftStore.getState().setDraft("task-a:note-a", "submitted");
+    await host?.unmount();
+    host = await mount(createElement(TaskDetail, { task: { ...task(), notes: [makeNote({ id: "note-a" })] }, filePath: "/one.json", isUnifiedView: false, nextActiveTaskKey: null, focusNewNoteSignal: 0 }));
+    const save = [...document.querySelectorAll("button")].find((button) => button.textContent === "Save")!;
+    await act(async () => { save.click(); });
+    await act(async () => { useNoteDraftStore.getState().setDraft("task-a:note-a", "later"); });
+    await act(async () => { finish({ status: "reloaded", message: message("write.reloaded") }); });
+    expect(useNoteDraftStore.getState().drafts["task-a:note-a"]).toBe("later");
+    expect([...document.querySelectorAll("textarea")].some((input) => input.value === "later")).toBe(true);
   });
 });

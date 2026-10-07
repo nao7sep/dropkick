@@ -109,6 +109,7 @@ export async function flushNoteDraftsNow(): Promise<boolean> {
 
 interface NoteDraftState {
   drafts: Record<string, string>;
+  draftVersions: Record<string, number>;
   // Path of ~/.dropkick/note-drafts.json once loaded, "" before.
   filePath: string;
   loaded: boolean;
@@ -128,10 +129,10 @@ interface NoteDraftState {
   justOpenedKey: string | null;
   clearJustOpened: () => void;
   clearDraft: (key: string) => void;
-  // Clear only if the draft still reads as it did when the write was started.
-  // A keystroke typed during that await is newer than what was committed, so
-  // clearing unconditionally would eat it.
-  clearDraftIf: (key: string, expected: string) => void;
+  // Clear only the generation captured when the write started. Later typing
+  // remains a draft, including A/B/A edits returning to the submitted text.
+  // Returns whether the submitted draft was cleared.
+  clearDraftIf: (key: string, expected: string, version: number | undefined) => boolean;
   // Drop every draft of a task: composer, note edits, title and description.
   // Called when the task is deleted — the drafts' subject no longer exists.
   clearTaskDrafts: (taskId: string) => void;
@@ -143,16 +144,25 @@ interface NoteDraftState {
 }
 
 export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
+  let nextVersion = 0;
   // Replace the draft map and schedule a write, unless nothing changed — a
   // no-op must not cost a disk write.
   function commit(drafts: Record<string, string>): void {
     if (drafts === get().drafts) return;
-    set({ drafts });
+    const previous = get();
+    const draftVersions = Object.fromEntries(Object.keys(drafts).map((key) => [
+      key,
+      drafts[key] === previous.drafts[key] && previous.draftVersions[key] !== undefined
+        ? previous.draftVersions[key]
+        : ++nextVersion,
+    ]));
+    set({ drafts, draftVersions });
     schedulePersist();
   }
 
   return {
     drafts: {},
+    draftVersions: {},
     filePath: "",
     loaded: false,
     justOpenedKey: null,
@@ -162,7 +172,9 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
       if (result.status !== "success") return result;
       // Loading replaces the draft world, so a mark naming an editor from
       // before it is meaningless and must not survive.
-      set({ drafts: result.drafts, filePath: result.filePath, loaded: true, justOpenedKey: null });
+      set({ drafts: result.drafts, draftVersions: Object.fromEntries(
+        Object.keys(result.drafts).map((key) => [key, ++nextVersion]),
+      ), filePath: result.filePath, loaded: true, justOpenedKey: null });
       return null;
     },
 
@@ -183,9 +195,10 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
       if (get().justOpenedKey !== null) set({ justOpenedKey: null });
     },
 
-    clearDraftIf: (key, expected) => {
-      if (get().drafts[key] !== expected) return;
+    clearDraftIf: (key, expected, version) => {
+      if (get().drafts[key] !== expected || get().draftVersions[key] !== version) return false;
       get().clearDraft(key);
+      return true;
     },
 
     clearDraft: (key) => {

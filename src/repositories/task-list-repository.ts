@@ -79,6 +79,7 @@ export interface MoveInputs {
   destDataPreMove: TaskListDto;
   sourceTasksPostMove: TaskDto[];
   destTasksPostMove: TaskDto[];
+  onSaved?: (sourceData: TaskListDto, destData: TaskListDto) => void;
 }
 
 // Authoritative within this process because every write goes through here.
@@ -118,6 +119,7 @@ export async function forgetTaskList(filePath: string): Promise<void> {
 // is then unregistered) or last (and stays registered).
 export async function loadTaskList(
   filePath: string,
+  onLoaded?: (data: TaskListDto) => void,
 ): Promise<LoadTaskListResult> {
   return withSerial(filePath, async () => {
     // Watched before it is read, so no outside edit falls between the two.
@@ -125,6 +127,7 @@ export async function loadTaskList(
     const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
     if (loaded.status !== "success") return loaded;
     rememberHash(filePath, loaded.hash);
+    onLoaded?.(loaded.data);
     return {
       status: "success",
       taskList: { filePath, data: loaded.data },
@@ -286,6 +289,7 @@ async function resolveDeleted(
 export async function flushTaskList(
   filePath: string,
   getData: () => TaskListDto,
+  onReloaded?: (data: TaskListDto) => void,
 ): Promise<WriteResult> {
   return withSerial(filePath, async () => {
     if (knownHashes.get(filePath) === undefined) {
@@ -302,7 +306,9 @@ export async function flushTaskList(
       kind: attempt.status,
     });
     if (attempt.status === "deleted") return resolveDeleted(filePath, data);
-    return resolveConflict(filePath, data);
+    const result = await resolveConflict(filePath, data);
+    if (result.status === "reloaded") onReloaded?.(result.data);
+    return result;
   });
 }
 
@@ -370,6 +376,7 @@ export async function flushMove(
       sourceResult = { status: "failed" };
     }
     if (sourceResult.status === "success") {
+      inputs.onSaved?.(sourceDataPostMove, destDataPostMove);
       return {
         status: "success",
         sourceData: sourceDataPostMove,

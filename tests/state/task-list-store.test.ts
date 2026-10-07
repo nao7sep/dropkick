@@ -1,6 +1,7 @@
 import { inEnglish } from "../helpers/i18n";
 import { message } from "../../src/i18n/translate";
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { MoveInputs } from "../../src/repositories/task-list-repository";
 import type { TaskListDto } from "../../src/models";
 
 // --- Repository mock ---
@@ -16,11 +17,26 @@ const forgetTaskList = vi.fn(async (_p: string) => {});
 const refreshTaskList = vi.fn();
 
 vi.mock("../../src/repositories", () => ({
-  loadTaskList: (p: string) => loadTaskList(p),
+  loadTaskList: async (p: string, onLoaded?: (data: TaskListDto) => void) => {
+    const result = await loadTaskList(p);
+    if (result.status === "success") onLoaded?.(result.taskList.data);
+    return result;
+  },
   createTaskListFile: (p: string) => createTaskListFile(p),
-  flushTaskList: (p: string, getData: () => TaskListDto) => flushTaskList(p, getData),
+  flushTaskList: async (p: string, getData: () => TaskListDto, onReloaded?: (data: TaskListDto) => void) => {
+    const result = await flushTaskList(p, getData);
+    if (result.status === "reloaded") onReloaded?.(result.data);
+    return result;
+  },
   forceFlushTaskList: (p: string, data: TaskListDto) => forceFlushTaskList(p, data),
-  flushMove: (s: string, d: string, getInputs: () => unknown) => flushMove(s, d, getInputs),
+  flushMove: async (s: string, d: string, getInputs: () => MoveInputs | null) => {
+    let inputs: MoveInputs | null = null;
+    const result = await flushMove(s, d, () => { inputs = getInputs(); return inputs; });
+    if (result.status === "success" && inputs) {
+      (inputs as MoveInputs).onSaved?.(result.sourceData, result.destData);
+    }
+    return result;
+  },
   forgetTaskList: (p: string) => forgetTaskList(p),
   refreshTaskList: (p: string, adopt: (data: TaskListDto) => boolean) => refreshTaskList(p, adopt),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -71,7 +87,7 @@ beforeEach(() => {
   flushMove.mockReset();
   forgetTaskList.mockClear();
   refreshTaskList.mockReset();
-  useNoteDraftStore.setState({ drafts: {} });
+  useNoteDraftStore.setState({ drafts: {}, draftVersions: {} });
   flushSucceeds();
   // Reset preferences to a known timezone/window for reorder grouping.
   usePreferencesStore.setState({
@@ -416,10 +432,10 @@ describe("writes that fail outright", () => {
     await useTaskListStore.getState().moveTasks("/src.json", "/dst.json", new Set(["m"]));
     expect(useTaskListStore.getState().failedWritePaths()).toEqual(["/src.json", "/dst.json"]);
 
-    flushMove.mockResolvedValueOnce({
-      status: "success",
-      sourceData: { id: "S", tasks: [] },
-      destData: { id: "D", tasks: [makeTask({ id: "m" })] },
+    flushMove.mockImplementationOnce(async (_s, _d, getInputs) => {
+      getInputs();
+      return { status: "success", sourceData: { id: "S", tasks: [] },
+        destData: { id: "D", tasks: [makeTask({ id: "m" })] } };
     });
     useTaskListStore.getState().retryFailedWrites();
     await vi.waitFor(() => expect(tasksOf("/dst.json").map((t) => t.id)).toEqual(["m"]));
@@ -853,5 +869,96 @@ describe("a list already open from another file", () => {
     expect(tasksOf(COPY).map((t) => t.id)).toEqual(["own"]);
     expect(useTaskListStore.getState().files[COPY]?.data.id).toBe("L2");
     expect(useTaskListStore.getState().fileDiskErrors[COPY]).toEqual(refusal);
+  });
+});
+
+describe("held save/move/reload settlement", () => {
+  it("preserves a later optimistic edit when an earlier save reloads", async () => {
+    seedFile([makeTask({ id: "a", title: "before", description: "before" })]);
+    let finish!: (value: unknown) => void;
+    flushTaskList.mockImplementationOnce((_p, getData) => {
+      getData();
+      return new Promise((resolve) => { finish = resolve; });
+    });
+    const first = useTaskListStore.getState().updateTitle(FILE, "a", "submitted");
+    const later = useTaskListStore.getState().updateDescription(FILE, "a", "later");
+    finish({ status: "reloaded", data: { id: "L1", tasks: [makeTask({ id: "a", title: "disk", description: "before" })] }, message: message("write.reloaded") });
+    await Promise.all([first, later]);
+    expect(tasksOf()[0].title).toBe("disk");
+    expect(tasksOf()[0].description).toBe("later");
+  });
+
+  it("preserves edits made during explicit reload and writes the reconciled state", async () => {
+    seedFile([makeTask({ id: "a", title: "before", description: "before" })]);
+    let finish!: (value: unknown) => void;
+    loadTaskList.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const reload = useTaskListStore.getState().reloadFile(FILE);
+    await useTaskListStore.getState().updateDescription(FILE, "a", "later");
+    finish({ status: "success", taskList: { filePath: FILE, data: { id: "L1", tasks: [makeTask({ id: "a", title: "disk", description: "before" })] } } });
+    await reload;
+    expect(tasksOf()[0].title).toBe("disk");
+    expect(tasksOf()[0].description).toBe("later");
+    expect(flushTaskList).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a later moved-task edit in the destination and writes it there", async () => {
+    const moved = makeTask({ id: "m" });
+    useTaskListStore.setState({ files: {
+      "/src.json": { data: { id: "S", tasks: [moved] } },
+      "/dst.json": { data: { id: "D", tasks: [] } },
+    } });
+    let finish!: (value: unknown) => void;
+    flushMove.mockImplementationOnce((_s, _d, getInputs) => {
+      getInputs();
+      return new Promise((resolve) => { finish = resolve; });
+    });
+    const move = useTaskListStore.getState().moveTasks("/src.json", "/dst.json", new Set(["m"]));
+    await useTaskListStore.getState().updateTitle("/src.json", "m", "later moved");
+    finish({ status: "success", sourceData: { id: "S", tasks: [] }, destData: { id: "D", tasks: [moved] } });
+    await move;
+    expect(tasksOf("/src.json")).toEqual([]);
+    expect(tasksOf("/dst.json")[0].title).toBe("later moved");
+    expect(flushTaskList.mock.calls.some(([path]) => path === "/dst.json")).toBe(true);
+  });
+});
+
+describe("Reload preserves later edit intent", () => {
+  it.each(["explicit", "conflict"])("retains title A/B/A across held %s Reload of disk D", async (mode) => {
+    seedFile([makeTask({ id: "a", title: "A" })]);
+    let finish!: (value: unknown) => void;
+    let operation: Promise<unknown>;
+    if (mode === "explicit") {
+      loadTaskList.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+      operation = useTaskListStore.getState().reloadFile(FILE);
+    } else {
+      flushTaskList.mockImplementationOnce((_p, getData) => {
+        getData(); return new Promise((resolve) => { finish = resolve; });
+      });
+      operation = useTaskListStore.getState().updateDescription(FILE, "a", "submitted");
+    }
+    await useTaskListStore.getState().updateTitle(FILE, "a", "B");
+    await useTaskListStore.getState().updateTitle(FILE, "a", "A");
+    const disk = { id: "L1", tasks: [makeTask({ id: "a", title: "D" })] };
+    finish(mode === "explicit" ? { status: "success", taskList: { filePath: FILE, data: disk } } : { status: "reloaded", data: disk, message: message("write.reloaded") });
+    await operation;
+    expect(tasksOf()[0].title).toBe("A");
+  });
+
+  it("retains a later task/note edit when Reload removes its disk subject", async () => {
+    seedFile([
+      makeTask({ id: "a", title: "before" }),
+      makeTask({ id: "b", notes: [makeNote({ id: "n", content: "before" })] }),
+      makeTask({ id: "unchanged" }),
+    ]);
+    let finish!: (value: unknown) => void;
+    loadTaskList.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const reload = useTaskListStore.getState().reloadFile(FILE);
+    await useTaskListStore.getState().updateTitle(FILE, "a", "later task");
+    await useTaskListStore.getState().updateNote(FILE, "b", "n", "later note");
+    finish({ status: "success", taskList: { filePath: FILE, data: { id: "L1", tasks: [makeTask({ id: "b", notes: [] })] } } });
+    await reload;
+    expect(tasksOf().map((t) => t.id)).toEqual(["a", "b"]);
+    expect(tasksOf()[0].title).toBe("later task");
+    expect(tasksOf()[1].notes[0].content).toBe("later note");
   });
 });
