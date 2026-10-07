@@ -215,16 +215,17 @@ describe("note-drafts.json", () => {
   });
 
   it("round-trips the current version", async () => {
-    put(PATHS.noteDraftsFile, { formatVersion: 1, drafts: { t1: "typed" } });
+    put(PATHS.noteDraftsFile, { formatVersion: 1, drafts: { t1: "typed" }, editedAtUtc: { t1: "2026-10-07T00:00:00.000Z" } });
     const loaded = await loadNoteDrafts();
     expect(loaded).toEqual({
       status: "success",
       drafts: { t1: "typed" },
+      editedAtUtc: { t1: "2026-10-07T00:00:00.000Z" },
       filePath: PATHS.noteDraftsFile,
     });
     if (loaded.status !== "success") throw new Error("expected success");
-    await flushNoteDrafts(loaded.filePath, () => loaded.drafts);
-    expect(stored(PATHS.noteDraftsFile)).toEqual({ formatVersion: 1, drafts: { t1: "typed" } });
+    await flushNoteDrafts(loaded.filePath, () => loaded.drafts, () => loaded.editedAtUtc);
+    expect(stored(PATHS.noteDraftsFile)).toEqual({ formatVersion: 1, drafts: { t1: "typed" }, editedAtUtc: { t1: "2026-10-07T00:00:00.000Z" } });
   });
 
   it("leaves a newer build's file byte-identical and reports it", async () => {

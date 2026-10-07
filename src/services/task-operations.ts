@@ -7,6 +7,10 @@
 import type { TaskDto, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../models";
 import { nowUtc } from "../utils";
 
+function latestContentEdit(task: TaskDto, editedAtUtc: string): string {
+  return Date.parse(task.updatedAtUtc) > Date.parse(editedAtUtc) ? task.updatedAtUtc : editedAtUtc;
+}
+
 // Adds a new task to the beginning of the task list.
 export function addTask(tasks: TaskDto[], task: TaskDto): TaskDto[] {
   return [task, ...tasks];
@@ -16,18 +20,20 @@ export function addTask(tasks: TaskDto[], task: TaskDto): TaskDto[] {
 export function updateTaskTitle(
   task: TaskDto,
   title: string,
+  editedAtUtc: string = nowUtc(),
 ): TaskDto {
   if (task.title === title) return task;
-  return { ...task, title, updatedAtUtc: nowUtc() };
+  return { ...task, title, updatedAtUtc: latestContentEdit(task, editedAtUtc) };
 }
 
 // Updates a task's description.
 export function updateTaskDescription(
   task: TaskDto,
   description: string,
+  editedAtUtc: string = nowUtc(),
 ): TaskDto {
   if (task.description === description) return task;
-  return { ...task, description, updatedAtUtc: nowUtc() };
+  return { ...task, description, updatedAtUtc: latestContentEdit(task, editedAtUtc) };
 }
 
 // Changes a task's status. Completed and Dismissed share one handled time,
@@ -63,11 +69,11 @@ export function changeTaskDueDate(
 }
 
 // Adds a note to the beginning of a task's notes array (newest first).
-export function addNote(task: TaskDto, note: NoteDto): TaskDto {
+export function addNote(task: TaskDto, note: NoteDto, editedAtUtc: string = nowUtc()): TaskDto {
   return {
     ...task,
     notes: [note, ...task.notes],
-    updatedAtUtc: nowUtc(),
+    updatedAtUtc: latestContentEdit(task, editedAtUtc),
   };
 }
 
@@ -77,17 +83,18 @@ export function updateNoteContent(
   task: TaskDto,
   noteId: string,
   content: string,
+  editedAtUtc: string = nowUtc(),
 ): TaskDto {
   const note = task.notes.find((n) => n.id === noteId);
   if (!note || note.content === content) return task;
 
-  const now = nowUtc();
+  const now = editedAtUtc;
   return {
     ...task,
     notes: task.notes.map((n) =>
       n.id === noteId ? { ...n, content, editedAtUtc: now } : n,
     ),
-    updatedAtUtc: now,
+    updatedAtUtc: latestContentEdit(task, now),
   };
 }
 

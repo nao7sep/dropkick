@@ -32,11 +32,12 @@ export function createTask(options: CreateTaskOptions): TaskDto {
 export function createNote(
   content: string,
   actionability: NoteActionability = "Informational",
+  createdAtUtc: string = nowUtc(),
 ): NoteDto {
   return {
     id: generateId(),
     content,
     actionability,
-    createdAtUtc: nowUtc(),
+    createdAtUtc,
   };
 }

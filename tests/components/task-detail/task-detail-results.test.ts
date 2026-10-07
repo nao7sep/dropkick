@@ -248,11 +248,12 @@ describe("TaskDetail title and description drafts", () => {
 
     await showTask();
 
-    expect(updateTitle).toHaveBeenCalledWith("/one.json", "task-a", "Typed before quitting");
+    expect(updateTitle).toHaveBeenCalledWith("/one.json", "task-a", "Typed before quitting", expect.any(String));
     expect(updateDescription).toHaveBeenCalledWith(
       "/one.json",
       "task-a",
       "Also typed before quitting",
+      expect.any(String),
     );
     expect(useNoteDraftStore.getState().drafts).toEqual({});
   });
@@ -308,7 +309,7 @@ describe("TaskDetail title and description drafts", () => {
       title.blur();
     });
 
-    expect(updateTitle).toHaveBeenCalledWith("/one.json", "task-a", "Blurred title");
+    expect(updateTitle).toHaveBeenCalledWith("/one.json", "task-a", "Blurred title", expect.any(String));
     expect(useNoteDraftStore.getState().drafts["task-a#title"]).toBeUndefined();
   });
 });

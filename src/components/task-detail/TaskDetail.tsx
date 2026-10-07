@@ -189,7 +189,7 @@ export function TaskDetail({
     const cleaned = singleLine(typed, { minify: true });
     // An empty title is not allowed: dropping the draft reverts the field.
     if (cleaned && cleaned !== task.title) {
-      const result = await updateTitle(filePath, task.id, cleaned);
+      const result = await updateTitle(filePath, task.id, cleaned, useNoteDraftStore.getState().editedAtUtc[key]);
       if (result.status === "error") {
         setTitleError(result.message);
         return;
@@ -209,7 +209,7 @@ export function TaskDetail({
     const version = useNoteDraftStore.getState().draftVersions[key];
     const cleaned = multiline(typed);
     if (cleaned !== task.description) {
-      const result = await updateDescription(filePath, task.id, cleaned);
+      const result = await updateDescription(filePath, task.id, cleaned, useNoteDraftStore.getState().editedAtUtc[key]);
       if (result.status === "error") {
         setDescriptionError(result.message);
         return;
@@ -300,6 +300,7 @@ export function TaskDetail({
         task.id,
         cleaned,
         actionability,
+        useNoteDraftStore.getState().editedAtUtc[composerKey],
       );
       if (result.status === "error") {
         // Keep the typed text so the user can retry rather than retype it.
@@ -734,7 +735,7 @@ function NoteItem({
       return;
     }
     if (cleaned !== note.content) {
-      const result = await updateNote(filePath, taskId, note.id, cleaned);
+      const result = await updateNote(filePath, taskId, note.id, cleaned, useNoteDraftStore.getState().editedAtUtc[draftKey]);
       if (result.status === "error") {
         // Keep the draft as typed so the user can retry or Cancel; a failed
         // write is no reason to discard their text.

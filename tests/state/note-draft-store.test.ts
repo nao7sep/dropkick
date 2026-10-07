@@ -45,7 +45,7 @@ function draftWrites(): Record<string, string>[] {
 beforeEach(async () => {
   // Clear any coalescing window a previous spec left open before the fake clock
   // is swapped underneath it.
-  useNoteDraftStore.setState({ drafts: {}, draftVersions: {}, filePath: "", loaded: false });
+  useNoteDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {}, filePath: "", loaded: false });
   await flushNoteDraftsNow();
 
   vi.useFakeTimers();
@@ -85,6 +85,24 @@ async function loadEmpty(): Promise<void> {
 }
 
 describe("write-through", () => {
+  it("persists the canonical edit instant and restores it without using the later save time", async () => {
+    await loadEmpty();
+    vi.setSystemTime(new Date("2026-10-07T01:00:00.000Z"));
+    useNoteDraftStore.getState().setDraft("t1#title", "New title");
+    vi.setSystemTime(new Date("2026-10-07T01:01:00.000Z"));
+    useNoteDraftStore.getState().setDraft("t1#title", "  New   title  ");
+    await flushNoteDraftsNow();
+    const call = [...invokeMock.mock.calls].reverse().find((c) => c[0] === "write_text_file_atomic"
+      && (c[1] as { path: string }).path === DRAFTS_PATH)!;
+    const text = (call[1] as { contents: string }).contents;
+    expect(JSON.parse(text).editedAtUtc).toEqual({ "t1#title": "2026-10-07T01:00:00.000Z" });
+    diskRead = { status: "success", text };
+    vi.setSystemTime(new Date("2026-10-07T02:00:00.000Z"));
+    await useNoteDraftStore.getState().load();
+    expect(useNoteDraftStore.getState().editedAtUtc["t1#title"]).toBe("2026-10-07T01:00:00.000Z");
+    useNoteDraftStore.getState().setDraft("t1#title", "Changed title");
+    expect(useNoteDraftStore.getState().editedAtUtc["t1#title"]).toBe("2026-10-07T02:00:00.000Z");
+  });
   it("puts typed text on disk with no close event of any kind", async () => {
     await loadEmpty();
 
@@ -207,12 +225,29 @@ describe("a failed write", () => {
 });
 
 describe("load", () => {
+  it.each(["", "t1:n1:extra", "t1#other"])("refuses ambiguous draft identity %s", async (key) => {
+    diskRead = { status: "success", text: JSON.stringify({ formatVersion: 1,
+      drafts: { [key]: "typed" }, editedAtUtc: { [key]: "2026-10-07T00:00:00.000Z" } }) };
+    expect(await useNoteDraftStore.getState().load()).toMatchObject({ status: "invalid" });
+  });
+
+  it("refuses a draft whose edit instant was not persisted", async () => {
+    diskRead = { status: "success", text: JSON.stringify({ formatVersion: 1,
+      drafts: { t1: "typed" }, editedAtUtc: {} }) };
+    expect(await useNoteDraftStore.getState().load()).toMatchObject({ status: "invalid" });
+  });
+  it("halts when the required drafts map is missing", async () => {
+    diskRead = { status: "success", text: JSON.stringify({ formatVersion: 1 }) };
+    expect(await useNoteDraftStore.getState().load()).toMatchObject({ status: "invalid" });
+    expect(draftWrites()).toEqual([]);
+  });
   it("brings back the drafts a previous session left on disk", async () => {
     diskRead = {
       status: "success",
       text: JSON.stringify({
         formatVersion: 1,
         drafts: { t1: "survived the quit", "t1:n1": "a parked edit" },
+        editedAtUtc: { t1: "2026-10-07T00:00:00.000Z", "t1:n1": "2026-10-07T00:00:01.000Z" },
       }),
     };
 
@@ -276,6 +311,7 @@ describe("reconcile", () => {
           "t1:n1": "edit of a live note",
           "t1:gone": "edit of a deleted note",
         },
+        editedAtUtc: { "t1:n1": "2026-10-07T00:00:00.000Z", "t1:gone": "2026-10-07T00:00:01.000Z" },
       }),
     };
     await useNoteDraftStore.getState().load();

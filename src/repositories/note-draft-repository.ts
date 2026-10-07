@@ -6,6 +6,7 @@
 
 import type { NoteDraftsDto } from "../models";
 import { createDefaultNoteDrafts } from "../models";
+import { isDraftKey } from "../services/note-drafts";
 import {
   readJsonFileResult,
   writeJsonFile,
@@ -22,7 +23,7 @@ export type NoteDraftsLoadFailure =
   | { status: "error"; message: string; filePath: string };
 
 export type LoadNoteDraftsResult =
-  | { status: "success"; drafts: Record<string, string>; filePath: string }
+  | { status: "success"; drafts: Record<string, string>; editedAtUtc: Record<string, string>; filePath: string }
   | NoteDraftsLoadFailure;
 
 // Returns null when the value is a usable drafts document, or the reason it is
@@ -35,13 +36,26 @@ function noteDraftsShapeIssue(value: unknown): string | null {
 
   const data = value as Record<string, unknown>;
   const drafts = data.drafts;
-  if (drafts === undefined) return null;
   if (typeof drafts !== "object" || drafts === null || Array.isArray(drafts)) {
     return "drafts is not an object";
   }
   for (const [key, text] of Object.entries(drafts as Record<string, unknown>)) {
+    if (!isDraftKey(key)) return `draft "${key}" has an invalid identity`;
     if (typeof text !== "string") return `draft "${key}" is not a string`;
   }
+  const times = data.editedAtUtc;
+  if (typeof times !== "object" || times === null || Array.isArray(times)) {
+    return "editedAtUtc is not an object";
+  }
+  const entries = times as Record<string, unknown>;
+  for (const key of Object.keys(drafts)) {
+    const time = entries[key];
+    if (typeof time !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|\+00:00)$/.test(time)
+      || !Number.isFinite(Date.parse(time)) || new Date(time).toISOString().slice(0, 19) !== time.slice(0, 19)) {
+      return `draft "${key}" has an invalid edit time`;
+    }
+  }
+  if (Object.keys(entries).some((key) => !(key in drafts))) return "edit time has no draft";
 
   return null;
 }
@@ -54,7 +68,7 @@ export async function loadNoteDrafts(): Promise<LoadNoteDraftsResult> {
   const result = await readJsonFileResult<unknown>(filePath, "noteDrafts");
 
   if (result.status === "missing") {
-    return { status: "success", drafts: {}, filePath };
+    return { status: "success", drafts: {}, editedAtUtc: {}, filePath };
   }
   if (result.status === "newer") {
     return { status: "newer", formatVersion: result.formatVersion, filePath };
@@ -68,8 +82,10 @@ export async function loadNoteDrafts(): Promise<LoadNoteDraftsResult> {
     return { status: "invalid", message: issue, filePath };
   }
 
-  const data = result.data as Partial<NoteDraftsDto>;
-  return { status: "success", drafts: { ...(data.drafts ?? {}) }, filePath };
+  const data = result.data as NoteDraftsDto;
+  return { status: "success", drafts: { ...data.drafts }, editedAtUtc: Object.fromEntries(
+    Object.entries(data.editedAtUtc).map(([key, time]) => [key, new Date(time).toISOString()]),
+  ), filePath };
 }
 
 // Writes the latest drafts to disk. Serialized per path like every other store,
@@ -79,11 +95,13 @@ export async function loadNoteDrafts(): Promise<LoadNoteDraftsResult> {
 export async function flushNoteDrafts(
   filePath: string,
   getDrafts: () => Record<string, string>,
+  getEditTimes: () => Record<string, string>,
 ): Promise<void> {
   await withSerial(filePath, async () => {
     const document: NoteDraftsDto = {
       ...createDefaultNoteDrafts(),
       drafts: getDrafts(),
+      editedAtUtc: getEditTimes(),
     };
     await writeJsonFile(filePath, "noteDrafts", document);
   });

@@ -16,10 +16,12 @@
 
 export interface NoteDraftsDto {
   drafts: Record<string, string>;
+  editedAtUtc: Record<string, string>;
 }
 
 export function createDefaultNoteDrafts(): NoteDraftsDto {
   return {
     drafts: {},
+    editedAtUtc: {},
   };
 }

@@ -169,6 +169,15 @@ describe("notes", () => {
     expect(result.updatedAtUtc).toBe(FIXED_NOW);
   });
 
+  it("commits the earlier input instant without replacing the task's later content edit", () => {
+    const task = makeTask({ updatedAtUtc: FIXED_NOW, notes: [makeNote({ id: "n1", content: "before" })] });
+    const result = updateNoteContent(task, "n1", "typed earlier", EARLIER);
+    expect(result.notes[0].editedAtUtc).toBe(EARLIER);
+    expect(result.updatedAtUtc).toBe(FIXED_NOW);
+    expect(updateTaskTitle(task, "typed title", EARLIER).updatedAtUtc).toBe(FIXED_NOW);
+    expect(updateTaskDescription(task, "typed description", EARLIER).updatedAtUtc).toBe(FIXED_NOW);
+  });
+
   it("updateNoteContent moves an earlier edit time to the new edit", () => {
     const task = makeTask({ notes: [makeNote({ id: "n1", content: "a", editedAtUtc: EARLIER })] });
     expect(updateNoteContent(task, "n1", "z").notes[0].editedAtUtc).toBe(FIXED_NOW);

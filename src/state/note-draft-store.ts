@@ -29,7 +29,8 @@ import {
   toErrorFields,
   type NoteDraftsLoadFailure,
 } from "../repositories";
-import { draftTaskId, reconcileDrafts } from "../services/note-drafts";
+import { draftTaskId, reconcileDrafts, canonicalDraftText } from "../services/note-drafts";
+import { nowUtc } from "../utils/dates";
 
 // Coalescing window for the write-through.
 //
@@ -81,7 +82,8 @@ function persist(): Promise<boolean> {
   unwritten = false;
   const { filePath } = useNoteDraftStore.getState();
   if (!filePath) return Promise.resolve(true);
-  latestWrite = flushNoteDrafts(filePath, () => useNoteDraftStore.getState().drafts).then(
+  latestWrite = flushNoteDrafts(filePath, () => useNoteDraftStore.getState().drafts,
+    () => useNoteDraftStore.getState().editedAtUtc).then(
     () => true,
     (e: unknown) => {
       // A failed draft write is logged, not raised: an alert per keystroke
@@ -109,6 +111,7 @@ export async function flushNoteDraftsNow(): Promise<boolean> {
 
 interface NoteDraftState {
   drafts: Record<string, string>;
+  editedAtUtc: Record<string, string>;
   draftVersions: Record<string, number>;
   // Path of ~/.dropkick/note-drafts.json once loaded, "" before.
   filePath: string;
@@ -156,12 +159,18 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
         ? previous.draftVersions[key]
         : ++nextVersion,
     ]));
-    set({ drafts, draftVersions });
+    const editedAtUtc = Object.fromEntries(Object.keys(drafts).map((key) => [key,
+      previous.editedAtUtc[key] !== undefined
+        && canonicalDraftText(key, drafts[key]) === canonicalDraftText(key, previous.drafts[key] ?? "")
+        ? previous.editedAtUtc[key] : nowUtc(),
+    ]));
+    set({ drafts, draftVersions, editedAtUtc });
     schedulePersist();
   }
 
   return {
     drafts: {},
+    editedAtUtc: {},
     draftVersions: {},
     filePath: "",
     loaded: false,
@@ -172,7 +181,7 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
       if (result.status !== "success") return result;
       // Loading replaces the draft world, so a mark naming an editor from
       // before it is meaningless and must not survive.
-      set({ drafts: result.drafts, draftVersions: Object.fromEntries(
+      set({ drafts: result.drafts, editedAtUtc: result.editedAtUtc, draftVersions: Object.fromEntries(
         Object.keys(result.drafts).map((key) => [key, ++nextVersion]),
       ), filePath: result.filePath, loaded: true, justOpenedKey: null });
       return null;

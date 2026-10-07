@@ -73,6 +73,8 @@ describe("app-level view state", () => {
     { status: "invalid", message: "bad JSON" },
     { status: "success", data: null },
     { status: "success", data: { ...STORED, zoomLevel: "large" } },
+    { status: "success", data: { ...STORED, zoomLevel: 0 } },
+    { status: "success", data: { ...STORED, zoomLevel: 5.1 } },
     { status: "success", data: { ...STORED, lastWorkspacePath: [] } },
     { status: "success", data: { ...STORED, lastLaunchedPreferencesPath: undefined } },
     { status: "success", data: {} },

@@ -136,11 +136,13 @@ interface TaskListState {
     filePath: string,
     taskId: string,
     title: string,
+    editedAtUtc?: string,
   ) => Promise<ActionResult>;
   updateDescription: (
     filePath: string,
     taskId: string,
     description: string,
+    editedAtUtc?: string,
   ) => Promise<ActionResult>;
   setStatus: (
     filePath: string,
@@ -162,6 +164,7 @@ interface TaskListState {
     taskId: string,
     content: string,
     actionability?: NoteActionability,
+    editedAtUtc?: string,
   ) => Promise<ActionResult>;
   removeNote: (
     filePath: string,
@@ -173,6 +176,7 @@ interface TaskListState {
     taskId: string,
     noteId: string,
     content: string,
+    editedAtUtc?: string,
   ) => Promise<ActionResult>;
   setNoteActionability: (
     filePath: string,
@@ -721,18 +725,18 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       return result;
     },
 
-    updateTitle: async (filePath, taskId, title) =>
+    updateTitle: async (filePath, taskId, title, editedAtUtc) =>
       mutateTask(filePath, taskId, "update task title", { taskId }, (task) =>
-        updateTaskTitle(task, title),
+        updateTaskTitle(task, title, editedAtUtc),
       ),
 
-    updateDescription: async (filePath, taskId, description) =>
+    updateDescription: async (filePath, taskId, description, editedAtUtc) =>
       mutateTask(
         filePath,
         taskId,
         "update task description",
         { taskId },
-        (task) => updateTaskDescription(task, description),
+        (task) => updateTaskDescription(task, description, editedAtUtc),
       ),
 
     setStatus: async (filePath, taskId, status) =>
@@ -772,17 +776,17 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         (task) => changeTaskDueDate(task, dueDate),
       ),
 
-    addNewNote: async (filePath, taskId, content, actionability = "Informational") => {
+    addNewNote: async (filePath, taskId, content, actionability = "Informational", editedAtUtc) => {
       if (!content.trim()) {
         return { status: "error", message: message("note.empty") };
       }
-      const note = createNote(content, actionability);
+      const note = createNote(content, actionability, editedAtUtc);
       return mutateTask(
         filePath,
         taskId,
         "add note",
         { taskId, noteId: note.id },
-        (task) => addNote(task, note),
+        (task) => addNote(task, note, note.createdAtUtc),
       );
     },
 
@@ -791,7 +795,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         deleteNote(task, noteId),
       ),
 
-    updateNote: async (filePath, taskId, noteId, content) => {
+    updateNote: async (filePath, taskId, noteId, content, editedAtUtc) => {
       if (!content.trim()) {
         return { status: "error", message: message("note.empty") };
       }
@@ -800,7 +804,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         taskId,
         "update note",
         { taskId, noteId },
-        (task) => updateNoteContent(task, noteId, content),
+        (task) => updateNoteContent(task, noteId, content, editedAtUtc),
       );
     },
 

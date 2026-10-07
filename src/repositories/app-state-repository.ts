@@ -14,6 +14,7 @@ import {
 import { createPreferencesFile } from "./preferences-repository";
 import { createWorkspaceFile } from "./workspace-repository";
 import { log, type LogFields } from "./logging";
+import { ZOOM_MIN, ZOOM_MAX } from "../utils/zoom";
 
 
 const STRING_FIELDS = [
@@ -39,6 +40,9 @@ function parseAppState(value: unknown): AppStateDto | string {
     if (typeof number !== "number" || !Number.isFinite(number)) {
       return `${field} is not a finite number`;
     }
+  }
+  if ((data.zoomLevel as number) < ZOOM_MIN || (data.zoomLevel as number) > ZOOM_MAX) {
+    return "zoomLevel is outside the supported range";
   }
   return Object.fromEntries(
     [...STRING_FIELDS, ...NUMBER_FIELDS].map((field) => [field, data[field]]),

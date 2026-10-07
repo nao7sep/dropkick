@@ -10,6 +10,15 @@
 // so a draft follows its task when the task is moved to another list.
 
 import type { TaskListDto } from "../models";
+import { singleLine, multiline } from "../utils/textCleanup";
+
+export function canonicalDraftText(key: string, text: string): string {
+  return key.endsWith("#title") ? singleLine(text, { minify: true }) : multiline(text);
+}
+
+export function isDraftKey(key: string): boolean {
+  return /^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+|#(?:title|description))?$/.test(key);
+}
 
 // The new-note composer draft for a task.
 export function composerDraftKey(taskId: string): string {
