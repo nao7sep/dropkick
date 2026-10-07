@@ -323,7 +323,17 @@ mod platform {
                 }
                 let wait = (deadline - now).as_millis().min(POLL_MS) as u32;
                 MsgWaitForMultipleObjects(0, std::ptr::null(), 0, wait, QS_ALLINPUT);
-                while PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+                loop {
+                    if !SESSION_END_PENDING.load(Ordering::SeqCst) {
+                        return;
+                    }
+                    if Instant::now() >= deadline {
+                        release_session("timed out");
+                        return;
+                    }
+                    if PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) == 0 {
+                        break;
+                    }
                     if msg.message == WM_QUIT {
                         PostQuitMessage(msg.wparam as i32);
                         release_session("quit");
