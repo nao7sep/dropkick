@@ -158,15 +158,17 @@ const FLUSH_BOUND: Duration = Duration::from_millis(BUSY_TIMEOUT_MS + 1_000);
 enum Job {
     Write(Map<String, Value>),
     Flush(SyncSender<()>),
+    Stop,
 }
 
 struct Writer {
     jobs: Sender<Job>,
     thread: ThreadId,
+    handle: Mutex<Option<thread::JoinHandle<()>>>,
 }
 
 impl Writer {
-    fn spawn(logger: &'static Logger) -> std::io::Result<Writer> {
+    fn spawn(logger: std::sync::Arc<Logger>) -> std::io::Result<Writer> {
         let (jobs, queue) = mpsc::channel();
         let handle = thread::Builder::new()
             .name("dropkick-log".to_string())
@@ -177,12 +179,14 @@ impl Writer {
                         Job::Flush(done) => {
                             let _ = done.send(());
                         }
+                        Job::Stop => break,
                     }
                 }
             })?;
         Ok(Writer {
             jobs,
             thread: handle.thread().id(),
+            handle: Mutex::new(Some(handle)),
         })
     }
 }
@@ -200,13 +204,18 @@ pub struct Logger {
     stored: OnceLock<Box<dyn Fn() + Send + Sync>>,
 }
 
-static LOGGER: OnceLock<Logger> = OnceLock::new();
+static LOGGER: OnceLock<std::sync::Arc<Logger>> = OnceLock::new();
 
 impl Logger {
     fn open(records_file: &Path, logs_dir: &Path, debug_enabled: bool) -> Logger {
         let started = now_unix_millis();
         Logger {
-            records: Mutex::new(open_records(records_file)),
+            records: Mutex::new({
+                let path = records_file.to_path_buf();
+                crate::native_wait::run(path.to_string_lossy().into_owned(), move || {
+                    open_records(&path)
+                })
+            }),
             records_file: records_file.to_path_buf(),
             session: iso_millis(started),
             fallback_file: logs_dir.join(format!("{}.log", filename_stamp(started))),
@@ -217,12 +226,22 @@ impl Logger {
     }
 
     // Starts the writer thread. A logger without one writes inline.
-    fn start_writer(&'static self) {
-        match Writer::spawn(self) {
+    fn start_writer(self: &std::sync::Arc<Self>) {
+        match Writer::spawn(self.clone()) {
             Ok(writer) => {
                 let _ = self.writer.set(writer);
             }
             Err(e) => eprintln!("[dropkick:logging] writer thread failed to start: {e}"),
+        }
+    }
+
+    #[cfg(test)]
+    fn stop_writer_for_test(&self) {
+        if let Some(writer) = self.writer.get() {
+            let _ = writer.jobs.send(Job::Stop);
+            if let Some(handle) = writer.handle.lock().unwrap().take() {
+                handle.join().unwrap();
+            }
         }
     }
 }
@@ -230,7 +249,14 @@ impl Logger {
 // Opens this launch's session against `records_file` and installs the
 // process-global logger. Call once.
 pub fn init(records_file: &Path, logs_dir: &Path, debug_enabled: bool) {
-    if LOGGER.set(Logger::open(records_file, logs_dir, debug_enabled)).is_err() {
+    if LOGGER
+        .set(std::sync::Arc::new(Logger::open(
+            records_file,
+            logs_dir,
+            debug_enabled,
+        )))
+        .is_err()
+    {
         eprintln!("[dropkick:logging] logger already initialized; ignoring re-init");
         return;
     }
@@ -243,7 +269,7 @@ fn open_records(records_file: &Path) -> Records {
     if let Some(parent) = records_file.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let conn = Connection::open(records_file).map_err(|e| e.to_string())?;
+    let conn = format_version::open_sqlite(records_file, Format::Records, SCHEMA)?;
     // The marker is read before anything is written: a newer build's records
     // are left exactly as they are, and every entry takes the fallback file,
     // which carries this error.
@@ -258,14 +284,15 @@ fn open_records(records_file: &Path) -> Records {
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "busy_timeout", BUSY_TIMEOUT_MS as i64)
         .map_err(|e| e.to_string())?;
-    conn.execute_batch(SCHEMA).map_err(|e| e.to_string())?;
-    format_version::stamp_sqlite(&conn, Format::Records)?;
     Ok(conn)
 }
 
 // The envelope keys a row holds in columns. One that is not a string stays in
 // `fields`, so nothing given is lost.
 fn insert(conn: &Connection, session: &str, obj: &Map<String, Value>) -> rusqlite::Result<()> {
+    let transaction =
+        rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)?;
+    format_version::admit_sqlite(&transaction, Format::Records)?;
     let column = |key: &str| obj.get(key).and_then(Value::as_str);
     let fields: Map<String, Value> = obj
         .iter()
@@ -275,7 +302,7 @@ fn insert(conn: &Connection, session: &str, obj: &Map<String, Value>) -> rusqlit
         })
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
-    conn.execute(
+    transaction.execute(
         "INSERT INTO logs (time, session, level, message, task_id, fields) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![
@@ -287,15 +314,38 @@ fn insert(conn: &Connection, session: &str, obj: &Map<String, Value>) -> rusqlit
             Value::Object(fields).to_string(),
         ],
     )?;
+    transaction.commit()?;
     Ok(())
 }
 
 fn global() -> Option<&'static Logger> {
-    LOGGER.get()
+    LOGGER.get().map(std::sync::Arc::as_ref)
 }
 
 pub fn debug_enabled() -> bool {
     global().map(|l| l.debug_enabled).unwrap_or(false)
+}
+
+pub fn shutdown() {
+    let Some(logger) = global() else {
+        return;
+    };
+    logger.flush();
+    if let Some(writer) = logger.writer.get() {
+        let _ = writer.jobs.send(Job::Stop);
+        let handle = writer
+            .handle
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        if let Some(handle) = handle {
+            let _ = crate::native_wait::run("logging-shutdown".to_string(), move || {
+                handle
+                    .join()
+                    .map_err(|_| "logging writer panicked".to_string())
+            });
+        }
+    }
 }
 
 // This launch's session, as every record of it carries.

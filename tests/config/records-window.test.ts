@@ -65,7 +65,7 @@ describe("the Records window", () => {
   });
 
   it("reads records without writing a record of its own success", () => {
-    const reader = shipped.slice(shipped.indexOf("fn read_records<T>("), shipped.indexOf("fn read_records_page("));
+    const reader = shipped.slice(shipped.indexOf("fn read_records<"), shipped.indexOf("fn read_records_page("));
     expect(reader).toContain("log_cmd_err(");
     expect(reader).not.toMatch(/log_cmd_start|log_cmd_ok|logging::(info|debug|warn)\(/);
     for (const command of ["read_records_page", "read_record_sources", "read_record_detail"]) {

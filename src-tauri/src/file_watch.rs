@@ -59,6 +59,7 @@ impl Targets {
     }
 }
 
+#[derive(Clone)]
 pub struct FileWatches {
     listener: Arc<dyn Fn(&str) + Send + Sync>,
     // Read by the watcher's own thread for every event.
@@ -66,7 +67,7 @@ pub struct FileWatches {
     // Held across every call into the watcher, so watches and unwatches apply in
     // order. The event handler never takes it: a watcher may wait for its
     // handler to return when a directory is unwatched.
-    watcher: Mutex<Option<RecommendedWatcher>>,
+    watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -95,7 +96,10 @@ fn target_of(path: &Path) -> Result<Target, String> {
 fn event_target(path: &Path) -> Option<Target> {
     let name = path.file_name()?.to_os_string();
     let parent = path.parent()?;
-    let dir = std::fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
+    let owned_parent = parent.to_path_buf();
+    let dir = crate::native_wait::read(move || {
+        std::fs::canonicalize(owned_parent).map_err(|error| error.to_string())
+    }).unwrap_or_else(|_| parent.to_path_buf());
     Some((dir, name))
 }
 
@@ -107,7 +111,7 @@ impl FileWatches {
         Self {
             listener: Arc::new(listener),
             targets: Arc::new(Mutex::new(Targets::default())),
-            watcher: Mutex::new(None),
+            watcher: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -148,6 +152,12 @@ impl FileWatches {
 
     /// Starts watching `path`. Watching a path already watched does nothing.
     pub fn watch(&self, path: &str) -> Result<(), String> {
+        let watches = self.clone();
+        let path = path.to_string();
+        crate::native_wait::run(format!("watch:{path}"), move || watches.watch_owned(&path))
+    }
+
+    fn watch_owned(&self, path: &str) -> Result<(), String> {
         let target = target_of(Path::new(path))?;
         let mut watcher = lock(&self.watcher);
         let dir = target.0.clone();
@@ -181,6 +191,14 @@ impl FileWatches {
 
     /// Stops watching `path`. Unwatching a path not watched does nothing.
     pub fn unwatch(&self, path: &str) -> Result<(), String> {
+        let watches = self.clone();
+        let path = path.to_string();
+        crate::native_wait::run(format!("watch:{path}"), move || {
+            watches.unwatch_owned(&path)
+        })
+    }
+
+    fn unwatch_owned(&self, path: &str) -> Result<(), String> {
         let mut watcher = lock(&self.watcher);
         let unused_dir = {
             let mut targets = lock(&self.targets);

@@ -219,15 +219,20 @@ fn a_failed_insert_falls_back_for_that_entry_only() {
 #[test]
 fn the_writer_thread_writes_entries_in_the_order_they_were_logged() {
     let (dir, logger) = temp_logger(false);
-    let logger: &'static Logger = Box::leak(Box::new(logger));
+    let logger = std::sync::Arc::new(logger);
     logger.start_writer();
+    struct SettledWriter(std::sync::Arc<Logger>);
+    impl Drop for SettledWriter {
+        fn drop(&mut self) {
+            self.0.stop_writer_for_test();
+        }
+    }
+    let _writer = SettledWriter(logger.clone());
     for n in 0..50 {
         logger.emit(Level::Warn, "queued", json!({ "n": n }));
     }
     logger.emit_forwarded(json!({ "level": "info", "message": "forwarded" }));
     logger.flush();
-    // The leaked logger is never dropped, so close its database here.
-    *logger.records.lock().unwrap() = Err("closed".to_string());
     let rows = rows(&dir);
     assert_eq!(rows.len(), 51);
     for (n, row) in rows.iter().take(50).enumerate() {

@@ -112,14 +112,68 @@ pub fn sqlite(conn: &Connection, format: Format) -> Result<Marker, String> {
             .map_err(|e| e.to_string())
     };
     let version = read("PRAGMA user_version")?;
-    if version == 0 {
-        return if read("SELECT count(*) FROM sqlite_master")? == 0 {
-            Ok(Marker::Readable)
-        } else {
-            Err("user_version is missing".to_string())
-        };
-    }
     judge(Some(&Value::from(version)), format)
+}
+
+pub fn open_sqlite(
+    path: &std::path::Path,
+    format: Format,
+    schema: &str,
+) -> Result<Connection, String> {
+    let created = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(file) => {
+            drop(file);
+            true
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
+        Err(error) => return Err(error.to_string()),
+    };
+    let result = (|| {
+        let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
+        if !created {
+            if let Marker::Newer(found) = sqlite(&conn, format)? {
+                return Err(newer_message(path, found, format));
+            }
+        }
+        conn.busy_timeout(std::time::Duration::from_secs(5))
+            .map_err(|e| e.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| e.to_string())?;
+        let marker: i64 = tx
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+        if created && marker == 0 {
+            tx.execute_batch(schema).map_err(|e| e.to_string())?;
+            stamp_sqlite(&tx, format)?;
+        } else {
+            match sqlite(&tx, format)? {
+                Marker::Readable => (),
+                Marker::Newer(found) => return Err(newer_message(path, found, format)),
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(conn)
+    })();
+    if result.is_err() && created {
+        let _ = std::fs::remove_file(path);
+    }
+    result
+}
+
+pub fn admit_sqlite(conn: &Connection, format: Format) -> rusqlite::Result<()> {
+    let issue = match sqlite(conn, format) {
+        Ok(Marker::Readable) => return Ok(()),
+        Ok(Marker::Newer(found)) => format!("store format {found} is newer than this build"),
+        Err(issue) => issue,
+    };
+    Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+        std::io::Error::other(issue),
+    )))
 }
 
 /// Records this build's version in a SQLite store it has just opened and

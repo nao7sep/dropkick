@@ -40,6 +40,15 @@ pub fn last_launched_preferences_path(state: &Value) -> Option<&str> {
 /// written by a newer build is None; recovery stays with the frontend's load
 /// path.
 pub fn previewed_preferences(state_file: &Path) -> Option<Value> {
+    let state_file = state_file.to_path_buf();
+    crate::native_wait::run(state_file.to_string_lossy().into_owned(), move || {
+        Ok(previewed_preferences_owned(&state_file))
+    })
+    .ok()
+    .flatten()
+}
+
+fn previewed_preferences_owned(state_file: &Path) -> Option<Value> {
     let state = readable_document(state_file, Format::State)?;
     let preferences_path = last_launched_preferences_path(&state)?;
     readable_document(Path::new(preferences_path), Format::Preferences)

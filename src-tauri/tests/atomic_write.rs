@@ -124,6 +124,59 @@ fn task_json(task_id: &str, notes: &[&str]) -> serde_json::Value {
     })
 }
 
+#[test]
+fn consumed_identities_and_required_nullable_members_are_validated() {
+    for invalid in ["", "task:note", "task#title"] {
+        let value =
+            serde_json::json!({"formatVersion":1,"id":"L1","tasks":[task_json(invalid, &[])]});
+        assert!(matches!(
+            classify_json_bytes(value.to_string().as_bytes()),
+            JsonFileWithHashResult::Invalid { .. }
+        ));
+        let value =
+            serde_json::json!({"formatVersion":1,"id":"L1","tasks":[task_json("t1", &[invalid])]});
+        assert!(matches!(
+            classify_json_bytes(value.to_string().as_bytes()),
+            JsonFileWithHashResult::Invalid { .. }
+        ));
+    }
+    for field in ["dueDate", "completedAtUtc"] {
+        let mut task = task_json("t1", &[]);
+        task.as_object_mut().unwrap().remove(field);
+        let value = serde_json::json!({"formatVersion":1,"id":"L1","tasks":[task]});
+        assert!(matches!(
+            classify_json_bytes(value.to_string().as_bytes()),
+            JsonFileWithHashResult::Invalid { .. }
+        ));
+    }
+}
+
+#[test]
+fn native_publication_preserves_a_newer_document_even_for_equal_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("managed.json");
+    let bytes = r#"{"formatVersion":2,"newField":"keep"}"#;
+    std::fs::write(&path, bytes).unwrap();
+    assert!(write_atomic(path.to_str().unwrap(), r#"{"formatVersion":1}"#).is_err());
+    assert!(write_atomic_unrecorded(path.to_str().unwrap(), bytes).is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_published_document_uses_the_ordinary_create_mode() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let ordinary = dir.path().join("ordinary.json");
+    std::fs::write(&ordinary, "ordinary").unwrap();
+    let target = dir.path().join("published.json");
+    write_atomic_unrecorded(target.to_str().unwrap(), "published").unwrap();
+    assert_eq!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+        std::fs::metadata(&ordinary).unwrap().permissions().mode() & 0o777);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+}
+
 fn classify_tasks(tasks: Vec<serde_json::Value>) -> JsonFileWithHashResult {
     let bytes = serde_json::to_vec(&serde_json::json!({
         "formatVersion": 1,

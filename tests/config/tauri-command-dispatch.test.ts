@@ -26,12 +26,12 @@ interface Command {
   touchesDisk: boolean;
 }
 
-function commands(): Command[] {
+function commands(input = shipped): Command[] {
   const found: Command[] = [];
   const attr = /#\[tauri::command(\([^)]*\))?\]\s*\n\s*(?:async\s+)?fn\s+(\w+)/g;
   let match: RegExpExecArray | null;
   const starts: { index: number; attribute: string; name: string }[] = [];
-  while ((match = attr.exec(shipped)) !== null) {
+  while ((match = attr.exec(input)) !== null) {
     starts.push({
       index: match.index,
       attribute: match[1] ?? "",
@@ -43,8 +43,8 @@ function commands(): Command[] {
     // how rustfmt lays out a top-level fn) rather than at the next command, so
     // the last one does not swallow the rest of the file.
     const from = starts[i].index;
-    const close = shipped.indexOf("\n}\n", from);
-    const body = shipped.slice(from, close === -1 ? shipped.length : close);
+    const close = input.indexOf("\n}\n", from);
+    const body = input.slice(from, close === -1 ? input.length : close);
     found.push({
       attribute: starts[i].attribute,
       name: starts[i].name,
@@ -52,7 +52,7 @@ function commands(): Command[] {
       // Direct filesystem use, or the helpers that reach it.
       touchesDisk:
         /std::fs::/.test(body) ||
-        /write_atomic\(/.test(body) ||
+        /write_atomic(?:_unrecorded)?\(/.test(body) ||
         /paths::data_root\(/.test(body),
     });
   }
@@ -62,6 +62,11 @@ function commands(): Command[] {
 const all = commands();
 
 describe("Tauri command dispatch (src-tauri/src/lib.rs)", () => {
+  it("detects an inline command that reaches the unrecorded writer", () => {
+    const planted = commands("#[tauri::command]\nfn unsafe_save() {\n    write_atomic_unrecorded(path, contents);\n}\n");
+    expect(planted.filter((c) => c.touchesDisk && !c.attribute.includes("async")).map((c) => c.name))
+      .toEqual(["unsafe_save"]);
+  });
   it("finds the shipped commands", () => {
     // A regex that matched nothing would make every assertion below vacuous.
     expect(all.length).toBeGreaterThanOrEqual(8);

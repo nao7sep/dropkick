@@ -19,6 +19,7 @@ mod instance_owner;
 pub mod logging;
 pub mod menu;
 pub mod nanoid;
+pub mod native_wait;
 mod os_quit;
 pub mod paths;
 pub mod records;
@@ -146,9 +147,11 @@ pub struct TaskDto {
     pub description: String,
     pub status: TaskStatus,
     pub priority: TaskPriority,
+    #[serde(deserialize_with = "required_nullable")]
     pub due_date: Option<String>,
     pub created_at_utc: String,
     pub updated_at_utc: String,
+    #[serde(deserialize_with = "required_nullable")]
     pub completed_at_utc: Option<String>,
     pub notes: Vec<NoteDto>,
 }
@@ -200,81 +203,89 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 // Called from TypeScript before every write to detect external modifications.
 #[tauri::command(async)]
 fn hash_file(path: &str) -> Result<Option<String>, String> {
-    let started = log_cmd_start("hash_file", json!({ "path": path }));
-    match std::fs::read(path) {
-        Ok(bytes) => {
-            let hash = sha256_hex(&bytes);
-            log_cmd_ok(
-                "hash_file",
-                started,
-                json!({ "path": path, "bytes": bytes.len() }),
-            );
-            Ok(Some(hash))
+    let path = path.to_string();
+    native_wait::read_keyed(path.clone(), move || {
+        let path = path.as_str();
+        let started = log_cmd_start("hash_file", json!({ "path": path }));
+        match std::fs::read(path) {
+            Ok(bytes) => {
+                let hash = sha256_hex(&bytes);
+                log_cmd_ok(
+                    "hash_file",
+                    started,
+                    json!({ "path": path, "bytes": bytes.len() }),
+                );
+                Ok(Some(hash))
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                log_cmd_ok(
+                    "hash_file",
+                    started,
+                    json!({ "path": path, "outcome": "missing" }),
+                );
+                Ok(None)
+            }
+            Err(e) => {
+                log_cmd_err("hash_file", started, e.to_string());
+                Err(e.to_string())
+            }
         }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            log_cmd_ok(
-                "hash_file",
-                started,
-                json!({ "path": path, "outcome": "missing" }),
-            );
-            Ok(None)
-        }
-        Err(e) => {
-            log_cmd_err("hash_file", started, e.to_string());
-            Err(e.to_string())
-        }
-    }
+    })
 }
 
 // Reads a JSON file once, parses it, and returns an explicit result with a
 // hash of the exact bytes that were read.
 #[tauri::command(async)]
 fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String> {
-    let started = log_cmd_start("read_json_file_with_hash", json!({ "path": path }));
-    let bytes = match std::fs::read(path) {
-        Ok(bytes) => bytes,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            log_cmd_ok(
-                "read_json_file_with_hash",
-                started,
-                json!({ "path": path, "outcome": "missing" }),
-            );
-            return Ok(JsonFileWithHashResult::Missing);
-        }
-        Err(err) => {
-            log_cmd_ok(
-                "read_json_file_with_hash",
-                started,
-                json!({ "path": path, "outcome": "error", "error": { "message": err.to_string() } }),
-            );
-            return Ok(JsonFileWithHashResult::Error {
-                message: err.to_string(),
-            });
-        }
-    };
+    let path = path.to_string();
+    native_wait::read_keyed(path.clone(), move || {
+        let path = path.as_str();
+        let started = log_cmd_start("read_json_file_with_hash", json!({ "path": path }));
+        let bytes = match std::fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                log_cmd_ok(
+                    "read_json_file_with_hash",
+                    started,
+                    json!({ "path": path, "outcome": "missing" }),
+                );
+                return Ok(JsonFileWithHashResult::Missing);
+            }
+            Err(err) => {
+                log_cmd_ok(
+                    "read_json_file_with_hash",
+                    started,
+                    json!({ "path": path, "outcome": "error", "error": { "message": err.to_string() } }),
+                );
+                return Ok(JsonFileWithHashResult::Error {
+                    message: err.to_string(),
+                });
+            }
+        };
 
-    let result = classify_json_bytes(&bytes);
-    match &result {
-        JsonFileWithHashResult::Success { data, .. } => log_cmd_ok(
-            "read_json_file_with_hash",
-            started,
-            json!({ "path": path, "bytes": bytes.len(), "tasks": data.tasks.len(), "outcome": "success" }),
-        ),
-        JsonFileWithHashResult::Invalid { message } => log_cmd_ok(
-            "read_json_file_with_hash",
-            started,
-            json!({ "path": path, "bytes": bytes.len(), "outcome": "invalid", "error": { "message": message } }),
-        ),
-        JsonFileWithHashResult::Newer { format_version } => log_cmd_ok(
-            "read_json_file_with_hash",
-            started,
-            json!({ "path": path, "bytes": bytes.len(), "outcome": "newer", "formatVersion": format_version }),
-        ),
-        // classify_json_bytes only yields Success, Invalid or Newer;
-        // Missing/Error are decided by the filesystem read above.
-        _ => {}
-    }
-    Ok(result)
+        let result = classify_json_bytes(&bytes);
+        match &result {
+            JsonFileWithHashResult::Success { data, .. } => log_cmd_ok(
+                "read_json_file_with_hash",
+                started,
+                json!({ "path": path, "bytes": bytes.len(), "tasks": data.tasks.len(), "outcome": "success" }),
+            ),
+            JsonFileWithHashResult::Invalid { message } => log_cmd_ok(
+                "read_json_file_with_hash",
+                started,
+                json!({ "path": path, "bytes": bytes.len(), "outcome": "invalid", "error": { "message": message } }),
+            ),
+            JsonFileWithHashResult::Newer { format_version } => log_cmd_ok(
+                "read_json_file_with_hash",
+                started,
+                json!({ "path": path, "bytes": bytes.len(), "outcome": "newer", "formatVersion": format_version }),
+            ),
+            // classify_json_bytes only yields Success, Invalid or Newer;
+            // Missing/Error are decided by the filesystem read above.
+            _ => {}
+        }
+        Ok(result)
+    })
 }
 
 // The pure parse/classify half of read_json_file_with_hash: given a file's
@@ -304,18 +315,37 @@ pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
     }
 }
 
+fn required_nullable<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(deserializer)
+}
+
+fn valid_identity(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
 fn validate_task_list_identities(data: &TaskListDto) -> Result<(), String> {
-    if data.id.is_empty() {
-        return Err("task list id is empty".to_string());
+    if !valid_identity(&data.id) {
+        return Err("task list id is invalid".to_string());
     }
     let mut task_ids = HashSet::new();
     for task in &data.tasks {
+        if !valid_identity(&task.id) {
+            return Err("task id is invalid".to_string());
+        }
         if !task_ids.insert(task.id.as_str()) {
             return Err("duplicate task id".to_string());
         }
 
         let mut note_ids = HashSet::new();
         for note in &task.notes {
+            if !valid_identity(&note.id) {
+                return Err("note id is invalid".to_string());
+            }
             if !note_ids.insert(note.id.as_str()) {
                 return Err("duplicate note id within task".to_string());
             }
@@ -348,35 +378,39 @@ pub enum TextReadResult {
 
 #[tauri::command(async)]
 fn read_text_file(path: &str) -> Result<TextReadResult, String> {
-    let started = log_cmd_start("read_text_file", json!({ "path": path }));
-    match std::fs::read_to_string(path) {
-        Ok(text) => {
-            log_cmd_ok(
-                "read_text_file",
-                started,
-                json!({ "path": path, "bytes": text.len(), "outcome": "success" }),
-            );
-            Ok(TextReadResult::Success { text })
+    let path = path.to_string();
+    native_wait::read_keyed(path.clone(), move || {
+        let path = path.as_str();
+        let started = log_cmd_start("read_text_file", json!({ "path": path }));
+        match std::fs::read_to_string(path) {
+            Ok(text) => {
+                log_cmd_ok(
+                    "read_text_file",
+                    started,
+                    json!({ "path": path, "bytes": text.len(), "outcome": "success" }),
+                );
+                Ok(TextReadResult::Success { text })
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                log_cmd_ok(
+                    "read_text_file",
+                    started,
+                    json!({ "path": path, "outcome": "missing" }),
+                );
+                Ok(TextReadResult::Missing)
+            }
+            Err(err) => {
+                log_cmd_ok(
+                    "read_text_file",
+                    started,
+                    json!({ "path": path, "outcome": "error", "error": { "message": err.to_string() } }),
+                );
+                Ok(TextReadResult::Error {
+                    message: err.to_string(),
+                })
+            }
         }
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            log_cmd_ok(
-                "read_text_file",
-                started,
-                json!({ "path": path, "outcome": "missing" }),
-            );
-            Ok(TextReadResult::Missing)
-        }
-        Err(err) => {
-            log_cmd_ok(
-                "read_text_file",
-                started,
-                json!({ "path": path, "outcome": "error", "error": { "message": err.to_string() } }),
-            );
-            Ok(TextReadResult::Error {
-                message: err.to_string(),
-            })
-        }
-    }
+    })
 }
 
 // Atomic write: write to a temp file in the same directory, fsync it, then
@@ -393,25 +427,35 @@ fn read_text_file(path: &str) -> Result<TextReadResult, String> {
 // which a re-read could hash a concurrent writer's content instead of this
 // call's.
 #[tauri::command(async)]
-fn write_text_file_atomic(path: &str, contents: &str, record_backup: Option<bool>) -> Result<String, String> {
-    let started = log_cmd_start(
-        "write_text_file_atomic",
-        json!({ "path": path, "bytes": contents.len() }),
-    );
-    let result = if record_backup.unwrap_or(true) {
-        write_atomic(path, contents)
-    } else {
-        write_atomic_unrecorded(path, contents)
-    };
-    match &result {
-        Ok(_) => log_cmd_ok(
+fn write_text_file_atomic(
+    path: &str,
+    contents: &str,
+    record_backup: Option<bool>,
+) -> Result<String, String> {
+    let path = path.to_string();
+    let contents = contents.to_string();
+    native_wait::run(path.clone(), move || {
+        let path = path.as_str();
+        let contents = contents.as_str();
+        let started = log_cmd_start(
             "write_text_file_atomic",
-            started,
             json!({ "path": path, "bytes": contents.len() }),
-        ),
-        Err(message) => log_cmd_err("write_text_file_atomic", started, message.clone()),
-    }
-    result
+        );
+        let result = if record_backup.unwrap_or(true) {
+            write_atomic(path, contents)
+        } else {
+            write_atomic_unrecorded(path, contents)
+        };
+        match &result {
+            Ok(_) => log_cmd_ok(
+                "write_text_file_atomic",
+                started,
+                json!({ "path": path, "bytes": contents.len() }),
+            ),
+            Err(message) => log_cmd_err("write_text_file_atomic", started, message.clone()),
+        }
+        result
+    })
 }
 
 // The staging temp-file name an atomic write renames into place:
@@ -467,9 +511,14 @@ pub fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
 
 // Keep ordinary permissions on the replacement. Its modified time belongs
 // to the changed content; no custom metadata transport is needed.
-fn carry_replaced_permissions(target: &std::path::Path, tmp: &std::fs::File) {
-    if let Ok(existing) = std::fs::metadata(target) {
-        let _ = tmp.set_permissions(existing.permissions());
+fn carry_replaced_permissions(
+    target: &std::path::Path,
+    tmp: &std::fs::File,
+) -> std::io::Result<()> {
+    match std::fs::metadata(target) {
+        Ok(existing) => tmp.set_permissions(existing.permissions()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
 }
 
@@ -563,29 +612,49 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         .and_then(|n| n.to_str())
         .ok_or_else(|| "path has no file name".to_string())?;
 
+    refuse_newer_json(target)?;
+
     // A write that changes nothing is skipped (content-lifecycle-conventions,
     // Files). A target that is missing or cannot be read takes the write below.
     if std::fs::read(target).is_ok_and(|existing| existing == contents.as_bytes()) {
         return Ok(sha256_hex(contents.as_bytes()));
     }
 
-    let tmp = parent.join(atomic_temp_name(file_name));
-
+    let stage_dir = parent.join(atomic_temp_name(file_name));
+    let mut directory = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        directory.mode(0o700);
+    }
+    directory.create(&stage_dir).map_err(|error| error.to_string())?;
+    struct Stage { directory: std::path::PathBuf, file: std::path::PathBuf }
+    impl Drop for Stage {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.file);
+            let _ = std::fs::remove_dir(&self.directory);
+        }
+    }
+    let tmp = stage_dir.join(file_name);
+    let _stage = Stage { directory: stage_dir, file: tmp.clone() };
     let write_tmp = (|| -> std::io::Result<()> {
-        let mut file = std::fs::File::create(&tmp)?;
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        let mut file = options.open(&tmp)?;
         file.write_all(contents.as_bytes())?;
-        carry_replaced_permissions(target, &file);
+        carry_replaced_permissions(target, &file)?;
         file.sync_all()?;
         Ok(())
     })();
     if let Err(e) = write_tmp {
-        let _ = std::fs::remove_file(&tmp);
         return Err(e.to_string());
     }
 
-    if let Err(e) = replace_target(&tmp, target) {
+    if let Err(e) = refuse_newer_json(target)
+        .and_then(|()| replace_target(&tmp, target).map_err(|e| e.to_string()))
+    {
         let _ = std::fs::remove_file(&tmp);
-        return Err(e.to_string());
+        return Err(e);
     }
 
     // Best-effort: persist the rename itself by fsyncing the directory.
@@ -618,10 +687,30 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     Ok(sha256_hex(contents.as_bytes()))
 }
 
+fn refuse_newer_json(path: &std::path::Path) -> Result<(), String> {
+    match std::fs::read(path) {
+        Ok(bytes) => {
+            if let Ok(format_version::Marker::Newer(found)) =
+                format_version::json_bytes(&bytes, format_version::Format::State)
+            {
+                return Err(format_version::newer_message(
+                    path,
+                    found,
+                    format_version::Format::State,
+                ));
+            }
+            Ok(())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 #[tauri::command(async)]
-fn file_exists(path: String) -> bool {
-    let path = path.as_str();
-    std::path::Path::new(path).exists()
+fn file_exists(path: String) -> Result<bool, String> {
+    native_wait::read_keyed(path.clone(), move || {
+        Ok(std::path::Path::new(&path).exists())
+    })
 }
 
 // `<stem>-<yyyymmdd-hhmmss-fff-utc>.invalid` beside the source — the
@@ -642,40 +731,49 @@ pub fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
 // over the very bytes quarantine exists to preserve (storage-path conventions).
 #[tauri::command(async)]
 fn quarantine_file(path: &str) -> Result<String, String> {
-    let started = log_cmd_start("quarantine_file", json!({ "path": path }));
-    let target = quarantine_target(std::path::Path::new(path));
-    match std::fs::rename(path, &target) {
-        Ok(()) => {
-            let target = target.to_string_lossy().to_string();
-            log_cmd_ok(
-                "quarantine_file",
-                started,
-                json!({ "path": path, "quarantinedTo": target }),
-            );
-            Ok(target)
+    let path = path.to_string();
+    native_wait::run(path.clone(), move || {
+        let path = path.as_str();
+        let started = log_cmd_start("quarantine_file", json!({ "path": path }));
+        let target = quarantine_target(std::path::Path::new(path));
+        refuse_newer_json(std::path::Path::new(path))?;
+        match std::fs::rename(path, &target) {
+            Ok(()) => {
+                let target = target.to_string_lossy().to_string();
+                log_cmd_ok(
+                    "quarantine_file",
+                    started,
+                    json!({ "path": path, "quarantinedTo": target }),
+                );
+                Ok(target)
+            }
+            Err(e) => {
+                let message = e.to_string();
+                log_cmd_err("quarantine_file", started, message.clone());
+                Err(message)
+            }
         }
-        Err(e) => {
-            let message = e.to_string();
-            log_cmd_err("quarantine_file", started, message.clone());
-            Err(message)
-        }
-    }
+    })
 }
 
 #[tauri::command(async)]
 fn ensure_dir(path: &str) -> Result<(), String> {
-    let started = log_cmd_start("ensure_dir", json!({ "path": path }));
-    match std::fs::create_dir_all(path) {
-        Ok(()) => {
-            log_cmd_ok("ensure_dir", started, json!({ "path": path }));
-            Ok(())
+    let path = path.to_string();
+    native_wait::run(path.clone(), move || {
+        let path = path.as_str();
+        let started = log_cmd_start("ensure_dir", json!({ "path": path }));
+        match std::fs::create_dir_all(path) {
+            Ok(()) => {
+                log_cmd_ok("ensure_dir", started, json!({ "path": path }));
+                Ok(())
+            }
+            Err(e) => {
+                let message = e.to_string();
+                log_cmd_err("ensure_dir", started, message.clone());
+                Err(message)
+            }
         }
-        Err(e) => {
-            let message = e.to_string();
-            log_cmd_err("ensure_dir", started, message.clone());
-            Err(message)
-        }
-    }
+    })
 }
 
 // Returns the absolute storage root (`~/.dropkick`, or `DROPKICK_DATA_DIR`),
@@ -685,18 +783,20 @@ fn ensure_dir(path: &str) -> Result<(), String> {
 // (which cannot read `DROPKICK_DATA_DIR` and is forbidden by the per-stack rule).
 #[tauri::command(async)]
 fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
-    let started = log_cmd_start("app_paths", json!({}));
-    match paths::data_root(&app) {
-        Ok(root) => {
-            let layout = paths::app_paths(&root);
-            log_cmd_ok("app_paths", started, json!({ "root": layout.root }));
-            Ok(layout)
+    native_wait::run("app-paths".to_string(), move || {
+        let started = log_cmd_start("app_paths", json!({}));
+        match paths::data_root(&app) {
+            Ok(root) => {
+                let layout = paths::app_paths(&root);
+                log_cmd_ok("app_paths", started, json!({ "root": layout.root }));
+                Ok(layout)
+            }
+            Err(message) => {
+                log_cmd_err("app_paths", started, message.clone());
+                Err(message)
+            }
         }
-        Err(message) => {
-            log_cmd_err("app_paths", started, message.clone());
-            Err(message)
-        }
-    }
+    })
 }
 
 // Applies a saved theme preference to the calling window: the window theme,
@@ -829,15 +929,17 @@ fn open_records_window(
 // record signals the Records window, so a logged success would start the next
 // read. A failure is recorded once, and the window reads no further on
 // signals until a read succeeds.
-fn read_records<T>(
+fn read_records<T: Send + 'static>(
     command: &str,
-    read: impl FnOnce(&rusqlite::Connection) -> rusqlite::Result<T>,
+    read: impl FnOnce(&rusqlite::Connection) -> rusqlite::Result<T> + Send + 'static,
 ) -> Result<T, String> {
     let started = Instant::now();
-    let result = logging::records_file()
-        .ok_or_else(|| "the records database is not open".to_string())
-        .and_then(|path| records::open(&path))
-        .and_then(|conn| read(&conn).map_err(|e| e.to_string()));
+    let result = native_wait::read(move || {
+        logging::records_file()
+            .ok_or_else(|| "the records database is not open".to_string())
+            .and_then(|path| records::open(&path))
+            .and_then(|conn| read(&conn).map_err(|e| e.to_string()))
+    });
     if let Err(message) = &result {
         log_cmd_err(command, started, message.clone());
     }
@@ -846,7 +948,9 @@ fn read_records<T>(
 
 #[tauri::command(async)]
 fn read_records_page(query: records::RecordsQuery) -> Result<records::RecordsPage, String> {
-    read_records("read_records_page", |conn| records::read_page(conn, &query))
+    read_records("read_records_page", move |conn| {
+        records::read_page(conn, &query)
+    })
 }
 
 #[tauri::command(async)]
@@ -858,7 +962,9 @@ fn read_record_sources() -> Result<records::RecordSources, String> {
 
 #[tauri::command(async)]
 fn read_record_detail(id: i64) -> Result<Option<records::RecordDetail>, String> {
-    read_records("read_record_detail", |conn| records::read_detail(conn, id))
+    read_records("read_record_detail", move |conn| {
+        records::read_detail(conn, id)
+    })
 }
 
 // Reports whether developer-only `debug` logging is on, so the frontend can
@@ -973,7 +1079,10 @@ pub fn run() {
             // never reached. Degrade instead: skip the logger and the backup
             // store, let the window open, and let the webview's own
             // app_paths call return the same error for that screen to show.
-            match paths::data_root(app.handle()) {
+            let root_handle = app.handle().clone();
+            match native_wait::run("app-paths".to_string(), move || {
+                paths::data_root(&root_handle)
+            }) {
                 Ok(data_root) => {
                     let layout = paths::app_paths(&data_root);
                     let records_path = std::path::Path::new(&layout.records_file);
@@ -1092,11 +1201,16 @@ pub fn run() {
             reopen_main(app_handle);
         }
         if let tauri::RunEvent::Exit = event {
-            // The end of a session exits with its windows still open.
-            capture_open_windows(app_handle);
-            window_placement::save_all(app_handle, &app_handle.state::<window_placement::WindowPlacements>());
-            logging::info("app shutdown", json!({ "reason": "exit" }));
-            logging::flush();
+            native_wait::exit_tail(|| {
+                // The end of a session exits with its windows still open.
+                capture_open_windows(app_handle);
+                window_placement::save_all(
+                    app_handle,
+                    &app_handle.state::<window_placement::WindowPlacements>(),
+                );
+                logging::info("app shutdown", json!({ "reason": "exit" }));
+                logging::shutdown();
+            });
         }
     });
 }

@@ -88,9 +88,13 @@ fn store() -> &'static Mutex<StoreState> {
 /// contended write *wait* for SQLite's write lock (up to ~5s) rather than
 /// immediately failing with `SQLITE_BUSY` and dropping that record.
 pub fn init(store_file: PathBuf) {
+    let opened = crate::native_wait::run(store_file.to_string_lossy().into_owned(), {
+        let path = store_file.clone();
+        move || open(&path)
+    });
     let mut state = lock();
     state.initialized = true;
-    match open(&store_file) {
+    match opened {
         Ok(conn) => state.conn = Some(conn),
         Err(err) => {
             logging::warn(
@@ -112,7 +116,7 @@ fn open(store_file: &Path) -> Result<Connection, String> {
     if let Some(parent) = store_file.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let conn = Connection::open(store_file).map_err(|e| e.to_string())?;
+    let conn = format_version::open_sqlite(store_file, Format::Backups, SCHEMA)?;
     // The marker is read before anything is written: a newer build's history is
     // left exactly as it is, and recording is off for the session.
     if let Marker::Newer(found) = format_version::sqlite(&conn, Format::Backups)? {
@@ -124,8 +128,6 @@ fn open(store_file: &Path) -> Result<Connection, String> {
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "busy_timeout", 5000)
         .map_err(|e| e.to_string())?;
-    conn.execute_batch(SCHEMA).map_err(|e| e.to_string())?;
-    format_version::stamp_sqlite(&conn, Format::Backups)?;
     Ok(conn)
 }
 
@@ -175,6 +177,7 @@ fn try_record(conn: &mut Connection, path: &str, bytes: &[u8]) -> Result<(), rus
     // the same latest hash and then append the same next version. WAL and the
     // busy timeout serialize the inserts, but cannot repair that stale read.
     let transaction = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    format_version::admit_sqlite(&transaction, Format::Backups)?;
     // Compare against the latest row for this same path only — a cheap,
     // append-only check with no full-history scan (served by the (path, id)
     // index). No prior row (QueryReturnedNoRows) means never captured -> record.

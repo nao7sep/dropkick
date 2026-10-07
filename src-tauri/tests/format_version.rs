@@ -18,6 +18,66 @@ fn every_format_the_core_reads_is_in_the_shared_table_at_version_one() {
 }
 
 #[test]
+fn genuine_creation_initializes_schema_and_marker_but_existing_empty_or_negative_stores_are_preserved(
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("new.sqlite3");
+    let conn =
+        format_version::open_sqlite(&path, Format::Records, "CREATE TABLE logs (id INTEGER);")
+            .unwrap();
+    assert_eq!(
+        format_version::sqlite(&conn, Format::Records),
+        Ok(Marker::Readable)
+    );
+    assert!(conn.prepare("SELECT * FROM logs").is_ok());
+    drop(conn);
+    for negative in [false, true] {
+        let path = dir.path().join(if negative {
+            "negative.sqlite3"
+        } else {
+            "empty.sqlite3"
+        });
+        let conn = Connection::open(&path).unwrap();
+        if negative {
+            conn.pragma_update(None, "user_version", -1).unwrap();
+        }
+        drop(conn);
+        let before = fs::read(&path).unwrap();
+        assert!(format_version::open_sqlite(
+            &path,
+            Format::Records,
+            "CREATE TABLE logs (id INTEGER);"
+        )
+        .is_err());
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+}
+
+#[test]
+fn failed_new_schema_initialization_leaves_no_marker_or_partial_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("failed.sqlite3");
+    assert!(format_version::open_sqlite(
+        &path,
+        Format::Records,
+        "CREATE TABLE logs (id INTEGER); INVALID SQL;"
+    )
+    .is_err());
+    assert!(!path.exists());
+}
+
+#[test]
+fn cached_mutation_admission_refuses_a_newer_marker() {
+    let conn = Connection::open_in_memory().unwrap();
+    format_version::stamp_sqlite(&conn, Format::Records).unwrap();
+    format_version::admit_sqlite(&conn, Format::Records).unwrap();
+    conn.pragma_update(None, "user_version", 2).unwrap();
+    let tx = rusqlite::Transaction::new_unchecked(&conn, rusqlite::TransactionBehavior::Immediate)
+        .unwrap();
+    assert!(format_version::admit_sqlite(&tx, Format::Records).is_err());
+}
+
+#[test]
 fn a_missing_marker_is_unreadable_and_a_newer_one_is_reported() {
     let format = Format::State;
     assert!(format_version::json_value(&json!({}), format).is_err());
@@ -40,10 +100,7 @@ fn a_missing_marker_is_unreadable_and_a_newer_one_is_reported() {
 #[test]
 fn a_new_sqlite_store_is_stamped_and_an_existing_one_without_user_version_is_unreadable() {
     let conn = Connection::open_in_memory().unwrap();
-    assert_eq!(
-        format_version::sqlite(&conn, Format::Records),
-        Ok(Marker::Readable)
-    );
+    assert!(format_version::sqlite(&conn, Format::Records).is_err());
     conn.execute_batch("CREATE TABLE logs (id INTEGER PRIMARY KEY);")
         .unwrap();
     assert!(format_version::sqlite(&conn, Format::Records).is_err());
