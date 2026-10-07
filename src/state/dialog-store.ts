@@ -41,7 +41,19 @@ interface ConfirmDialogRequest {
   resolve: (confirmed: boolean) => void;
 }
 
-export type DialogRequest = MessageDialogRequest | ConfirmDialogRequest;
+interface QuitSaveDialogRequest {
+  kind: "quit-save";
+  title: Message;
+  body: Message;
+  tone: DialogTone;
+  confirmLabel: Message;
+  cancelLabel: Message;
+  retryLabel: Message;
+  noSafeAction: false;
+  resolve: (choice: "quit" | "retry" | "cancel") => void;
+}
+
+export type DialogRequest = MessageDialogRequest | ConfirmDialogRequest | QuitSaveDialogRequest;
 
 interface DialogState {
   current: DialogRequest | null;
@@ -58,6 +70,8 @@ interface DialogState {
   ) => Promise<boolean>;
   confirmCurrent: () => void;
   cancelCurrent: () => void;
+  retryCurrent: () => void;
+  enqueueQuitSave: (paths: string[]) => Promise<"quit" | "retry" | "cancel">;
 }
 
 function advanceQueue(queue: DialogRequest[]) {
@@ -112,6 +126,21 @@ function present(
 export const useDialogStore = create<DialogState>((set, get) => ({
   current: null,
   queue: [],
+  enqueueQuitSave: async (paths) => await new Promise((resolve) => {
+    const request: QuitSaveDialogRequest = {
+      kind: "quit-save", title: message("dialog.notSaved.title"),
+      body: message("dialog.notSaved.body", { paths: paths.join("\n") }), tone: "warning",
+      confirmLabel: message("dialog.notSaved.quitAnyway"), cancelLabel: message("common.cancel"),
+      retryLabel: message("dialog.notSaved.retry"), noSafeAction: false, resolve,
+    };
+    present(request, undefined, get, set, () => resolve("cancel"));
+  }),
+  retryCurrent: () => {
+    const { current, queue } = get();
+    if (current?.kind !== "quit-save") return;
+    set(advanceQueue(queue));
+    current.resolve("retry");
+  },
 
   enqueueMessage: async (title, body, options = {}) =>
     await new Promise<void>((resolve) => {
@@ -149,6 +178,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
 
     if (current.kind === "message") {
       current.resolve();
+    } else if (current.kind === "quit-save") {
+      current.resolve("quit");
     } else {
       current.resolve(true);
     }
@@ -162,6 +193,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
 
     if (current.kind === "message") {
       current.resolve();
+    } else if (current.kind === "quit-save") {
+      current.resolve("cancel");
     } else {
       current.resolve(false);
     }

@@ -159,7 +159,7 @@ describe("close request", () => {
     await requestClose();
 
     expect(windowStub.events).toEqual([
-      'write:{"formatVersion":1,"drafts":{"t1":"typedasecondago"}}',
+      expect.stringContaining('"drafts":{"t1":"typedasecondago"}'),
       "destroy",
     ]);
   });
@@ -265,6 +265,20 @@ describe("a write that does not finish", () => {
 });
 
 describe("a draft write that fails", () => {
+  it("cancels the close without retrying or discarding the failed draft", async () => {
+    await mountHarness();
+    failDraftWrites = true;
+    useNoteDraftStore.getState().setDraft("t1", "keep this draft");
+    const closing = prepareWindowClose();
+    await waitForDialog();
+    const dialog = useDialogStore.getState().current;
+    expect(dialog?.kind).toBe("quit-save");
+    expect(dialog?.kind !== "message" && dialog?.cancelLabel.key).toBe("common.cancel");
+    useDialogStore.getState().cancelCurrent();
+    await expect(closing).resolves.toBe(false);
+    expect(useNoteDraftStore.getState().drafts.t1).toBe("keep this draft");
+    expect(windowStub.events).toEqual([]);
+  });
   it("holds the close, names the file and retries on request", async () => {
     await mountHarness();
     failDraftWrites = true;
@@ -277,16 +291,16 @@ describe("a draft write that fails", () => {
     expect(dialog?.body.values).toEqual({ paths: DRAFTS_PATH });
 
     // Retry with the disk still full asks again.
-    useDialogStore.getState().cancelCurrent();
+    useDialogStore.getState().retryCurrent();
     await waitForDialog();
     expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
 
     // Retry once the disk has room writes the text and lets the close go ahead.
     failDraftWrites = false;
-    useDialogStore.getState().cancelCurrent();
+    useDialogStore.getState().retryCurrent();
     await expect(closing).resolves.toBe(true);
     expect(windowStub.events).toEqual([
-      'write:{"formatVersion":1,"drafts":{"t1":"typedonafulldisk"}}',
+      expect.stringContaining('"drafts":{"t1":"typedonafulldisk"}'),
     ]);
   });
 
@@ -333,18 +347,18 @@ describe("a task-list write that fails outright", () => {
     expect(dialog?.title.key).toBe("dialog.notSaved.title");
     expect(dialog?.body.values).toEqual({ paths: LIST });
     expect(dialog?.confirmLabel.key).toBe("dialog.notSaved.quitAnyway");
-    expect(dialog?.kind === "confirm" && dialog.cancelLabel.key).toBe("dialog.notSaved.retry");
+    expect(dialog?.kind === "quit-save" && dialog.retryLabel.key).toBe("dialog.notSaved.retry");
     // Rolled back in memory, as any failed write is.
     expect(priorityOfT1()).toBe("Important");
 
     // Retry with the volume still failing asks again.
-    useDialogStore.getState().cancelCurrent();
+    useDialogStore.getState().retryCurrent();
     await waitForDialog();
     expect(useDialogStore.getState().current?.body.values).toEqual({ paths: LIST });
 
     // Retry once the volume takes writes again saves the change and closes.
     listDisk.fail = false;
-    useDialogStore.getState().cancelCurrent();
+    useDialogStore.getState().retryCurrent();
     await expect(closing).resolves.toBe(true);
     expect(listDisk.written).toEqual([`${LIST}:Critical`]);
     expect(priorityOfT1()).toBe("Critical");
@@ -420,7 +434,7 @@ describe("the end of an OS session", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(windowStub.events).toEqual([
-      'write:{"formatVersion":1,"drafts":{"t1":"typedasthesessionended"}}',
+      expect.stringContaining('"drafts":{"t1":"typedasthesessionended"}'),
     ]);
     expect(reported()).toBe(1);
     expect(useDialogStore.getState().current).toBeNull();

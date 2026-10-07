@@ -12,7 +12,7 @@ import { useI18n } from "../../i18n/I18nContext";
 export type DialogFocusTarget = "confirm" | "cancel" | "surface";
 
 export function dialogFocusTarget(request: DialogRequest): DialogFocusTarget {
-  if (request.kind !== "confirm") return "confirm";
+  if (request.kind === "message") return "confirm";
   return request.noSafeAction ? "surface" : "cancel";
 }
 
@@ -23,6 +23,7 @@ export function AppDialogHost() {
   const current = useDialogStore((s) => s.current);
   const confirmCurrent = useDialogStore((s) => s.confirmCurrent);
   const cancelCurrent = useDialogStore((s) => s.cancelCurrent);
+  const retryCurrent = useDialogStore((s) => s.retryCurrent);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   // State, not a ref: the focus effect below has to re-run when the surface
@@ -106,10 +107,13 @@ export function AppDialogHost() {
       zIndexBase={100}
       footer={
         <>
-          {current.kind === "confirm" && (
+          {current.kind !== "message" && (
             <Button ref={cancelRef} variant="secondary" onClick={cancelCurrent}>
               {text(current.cancelLabel)}
             </Button>
+          )}
+          {current.kind === "quit-save" && (
+            <Button variant="secondary" onClick={retryCurrent}>{text(current.retryLabel)}</Button>
           )}
 
           {/* The commit of a danger confirmation is the app's one filled red;

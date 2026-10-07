@@ -65,7 +65,6 @@ pub fn request_quit(app: &AppHandle) {
     };
     if let Err(error) = window.close() {
         logging::warn("quit: window close failed", json!({ "error": error.to_string() }));
-        app.exit(0);
     }
 }
 

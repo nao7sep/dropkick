@@ -30,7 +30,7 @@ import {
 } from "../repositories";
 import { flushNoteDraftsNow, useNoteDraftStore } from "../state/note-draft-store";
 import { useTaskListStore } from "../state/task-list-store";
-import { refuseDialogs, showAppConfirm } from "../state/dialog-store";
+import { refuseDialogs, showAppConfirm, useDialogStore } from "../state/dialog-store";
 import { message } from "../i18n/translate";
 
 export const CLOSE_WAIT_MS = 3000;
@@ -65,6 +65,9 @@ function within(work: Promise<unknown>, ms: number): Promise<boolean> {
     void work.then(() => {
       clearTimeout(timer);
       resolve(true);
+    }, () => {
+      clearTimeout(timer);
+      resolve(true);
     });
   });
 }
@@ -97,19 +100,12 @@ export async function prepareWindowClose(waitMs = CLOSE_WAIT_MS): Promise<boolea
     }
 
     log.warn("window close held by changes not saved", { paths });
-    const quitAnyway = await showAppConfirm(
-      message("dialog.notSaved.title"),
-      message("dialog.notSaved.body", { paths: paths.join("\n") }),
-      {
-        tone: "warning",
-        confirmLabel: message("dialog.notSaved.quitAnyway"),
-        cancelLabel: message("dialog.notSaved.retry"),
-      },
-    );
-    if (quitAnyway || sessionEnding) {
+    const choice = await useDialogStore.getState().enqueueQuitSave(paths);
+    if (choice === "quit" || sessionEnding) {
       log.warn("window closed with changes not saved", { paths });
       return true;
     }
+    if (choice === "cancel") return false;
     useTaskListStore.getState().retryFailedWrites();
   }
 }
@@ -137,7 +133,7 @@ async function askWhileStillSaving(
     },
   );
   const outcome = await Promise.race([
-    settled.then(() => "settled" as const),
+    settled.then(() => "settled" as const, () => "settled" as const),
     answer.then((closeAnyway) =>
       closeAnyway || sessionEnding ? ("close-anyway" as const) : ("keep-open" as const),
     ),

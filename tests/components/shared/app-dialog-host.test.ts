@@ -28,6 +28,17 @@ import {
 
 let host: Mounted;
 
+it("offers labelled Cancel, Retry and Quit Anyway with Cancel focused", async () => {
+  let choice!: Promise<"quit" | "retry" | "cancel">;
+  await open(() => { choice = useDialogStore.getState().enqueueQuitSave(["tasks.json"]); });
+  expect([...document.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+    "Cancel", "Retry", "Quit Anyway",
+  ]);
+  expect(focusedControl()).toBe("Cancel");
+  await answerCurrent("cancel");
+  await expect(choice).resolves.toBe("cancel");
+});
+
 // The focused control, named the way a user would name it: the button's label,
 // or "the dialog surface" when focus is on the dialog itself.
 function focusedControl(): string {

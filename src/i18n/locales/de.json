@@ -70,7 +70,7 @@
   "dialog.fileConflict.overwrite": "Überschreiben",
   "dialog.fileConflict.reload": "Verwerfen und neu laden",
   "dialog.stillSaving.title": "Speichern läuft noch",
-  "dialog.stillSaving.body": "Dropkick schreibt noch:\n\n{paths}\n\nWenn Sie jetzt schließen, gehen die Änderungen verloren, die noch nicht auf dem Datenträger sind.",
+  "dialog.stillSaving.body": "Dropkick speichert noch:\n\n{paths}\n\nWenn Sie jetzt schließen, gehen die Änderungen verloren, die noch nicht gespeichert wurden.",
   "dialog.stillSaving.closeAnyway": "Trotzdem schließen",
   "dialog.stillSaving.keepOpen": "Geöffnet lassen",
   "dialog.notSaved.title": "Änderungen nicht gespeichert",
