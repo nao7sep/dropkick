@@ -153,7 +153,6 @@ export interface AppPaths {
   configFile: string;
   preferencesFile: string;
   workspaceFile: string;
-  noteDraftsFile: string;
   logsDir: string;
   backupsFile: string;
   recordsFile: string;

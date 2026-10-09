@@ -20,7 +20,7 @@ const updateTitle = vi.fn();
 let host: Mounted | null = null;
 
 beforeEach(async () => {
-  useNoteDraftStore.setState({ drafts: {}, draftVersions: {}, filePath: "", loaded: true });
+  useNoteDraftStore.setState({ drafts: {}, draftVersions: {} });
   updateTitle.mockReset().mockResolvedValue({
     status: "error",
     message: message("write.taskList"),
@@ -91,7 +91,7 @@ describe("TaskListPane results", () => {
       status: "reloaded",
       message: message("write.reloaded"),
     });
-    useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: true });
+    useNoteDraftStore.setState({ drafts: {} });
     const row = document.querySelector('[role="option"]')! as HTMLElement;
     await act(async () => row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
     const input = row.querySelector("input")!;

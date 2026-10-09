@@ -103,8 +103,8 @@ export function TaskDetail({
   const clearDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
 
   // Title and description commit on blur, and while they are being edited the
-  // typed text is a draft in the same store: a quit that never blurs the field
-  // (force-quit, a crash) must not lose it. A draft's presence is
+  // typed text is a draft in the same store, so switching tasks before a blur
+  // does not lose it and quit commits it. A draft's presence is
   // the "edited, not yet committed" state; with none, the field shows the task.
   const titleKey = fieldDraftKey(task.id, "title");
   const descriptionKey = fieldDraftKey(task.id, "description");
@@ -225,7 +225,7 @@ export function TaskDetail({
   };
 
   // A title or description draft found when the task is shown was typed but
-  // never blurred — the app quit, or the write failed — so leaving the field
+  // never blurred — its pane went away first — so leaving the field
   // already happened and the draft is committed now, as its blur would have.
   // A field the user is in keeps its draft until it blurs.
   useEffect(() => {

@@ -334,9 +334,10 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
 
   // Drop note drafts whose subject is provably gone.
   //
-  // Drafts outlive the session, so a note deleted while its draft was parked
-  // would otherwise leave that draft behind for good — text with nowhere to
-  // return to, that the user cannot reach from any surface. reconcileDrafts
+  // Drafts outlive the component showing them, so a note deleted while its
+  // draft was parked would otherwise leave that draft behind for the session —
+  // text with nowhere to return to, that the user cannot reach from any
+  // surface, and that quit would ask about. reconcileDrafts
   // judges only what is loaded and only drops what it can prove, so this needs
   // no completeness gate and can run whenever the loaded lists change.
   useEffect(() => {

@@ -13,8 +13,6 @@ export type {
 } from "./app-state";
 export { createDefaultAppState } from "./app-state";
 
-export type { NoteDraftsDto } from "./note-drafts";
-export { createDefaultNoteDrafts } from "./note-drafts";
 
 export type {
   PreferencesDto,

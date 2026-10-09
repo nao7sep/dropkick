@@ -72,14 +72,14 @@ export function holdsDraftFor(
 // having loaded. But "open" is not "every list a draft could belong to": a
 // draft key deliberately omits its path so it can follow its task between
 // lists, so a draft for a task in a list the user merely closed was
-// indistinguishable from an orphan — and drafts live in one machine-global file
-// while workspaces are per-file, so opening a second workspace destroyed the
-// first's unsaved text. Judging only what is visible needs no completeness gate
+// indistinguishable from an orphan — and drafts are app-wide while workspaces
+// are per-file, so opening a second workspace destroyed the first's unsaved
+// text. Judging only what is visible needs no completeness gate
 // at all, and can be run as often as the loaded lists change.
 //
 // The residue is a composer draft for a task deleted outside this app's own
-// delete path (which clears drafts itself). That costs a few unreachable bytes
-// in a JSON file; the rule it replaces cost the user text they had typed.
+// delete path (which clears drafts itself). It lasts until quit, which counts
+// it without a name; the rule it replaces cost the user text they had typed.
 //
 // Returns the SAME object when nothing was dropped, so the caller can skip both
 // the state update and the disk write on the overwhelmingly common no-op.
@@ -104,4 +104,37 @@ export function reconcileDrafts(
 
   if (kept.length === Object.keys(drafts).length) return drafts;
   return Object.fromEntries(kept);
+}
+
+// The note text an ordinary quit would discard: a new-note box holding text,
+// or a note editor whose text differs from its note. Title and description
+// drafts are ordinary saving, committed at quit, so they never count. A draft
+// whose task is in no loaded list cannot be checked against its note, so it
+// counts without a name; one whose note is gone has nowhere to return to and
+// does not count.
+export function unsavedNoteText(
+  drafts: Record<string, string>,
+  loadedLists: readonly TaskListDto[],
+): { any: boolean; taskTitles: string[] } {
+  const tasks = new Map(loadedLists.flatMap((list) => list.tasks.map((task) => [task.id, task] as const)));
+  let any = false;
+  const titles = new Set<string>();
+  for (const [key, text] of Object.entries(drafts)) {
+    if (key.includes("#")) continue;
+    const task = tasks.get(draftTaskId(key));
+    const separator = key.indexOf(":");
+    let unsaved: boolean;
+    if (separator === -1) {
+      unsaved = multiline(text).trim() !== "";
+    } else if (task === undefined) {
+      unsaved = true;
+    } else {
+      const note = task.notes.find((n) => n.id === key.slice(separator + 1));
+      unsaved = note !== undefined && multiline(text) !== note.content;
+    }
+    if (!unsaved) continue;
+    any = true;
+    if (task !== undefined) titles.add(task.title);
+  }
+  return { any, taskTitles: [...titles] };
 }

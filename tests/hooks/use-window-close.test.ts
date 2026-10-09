@@ -5,12 +5,12 @@
 // (red button, Cmd+Q and the menu's Quit, Dock > Quit) and the end of an OS
 // session (unsaved-edits-conventions, Quitting). What matters here:
 //
-//   1. The graceful close gets the last keystrokes onto disk BEFORE the window
-//      is destroyed, so the coalescing window costs nothing.
+//   1. Note text not yet added or saved lasts only while Dropkick runs, so an
+//      ordinary close asks before discarding it, and Keep Editing leaves
+//      everything as it was. A title or description is committed instead.
 //   2. It asks nothing about work that is on disk. It asks only about a write
 //      that is stuck (the wait is bounded, and past the bound the user may
-//      close anyway) or a write of the user's own work — drafts or a task
-//      list — that failed (Retry or Quit Anyway).
+//      close anyway) or a task-list write that failed (Retry or Quit Anyway).
 //   3. The end of a session asks nothing at all: it settles within the bound,
 //      logs what failed, and tells the core.
 
@@ -79,15 +79,12 @@ import {
   useWindowClose,
 } from "../../src/hooks/use-window-close";
 import { withSerial } from "../../src/repositories/file-system";
-import { useNoteDraftStore, flushNoteDraftsNow } from "../../src/state/note-draft-store";
+import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { useDialogStore } from "../../src/state/dialog-store";
 import { useTaskListStore } from "../../src/state/task-list-store";
-import { makeTask } from "../helpers/task";
+import { makeTask, makeNote } from "../helpers/task";
 
 const invokeMock = invoke as unknown as Mock;
-const DRAFTS_PATH = "/home/u/.dropkick/note-drafts.json";
-// Set per test to make every draft write fail, as on a full or read-only disk.
-let failDraftWrites = false;
 
 function Harness() {
   useWindowClose();
@@ -121,28 +118,11 @@ beforeEach(async () => {
   listDisk.written.length = 0;
   useTaskListStore.setState({ files: {}, unsavedFiles: {} });
 
-  useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: false });
-  await flushNoteDraftsNow();
+  useNoteDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {} });
   useDialogStore.setState({ current: null, queue: [] });
 
   invokeMock.mockReset();
-  failDraftWrites = false;
-  invokeMock.mockImplementation((cmd: string, args: unknown) => {
-    if (
-      cmd === "write_text_file_atomic" &&
-      (args as { path: string }).path === DRAFTS_PATH
-    ) {
-      if (failDraftWrites) return Promise.reject(new Error("disk full"));
-      windowStub.events.push(
-        `write:${(args as { contents: string }).contents.replace(/\s+/g, "")}`,
-      );
-    }
-    return Promise.resolve();
-  });
-
-  // A session with drafts already persisting, and a keystroke still inside the
-  // coalescing window.
-  useNoteDraftStore.setState({ filePath: DRAFTS_PATH, loaded: true });
+  invokeMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -151,27 +131,14 @@ afterEach(() => {
 });
 
 describe("close request", () => {
-  it("gets a still-coalescing draft onto disk before destroying the window", async () => {
+  it("closes without asking when no note text is waiting", async () => {
     await mountHarness();
-    useNoteDraftStore.getState().setDraft("t1", "typed a second ago");
-
-    await requestClose();
-
-    expect(windowStub.events).toEqual([
-      expect.stringContaining('"drafts":{"t1":"typedasecondago"}'),
-      "destroy",
-    ]);
-  });
-
-  it("closes without asking, even with unsaved drafts", async () => {
-    await mountHarness();
-    useNoteDraftStore.getState().setDraft("t1", "half a thought");
+    useNoteDraftStore.getState().setDraft("t1", "   \n  ");
 
     await requestClose();
 
     expect(useDialogStore.getState().current).toBeNull();
-    expect(useDialogStore.getState().queue).toEqual([]);
-    expect(windowStub.events).toContain("destroy");
+    expect(windowStub.events).toEqual(["destroy"]);
   });
 
   it("still destroys when there is nothing pending to write", async () => {
@@ -263,59 +230,6 @@ describe("a write that does not finish", () => {
   });
 });
 
-describe("a draft write that fails", () => {
-  it("cancels the close without retrying or discarding the failed draft", async () => {
-    await mountHarness();
-    failDraftWrites = true;
-    useNoteDraftStore.getState().setDraft("t1", "keep this draft");
-    const closing = prepareWindowClose();
-    await waitForDialog();
-    const dialog = useDialogStore.getState().current;
-    expect(dialog?.kind).toBe("quit-save");
-    expect(dialog?.kind !== "message" && dialog?.cancelLabel.key).toBe("common.cancel");
-    useDialogStore.getState().cancelCurrent();
-    await expect(closing).resolves.toBe(false);
-    expect(useNoteDraftStore.getState().drafts.t1).toBe("keep this draft");
-    expect(windowStub.events).toEqual([]);
-  });
-  it("holds the close, names the file and retries on request", async () => {
-    await mountHarness();
-    failDraftWrites = true;
-    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
-    const closing = prepareWindowClose();
-
-    await waitForDialog();
-    const dialog = useDialogStore.getState().current;
-    expect(dialog?.title.key).toBe("dialog.notSaved.title");
-    expect(dialog?.body.values).toEqual({ paths: DRAFTS_PATH });
-
-    // Retry with the disk still full asks again.
-    useDialogStore.getState().retryCurrent();
-    await waitForDialog();
-    expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
-
-    // Retry once the disk has room writes the text and lets the close go ahead.
-    failDraftWrites = false;
-    useDialogStore.getState().retryCurrent();
-    await expect(closing).resolves.toBe(true);
-    expect(windowStub.events).toEqual([
-      expect.stringContaining('"drafts":{"t1":"typedonafulldisk"}'),
-    ]);
-  });
-
-  it("closes when the user quits anyway", async () => {
-    await mountHarness();
-    failDraftWrites = true;
-    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
-    const closing = prepareWindowClose();
-
-    await waitForDialog();
-    useDialogStore.getState().confirmCurrent();
-
-    await expect(closing).resolves.toBe(true);
-  });
-});
-
 const LIST = "/Users/u/Lists/home.json";
 
 // A loaded list whose last save landed, so a failed write has a confirmed copy
@@ -391,23 +305,81 @@ describe("a task-list write that fails outright", () => {
     useDialogStore.getState().confirmCurrent();
     await expect(closing).resolves.toBe(true);
   });
+});
 
-  it("is named in the same dialog as drafts that failed", async () => {
+describe("note text not yet added or saved", () => {
+  function seedNote(): void {
+    useTaskListStore.setState({
+      files: { [LIST]: { data: { id: "L1", tasks: [
+        makeTask({ id: "t1", title: "Groceries", notes: [makeNote({ id: "n1", content: "milk" })] }),
+      ] } } },
+    });
+  }
+
+  it("asks before discarding, naming the task, and Keep Editing keeps everything", async () => {
     await mountHarness();
-    await seedList();
-    listDisk.fail = true;
-    failDraftWrites = true;
-    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
-    void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
+    seedNote();
+    useNoteDraftStore.getState().setDraft("t1", "half a thought");
     const closing = prepareWindowClose();
 
     await waitForDialog();
-    expect(useDialogStore.getState().current?.body.values).toEqual({
-      paths: `${LIST}\n${DRAFTS_PATH}`,
-    });
-    expect(useDialogStore.getState().queue).toEqual([]);
+    const dialog = useDialogStore.getState().current;
+    expect(dialog?.title.key).toBe("dialog.unsavedChanges.title");
+    expect(dialog?.body.key).toBe("dialog.unsavedChanges.quitBodyTasks");
+    expect(dialog?.body.values).toEqual({ tasks: "Groceries" });
+    useDialogStore.getState().cancelCurrent();
+
+    await expect(closing).resolves.toBe(false);
+    expect(useNoteDraftStore.getState().drafts.t1).toBe("half a thought");
+    expect(listDisk.written).toEqual([]);
+  });
+
+  it("closes when the user discards", async () => {
+    await mountHarness();
+    seedNote();
+    useNoteDraftStore.getState().setDraft("t1:n1", "milk and eggs");
+    const closing = prepareWindowClose();
+
+    await waitForDialog();
+    useDialogStore.getState().confirmCurrent();
+
+    await expect(closing).resolves.toBe(true);
+  });
+
+  it("does not ask about a note opened for editing but unchanged", async () => {
+    await mountHarness();
+    seedNote();
+    useNoteDraftStore.getState().openDraft("t1:n1", "milk");
+
+    await expect(prepareWindowClose()).resolves.toBe(true);
+    expect(useDialogStore.getState().current).toBeNull();
+  });
+
+  it("asks without names about text for a task in no open list", async () => {
+    await mountHarness();
+    useNoteDraftStore.getState().setDraft("elsewhere", "typed in a closed list");
+    const closing = prepareWindowClose();
+
+    await waitForDialog();
+    expect(useDialogStore.getState().current?.body.key).toBe("dialog.unsavedChanges.quitBody");
     useDialogStore.getState().confirmCurrent();
     await expect(closing).resolves.toBe(true);
+  });
+
+  it("commits a parked title and description instead of asking", async () => {
+    await mountHarness();
+    await seedList();
+    useNoteDraftStore.getState().setDraft("t1#title", "  Renamed  ");
+    useNoteDraftStore.getState().setDraft("t1#description", "described");
+
+    await expect(prepareWindowClose()).resolves.toBe(true);
+
+    expect(useDialogStore.getState().current).toBeNull();
+    const task = useTaskListStore.getState().files[LIST].data.tasks[0];
+    expect(task.title).toBe("Renamed");
+    expect(task.description).toBe("described");
+    expect(listDisk.written.length).toBeGreaterThan(0);
+    expect(useNoteDraftStore.getState().drafts).toEqual({});
   });
 });
 
@@ -430,14 +402,15 @@ describe("the end of an OS session", () => {
 
   it("writes what is pending without asking, reports to the core, and leaves the window", async () => {
     await mountHarness();
+    await seedList();
     useNoteDraftStore.getState().setDraft("t1", "typed as the session ended");
+    void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
 
     await endSession();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(windowStub.events).toEqual([
-      expect.stringContaining('"drafts":{"t1":"typedasthesessionended"}'),
-    ]);
+    expect(listDisk.written).toEqual([`${LIST}:Critical`]);
+    expect(windowStub.events).toEqual([]);
     expect(reported()).toBe(1);
     expect(useDialogStore.getState().current).toBeNull();
   });
@@ -446,8 +419,6 @@ describe("the end of an OS session", () => {
     await mountHarness();
     await seedList();
     listDisk.fail = true;
-    failDraftWrites = true;
-    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
     void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
 
     await endSession();
@@ -474,12 +445,11 @@ describe("the end of an OS session", () => {
 
   it("joins a close the user started, withdrawing its question", async () => {
     await mountHarness();
-    failDraftWrites = true;
-    useNoteDraftStore.getState().setDraft("t1", "typed on a full disk");
+    useNoteDraftStore.getState().setDraft("t1", "half a thought");
     const handler = windowStub.handlers.at(-1)!;
     const userClose = handler({ preventDefault: () => {} });
     await vi.advanceTimersByTimeAsync(0);
-    expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
+    expect(useDialogStore.getState().current?.title.key).toBe("dialog.unsavedChanges.title");
 
     await endSession();
     await vi.advanceTimersByTimeAsync(0);

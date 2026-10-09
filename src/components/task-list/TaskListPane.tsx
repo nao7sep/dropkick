@@ -387,7 +387,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 
   // The typed title is a draft in the draft store, under the same key the
   // detail pane's title field uses, so a quit that never blurs the input still
-  // keeps it (state/note-draft-store). Success or Reload clears only the
+  // commits it (hooks/use-window-close). Success or Reload clears only the
   // submitted generation; later typing keeps its draft and editor. A failed
   // write keeps the input open for retry.
   const handleRename = async (task: Task, newTitle: string) => {

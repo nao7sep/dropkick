@@ -29,7 +29,6 @@ import { usePreferencesStore } from "./state/preferences-store";
 import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppConfigStore } from "./state/app-config-store";
 import { useAppStateStore } from "./state/app-state-store";
-import { useNoteDraftStore } from "./state/note-draft-store";
 import { useLanguageStore } from "./state/language-store";
 import { currentInterfaceLanguage, useInterfaceLanguage } from "./hooks/useInterfaceLanguage";
 import { I18nProvider, loadInterfaceCatalogue } from "./i18n/I18nContext";
@@ -42,7 +41,6 @@ import { ToastHost } from "./components/shared/ToastHost";
 import {
   describeAppConfigRecovery,
   describeLoadFailure,
-  describeNoteDraftsFailure,
 } from "./services";
 
 type AppPhase =
@@ -58,7 +56,6 @@ function App() {
   const loadWorkspace = useWorkspaceStore((s) => s.load);
   const initializeAppConfig = useAppConfigStore((s) => s.initialize);
   const initializeAppState = useAppStateStore((s) => s.initialize);
-  const loadNoteDrafts = useNoteDraftStore((s) => s.load);
   const setLastPaths = useAppStateStore((s) => s.setLastPaths);
   const theme = usePreferencesStore((s) => s.preferences.theme);
   const loadLanguageEnvironment = useLanguageStore((s) => s.load);
@@ -272,24 +269,6 @@ function App() {
 
       // Remember only a successfully loaded selection.
       await setLastPaths(preferencesPath, workspacePath);
-
-      // Note drafts — the user's uncommitted note text, written through as they
-      // type. App-level like state.json, not part of the portable documents
-      // just loaded, so it is read here rather than alongside either of them.
-      // Nothing else holds that text, so a file that cannot be used halts the
-      // launch with the file left in place (store-recovery-conventions).
-      const draftsFailure = await loadNoteDrafts();
-      if (draftsFailure) {
-        log.warn(
-          "note drafts load failed",
-          loadFailureFields(draftsFailure.filePath, draftsFailure),
-        );
-        await showMessage(
-          message("startup.draftsFailed.title"),
-          describeNoteDraftsFailure(draftsFailure, draftsFailure.filePath),
-        );
-        return;
-      }
 
       const workspace = useWorkspaceStore.getState().workspace;
 

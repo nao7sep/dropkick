@@ -57,6 +57,7 @@ export {
   fieldDraftKey,
   draftTaskId,
   reconcileDrafts,
+  unsavedNoteText,
 } from "./note-drafts";
 export type { TaskField } from "./note-drafts";
 
@@ -64,7 +65,6 @@ export type { LoadFailure, DocumentKind } from "./load-failure";
 export {
   describeDiskFailure,
   describeLoadFailure,
-  describeNoteDraftsFailure,
   fileNameWithoutExt,
 } from "./load-failure";
 export { describeAppConfigRecovery } from "./recovery-presentation";

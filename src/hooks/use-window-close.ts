@@ -11,8 +11,12 @@
 // src-tauri/src/menu.rs), and Dock > Quit (src-tauri/src/os_quit.rs) arrive as
 // the close request; the end of an OS session arrives as its own event and
 // settles the same writes without asking anything. Force-quit, a crash and
-// power loss reach nothing, which is why typed text is written through as it
-// is typed (state/note-draft-store).
+// power loss reach nothing.
+//
+// Note text not yet added or saved lasts only while Dropkick runs (developer
+// decision), so an ordinary quit asks before discarding it and the end of an
+// OS session discards it without asking. A title or description is ordinary
+// saving: the close commits it, focused or parked (state/note-draft-store).
 //
 // The wait is bounded. A write stuck on an unresponsive volume would otherwise
 // hold the window open with no feedback, so after CLOSE_WAIT_MS the user is
@@ -26,9 +30,12 @@ import {
   onSessionEnding,
   pendingSerialKeys,
   reportSessionEndSettled,
+  showQuitDiscardConfirm,
   toErrorFields,
 } from "../repositories";
-import { flushNoteDraftsNow, useNoteDraftStore } from "../state/note-draft-store";
+import { useNoteDraftStore } from "../state/note-draft-store";
+import { draftTaskId, unsavedNoteText } from "../services/note-drafts";
+import { multiline, singleLine } from "../utils/textCleanup";
 import { useTaskListStore } from "../state/task-list-store";
 import { refuseDialogs, showAppConfirm, useDialogStore } from "../state/dialog-store";
 import { message } from "../i18n/translate";
@@ -39,24 +46,64 @@ export const CLOSE_WAIT_MS = 3000;
 // not be saved within the bound is logged and left.
 let sessionEnding = false;
 
-// The work that must finish before the window is destroyed. Resolves to the
-// files the user's work could not be saved to: the drafts file, and every task
-// list left unsaved. Empty when everything is on disk.
+// Commits every title and description draft still in the draft store, as its
+// blur would have: a field whose pane went away without a blur parks its text
+// there, and nothing else would save it before the session ends. An empty
+// title is not allowed, so its draft is dropped and the title stays.
+function commitParkedFields(): void {
+  const drafts = useNoteDraftStore.getState();
+  const lists = useTaskListStore.getState();
+  for (const [key, typed] of Object.entries(drafts.drafts)) {
+    const field = key.endsWith("#title") ? "title" : key.endsWith("#description") ? "description" : null;
+    if (field === null) continue;
+    const taskId = draftTaskId(key);
+    const filePath = Object.keys(lists.files)
+      .find((path) => lists.files[path].data.tasks.some((task) => task.id === taskId));
+    const task = filePath && lists.files[filePath].data.tasks.find((t) => t.id === taskId);
+    if (filePath && task) {
+      const editedAtUtc = drafts.editedAtUtc[key];
+      if (field === "title") {
+        const cleaned = singleLine(typed, { minify: true });
+        if (cleaned && cleaned !== task.title) void lists.updateTitle(filePath, taskId, cleaned, editedAtUtc);
+      } else {
+        const cleaned = multiline(typed);
+        if (cleaned !== task.description) void lists.updateDescription(filePath, taskId, cleaned, editedAtUtc);
+      }
+    }
+    drafts.clearDraftIf(key, typed, drafts.draftVersions[key]);
+  }
+}
+
+// The work that must finish before the window is destroyed. Resolves to every
+// task list left unsaved; empty when everything is on disk.
 async function settlePendingWrites(): Promise<string[]> {
   // Blur first, so a field that commits on blur fires its write synchronously
-  // and lands in the serial chain we are about to drain.
+  // and lands in the serial chain we are about to drain; then commit fields
+  // parked without a blur, which queue there too.
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();
   }
+  commitParkedFields();
   await drainAllSerial();
-  // Then collapse the draft store's coalescing window, after the drain so it
-  // records what the drained commits cleared. Drafts are already on disk within
-  // WRITE_IDLE_MS of the last keystroke; this makes the graceful close lose
-  // nothing at all.
-  const draftsSaved = await flushNoteDraftsNow();
-  const failed = useTaskListStore.getState().unsavedPaths();
-  if (!draftsSaved) failed.push(useNoteDraftStore.getState().filePath);
-  return failed;
+  return useTaskListStore.getState().unsavedPaths();
+}
+
+// Asks before an ordinary quit discards note text not yet added or saved.
+// Resolves true when the close may go on. The end of a session never asks, and
+// a question the session end cancels lets the close go on.
+async function confirmDiscardNoteText(): Promise<boolean> {
+  if (sessionEnding) return true;
+  const unsaved = unsavedNoteText(
+    useNoteDraftStore.getState().drafts,
+    Object.values(useTaskListStore.getState().files).map((file) => file.data),
+  );
+  if (!unsaved.any) return true;
+  const discard = await showQuitDiscardConfirm(unsaved.taskTitles);
+  if (discard || sessionEnding) {
+    log.info("window close discards unsaved note text", { tasks: unsaved.taskTitles.length });
+    return true;
+  }
+  return false;
 }
 
 function within(work: Promise<unknown>, ms: number): Promise<boolean> {
@@ -78,12 +125,14 @@ function within(work: Promise<unknown>, ms: number): Promise<boolean> {
 // open. Exported so the close path can be exercised without driving a real
 // window.
 //
-// The task lists and the drafts are the user's own work, so a write of either
-// that fails holds the close and offers Retry or Quit Anyway
+// Note text not yet added or saved is asked about first, so Keep Editing
+// leaves everything as it was. The task lists are the user's own work, so a
+// write that fails holds the close and offers Retry or Quit Anyway
 // (unsaved-edits-conventions, Quitting). A failed list save keeps its edit, so
 // a list unsaved before the close is asked about too. Retry saves the unsaved
 // lists again and runs the whole bounded settle again.
 export async function prepareWindowClose(waitMs = CLOSE_WAIT_MS): Promise<boolean> {
+  if (!(await confirmDiscardNoteText())) return false;
   for (;;) {
     const settled = settlePendingWrites();
     if (!(await within(settled, waitMs))) {

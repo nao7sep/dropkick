@@ -12,7 +12,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { FORMAT_VERSIONS } from "../../src/models";
 import { flushAppConfig, loadAppConfig } from "../../src/repositories/app-config-repository";
 import { flushAppState, initializeAppState } from "../../src/repositories/app-state-repository";
-import { flushNoteDrafts, loadNoteDrafts } from "../../src/repositories/note-draft-repository";
 import { flushPreferences, loadPreferences } from "../../src/repositories/preferences-repository";
 import { flushTaskList, loadTaskList } from "../../src/repositories/task-list-repository";
 import { flushWorkspace, loadWorkspace } from "../../src/repositories/workspace-repository";
@@ -24,7 +23,6 @@ const PATHS = {
   configFile: `${ROOT}/config.json`,
   preferencesFile: `${ROOT}/preferences.json`,
   workspaceFile: `${ROOT}/workspace.json`,
-  noteDraftsFile: `${ROOT}/note-drafts.json`,
   logsDir: `${ROOT}/logs`,
   backupsFile: `${ROOT}/backups.sqlite3`,
   recordsFile: `${ROOT}/records.sqlite3`,
@@ -202,40 +200,6 @@ describe("workspace documents", () => {
     const text = put(path, { formatVersion: 2, name: "Work", openTabs: {} });
     expect(await loadWorkspace(path)).toEqual({ status: "newer", formatVersion: 2 });
     expect(disk.get(path)).toBe(text);
-    expect(writes()).toEqual([]);
-  });
-});
-
-describe("note-drafts.json", () => {
-  it("reports a file without a marker as invalid and leaves it alone", async () => {
-    const text = put(PATHS.noteDraftsFile, { version: "1.0.0", drafts: { t1: "typed" } });
-    expect(await loadNoteDrafts()).toMatchObject({ status: "invalid", filePath: PATHS.noteDraftsFile });
-    expect(disk.get(PATHS.noteDraftsFile)).toBe(text);
-    expect(writes()).toEqual([]);
-  });
-
-  it("round-trips the current version", async () => {
-    put(PATHS.noteDraftsFile, { formatVersion: 1, drafts: { t1: "typed" }, editedAtUtc: { t1: "2026-10-07T00:00:00.000Z" } });
-    const loaded = await loadNoteDrafts();
-    expect(loaded).toEqual({
-      status: "success",
-      drafts: { t1: "typed" },
-      editedAtUtc: { t1: "2026-10-07T00:00:00.000Z" },
-      filePath: PATHS.noteDraftsFile,
-    });
-    if (loaded.status !== "success") throw new Error("expected success");
-    await flushNoteDrafts(loaded.filePath, () => loaded.drafts, () => loaded.editedAtUtc);
-    expect(stored(PATHS.noteDraftsFile)).toEqual({ formatVersion: 1, drafts: { t1: "typed" }, editedAtUtc: { t1: "2026-10-07T00:00:00.000Z" } });
-  });
-
-  it("leaves a newer build's file byte-identical and reports it", async () => {
-    const text = put(PATHS.noteDraftsFile, { formatVersion: 2, drafts: [{ key: "t1" }] });
-    expect(await loadNoteDrafts()).toEqual({
-      status: "newer",
-      formatVersion: 2,
-      filePath: PATHS.noteDraftsFile,
-    });
-    expect(disk.get(PATHS.noteDraftsFile)).toBe(text);
     expect(writes()).toEqual([]);
   });
 });

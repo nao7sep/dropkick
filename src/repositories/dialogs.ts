@@ -134,6 +134,23 @@ export async function showUnsavedChangesConfirm(): Promise<boolean> {
   );
 }
 
+// Asks at an ordinary quit before note text not yet added or saved is
+// discarded; drafts last only while Dropkick runs. Names the tasks it can find.
+// Returns true to discard and quit, false to keep editing.
+export async function showQuitDiscardConfirm(taskTitles: readonly string[]): Promise<boolean> {
+  return await showAppConfirm(
+    message("dialog.unsavedChanges.title"),
+    taskTitles.length > 0
+      ? message("dialog.unsavedChanges.quitBodyTasks", { tasks: taskTitles.join("\n") })
+      : message("dialog.unsavedChanges.quitBody"),
+    {
+      tone: "warning",
+      confirmLabel: message("dialog.unsavedChanges.discard"),
+      cancelLabel: message("dialog.unsavedChanges.keep"),
+    },
+  );
+}
+
 // Shows a dialog when a file has been deleted while open.
 // Returns "save" or "cancel".
 export async function showFileDeletedDialog(

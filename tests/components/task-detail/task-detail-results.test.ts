@@ -50,7 +50,7 @@ beforeEach(async () => {
   addNewNote.mockReset().mockResolvedValue({ status: "success" });
   usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
-  useNoteDraftStore.setState({ drafts: {}, draftVersions: {}, filePath: "", loaded: true });
+  useNoteDraftStore.setState({ drafts: {}, draftVersions: {} });
   useTaskListStore.setState({
     setStatus,
     sendToFirst,

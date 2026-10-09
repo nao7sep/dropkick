@@ -197,7 +197,6 @@ pub const WINDOW_FILE_NAME: &str = "window.json";
 pub const RECORDS_WINDOW_FILE_NAME: &str = "records-window.json";
 const PREFERENCES_FILE: &str = "preferences.json";
 const WORKSPACE_FILE: &str = "workspace.json";
-const NOTE_DRAFTS_FILE: &str = "note-drafts.json";
 const LOGS_DIR: &str = "logs";
 const BACKUPS_FILE: &str = "backups.sqlite3";
 const RECORDS_FILE: &str = "records.sqlite3";
@@ -211,7 +210,6 @@ pub struct AppPaths {
     pub config_file: String,
     pub preferences_file: String,
     pub workspace_file: String,
-    pub note_drafts_file: String,
     pub logs_dir: String,
     pub backups_file: String,
     pub records_file: String,
@@ -225,7 +223,6 @@ pub fn app_paths(root: &Path) -> AppPaths {
         config_file: at(CONFIG_FILE),
         preferences_file: at(PREFERENCES_FILE),
         workspace_file: at(WORKSPACE_FILE),
-        note_drafts_file: at(NOTE_DRAFTS_FILE),
         logs_dir: at(LOGS_DIR),
         backups_file: at(BACKUPS_FILE),
         records_file: at(RECORDS_FILE),

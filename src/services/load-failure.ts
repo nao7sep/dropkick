@@ -39,16 +39,6 @@ export function describeLoadFailure(
   return path ? message(key, { path }) : message(key);
 }
 
-// One message for a note drafts file that exists but cannot be used. The file
-// is never set aside, so the message names it: the user repairs or moves it,
-// then tries again.
-export function describeNoteDraftsFailure(
-  result: Exclude<LoadFailure, { status: "missing" | "duplicate" }>,
-  path: string,
-): Message {
-  return message(`load.noteDrafts.${result.status}`, { path });
-}
-
 // One message for an open task list whose file, changed on disk, could not be
 // read back, shown above the copy still loaded.
 export function describeDiskFailure(result: LoadFailure): Message {

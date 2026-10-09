@@ -48,7 +48,7 @@ beforeEach(async () => {
     preferences: { ...createDefaultPreferences("Test"), timezone: "UTC" },
   });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
-  useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: true });
+  useNoteDraftStore.setState({ drafts: {} });
   host = await mount(
     createElement(TaskDetail, {
       task: task(),
