@@ -4,15 +4,6 @@ import { describe, it, expect, vi } from "vitest";
 // serialization helpers under test use only promises, so stub invoke to keep
 // the import pure under the node test environment.
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-const events = vi.hoisted(() => ({
-  listeners: new Map<string, (event: { payload: unknown }) => void>(),
-}));
-vi.mock("@tauri-apps/api/event", () => ({
-  listen: async (event: string, handler: (event: { payload: unknown }) => void) => {
-    events.listeners.set(event, handler);
-    return () => events.listeners.delete(event);
-  },
-}));
 
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -21,9 +12,6 @@ import {
   withSerial,
   withSerialTwo,
   drainAllSerial,
-  watchFile,
-  unwatchFile,
-  onFileChanged,
 } from "../../src/repositories/file-system";
 
 describe("hashFile", () => {
@@ -182,25 +170,5 @@ describe("managed JSON backup policy", () => {
       path: "/store.json", contents: JSON.stringify({ formatVersion: 1, value: 1 }, null, 2),
       ...(recorded ? {} : { recordBackup: false }),
     }]]);
-  });
-});
-
-describe("watching a file", () => {
-  it("starts and stops a watch in the core", async () => {
-    vi.mocked(invoke).mockResolvedValue(undefined);
-    await watchFile("/list.json");
-    await unwatchFile("/list.json");
-    expect(invoke).toHaveBeenCalledWith("watch_file", { path: "/list.json" });
-    expect(invoke).toHaveBeenCalledWith("unwatch_file", { path: "/list.json" });
-  });
-
-  it("hands each change the core reports to the listener until it stops", async () => {
-    const changed: string[] = [];
-    const stop = onFileChanged((path) => changed.push(path));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    events.listeners.get("task-list-file-changed")?.({ payload: "/list.json" });
-    expect(changed).toEqual(["/list.json"]);
-    stop();
-    expect(events.listeners.has("task-list-file-changed")).toBe(false);
   });
 });

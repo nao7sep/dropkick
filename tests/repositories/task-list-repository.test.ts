@@ -14,8 +14,6 @@ const readJsonFileWithHash = vi.fn();
 const writeJsonFile = vi.fn();
 const hashFile = vi.fn();
 const fileExists = vi.fn();
-const watchFile = vi.fn();
-const unwatchFile = vi.fn();
 const showFileConflictDialog = vi.fn();
 const showFileDeletedDialog = vi.fn();
 
@@ -24,8 +22,6 @@ vi.mock("../../src/repositories/file-system", () => ({
   writeJsonFile: (p: string, _format: string, d: unknown) => writeJsonFile(p, d),
   hashFile: (p: string) => hashFile(p),
   fileExists: (p: string) => fileExists(p),
-  watchFile: (p: string) => watchFile(p),
-  unwatchFile: (p: string) => unwatchFile(p),
   withSerial: (_p: string, fn: () => unknown) => inSerial(fn),
   withSerialTwo: (_a: string, _b: string, fn: () => unknown) => inSerial(fn),
 }));
@@ -45,8 +41,6 @@ beforeEach(async () => {
   // The core hashes the bytes it wrote and returns the digest.
   writeJsonFile.mockResolvedValue("HW");
   fileExists.mockResolvedValue(true);
-  watchFile.mockResolvedValue(undefined);
-  unwatchFile.mockResolvedValue(undefined);
   vi.resetModules();
   repo = await import("../../src/repositories/task-list-repository");
 });
@@ -358,34 +352,6 @@ describe("flushMove", () => {
       status: "rollback-failed",
       message: message("move.rollbackFailed"),
     });
-  });
-});
-
-describe("watching an open list", () => {
-  it("watches a list before reading it, and still loads one it cannot watch", async () => {
-    const order: string[] = [];
-    watchFile.mockImplementation(async () => {
-      order.push("watch");
-      throw new Error("no watcher");
-    });
-    readJsonFileWithHash.mockImplementation(async () => {
-      order.push("read");
-      return { status: "success", data: data(), hash: "H0" };
-    });
-    const result = await repo.loadTaskList("/f.json");
-    expect(order).toEqual(["watch", "read"]);
-    expect(result.status).toBe("success");
-  });
-
-  it("watches a list it creates", async () => {
-    await repo.createTaskListFile("/new.json");
-    expect(watchFile).toHaveBeenCalledWith("/new.json");
-  });
-
-  it("stops watching when the list is forgotten", async () => {
-    await register("/f.json");
-    await repo.forgetTaskList("/f.json");
-    expect(unwatchFile).toHaveBeenCalledWith("/f.json");
   });
 });
 

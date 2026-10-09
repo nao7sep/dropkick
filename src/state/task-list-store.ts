@@ -208,10 +208,10 @@ interface TaskListState {
   forceWrite: (filePath: string) => Promise<void>;
   reloadFile: (filePath: string) => Promise<void>;
 
-  // Picks up a loaded list's file after it changed on disk, unless the app
-  // holds edits for it (a write still on its way, or a draft for one of its
-  // tasks): those keep the loaded copy, and their save meets the conflict
-  // dialog as before.
+  // Picks up a loaded list's file when it changed on disk, called as the user
+  // returns to the list. A list the app holds edits for (a write still on its
+  // way, or a draft for one of its tasks) keeps the loaded copy, and its next
+  // save meets the conflict dialog.
   refreshFromDisk: (filePath: string) => Promise<void>;
 }
 

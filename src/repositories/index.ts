@@ -10,7 +10,6 @@ export {
   quarantineFile,
   hashFile,
   fileExists,
-  onFileChanged,
   ensureDirectory,
   appPaths,
   withSerial,
@@ -41,6 +40,7 @@ export {
 
 export { loadNoteDrafts, flushNoteDrafts } from "./note-draft-repository";
 export { applyWindowTheme } from "./window-theme";
+export { onWindowFocused } from "./window-activity";
 export { onSessionEnding, reportSessionEndSettled } from "./session-end";
 export { applyLanguage, loadLanguageEnvironment } from "./language";
 export type { LanguageEnvironment } from "./language";

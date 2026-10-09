@@ -14,6 +14,27 @@ export function applyWindowActivity(
   root.toggleAttribute("data-window-inactive", !active);
 }
 
+// Calls `listener` each time the native window gains focus. Returns the
+// function that stops listening.
+export function onWindowFocused(listener: () => void): () => void {
+  if (!isTauri()) return () => {};
+  let stopped = false;
+  let unlisten: (() => void) | null = null;
+  void getCurrentWindow()
+    .onFocusChanged(({ payload }) => {
+      if (payload) listener();
+    })
+    .then((stop) => {
+      if (stopped) stop();
+      else unlisten = stop;
+    })
+    .catch((error) => log.warn("window focus listener failed", toErrorFields(error)));
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
 export function installWindowActivity(root: Element = document.documentElement): void {
   if (!isTauri()) return;
   void getCurrentWindow()

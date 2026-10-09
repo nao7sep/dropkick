@@ -3,10 +3,13 @@
 // This repository owns the SHA-256 hash captured at load (or last successful
 // write) for every loaded file and serializes writes per path. Two store
 // actions targeting the same file can no longer race against each other on
-// disk — the hash check only fires for genuine external modifications. Where
-// the disk state has drifted (modified or removed by another process), the
-// repository prompts the user via the dialog helpers and returns the
-// post-dialog outcome to the store.
+// disk — the hash check only fires for genuine external modifications. Lists
+// are user files that git, editors and synced folders may change while open,
+// so a save never silently overwrites such a change: where the disk state has
+// drifted (modified or removed by another process), the repository prompts the
+// user via the dialog helpers and returns the post-dialog outcome to the store.
+// Outside a save, the store picks up a change with refreshTaskList when the
+// user returns to a list; nothing watches the files.
 
 import type { TaskListDto, TaskDto } from "../models";
 import { createEmptyTaskList } from "../models";
@@ -14,8 +17,6 @@ import {
   readJsonFileWithHash,
   writeJsonFile,
   hashFile,
-  watchFile,
-  unwatchFile,
   withSerial,
   withSerialTwo,
 } from "./file-system";
@@ -89,27 +90,12 @@ function rememberHash(filePath: string, hash: string): void {
   knownHashes.set(filePath, hash);
 }
 
-// A list that cannot be watched still works; it just waits, as it always did,
-// for its next save to find an outside edit.
-async function startWatching(filePath: string): Promise<void> {
-  try {
-    await watchFile(filePath);
-  } catch (e) {
-    log.warn("task list watch failed", { path: filePath, ...toErrorFields(e) });
-  }
-}
-
 // Called by the store when a tab closes so the repository can release state.
 // Routed through the same serial chain as flushes so any queued write for this
 // path lands on disk before the hash is dropped.
 export async function forgetTaskList(filePath: string): Promise<void> {
   await withSerial(filePath, async () => {
     knownHashes.delete(filePath);
-    try {
-      await unwatchFile(filePath);
-    } catch (e) {
-      log.warn("task list unwatch failed", { path: filePath, ...toErrorFields(e) });
-    }
   });
 }
 
@@ -122,8 +108,6 @@ export async function loadTaskList(
   onLoaded?: (data: TaskListDto) => void,
 ): Promise<LoadTaskListResult> {
   return withSerial(filePath, async () => {
-    // Watched before it is read, so no outside edit falls between the two.
-    await startWatching(filePath);
     const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
     if (loaded.status !== "success") return loaded;
     rememberHash(filePath, loaded.hash);
@@ -143,12 +127,11 @@ export async function createTaskListFile(
   return withSerial(filePath, async () => {
     const data = createEmptyTaskList();
     rememberHash(filePath, await writeJsonFile(filePath, "taskList", data));
-    await startWatching(filePath);
     return { filePath, data };
   });
 }
 
-// Checks a loaded file against the disk after the watcher saw it change.
+// Checks a loaded file against the disk when the user returns to it.
 // Serialized per path, so it runs after any write already queued: the app's own
 // save then reads back as `unchanged`, because the stored hash is the one that
 // save produced. A changed copy is offered to `adopt` inside the same slot, so
