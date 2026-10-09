@@ -40,6 +40,8 @@ type Filters = Omit<RecordsQuery, "after">;
 
 const NO_FILTERS: Filters = { session: null, level: null, search: "" };
 const SEARCH_DELAY_MS = 300;
+// One keyboard step of the list splitter, in pixels.
+const KEY_RESIZE_STEP = 16;
 // New records are read at most this often while they keep arriving.
 const LIVE_INTERVAL_MS = 1000;
 
@@ -374,6 +376,34 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     document.addEventListener("mouseup", up);
   };
 
+  // The same bounds from the keyboard (the window splitter pattern, as in
+  // BigMouth; developer decision): arrows move the divider by 16 px, Home and
+  // End take it to either bound, and releasing the key or leaving the divider
+  // saves once, so a held arrow writes once.
+  const keyedWidth = useRef<number | null>(null);
+  const onSplitterKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    // A held key moves on from where the last press left it.
+    const from = keyedWidth.current ?? shownListWidth;
+    const target =
+      event.key === "ArrowLeft" ? from - KEY_RESIZE_STEP
+      : event.key === "ArrowRight" ? from + KEY_RESIZE_STEP
+      : event.key === "Home" ? RECORDS_LIST_WIDTH.min
+      : event.key === "End" ? RECORDS_LIST_WIDTH.max
+      : null;
+    if (target === null) return;
+    event.preventDefault();
+    keyedWidth.current = Math.max(RECORDS_LIST_WIDTH.min, Math.min(RECORDS_LIST_WIDTH.max, target));
+    setListWidth(keyedWidth.current);
+  };
+  const commitKeyedWidth = (): void => {
+    const width = keyedWidth.current;
+    if (width === null) return;
+    keyedWidth.current = null;
+    commitRecordsListWidth(width).catch((error) =>
+      log.warn("records list width save failed", { width, ...toErrorFields(error) }),
+    );
+  };
+
   const launchLabel = (session: string): string => {
     const time = timeFormat.format(new Date(session));
     return session === sources?.currentSession ? t("records.thisLaunch", { time }) : time;
@@ -482,8 +512,15 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
         role="separator"
         aria-orientation="vertical"
         aria-label={t("records.resizeList")}
+        aria-valuemin={RECORDS_LIST_WIDTH.min}
+        aria-valuemax={RECORDS_LIST_WIDTH.max}
+        aria-valuenow={shownListWidth}
+        tabIndex={0}
         onMouseDown={onSplitterDown}
-        className="shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong"
+        onKeyDown={onSplitterKeyDown}
+        onKeyUp={commitKeyedWidth}
+        onBlur={commitKeyedWidth}
+        className="shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong focus-visible:bg-primary-accent focus-visible:outline-none"
         style={{ width: `${SPLITTER_WIDTH}px` }}
       />
       <section

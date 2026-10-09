@@ -464,6 +464,37 @@ describe("RecordsWindow", () => {
     expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.max}px`);
   });
 
+  it("moves the divider by keyboard and hands the width over once on key release or blur", async () => {
+    await render();
+    const splitter = document.querySelector<HTMLElement>('[role="separator"]')!;
+    expect(splitter.tabIndex).toBe(0);
+    const key = (type: "keydown" | "keyup", name: string) =>
+      splitter.dispatchEvent(new KeyboardEvent(type, { key: name, bubbles: true }));
+
+    await act(async () => {
+      key("keydown", "ArrowRight");
+      key("keydown", "ArrowRight");
+    });
+    expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.default + 32}px`);
+    expect(records.commitRecordsListWidth).not.toHaveBeenCalled();
+    await act(async () => key("keyup", "ArrowRight"));
+    expect(records.commitRecordsListWidth).toHaveBeenCalledExactlyOnceWith(RECORDS_LIST_WIDTH.default + 32);
+
+    await act(async () => key("keydown", "Home"));
+    expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.min}px`);
+    // Leaving the divider before the key is released saves too, once.
+    await act(async () => {
+      splitter.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    expect(records.commitRecordsListWidth).toHaveBeenCalledTimes(2);
+    await act(async () => key("keyup", "Home"));
+    expect(records.commitRecordsListWidth).toHaveBeenCalledTimes(2);
+    expect(records.commitRecordsListWidth).toHaveBeenLastCalledWith(RECORDS_LIST_WIDTH.min);
+
+    await act(async () => key("keydown", "End"));
+    expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.max}px`);
+  });
+
   it("narrows the list when the window narrows, handing nothing over", async () => {
     await render();
     expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.default}px`);
