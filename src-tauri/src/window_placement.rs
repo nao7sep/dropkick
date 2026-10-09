@@ -117,23 +117,56 @@ fn current_rectangle(window: &Window<Wry>) -> tauri::Result<NormalRectangle> {
     })
 }
 
-fn usable(window: &Window<Wry>, rectangle: NormalRectangle) -> tauri::Result<bool> {
+// A restored window must be usable through ordinary window interaction
+// (window-conventions): its title bar has to be on a display where it can be
+// grabbed. macOS restores a frame as saved, even with two pixels on screen
+// (checked on a three-display Mac), so a sliver left by a changed display
+// arrangement would reopen out of reach. The title-bar strip must lie within
+// one display's work area vertically and show at least MIN_GRAB_WIDTH of it.
+const TITLE_BAR_HEIGHT: f64 = 28.0;
+const MIN_GRAB_WIDTH: f64 = 96.0;
+
+/// One display's work area in physical pixels, with its scale factor.
+#[derive(Clone, Copy, Debug)]
+struct WorkArea {
+    x: i64,
+    y: i64,
+    width: i64,
+    height: i64,
+    scale: f64,
+}
+
+fn grabbable(rectangle: NormalRectangle, areas: &[WorkArea]) -> bool {
     if rectangle.width == 0 || rectangle.height == 0 {
-        return Ok(false);
+        return false;
     }
     let left = i64::from(rectangle.x);
     let top = i64::from(rectangle.y);
     let right = left + i64::from(rectangle.width);
-    let bottom = top + i64::from(rectangle.height);
-    Ok(window.available_monitors()?.iter().any(|monitor| {
-        let area = monitor.work_area();
-        let area_left = i64::from(area.position.x);
-        let area_top = i64::from(area.position.y);
-        left < area_left + i64::from(area.size.width)
-            && right > area_left
-            && top < area_top + i64::from(area.size.height)
-            && bottom > area_top
-    }))
+    areas.iter().any(|area| {
+        let strip = (TITLE_BAR_HEIGHT * area.scale).round() as i64;
+        let grab = (MIN_GRAB_WIDTH * area.scale).round() as i64;
+        let shown = right.min(area.x + area.width) - left.max(area.x);
+        top >= area.y && top + strip <= area.y + area.height && shown >= grab
+    })
+}
+
+fn usable(window: &Window<Wry>, rectangle: NormalRectangle) -> tauri::Result<bool> {
+    let areas: Vec<WorkArea> = window
+        .available_monitors()?
+        .iter()
+        .map(|monitor| {
+            let area = monitor.work_area();
+            WorkArea {
+                x: i64::from(area.position.x),
+                y: i64::from(area.position.y),
+                width: i64::from(area.size.width),
+                height: i64::from(area.size.height),
+                scale: monitor.scale_factor(),
+            }
+        })
+        .collect();
+    Ok(grabbable(rectangle, &areas))
 }
 
 fn set_state(tracked: &TrackedWindow, placement: Option<Placement>) {
