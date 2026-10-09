@@ -19,10 +19,10 @@ export type ActionResult =
   | { status: "validation"; reason: Message }
   // The file changed outside Dropkick and the user chose Reload in the conflict
   // dialog: the disk version is now in the store and the change was dropped on
-  // purpose. Kept apart from `error` because the two ask opposite things of
-  // anything holding the typed text: a failed write keeps it for retry, while
-  // after Reload it must go, or a later commit would write the discarded text
-  // over the version the user chose to keep.
+  // purpose. Anything holding the typed text must let it go, or a later commit
+  // would write the discarded text over the version the user chose to keep. A
+  // save that merely failed is not this: the change stays accepted in the list,
+  // which is left unsaved with its own Retry, and the action reports success.
   | { status: "reloaded"; message: Message }
   | { status: "error"; message: Message };
 

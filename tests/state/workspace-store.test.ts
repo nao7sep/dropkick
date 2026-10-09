@@ -7,16 +7,21 @@ const flushWorkspace = vi.fn(async (_path: string, getWorkspace: () => unknown) 
   getWorkspace();
 });
 const loadWorkspace = vi.fn();
+const drainSerial = vi.fn(async (_path: string) => {});
 const logError = vi.hoisted(() => vi.fn());
 
 vi.mock("../../src/repositories", () => ({
   flushWorkspace: (path: string, getWorkspace: () => unknown) => flushWorkspace(path, getWorkspace),
   loadWorkspace: (path: string) => loadWorkspace(path),
+  drainSerial: (path: string) => drainSerial(path),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: logError },
   toErrorFields: (e: unknown) => ({ error: { message: String(e) } }),
 }));
 
-import { useWorkspaceStore } from "../../src/state/workspace-store";
+import { TAB_CLOSE_WAIT_MS, useWorkspaceStore } from "../../src/state/workspace-store";
+import { useTaskListStore } from "../../src/state/task-list-store";
+import { useDialogStore } from "../../src/state/dialog-store";
+import { message } from "../../src/i18n/translate";
 import { createDefaultWorkspace } from "../../src/models";
 
 function resetStore(filePath = "/ws.json") {
@@ -29,6 +34,7 @@ function resetStore(filePath = "/ws.json") {
 }
 
 beforeEach(() => {
+  drainSerial.mockClear();
   flushWorkspace.mockClear();
   loadWorkspace.mockReset();
   logError.mockClear();
@@ -98,6 +104,99 @@ describe("closeTab active-index adjustment", () => {
     await useWorkspaceStore.getState().setActiveTab(0); // active = A
     await useWorkspaceStore.getState().closeTab(2); // remove C
     expect(activeIdx()).toBe(0);
+  });
+});
+
+// A list whose latest changes are not on disk is asked about before its tab
+// closes, as quit asks: Retry, Close Anyway or Cancel.
+describe("closing the tab of an unsaved list", () => {
+  beforeEach(async () => {
+    await useWorkspaceStore.getState().addTab("/a.json", "A");
+    await useWorkspaceStore.getState().addTab("/b.json", "B");
+    useDialogStore.setState({ current: null, queue: [] });
+    useTaskListStore.setState({ unsavedFiles: { "/a.json": message("write.taskList") } });
+  });
+
+  async function answered(answer: () => void): Promise<void> {
+    const closing = useWorkspaceStore.getState().closeTab(0);
+    await vi.waitFor(() => expect(useDialogStore.getState().current).not.toBeNull());
+    const dialog = useDialogStore.getState().current;
+    expect(dialog?.body.key).toBe("dialog.notSaved.tabBody");
+    expect(dialog?.body.values).toEqual({ paths: "/a.json" });
+    expect(dialog?.confirmLabel.key).toBe("dialog.notSaved.closeAnyway");
+    answer();
+    await closing;
+  }
+
+  it("keeps the tab on Cancel", async () => {
+    await answered(() => useDialogStore.getState().cancelCurrent());
+    expect(tabNames()).toEqual(["A", "B"]);
+  });
+
+  it("closes the tab on Close Anyway", async () => {
+    await answered(() => useDialogStore.getState().confirmCurrent());
+    expect(tabNames()).toEqual(["B"]);
+  });
+
+  it("saves again on Retry and closes once the list is saved", async () => {
+    const retryUnsaved = vi.fn(() => useTaskListStore.setState({ unsavedFiles: {} }));
+    useTaskListStore.setState({ retryUnsaved });
+    await answered(() => useDialogStore.getState().retryCurrent());
+    expect(retryUnsaved).toHaveBeenCalledWith(["/a.json"]);
+    expect(tabNames()).toEqual(["B"]);
+  });
+
+  it("past the bound, says the list is still being written and closes anyway on request", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish!: () => void;
+      drainSerial.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+      useTaskListStore.setState({ unsavedFiles: {} });
+      const closing = useWorkspaceStore.getState().closeTab(1);
+      await vi.advanceTimersByTimeAsync(TAB_CLOSE_WAIT_MS);
+      const dialog = useDialogStore.getState().current;
+      expect(dialog?.title.key).toBe("dialog.stillSaving.title");
+      expect(dialog?.body.values).toEqual({ paths: "/b.json" });
+      useDialogStore.getState().confirmCurrent();
+      await closing;
+      expect(tabNames()).toEqual(["A"]);
+      finish();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the tab when the user keeps it open, and withdraws the question once the write lands", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish!: () => void;
+      drainSerial.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+      useTaskListStore.setState({ unsavedFiles: {} });
+      const kept = useWorkspaceStore.getState().closeTab(1);
+      await vi.advanceTimersByTimeAsync(TAB_CLOSE_WAIT_MS);
+      useDialogStore.getState().cancelCurrent();
+      await kept;
+      expect(tabNames()).toEqual(["A", "B"]);
+      finish();
+
+      drainSerial.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+      const closing = useWorkspaceStore.getState().closeTab(1);
+      await vi.advanceTimersByTimeAsync(TAB_CLOSE_WAIT_MS);
+      expect(useDialogStore.getState().current?.title.key).toBe("dialog.stillSaving.title");
+      finish();
+      await closing;
+      expect(useDialogStore.getState().current).toBeNull();
+      expect(tabNames()).toEqual(["A"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("asks nothing for a saved list", async () => {
+    useTaskListStore.setState({ unsavedFiles: {} });
+    await useWorkspaceStore.getState().closeTab(1);
+    expect(useDialogStore.getState().current).toBeNull();
+    expect(tabNames()).toEqual(["A"]);
   });
 });
 

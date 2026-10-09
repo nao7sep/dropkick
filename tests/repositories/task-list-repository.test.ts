@@ -215,18 +215,6 @@ describe("forgetTaskList", () => {
   });
 });
 
-describe("forceFlushTaskList", () => {
-  it("writes without any hash check and registers the hash the write reported", async () => {
-    writeJsonFile.mockResolvedValue("HFORCE");
-    await repo.forceFlushTaskList("/f.json", data());
-    expect(writeJsonFile).toHaveBeenCalledWith("/f.json", data());
-    // Now registered: a matching flush succeeds without a prior load.
-    hashFile.mockReset();
-    hashFile.mockResolvedValue("HFORCE");
-    expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
-  });
-});
-
 describe("flushMove", () => {
   const SRC = "/src.json";
   const DST = "/dst.json";

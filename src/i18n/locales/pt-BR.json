@@ -75,8 +75,10 @@
   "dialog.stillSaving.keepOpen": "Manter Aberto",
   "dialog.notSaved.title": "Alterações não salvas",
   "dialog.notSaved.body": "O Dropkick não conseguiu salvar suas alterações em:\n\n{paths}\n\nSe você sair agora, as alterações que ainda não chegaram ao disco serão perdidas.",
+  "dialog.notSaved.tabBody": "O Dropkick não conseguiu salvar suas alterações em:\n\n{paths}\n\nSe você fechar a aba agora, as alterações que ainda não chegaram ao disco serão perdidas.",
   "dialog.notSaved.retry": "Tentar Novamente",
   "dialog.notSaved.quitAnyway": "Sair Mesmo Assim",
+  "dialog.notSaved.closeAnyway": "Fechar Mesmo Assim",
   "dialog.unsavedChanges.title": "Descartar alterações",
   "dialog.unsavedChanges.body": "Você tem alterações não salvas. Descartá-las e fechar?",
   "dialog.unsavedChanges.discard": "Descartar",
@@ -241,6 +243,7 @@
   "tabs.recent": "Recentes",
   "tabs.unified": "Visão Unificada",
   "tabs.loadFailed": "Falha ao carregar: {path}",
+  "tabs.notSaved": "Não salvo: {path}",
   "tabs.hasPastDue": "Tem tarefas atrasadas",
   "tabs.hasDueToday": "Tem tarefas que vencem hoje",
   "tabs.close": "Fechar aba",
@@ -359,6 +362,8 @@
 
   "unified.oneFailed": "Não foi possível carregar “{name}”, que por isso não está incluída aqui. Abra a aba dela para tentar novamente.",
   "unified.manyFailed": { "one": "Não foi possível carregar {count} lista, que não está incluída aqui: {names}. Abra as abas afetadas para tentar novamente.", "many": "Não foi possível carregar {count} de listas, que não estão incluídas aqui: {names}. Abra as abas afetadas para tentar novamente.", "other": "Não foi possível carregar {count} listas, que não estão incluídas aqui: {names}. Abra as abas afetadas para tentar novamente." },
+  "unified.oneNotSaved": "As alterações em “{name}” não foram salvas.",
+  "unified.manyNotSaved": { "one": "As alterações em {count} lista não foram salvas: {names}.", "many": "As alterações em {count} de listas não foram salvas: {names}.", "other": "As alterações em {count} listas não foram salvas: {names}." },
   "unified.loading": { "one": "Carregando {count} lista…", "many": "Carregando {count} de listas…", "other": "Carregando {count} listas…" },
 
   "summary.title": "Resumo da lista de tarefas",

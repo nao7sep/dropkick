@@ -295,16 +295,6 @@ export async function flushTaskList(
   });
 }
 
-// Force-writes a file without a hash check. Used by the store's recovery
-// actions (e.g. Retry from a load-error pane). Still serialized per path so it
-// cannot interleave with concurrent flushes.
-export async function forceFlushTaskList(
-  filePath: string,
-  data: TaskListDto,
-): Promise<void> {
-  await withSerial(filePath, () => writeAndRemember(filePath, data));
-}
-
 // Atomically moves a set of tasks between two files. Holds the serial slot for
 // both files for the entire operation. `compute` is called inside the slots so
 // it sees the latest store state; returning `null` aborts the move without

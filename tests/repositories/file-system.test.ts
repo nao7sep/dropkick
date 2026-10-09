@@ -12,6 +12,7 @@ import {
   withSerial,
   withSerialTwo,
   drainAllSerial,
+  drainSerial,
 } from "../../src/repositories/file-system";
 
 describe("hashFile", () => {
@@ -170,5 +171,23 @@ describe("managed JSON backup policy", () => {
       path: "/store.json", contents: JSON.stringify({ formatVersion: 1, value: 1 }, null, 2),
       ...(recorded ? {} : { recordBackup: false }),
     }]]);
+  });
+});
+
+describe("drainSerial", () => {
+  it("waits for the work already queued for one key, not for others", async () => {
+    let releaseA!: () => void;
+    let releaseB!: () => void;
+    const a = withSerial("a", () => new Promise<void>((resolve) => { releaseA = resolve; }));
+    void withSerial("b", () => new Promise<void>((resolve) => { releaseB = resolve; }));
+    let drained = false;
+    const drain = drainSerial("a").then(() => { drained = true; });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(drained).toBe(false);
+    releaseA();
+    await a;
+    await drain;
+    expect(drained).toBe(true);
+    releaseB();
   });
 });

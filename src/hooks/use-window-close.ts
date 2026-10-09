@@ -41,7 +41,7 @@ let sessionEnding = false;
 
 // The work that must finish before the window is destroyed. Resolves to the
 // files the user's work could not be saved to: the drafts file, and every task
-// list whose write failed outright. Empty when everything is on disk.
+// list left unsaved. Empty when everything is on disk.
 async function settlePendingWrites(): Promise<string[]> {
   // Blur first, so a field that commits on blur fires its write synchronously
   // and lands in the serial chain we are about to drain.
@@ -54,7 +54,7 @@ async function settlePendingWrites(): Promise<string[]> {
   // WRITE_IDLE_MS of the last keystroke; this makes the graceful close lose
   // nothing at all.
   const draftsSaved = await flushNoteDraftsNow();
-  const failed = useTaskListStore.getState().failedWritePaths();
+  const failed = useTaskListStore.getState().unsavedPaths();
   if (!draftsSaved) failed.push(useNoteDraftStore.getState().filePath);
   return failed;
 }
@@ -80,12 +80,10 @@ function within(work: Promise<unknown>, ms: number): Promise<boolean> {
 //
 // The task lists and the drafts are the user's own work, so a write of either
 // that fails holds the close and offers Retry or Quit Anyway
-// (unsaved-edits-conventions, Quitting). Retry makes the failed task-list
-// writes again and runs the whole bounded settle again. A write that failed
-// before the close was reported where it happened and rolled back, so only
-// the ones this close meets are asked about.
+// (unsaved-edits-conventions, Quitting). A failed list save keeps its edit, so
+// a list unsaved before the close is asked about too. Retry saves the unsaved
+// lists again and runs the whole bounded settle again.
 export async function prepareWindowClose(waitMs = CLOSE_WAIT_MS): Promise<boolean> {
-  useTaskListStore.getState().forgetFailedWrites();
   for (;;) {
     const settled = settlePendingWrites();
     if (!(await within(settled, waitMs))) {
@@ -106,7 +104,7 @@ export async function prepareWindowClose(waitMs = CLOSE_WAIT_MS): Promise<boolea
       return true;
     }
     if (choice === "cancel") return false;
-    useTaskListStore.getState().retryFailedWrites();
+    useTaskListStore.getState().retryUnsaved();
   }
 }
 

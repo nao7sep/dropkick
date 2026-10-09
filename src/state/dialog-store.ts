@@ -71,7 +71,9 @@ interface DialogState {
   confirmCurrent: () => void;
   cancelCurrent: () => void;
   retryCurrent: () => void;
-  enqueueQuitSave: (paths: string[]) => Promise<"quit" | "retry" | "cancel">;
+  // Asks about changes not saved, for a quit or (scope "tab") for closing the
+  // tab of an unsaved list; "quit" is the answer that goes ahead anyway.
+  enqueueQuitSave: (paths: string[], scope?: "quit" | "tab") => Promise<"quit" | "retry" | "cancel">;
 }
 
 function advanceQueue(queue: DialogRequest[]) {
@@ -126,11 +128,17 @@ function present(
 export const useDialogStore = create<DialogState>((set, get) => ({
   current: null,
   queue: [],
-  enqueueQuitSave: async (paths) => await new Promise((resolve) => {
+  enqueueQuitSave: async (paths, scope = "quit") => await new Promise((resolve) => {
     const request: QuitSaveDialogRequest = {
       kind: "quit-save", title: message("dialog.notSaved.title"),
-      body: message("dialog.notSaved.body", { paths: paths.join("\n") }), tone: "warning",
-      confirmLabel: message("dialog.notSaved.quitAnyway"), cancelLabel: message("common.cancel"),
+      body: scope === "tab"
+        ? message("dialog.notSaved.tabBody", { paths: paths.join("\n") })
+        : message("dialog.notSaved.body", { paths: paths.join("\n") }),
+      tone: "warning",
+      confirmLabel: scope === "tab"
+        ? message("dialog.notSaved.closeAnyway")
+        : message("dialog.notSaved.quitAnyway"),
+      cancelLabel: message("common.cancel"),
       retryLabel: message("dialog.notSaved.retry"), noSafeAction: false, resolve,
     };
     present(request, undefined, get, set, () => resolve("cancel"));

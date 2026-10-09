@@ -89,6 +89,8 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const setHandledExpanded = useTaskListStore((s) => s.setHandledExpanded);
   const fileLoadError = useTaskListStore((s) => s.fileLoadErrors[filePath]);
   const fileDiskError = useTaskListStore((s) => s.fileDiskErrors[filePath]);
+  const unsavedFiles = useTaskListStore((s) => s.unsavedFiles);
+  const retryUnsaved = useTaskListStore((s) => s.retryUnsaved);
   const fileLoadErrors = useTaskListStore((s) => s.fileLoadErrors);
   const loadFile = useTaskListStore((s) => s.loadFile);
   const activeTabIndex = useWorkspaceStore((s) => s.workspace.activeTabIndex);
@@ -118,6 +120,15 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       new Set(Object.keys(fileLoadErrors)),
     );
   }, [isUnifiedView, openTabs, files, fileLoadErrors]);
+  const unsavedNames = useMemo(
+    () =>
+      isUnifiedView
+        ? openTabs
+            .filter((tab) => !tab.isUnifiedView && unsavedFiles[tab.filePath] !== undefined)
+            .map((tab) => tab.displayName)
+        : [],
+    [isUnifiedView, openTabs, unsavedFiles],
+  );
   const visibleHandled = grouped.handled.slice(0, handledVisible);
   const emptyMessage = taskListEmptyMessage(grouped, handledExpanded);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
@@ -459,6 +470,39 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           className="flex shrink-0 items-start border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
         >
           <span>{i18n.text(describeDiskFailure(fileDiskError))}</span>
+        </div>
+      )}
+
+      {/* A failed save keeps the edit: say so above the list until a save of
+          it lands, with the Retry that makes it. The unified view names every
+          open list that is unsaved. */}
+      {!isUnifiedView && unsavedFiles[filePath] && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-start gap-3 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
+        >
+          <span className="min-w-0 flex-1 whitespace-pre-wrap">{i18n.text(unsavedFiles[filePath])}</span>
+          <Button size="sm" onClick={() => retryUnsaved([filePath])}>
+            {t("taskList.retry")}
+          </Button>
+        </div>
+      )}
+      {isUnifiedView && unsavedNames.length > 0 && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-start gap-3 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
+        >
+          <span className="min-w-0 flex-1">
+            {unsavedNames.length === 1
+              ? t("unified.oneNotSaved", { name: unsavedNames[0] })
+              : t("unified.manyNotSaved", {
+                  count: unsavedNames.length,
+                  names: i18n.list(unsavedNames),
+                })}
+          </span>
+          <Button size="sm" onClick={() => retryUnsaved()}>
+            {t("taskList.retry")}
+          </Button>
         </div>
       )}
 

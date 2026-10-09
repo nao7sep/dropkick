@@ -75,8 +75,10 @@
   "dialog.stillSaving.keepOpen": "Garder ouvert",
   "dialog.notSaved.title": "Modifications non enregistrées",
   "dialog.notSaved.body": "Dropkick n’a pas pu enregistrer vos modifications dans\u00a0:\n\n{paths}\n\nQuitter maintenant fait perdre les modifications qui ne sont pas encore sur le disque.",
+  "dialog.notSaved.tabBody": "Dropkick n’a pas pu enregistrer vos modifications dans\u00a0:\n\n{paths}\n\nFermer l’onglet maintenant fait perdre les modifications qui ne sont pas encore sur le disque.",
   "dialog.notSaved.retry": "Réessayer",
   "dialog.notSaved.quitAnyway": "Quitter quand même",
+  "dialog.notSaved.closeAnyway": "Fermer quand même",
   "dialog.unsavedChanges.title": "Abandonner les modifications",
   "dialog.unsavedChanges.body": "Vous avez des modifications non enregistrées. Les abandonner et fermer\u00a0?",
   "dialog.unsavedChanges.discard": "Abandonner",
@@ -241,6 +243,7 @@
   "tabs.recent": "Récents",
   "tabs.unified": "Vue unifiée",
   "tabs.loadFailed": "Échec du chargement\u00a0: {path}",
+  "tabs.notSaved": "Non enregistré\u00a0: {path}",
   "tabs.hasPastDue": "Contient des tâches en retard",
   "tabs.hasDueToday": "Contient des tâches à échéance aujourd’hui",
   "tabs.close": "Fermer l’onglet",
@@ -359,6 +362,8 @@
 
   "unified.oneFailed": "La liste «\u00a0{name}\u00a0» n’a pas pu être chargée et n’est pas incluse ici. Ouvrez son onglet pour réessayer.",
   "unified.manyFailed": { "one": "{count} liste n’a pas pu être chargée et n’est pas incluse ici\u00a0: {names}. Ouvrez les onglets concernés pour réessayer.", "many": "{count} de listes n’ont pas pu être chargées et ne sont pas incluses ici\u00a0: {names}. Ouvrez les onglets concernés pour réessayer.", "other": "{count} listes n’ont pas pu être chargées et ne sont pas incluses ici\u00a0: {names}. Ouvrez les onglets concernés pour réessayer." },
+  "unified.oneNotSaved": "Les modifications de «\u00a0{name}\u00a0» ne sont pas enregistrées.",
+  "unified.manyNotSaved": { "one": "Les modifications de {count} liste ne sont pas enregistrées\u00a0: {names}.", "many": "Les modifications de {count} de listes ne sont pas enregistrées\u00a0: {names}.", "other": "Les modifications de {count} listes ne sont pas enregistrées\u00a0: {names}." },
   "unified.loading": { "one": "Chargement de {count} liste…", "many": "Chargement de {count} de listes…", "other": "Chargement de {count} listes…" },
 
   "summary.title": "Résumé de la liste de tâches",

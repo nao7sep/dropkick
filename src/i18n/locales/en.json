@@ -75,8 +75,10 @@
   "dialog.stillSaving.keepOpen": "Keep Open",
   "dialog.notSaved.title": "Changes Not Saved",
   "dialog.notSaved.body": "Dropkick could not save your changes to:\n\n{paths}\n\nQuitting now loses the changes that have not reached the disk.",
+  "dialog.notSaved.tabBody": "Dropkick could not save your changes to:\n\n{paths}\n\nClosing the tab now loses the changes that have not reached the disk.",
   "dialog.notSaved.retry": "Retry",
   "dialog.notSaved.quitAnyway": "Quit Anyway",
+  "dialog.notSaved.closeAnyway": "Close Anyway",
   "dialog.unsavedChanges.title": "Discard Changes",
   "dialog.unsavedChanges.body": "You have unsaved changes. Discard them and close?",
   "dialog.unsavedChanges.discard": "Discard",
@@ -241,6 +243,7 @@
   "tabs.recent": "Recent",
   "tabs.unified": "Unified View",
   "tabs.loadFailed": "Load failed: {path}",
+  "tabs.notSaved": "Not saved: {path}",
   "tabs.hasPastDue": "Has past-due tasks",
   "tabs.hasDueToday": "Has tasks due today",
   "tabs.close": "Close tab",
@@ -359,6 +362,8 @@
 
   "unified.oneFailed": "\"{name}\" could not be loaded and is not included here. Open its tab to retry.",
   "unified.manyFailed": { "one": "{count} list could not be loaded and is not included here: {names}. Open the affected tabs to retry.", "other": "{count} lists could not be loaded and are not included here: {names}. Open the affected tabs to retry." },
+  "unified.oneNotSaved": "Changes to \"{name}\" are not saved.",
+  "unified.manyNotSaved": { "one": "Changes to {count} list are not saved: {names}.", "other": "Changes to {count} lists are not saved: {names}." },
   "unified.loading": { "one": "Loading {count} list…", "other": "Loading {count} lists…" },
 
   "summary.title": "Task List Summary",

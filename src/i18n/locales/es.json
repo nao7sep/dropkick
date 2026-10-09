@@ -75,8 +75,10 @@
   "dialog.stillSaving.keepOpen": "Mantener abierto",
   "dialog.notSaved.title": "No se guardaron los cambios",
   "dialog.notSaved.body": "Dropkick no pudo guardar tus cambios en:\n\n{paths}\n\nSi sales ahora, se perderán los cambios que aún no se han guardado en el disco.",
+  "dialog.notSaved.tabBody": "Dropkick no pudo guardar tus cambios en:\n\n{paths}\n\nSi cierras la pestaña ahora, se perderán los cambios que aún no se han guardado en el disco.",
   "dialog.notSaved.retry": "Reintentar",
   "dialog.notSaved.quitAnyway": "Salir de todos modos",
+  "dialog.notSaved.closeAnyway": "Cerrar de todos modos",
   "dialog.unsavedChanges.title": "Descartar los cambios",
   "dialog.unsavedChanges.body": "Tienes cambios sin guardar. ¿Quieres descartarlos y cerrar?",
   "dialog.unsavedChanges.discard": "Descartar",
@@ -241,6 +243,7 @@
   "tabs.recent": "Recientes",
   "tabs.unified": "Vista unificada",
   "tabs.loadFailed": "Error al cargar: {path}",
+  "tabs.notSaved": "Sin guardar: {path}",
   "tabs.hasPastDue": "Tiene tareas vencidas",
   "tabs.hasDueToday": "Tiene tareas que vencen hoy",
   "tabs.close": "Cerrar pestaña",
@@ -359,6 +362,8 @@
 
   "unified.oneFailed": "No se pudo cargar «{name}», así que no se incluye aquí. Abre su pestaña para volver a intentarlo.",
   "unified.manyFailed": { "one": "No se pudo cargar {count} lista, que no se incluye aquí: {names}. Abre las pestañas afectadas para volver a intentarlo.", "many": "No se pudieron cargar {count} de listas, que no se incluyen aquí: {names}. Abre las pestañas afectadas para volver a intentarlo.", "other": "No se pudieron cargar {count} listas, que no se incluyen aquí: {names}. Abre las pestañas afectadas para volver a intentarlo." },
+  "unified.oneNotSaved": "Los cambios en «{name}» no están guardados.",
+  "unified.manyNotSaved": { "one": "Los cambios en {count} lista no están guardados: {names}.", "many": "Los cambios en {count} de listas no están guardados: {names}.", "other": "Los cambios en {count} listas no están guardados: {names}." },
   "unified.loading": { "one": "Cargando {count} lista…", "many": "Cargando {count} de listas…", "other": "Cargando {count} listas…" },
 
   "summary.title": "Resumen de la lista de tareas",

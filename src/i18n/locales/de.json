@@ -75,8 +75,10 @@
   "dialog.stillSaving.keepOpen": "Geöffnet lassen",
   "dialog.notSaved.title": "Änderungen nicht gespeichert",
   "dialog.notSaved.body": "Dropkick konnte Ihre Änderungen nicht speichern:\n\n{paths}\n\nWenn Sie Dropkick jetzt beenden, gehen die Änderungen verloren, die noch nicht auf dem Datenträger sind.",
+  "dialog.notSaved.tabBody": "Dropkick konnte Ihre Änderungen nicht speichern:\n\n{paths}\n\nWenn Sie den Tab jetzt schließen, gehen die Änderungen verloren, die noch nicht auf dem Datenträger sind.",
   "dialog.notSaved.retry": "Erneut versuchen",
   "dialog.notSaved.quitAnyway": "Trotzdem beenden",
+  "dialog.notSaved.closeAnyway": "Trotzdem schließen",
   "dialog.unsavedChanges.title": "Änderungen verwerfen",
   "dialog.unsavedChanges.body": "Sie haben nicht gespeicherte Änderungen. Verwerfen und schließen?",
   "dialog.unsavedChanges.discard": "Verwerfen",
@@ -241,6 +243,7 @@
   "tabs.recent": "Zuletzt verwendet",
   "tabs.unified": "Gesamtansicht",
   "tabs.loadFailed": "Laden fehlgeschlagen: {path}",
+  "tabs.notSaved": "Nicht gespeichert: {path}",
   "tabs.hasPastDue": "Enthält überfällige Aufgaben",
   "tabs.hasDueToday": "Enthält heute fällige Aufgaben",
   "tabs.close": "Tab schließen",
@@ -359,6 +362,8 @@
 
   "unified.oneFailed": "„{name}“ konnte nicht geladen werden und ist hier nicht enthalten. Öffnen Sie den zugehörigen Tab, um es erneut zu versuchen.",
   "unified.manyFailed": { "one": "{count} Liste konnte nicht geladen werden und ist hier nicht enthalten: {names}. Öffnen Sie die betroffenen Tabs, um es erneut zu versuchen.", "other": "{count} Listen konnten nicht geladen werden und sind hier nicht enthalten: {names}. Öffnen Sie die betroffenen Tabs, um es erneut zu versuchen." },
+  "unified.oneNotSaved": "Änderungen an „{name}“ sind nicht gespeichert.",
+  "unified.manyNotSaved": { "one": "Änderungen an {count} Liste sind nicht gespeichert: {names}.", "other": "Änderungen an {count} Listen sind nicht gespeichert: {names}." },
   "unified.loading": { "one": "{count} Liste wird geladen…", "other": "{count} Listen werden geladen…" },
 
   "summary.title": "Übersicht der Aufgabenliste",

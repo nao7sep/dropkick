@@ -15,6 +15,7 @@ export {
   withSerial,
   withSerialTwo,
   drainAllSerial,
+  drainSerial,
   pendingSerialKeys,
 } from "./file-system";
 export type {
@@ -72,7 +73,6 @@ export {
   loadTaskList,
   createTaskListFile,
   flushTaskList,
-  forceFlushTaskList,
   flushMove,
   forgetTaskList,
   refreshTaskList,

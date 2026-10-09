@@ -33,7 +33,6 @@ import {
   loadTaskList,
   createTaskListFile,
   flushTaskList,
-  forceFlushTaskList,
   flushMove,
   forgetTaskList,
   refreshTaskList,
@@ -92,6 +91,11 @@ interface TaskListState {
   // read back. The loaded copy stays in `files` and on screen; the entry goes
   // once the file reads back or is saved again.
   fileDiskErrors: Record<string, FileLoadError>;
+
+  // Map of file path → why the list's latest changes are not on disk. A failed
+  // save keeps the edit on screen rather than reverting it; the list stays
+  // unsaved, with this reason and a Retry, until a save of it lands.
+  unsavedFiles: Record<string, Message>;
 
   // Currently selected task keys (source file + task ID) for the active tab.
   selectedKeys: Set<string>;
@@ -196,22 +200,16 @@ interface TaskListState {
     taskIds: Set<string>,
   ) => Promise<{ status: "success" } | { status: "error"; message: Message }>;
 
-  // Writes that failed outright, each rolled back as above, kept so a quit
-  // that meets one can offer to make it again (hooks/use-window-close).
-  // `failedWritePaths` names their files; `retryFailedWrites` queues each
-  // again, unless its file has changed since; `forgetFailedWrites` drops them.
-  failedWritePaths: () => string[];
-  retryFailedWrites: () => void;
-  forgetFailedWrites: () => void;
-
-  // Actions: conflict resolution.
-  forceWrite: (filePath: string) => Promise<void>;
-  reloadFile: (filePath: string) => Promise<void>;
+  // The lists whose latest changes are not on disk, and the way to save them
+  // again: Retry writes each named list's current copy (all unsaved lists when
+  // none are named).
+  unsavedPaths: () => string[];
+  retryUnsaved: (paths?: readonly string[]) => void;
 
   // Picks up a loaded list's file when it changed on disk, called as the user
   // returns to the list. A list the app holds edits for (a write still on its
-  // way, or a draft for one of its tasks) keeps the loaded copy, and its next
-  // save meets the conflict dialog.
+  // way, an unsaved change, or a draft for one of its tasks) keeps the loaded
+  // copy, and its next save meets the conflict dialog.
   refreshFromDisk: (filePath: string) => Promise<void>;
 }
 
@@ -281,38 +279,30 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   // one promise per path collapses concurrent loads into a single read.
   const inFlightLoads = new Map<string, Promise<LoadFileResult>>();
 
-  // Last data confirmed on disk, plus the number of optimistic writes still
-  // outstanding per file. A failed write cannot leave an optimistic delete,
-  // note, or edit stranded in memory: once the last queued attempt settles
-  // unsuccessfully, restore the last confirmed snapshot. If a later write is
-  // still queued, let it run first — it may persist the combined latest state.
-  const persistedFiles = new Map<string, TaskListDto>();
+  // The number of writes still queued or running per file. A list with one
+  // keeps its loaded copy when the disk changes (refreshFromDisk).
   const pendingWrites = new Map<string, number>();
-
-  // Writes that failed outright, by the files they name, each with the way to
-  // make it again. A later write of the same files that lands supersedes it.
-  const failedWrites = new Map<string, { paths: string[]; retry: () => void }>();
 
   function beginPendingWrite(filePath: string): void {
     pendingWrites.set(filePath, (pendingWrites.get(filePath) ?? 0) + 1);
   }
 
-  function finishPendingWrite(
-    filePath: string,
-    outcome: { persisted?: TaskListDto; failed?: boolean },
-  ): void {
-    if (outcome.persisted) {
-      persistedFiles.set(filePath, outcome.persisted);
-      failedWrites.delete(filePath);
-    }
-    const remaining = Math.max(0, (pendingWrites.get(filePath) ?? 1) - 1);
-    if (remaining === 0) pendingWrites.delete(filePath);
+  function endPendingWrite(filePath: string): void {
+    const remaining = (pendingWrites.get(filePath) ?? 1) - 1;
+    if (remaining <= 0) pendingWrites.delete(filePath);
     else pendingWrites.set(filePath, remaining);
+  }
 
-    if (outcome.failed && remaining === 0) {
-      const persisted = persistedFiles.get(filePath);
-      if (persisted) applyData(filePath, persisted);
-    }
+  // The edit stays in memory and on screen; the list waits for a save that
+  // lands (a later edit or Retry), and quit and closing its tab ask about it.
+  function markUnsaved(filePath: string, reason: Message): void {
+    if (!get().files[filePath]) return;
+    set((state) => ({ unsavedFiles: { ...state.unsavedFiles, [filePath]: reason } }));
+  }
+
+  function clearUnsaved(filePath: string): void {
+    if (!get().unsavedFiles[filePath]) return;
+    set((state) => ({ unsavedFiles: removeRecordKey(state.unsavedFiles, filePath) }));
   }
 
   // Helper: replace one file's data via a synchronous state transition. Reads
@@ -339,7 +329,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   // Helper: queue a flush for the given file and translate the repository's
   // WriteResult into an ActionResult. If the disk was modified outside
   // Dropkick and the user chose Reload, the reloaded data is applied to the
-  // store here so the UI reflects the disk state.
+  // store here so the UI reflects the disk state. A write that does not land
+  // leaves the edit in place and the list unsaved; the action itself reports
+  // success, because the change is accepted and the list's own result (with
+  // Retry) is the one place the failure is presented.
   async function flush(
     filePath: string,
     action: string,
@@ -349,15 +342,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     // mutating action funnels through this flush. No-op actions return before
     // reaching this point, so unchanged edits are not logged.
     log.info(action, { file: filePath, ...fields });
-    // flushTaskList returns explicit results for known failures, but the write
-    // can also reject outright — a failed atomic rename, a full disk, an
-    // unmounted volume, an IPC error. Converting a throw into an error result
-    // gives mutating actions the same never-reject contract loads already have
-    // via safeLoadTaskList. Without it the rejection unwound past every call
-    // site (none of which catch) to the global unhandled-rejection logger,
-    // while the synchronous state transition had already applied the edit — so
-    // the UI showed every change saved and nothing reached disk. The write
-    // boundary has already logged the cause.
+    // The write can reject outright — a failed atomic rename, a full disk, an
+    // unmounted volume, an IPC error; the write boundary has already logged
+    // the cause.
     let result: WriteResult;
     let writtenData: TaskListDto | null = null;
     let reloadSettled = false;
@@ -373,7 +360,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         if (duplicateOf(get().files, data, filePath)) return;
         const current = get().files[filePath]?.data;
         const retained = writtenData && current ? retainLaterTaskList(writtenData, current, data) : data;
-        finishPendingWrite(filePath, { persisted: data });
+        endPendingWrite(filePath);
+        clearUnsaved(filePath);
         applyData(filePath, retained);
         reloadSettled = true;
         if (retained !== data && !pendingWrites.has(filePath)) {
@@ -382,49 +370,33 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         }
       });
     } catch {
-      // Kept once rolled back, so it can be made again. A later write still
-      // queued carries this change with it, and is kept itself if it fails.
-      const attempted = get().files[filePath]?.data;
-      finishPendingWrite(filePath, { failed: true });
-      const restored = get().files[filePath]?.data;
-      if (attempted && restored && !pendingWrites.has(filePath)) {
-        failedWrites.set(filePath, {
-          paths: [filePath],
-          retry: () => {
-            if (get().files[filePath]?.data !== restored) return;
-            applyData(filePath, attempted);
-            beginPendingWrite(filePath);
-            void flush(filePath, action, { ...fields, retry: true });
-          },
-        });
-      }
-      return {
-        status: "error",
-        message: message("write.taskList"),
-      };
+      endPendingWrite(filePath);
+      markUnsaved(filePath, message("write.taskList"));
+      return { status: "success" };
     }
 
     if (result.status === "success") {
-      finishPendingWrite(filePath, {
-        persisted: writtenData ?? get().files[filePath]?.data,
-      });
+      endPendingWrite(filePath);
+      clearUnsaved(filePath);
       clearDiskError(filePath);
       return { status: "success" };
     }
     if (result.status === "error") {
-      finishPendingWrite(filePath, { failed: true });
-      return { status: "error", message: result.message };
+      endPendingWrite(filePath);
+      markUnsaved(filePath, result.message);
+      return { status: "success" };
     }
     // reloaded
     const duplicate = duplicateOf(get().files, result.data, filePath);
     if (duplicate) {
       log.warn("task list reload refused", loadFailureFields(filePath, duplicate));
-      finishPendingWrite(filePath, { failed: true });
-      set((state) => ({ fileDiskErrors: { ...state.fileDiskErrors, [filePath]: duplicate } }));
-      return { status: "error", message: describeDiskFailure(duplicate) };
+      endPendingWrite(filePath);
+      markUnsaved(filePath, describeDiskFailure(duplicate));
+      return { status: "success" };
     }
     if (!reloadSettled) {
-      finishPendingWrite(filePath, { persisted: result.data });
+      endPendingWrite(filePath);
+      clearUnsaved(filePath);
       applyData(filePath, result.data);
     }
     return { status: "reloaded", message: result.message };
@@ -564,6 +536,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     files: {},
     fileLoadErrors: {},
     fileDiskErrors: {},
+    unsavedFiles: {},
     selectedKeys: new Set(),
     handledVisible: {},
     handledExpanded: {},
@@ -607,7 +580,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           },
           fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
         }));
-        persistedFiles.set(filePath, loaded.taskList.data);
         return { status: "success" };
       })();
 
@@ -629,7 +601,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         },
         fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
       }));
-      persistedFiles.set(filePath, loaded.data);
     },
 
     unloadFile: async (filePath: string) => {
@@ -639,7 +610,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       // the hash is dropped.
       log.debug("task list unloaded", { path: filePath });
       await forgetTaskList(filePath);
-      persistedFiles.delete(filePath);
       pendingWrites.delete(filePath);
       set((state) => {
         const { [filePath]: _, ...rest } = state.files;
@@ -650,6 +620,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           files: rest,
           fileLoadErrors: restErrors,
           fileDiskErrors: removeRecordKey(state.fileDiskErrors, filePath),
+          unsavedFiles: removeRecordKey(state.unsavedFiles, filePath),
           handledVisible: restHandled,
           handledExpanded: restExpanded,
         };
@@ -706,10 +677,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         { count: taskIds.size },
         (tasks) => deleteTasks(tasks, taskIds),
       );
-      // Selection follows persistence, not the optimistic task-array update.
-      // A failed write restores the tasks, so it must also leave them selected
-      // for retry. On success, filter against the latest selection so a choice
-      // made while the write was pending is never replaced wholesale.
+      // Selection follows the accepted deletion once its write settles (a
+      // failed write keeps the deletion and leaves the list unsaved). Filter
+      // against the latest selection so a choice made while the write was
+      // pending is never replaced wholesale.
       if (result.status === "success" && result.changed) {
         set((state) => ({
           selectedKeys: new Set(
@@ -861,7 +832,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         };
       }
 
-      const moveKey = `${sourceFilePath}\n${destFilePath}`;
       log.info("move tasks between files", {
         source: sourceFilePath,
         dest: destFilePath,
@@ -888,8 +858,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             sourceTasksPostMove: moveResult.sourceTasks,
             destTasksPostMove: moveResult.destinationTasks,
             onSaved: (sourceData, destData) => {
-              persistedFiles.set(sourceFilePath, sourceData);
-              persistedFiles.set(destFilePath, destData);
               const source = get().files[sourceFilePath]?.data;
               const destination = get().files[destFilePath]?.data;
               if (!source || !destination) return;
@@ -914,11 +882,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           };
         });
       } catch {
-        // Nothing moved in memory, so making it again is the same move.
-        failedWrites.set(moveKey, {
-          paths: [sourceFilePath, destFilePath],
-          retry: () => void get().moveTasks(sourceFilePath, destFilePath, taskIds),
-        });
+        // Nothing moved in memory, so the move dialog's Move is its Retry.
         return {
           status: "error",
           message: message("move.failed"),
@@ -926,7 +890,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       }
 
       if (result.status === "success") {
-        failedWrites.delete(moveKey);
         return { status: "success" };
       }
 
@@ -950,66 +913,14 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       return { status: "error", message: failure };
     },
 
-    failedWritePaths: () => [
-      ...new Set([...failedWrites.values()].flatMap((failed) => failed.paths)),
-    ],
+    unsavedPaths: () => Object.keys(get().unsavedFiles),
 
-    retryFailedWrites: () => {
-      const failed = [...failedWrites.values()];
-      failedWrites.clear();
-      for (const { retry } of failed) retry();
-    },
-
-    forgetFailedWrites: () => failedWrites.clear(),
-
-    // --- Conflict resolution ---
-
-    forceWrite: async (filePath: string) => {
-      const fileState = get().files[filePath];
-      if (!fileState) return;
-      log.info("force write task list", { path: filePath });
-      await forceFlushTaskList(filePath, fileState.data);
-      persistedFiles.set(filePath, fileState.data);
-    },
-
-    reloadFile: async (filePath: string) => {
-      log.info("reload task list", { path: filePath });
-      const before = get().files[filePath]?.data;
-      const read = await safeLoadTaskList(filePath, (data) => {
-        if (duplicateOf(get().files, data, filePath)) return;
-        const current = get().files[filePath]?.data;
-        const retained = before && current ? retainLaterTaskList(before, current, data) : data;
-        persistedFiles.set(filePath, data);
-        applyData(filePath, retained);
-        if (retained !== data && !pendingWrites.has(filePath)) {
-          beginPendingWrite(filePath);
-          void flush(filePath, "save edits made during task list reload");
-        }
-      });
-      const loaded =
-        read.status === "success"
-          ? (duplicateOf(get().files, read.taskList.data, filePath) ?? read)
-          : read;
-      if (loaded.status !== "success") {
-        log.warn("task list reload failed", loadFailureFields(filePath, loaded));
-        set((state) => ({
-          fileLoadErrors: {
-            ...state.fileLoadErrors,
-            [filePath]: loaded,
-          },
-        }));
-        return;
+    retryUnsaved: (paths) => {
+      for (const filePath of paths ?? Object.keys(get().unsavedFiles)) {
+        if (!get().unsavedFiles[filePath] || !get().files[filePath]) continue;
+        beginPendingWrite(filePath);
+        void flush(filePath, "retry save");
       }
-
-      set((state) => ({
-        files: {
-          ...state.files,
-          [filePath]: state.files[filePath] ?? { data: loaded.taskList.data },
-        },
-        fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
-        fileDiskErrors: removeRecordKey(state.fileDiskErrors, filePath),
-        selectedKeys: new Set(),
-      }));
     },
 
     refreshFromDisk: async (filePath: string) => {
@@ -1021,6 +932,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           const current = get().files[filePath];
           if (!current) return false;
           if (pendingWrites.has(filePath)) return false;
+          if (get().unsavedFiles[filePath]) return false;
           if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks)) {
             return false;
           }
@@ -1031,7 +943,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
             files: { ...state.files, [filePath]: { data } },
             selectedKeys: retainSelection(state.selectedKeys, filePath, taskIds),
           }));
-          persistedFiles.set(filePath, data);
           return true;
         });
       } catch (e) {

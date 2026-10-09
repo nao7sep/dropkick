@@ -128,6 +128,28 @@ describe("TaskListPane results", () => {
     });
     expect(document.querySelector('[role="alert"]')).toBeNull();
   });
+
+  it("says a failed save left the list unsaved, with the Retry that saves it, until it lands", async () => {
+    const retryUnsaved = vi.fn();
+    await act(async () => {
+      useTaskListStore.setState({
+        unsavedFiles: { "/one.json": message("write.taskList") },
+        retryUnsaved,
+      });
+    });
+    const alert = document.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toContain("The task list could not be saved.");
+    expect(document.querySelector('[role="option"]')?.textContent).toContain("Alpha");
+
+    const retry = [...alert.querySelectorAll("button")].find((button) => button.textContent === "Retry")!;
+    await act(async () => retry.click());
+    expect(retryUnsaved).toHaveBeenCalledWith(["/one.json"]);
+
+    await act(async () => {
+      useTaskListStore.setState({ unsavedFiles: {} });
+    });
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+  });
 });
 
 it("keeps the rename editor and later draft after a held Reload", async () => {

@@ -64,8 +64,15 @@ describe("destructive roles", () => {
       const dropkick = source.slice(source.lastIndexOf("<Button", source.indexOf("Dropkick\n")), source.indexOf("Dropkick\n"));
       expect(dropkick).not.toMatch(/danger/);
     }
-    const retry = list.slice(list.lastIndexOf("<Button", list.indexOf('t("taskList.retry")')), list.indexOf('t("taskList.retry")'));
-    expect(retry).toContain('variant="primary"');
+    // Every Retry in the list pane: the load-error card's leads, and none is red.
+    const retries = [...list.matchAll(/t\("taskList\.retry"\)/g)].map(({ index }) =>
+      list.slice(list.lastIndexOf("<Button", index), index),
+    );
+    expect(retries.length).toBeGreaterThan(1);
+    for (const retry of retries) expect(retry).not.toMatch(/danger/);
+    const loadError = list.slice(list.indexOf("function LoadErrorPane("));
+    const cardRetry = loadError.slice(loadError.lastIndexOf("<Button", loadError.indexOf('t("taskList.retry")')), loadError.indexOf('t("taskList.retry")'));
+    expect(cardRetry).toContain('variant="primary"');
   });
 
   it("opens deletion with the outlined trigger", () => {

@@ -220,6 +220,12 @@ export function pendingSerialKeys(): string[] {
   return [...serialChains.keys()];
 }
 
+// Awaits the work queued for one key so far, such as a task list's writes
+// before its tab closes.
+export async function drainSerial(key: string): Promise<void> {
+  await withSerial(key, async () => {});
+}
+
 // Awaits every per-key serial chain currently in flight. Used at window-close
 // time to make sure pending writes (including ones triggered by the blur of a
 // focused input during shutdown) land on disk before the renderer terminates.

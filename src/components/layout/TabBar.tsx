@@ -78,6 +78,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   const createFile = useTaskListStore((s) => s.createFile);
   const fileLoadErrors = useTaskListStore((s) => s.fileLoadErrors);
   const fileDiskErrors = useTaskListStore((s) => s.fileDiskErrors);
+  const unsavedFiles = useTaskListStore((s) => s.unsavedFiles);
   const files = useTaskListStore((s) => s.files);
 
   // Deadline urgency per open list tab, keyed by file path. Recomputed when the
@@ -381,6 +382,8 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
               !tab.isUnifiedView &&
               (fileLoadErrors[tab.filePath] !== undefined ||
                 fileDiskErrors[tab.filePath] !== undefined);
+            const isUnsaved =
+              !tab.isUnifiedView && unsavedFiles[tab.filePath] !== undefined;
             // Unified view never gets a dot; computeTabUrgencies returns an
             // entry (possibly null) for every other open tab — load-errored and
             // not-yet-loaded ones resolve to null there. The `?? null` keeps the
@@ -394,6 +397,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 id={tab.isUnifiedView ? "__unified__" : tab.filePath}
                 tab={tab}
                 hasLoadError={hasLoadError}
+                isUnsaved={isUnsaved}
                 urgency={urgency}
                 index={index}
                 isActive={index === activeTabIndex}
@@ -620,6 +624,7 @@ interface SortableTabProps {
   id: string;
   tab: { isUnifiedView: boolean; displayName: string; filePath: string };
   hasLoadError: boolean;
+  isUnsaved: boolean;
   urgency: ListUrgency;
   index: number;
   isActive: boolean;
@@ -638,6 +643,7 @@ function SortableTab({
   id,
   tab,
   hasLoadError,
+  isUnsaved,
   urgency,
   index,
   isActive,
@@ -679,7 +685,13 @@ function SortableTab({
       data-tab-id={id}
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
-      title={hasLoadError ? t("tabs.loadFailed", { path: tab.filePath }) : undefined}
+      title={
+        hasLoadError
+          ? t("tabs.loadFailed", { path: tab.filePath })
+          : isUnsaved
+            ? t("tabs.notSaved", { path: tab.filePath })
+            : undefined
+      }
       // A tab is a rounded item in the strip: the chosen one takes the accent
       // wash, the rest a hover step. No dividers or folder shapes.
       className={`group flex h-8 shrink-0 cursor-grab items-center gap-1.5 rounded-[var(--radius-control)] pl-3 pr-1.5 text-sm transition-colors duration-[var(--motion)] focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring ${
@@ -695,7 +707,7 @@ function SortableTab({
         />
       )}
 
-      {hasLoadError ? (
+      {hasLoadError || isUnsaved ? (
         <AlertCircle size={14} className="shrink-0 text-danger" />
       ) : tab.isUnifiedView ? (
         <Layout size={14} className="shrink-0" />

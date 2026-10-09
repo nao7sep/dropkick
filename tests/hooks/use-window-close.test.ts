@@ -119,8 +119,7 @@ beforeEach(async () => {
   windowStub.listeners.clear();
   listDisk.fail = false;
   listDisk.written.length = 0;
-  useTaskListStore.setState({ files: {} });
-  useTaskListStore.getState().forgetFailedWrites();
+  useTaskListStore.setState({ files: {}, unsavedFiles: {} });
 
   useNoteDraftStore.setState({ drafts: {}, filePath: "", loaded: false });
   await flushNoteDraftsNow();
@@ -348,8 +347,8 @@ describe("a task-list write that fails outright", () => {
     expect(dialog?.body.values).toEqual({ paths: LIST });
     expect(dialog?.confirmLabel.key).toBe("dialog.notSaved.quitAnyway");
     expect(dialog?.kind === "quit-save" && dialog.retryLabel.key).toBe("dialog.notSaved.retry");
-    // Rolled back in memory, as any failed write is.
-    expect(priorityOfT1()).toBe("Important");
+    // Kept in memory and on screen: a failed save leaves the list unsaved.
+    expect(priorityOfT1()).toBe("Critical");
 
     // Retry with the volume still failing asks again.
     useDialogStore.getState().retryCurrent();
@@ -378,16 +377,19 @@ describe("a task-list write that fails outright", () => {
     expect(listDisk.written).toEqual([]);
   });
 
-  it("does not hold a close for a failure reported before it", async () => {
+  it("holds the close for a list left unsaved before it", async () => {
     await mountHarness();
     await seedList();
     listDisk.fail = true;
     await useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([LIST]);
+    const closing = prepareWindowClose();
 
-    await requestClose();
-
-    expect(useDialogStore.getState().current).toBeNull();
-    expect(windowStub.events).toEqual(["destroy"]);
+    await waitForDialog();
+    expect(useDialogStore.getState().current?.body.values).toEqual({ paths: LIST });
+    expect(priorityOfT1()).toBe("Critical");
+    useDialogStore.getState().confirmCurrent();
+    await expect(closing).resolves.toBe(true);
   });
 
   it("is named in the same dialog as drafts that failed", async () => {

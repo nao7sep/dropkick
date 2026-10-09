@@ -11,7 +11,6 @@ import type { TaskListDto } from "../../src/models";
 const loadTaskList = vi.fn();
 const createTaskListFile = vi.fn();
 const flushTaskList = vi.fn();
-const forceFlushTaskList = vi.fn();
 const flushMove = vi.fn();
 const forgetTaskList = vi.fn(async (_p: string) => {});
 const refreshTaskList = vi.fn();
@@ -28,7 +27,6 @@ vi.mock("../../src/repositories", () => ({
     if (result.status === "reloaded") onReloaded?.(result.data);
     return result;
   },
-  forceFlushTaskList: (p: string, data: TaskListDto) => forceFlushTaskList(p, data),
   flushMove: async (s: string, d: string, getInputs: () => MoveInputs | null) => {
     let inputs: MoveInputs | null = null;
     const result = await flushMove(s, d, () => { inputs = getInputs(); return inputs; });
@@ -53,6 +51,7 @@ import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { composerDraftKey } from "../../src/services/note-drafts";
 import { makeTask, makeNote } from "../helpers/task";
 import { taskKey } from "../../src/utils";
+import { describeDiskFailure } from "../../src/services";
 
 const FILE = "/list.json";
 
@@ -69,6 +68,7 @@ function seedFile(tasks = [makeTask({ id: "a" }), makeTask({ id: "b" })]) {
     files: { [FILE]: { data: { id: "L1", tasks } } },
     fileLoadErrors: {},
     fileDiskErrors: {},
+    unsavedFiles: {},
     selectedKeys: new Set(),
     handledVisible: {},
     handledExpanded: {},
@@ -83,7 +83,6 @@ beforeEach(() => {
   loadTaskList.mockReset();
   createTaskListFile.mockReset();
   flushTaskList.mockReset();
-  forceFlushTaskList.mockReset();
   flushMove.mockReset();
   forgetTaskList.mockClear();
   refreshTaskList.mockReset();
@@ -100,8 +99,8 @@ beforeEach(() => {
     selectedKeys: new Set(),
     handledVisible: {},
     handledExpanded: {},
+    unsavedFiles: {},
   });
-  useTaskListStore.getState().forgetFailedWrites();
 });
 
 describe("loadFile", () => {
@@ -192,135 +191,72 @@ describe("loadFile", () => {
 });
 
 describe("mutating actions — the never-reject contract", () => {
-  it("reports an error instead of rejecting when the write throws", async () => {
-    // The write can reject outright — a failed atomic rename, a full disk, an
-    // unmounted volume — not just return an error result. The store applies its
-    // state transition synchronously before the flush, so a rejection would
-    // leave the UI showing the edit while nothing reached disk, with no call
-    // site catching it and the rejection vanishing into the global handler.
-    const original = makeTask({ id: "a", title: "before" });
+  async function loadOne(title = "before") {
     useTaskListStore.setState({ files: {} });
     loadTaskList.mockResolvedValue({
       status: "success",
-      taskList: {
-        filePath: FILE,
-        data: { id: "L1", tasks: [original] },
-      },
+      taskList: { filePath: FILE, data: { id: "L1", tasks: [makeTask({ id: "a", title })] } },
     });
     await useTaskListStore.getState().loadFile(FILE);
+  }
+
+  it("keeps the edit and leaves the list unsaved instead of rejecting when the write throws", async () => {
+    // The write can reject outright — a failed atomic rename, a full disk, an
+    // unmounted volume — not just return an error result. The change stays
+    // accepted on screen; the list's own result says it is not on disk.
+    await loadOne();
     flushTaskList.mockRejectedValue(new Error("disk full"));
 
-    const result = await useTaskListStore
-      .getState()
-      .updateTitle(FILE, "a", "after");
+    const result = await useTaskListStore.getState().updateTitle(FILE, "a", "after");
 
-    expect(result).toEqual({
-      status: "error",
-      message: message("write.taskList"),
-    });
-    expect(tasksOf()[0].title).toBe("before");
+    expect(result).toEqual({ status: "success", changed: true });
+    expect(tasksOf()[0].title).toBe("after");
+    expect(useTaskListStore.getState().unsavedFiles[FILE]).toEqual(message("write.taskList"));
   });
 
-  it("rolls an optimistic delete back when its write fails", async () => {
-    // Establish the disk-confirmed snapshot through the public load boundary.
-    useTaskListStore.setState({ files: {} });
-    loadTaskList.mockResolvedValue({
-      status: "success",
-      taskList: {
-        filePath: FILE,
-        data: { id: "L1", tasks: [makeTask({ id: "a" })] },
-      },
-    });
-    await useTaskListStore.getState().loadFile(FILE);
+  it("keeps the reason an unsuccessful save reports", async () => {
+    await loadOne();
+    flushTaskList.mockResolvedValue({ status: "error", message: message("write.newerOnDisk") });
+
+    await useTaskListStore.getState().updateTitle(FILE, "a", "after");
+
+    expect(tasksOf()[0].title).toBe("after");
+    expect(useTaskListStore.getState().unsavedFiles[FILE]).toEqual(message("write.newerOnDisk"));
+  });
+
+  it("keeps a deletion whose write fails, and the selection follows it", async () => {
+    await loadOne();
     flushTaskList.mockRejectedValue(new Error("disk full"));
 
     useTaskListStore.getState().setSelection(new Set([taskKey(FILE, "a")]));
     await useTaskListStore.getState().removeTasks(FILE, new Set(["a"]));
 
-    expect(tasksOf().map((task) => task.id)).toEqual(["a"]);
-    expect(useTaskListStore.getState().selectedKeys).toEqual(
-      new Set([taskKey(FILE, "a")]),
-    );
+    expect(tasksOf()).toEqual([]);
+    expect(useTaskListStore.getState().selectedKeys).toEqual(new Set());
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([FILE]);
   });
 
-  it("rolls all optimistic changes back if every overlapping write fails", async () => {
-    useTaskListStore.setState({ files: {} });
-    loadTaskList.mockResolvedValue({
-      status: "success",
-      taskList: {
-        filePath: FILE,
-        data: { id: "L1", tasks: [makeTask({ id: "a", title: "before" })] },
-      },
-    });
-    await useTaskListStore.getState().loadFile(FILE);
+  it("keeps every overlapping change when their writes fail", async () => {
+    await loadOne();
+    flushTaskList.mockRejectedValue(new Error("disk full"));
 
-    let rejectFirst!: () => void;
-    let rejectSecond!: () => void;
-    flushTaskList
-      .mockImplementationOnce(
-        async () => await new Promise((_resolve, reject) => {
-          rejectFirst = () => reject(new Error("first failed"));
-        }),
-      )
-      .mockImplementationOnce(
-        async () => await new Promise((_resolve, reject) => {
-          rejectSecond = () => reject(new Error("second failed"));
-        }),
-      );
+    await Promise.all([
+      useTaskListStore.getState().updateTitle(FILE, "a", "after"),
+      useTaskListStore.getState().setPriority(FILE, "a", "Critical"),
+    ]);
 
-    const first = useTaskListStore.getState().updateTitle(FILE, "a", "after");
-    const second = useTaskListStore.getState().setPriority(FILE, "a", "Critical");
-    rejectFirst();
-    await first;
-    // The later write is still pending, so its combined optimistic state stays.
     expect(tasksOf()[0].title).toBe("after");
-    rejectSecond();
-    await second;
-
-    expect(tasksOf()[0].title).toBe("before");
-    expect(tasksOf()[0].priority).toBe("Default");
+    expect(tasksOf()[0].priority).toBe("Critical");
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([FILE]);
   });
 
-  it("keeps the state confirmed by an earlier overlapping write when the later one fails", async () => {
-    useTaskListStore.setState({ files: {} });
-    loadTaskList.mockResolvedValue({
-      status: "success",
-      taskList: {
-        filePath: FILE,
-        data: { id: "L1", tasks: [makeTask({ id: "a", title: "before" })] },
-      },
-    });
-    await useTaskListStore.getState().loadFile(FILE);
+  it("is saved by a later write of the list that lands", async () => {
+    await loadOne();
+    flushTaskList.mockRejectedValueOnce(new Error("disk full"));
+    await useTaskListStore.getState().updateTitle(FILE, "a", "after");
+    await useTaskListStore.getState().setPriority(FILE, "a", "Critical");
 
-    let resolveFirst!: () => void;
-    let rejectSecond!: () => void;
-    flushTaskList
-      .mockImplementationOnce(
-        async (_path, getData: () => TaskListDto) => {
-          getData();
-          return await new Promise((resolve) => {
-            resolveFirst = () => resolve({ status: "success" });
-          });
-        },
-      )
-      .mockImplementationOnce(
-        async (_path, getData: () => TaskListDto) => {
-          getData();
-          return await new Promise((_resolve, reject) => {
-            rejectSecond = () => reject(new Error("second failed"));
-          });
-        },
-      );
-
-    const first = useTaskListStore.getState().updateTitle(FILE, "a", "after");
-    const second = useTaskListStore.getState().setPriority(FILE, "a", "Critical");
-    resolveFirst();
-    await first;
-    rejectSecond();
-    await second;
-
-    expect(tasksOf()[0].title).toBe("after");
-    expect(tasksOf()[0].priority).toBe("Default");
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([]);
   });
 
   it("reports an error instead of rejecting when a cross-file move write throws", async () => {
@@ -344,12 +280,15 @@ describe("mutating actions — the never-reject contract", () => {
       status: "error",
       message: message("move.failed"),
     });
+    // Nothing moved in memory, so neither list has a change to save.
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([]);
+    expect(tasksOf("/src.json").map((t) => t.id)).toEqual(["m"]);
   });
 });
 
-// Kept for a quit that meets them (hooks/use-window-close): a write that fails
-// outright is rolled back like any other, and can be made again on request.
-describe("writes that fail outright", () => {
+// A list left unsaved by a failed write waits for Retry, which quit and closing
+// its tab also offer (hooks/use-window-close, state/workspace-store).
+describe("unsaved lists", () => {
   async function loadOne(title = "before") {
     useTaskListStore.setState({ files: {} });
     loadTaskList.mockResolvedValue({
@@ -359,104 +298,67 @@ describe("writes that fail outright", () => {
     await useTaskListStore.getState().loadFile(FILE);
   }
 
-  it("names the list, and a retry writes the rolled-back change again", async () => {
+  it("are named, and Retry writes the current copy", async () => {
     await loadOne();
     flushTaskList.mockRejectedValueOnce(new Error("disk full"));
     await useTaskListStore.getState().updateTitle(FILE, "a", "after");
-    expect(tasksOf()[0].title).toBe("before");
-    expect(useTaskListStore.getState().failedWritePaths()).toEqual([FILE]);
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([FILE]);
 
     const written: string[] = [];
     flushTaskList.mockImplementation(async (_p: string, getData: () => TaskListDto) => {
       written.push(getData().tasks[0].title);
       return { status: "success" };
     });
-    useTaskListStore.getState().retryFailedWrites();
+    useTaskListStore.getState().retryUnsaved();
     await vi.waitFor(() => expect(written).toEqual(["after"]));
 
-    expect(tasksOf()[0].title).toBe("after");
-    expect(useTaskListStore.getState().failedWritePaths()).toEqual([]);
+    await vi.waitFor(() => expect(useTaskListStore.getState().unsavedPaths()).toEqual([]));
   });
 
-  it("is kept again when the retry fails too", async () => {
+  it("stay unsaved when the retry fails too", async () => {
     await loadOne();
     flushTaskList.mockRejectedValue(new Error("disk full"));
     await useTaskListStore.getState().updateTitle(FILE, "a", "after");
 
-    useTaskListStore.getState().retryFailedWrites();
+    useTaskListStore.getState().retryUnsaved([FILE]);
     await vi.waitFor(() => expect(flushTaskList).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(useTaskListStore.getState().failedWritePaths()).toEqual([FILE]));
-    expect(tasksOf()[0].title).toBe("before");
+
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([FILE]);
+    expect(tasksOf()[0].title).toBe("after");
   });
 
-  it("is not made again once the list has changed since", async () => {
+  it("are retried only when named, or when none are", async () => {
     await loadOne();
     flushTaskList.mockRejectedValueOnce(new Error("disk full"));
     await useTaskListStore.getState().updateTitle(FILE, "a", "after");
-    await useTaskListStore.getState().setPriority(FILE, "a", "Critical");
     flushTaskList.mockClear();
 
-    useTaskListStore.getState().retryFailedWrites();
+    useTaskListStore.getState().retryUnsaved(["/other.json"]);
 
     expect(flushTaskList).not.toHaveBeenCalled();
-    expect(tasksOf()[0].title).toBe("before");
   });
 
-  it("is superseded by a later write of the list that lands", async () => {
+  it("keep their loaded copy when the file changes on disk", async () => {
     await loadOne();
     flushTaskList.mockRejectedValueOnce(new Error("disk full"));
     await useTaskListStore.getState().updateTitle(FILE, "a", "after");
-    await useTaskListStore.getState().setPriority(FILE, "a", "Critical");
+    refreshTaskList.mockImplementation(async (_p: string, adopt: (data: TaskListDto) => boolean) =>
+      adopt({ id: "L1", tasks: [makeTask({ id: "a", title: "disk" })] }) ? { status: "reloaded" } : { status: "kept" },
+    );
 
-    expect(useTaskListStore.getState().failedWritePaths()).toEqual([]);
+    await useTaskListStore.getState().refreshFromDisk(FILE);
+
+    expect(tasksOf()[0].title).toBe("after");
   });
 
-  it("is dropped on request", async () => {
+  it("are forgotten when their tab closes", async () => {
     await loadOne();
     flushTaskList.mockRejectedValueOnce(new Error("disk full"));
     await useTaskListStore.getState().updateTitle(FILE, "a", "after");
 
-    useTaskListStore.getState().forgetFailedWrites();
+    await useTaskListStore.getState().unloadFile(FILE);
 
-    expect(useTaskListStore.getState().failedWritePaths()).toEqual([]);
-  });
-
-  it("names both lists of a move, and a retry makes the same move", async () => {
-    useTaskListStore.setState({
-      files: {
-        "/src.json": { data: { id: "S", tasks: [makeTask({ id: "m" })] } },
-        "/dst.json": { data: { id: "D", tasks: [] } },
-      },
-    });
-    flushMove.mockRejectedValueOnce(new Error("volume gone"));
-    await useTaskListStore.getState().moveTasks("/src.json", "/dst.json", new Set(["m"]));
-    expect(useTaskListStore.getState().failedWritePaths()).toEqual(["/src.json", "/dst.json"]);
-
-    flushMove.mockImplementationOnce(async (_s, _d, getInputs) => {
-      getInputs();
-      return { status: "success", sourceData: { id: "S", tasks: [] },
-        destData: { id: "D", tasks: [makeTask({ id: "m" })] } };
-    });
-    useTaskListStore.getState().retryFailedWrites();
-    await vi.waitFor(() => expect(tasksOf("/dst.json").map((t) => t.id)).toEqual(["m"]));
-
-    expect(flushMove).toHaveBeenLastCalledWith("/src.json", "/dst.json", expect.any(Function));
-    expect(useTaskListStore.getState().failedWritePaths()).toEqual([]);
-  });
-});
-
-describe("reloadFile", () => {
-  it("records an error (keeping existing data) instead of rejecting when the read throws", async () => {
-    seedFile([makeTask({ id: "old" })]);
-    loadTaskList.mockRejectedValue(new Error("gone"));
-    await useTaskListStore.getState().reloadFile(FILE);
-    expect(useTaskListStore.getState().fileLoadErrors[FILE]).toEqual({
-      status: "error",
-      message:
-        "The task list could not be read. Check that it is still available and that Dropkick has access, then try again.",
-    });
-    // The previously loaded data is retained so the user doesn't lose the view.
-    expect(tasksOf().map((t) => t.id)).toEqual(["old"]);
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([]);
   });
 });
 
@@ -826,19 +728,6 @@ describe("a list already open from another file", () => {
     expect(await useTaskListStore.getState().loadFile(COPY)).toEqual({ status: "success" });
   });
 
-  it("is not taken on an explicit reload", async () => {
-    seedFile();
-    useTaskListStore.setState((state) => ({
-      files: { ...state.files, [COPY]: { data: { id: "L2", tasks: [] } } },
-    }));
-    loadTaskList.mockResolvedValue({ status: "success", taskList: { filePath: COPY, data: copied() } });
-
-    await useTaskListStore.getState().reloadFile(COPY);
-
-    expect(useTaskListStore.getState().files[COPY]?.data.id).toBe("L2");
-    expect(useTaskListStore.getState().fileLoadErrors[COPY]).toEqual(refusal);
-  });
-
   it("is not taken when the file changes on disk, and the loaded copy stays", async () => {
     seedFile();
     useTaskListStore.setState((state) => ({
@@ -863,12 +752,13 @@ describe("a list already open from another file", () => {
     await useTaskListStore.getState().loadFile(COPY);
     flushTaskList.mockResolvedValue({ status: "reloaded", data: copied(), message: "changed externally" });
 
-    const result = await useTaskListStore.getState().addNewTask(COPY, { title: "x" });
+    await useTaskListStore.getState().addNewTask(COPY, { title: "x" });
 
-    expect(result.status).toBe("error");
-    expect(tasksOf(COPY).map((t) => t.id)).toEqual(["own"]);
+    // The new task stays, unsaved, with the refusal as the reason.
+    expect(tasksOf(COPY).map((t) => t.title)).toContain("x");
+    expect(tasksOf(COPY).map((t) => t.id)).toContain("own");
     expect(useTaskListStore.getState().files[COPY]?.data.id).toBe("L2");
-    expect(useTaskListStore.getState().fileDiskErrors[COPY]).toEqual(refusal);
+    expect(useTaskListStore.getState().unsavedFiles[COPY]).toEqual(describeDiskFailure(refusal as never));
   });
 });
 
@@ -886,19 +776,6 @@ describe("held save/move/reload settlement", () => {
     await Promise.all([first, later]);
     expect(tasksOf()[0].title).toBe("disk");
     expect(tasksOf()[0].description).toBe("later");
-  });
-
-  it("preserves edits made during explicit reload and writes the reconciled state", async () => {
-    seedFile([makeTask({ id: "a", title: "before", description: "before" })]);
-    let finish!: (value: unknown) => void;
-    loadTaskList.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    const reload = useTaskListStore.getState().reloadFile(FILE);
-    await useTaskListStore.getState().updateDescription(FILE, "a", "later");
-    finish({ status: "success", taskList: { filePath: FILE, data: { id: "L1", tasks: [makeTask({ id: "a", title: "disk", description: "before" })] } } });
-    await reload;
-    expect(tasksOf()[0].title).toBe("disk");
-    expect(tasksOf()[0].description).toBe("later");
-    expect(flushTaskList).toHaveBeenCalledTimes(2);
   });
 
   it("keeps a later moved-task edit in the destination and writes it there", async () => {
@@ -922,41 +799,43 @@ describe("held save/move/reload settlement", () => {
   });
 });
 
+
+// A save conflict's Reload takes the disk copy, keeping edits made after the
+// save was submitted.
 describe("Reload preserves later edit intent", () => {
-  it.each(["explicit", "conflict"])("retains title A/B/A across held %s Reload of disk D", async (mode) => {
-    seedFile([makeTask({ id: "a", title: "A" })]);
+  function holdSave(): (value: unknown) => void {
     let finish!: (value: unknown) => void;
-    let operation: Promise<unknown>;
-    if (mode === "explicit") {
-      loadTaskList.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-      operation = useTaskListStore.getState().reloadFile(FILE);
-    } else {
-      flushTaskList.mockImplementationOnce((_p, getData) => {
-        getData(); return new Promise((resolve) => { finish = resolve; });
-      });
-      operation = useTaskListStore.getState().updateDescription(FILE, "a", "submitted");
-    }
+    flushTaskList.mockImplementationOnce((_p, getData) => {
+      getData();
+      return new Promise((resolve) => { finish = resolve; });
+    });
+    return (value) => finish(value);
+  }
+
+  it("retains title A/B/A across a held conflict Reload of disk D", async () => {
+    seedFile([makeTask({ id: "a", title: "A" })]);
+    const finish = holdSave();
+    const operation = useTaskListStore.getState().updateDescription(FILE, "a", "submitted");
     await useTaskListStore.getState().updateTitle(FILE, "a", "B");
     await useTaskListStore.getState().updateTitle(FILE, "a", "A");
     const disk = { id: "L1", tasks: [makeTask({ id: "a", title: "D" })] };
-    finish(mode === "explicit" ? { status: "success", taskList: { filePath: FILE, data: disk } } : { status: "reloaded", data: disk, message: message("write.reloaded") });
+    finish({ status: "reloaded", data: disk, message: message("write.reloaded") });
     await operation;
     expect(tasksOf()[0].title).toBe("A");
   });
 
-  it("retains a later task/note edit when Reload removes its disk subject", async () => {
+  it("retains a later task/note edit when a conflict Reload removes its disk subject", async () => {
     seedFile([
       makeTask({ id: "a", title: "before" }),
       makeTask({ id: "b", notes: [makeNote({ id: "n", content: "before" })] }),
       makeTask({ id: "unchanged" }),
     ]);
-    let finish!: (value: unknown) => void;
-    loadTaskList.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    const reload = useTaskListStore.getState().reloadFile(FILE);
+    const finish = holdSave();
+    const operation = useTaskListStore.getState().updateDescription(FILE, "unchanged", "submitted");
     await useTaskListStore.getState().updateTitle(FILE, "a", "later task");
     await useTaskListStore.getState().updateNote(FILE, "b", "n", "later note");
-    finish({ status: "success", taskList: { filePath: FILE, data: { id: "L1", tasks: [makeTask({ id: "b", notes: [] })] } } });
-    await reload;
+    finish({ status: "reloaded", data: { id: "L1", tasks: [makeTask({ id: "b", notes: [] })] }, message: message("write.reloaded") });
+    await operation;
     expect(tasksOf().map((t) => t.id)).toEqual(["a", "b"]);
     expect(tasksOf()[0].title).toBe("later task");
     expect(tasksOf()[1].notes[0].content).toBe("later note");

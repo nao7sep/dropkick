@@ -75,8 +75,10 @@
   "dialog.stillSaving.keepOpen": "Tieni aperto",
   "dialog.notSaved.title": "Modifiche non salvate",
   "dialog.notSaved.body": "Dropkick non è riuscito a salvare le modifiche in:\n\n{paths}\n\nSe esci ora, le modifiche non ancora scritte sul disco andranno perse.",
+  "dialog.notSaved.tabBody": "Dropkick non è riuscito a salvare le modifiche in:\n\n{paths}\n\nSe chiudi la scheda ora, le modifiche non ancora scritte sul disco andranno perse.",
   "dialog.notSaved.retry": "Riprova",
   "dialog.notSaved.quitAnyway": "Esci comunque",
+  "dialog.notSaved.closeAnyway": "Chiudi comunque",
   "dialog.unsavedChanges.title": "Scarta le modifiche",
   "dialog.unsavedChanges.body": "Hai modifiche non salvate. Vuoi scartarle e chiudere?",
   "dialog.unsavedChanges.discard": "Scarta",
@@ -241,6 +243,7 @@
   "tabs.recent": "Recenti",
   "tabs.unified": "Vista unificata",
   "tabs.loadFailed": "Caricamento non riuscito: {path}",
+  "tabs.notSaved": "Non salvato: {path}",
   "tabs.hasPastDue": "Contiene attività scadute",
   "tabs.hasDueToday": "Contiene attività in scadenza oggi",
   "tabs.close": "Chiudi scheda",
@@ -359,6 +362,8 @@
 
   "unified.oneFailed": "Impossibile caricare «{name}», che quindi non è inclusa qui. Apri la sua scheda per riprovare.",
   "unified.manyFailed": { "one": "Impossibile caricare {count} lista, che non è inclusa qui: {names}. Apri le schede interessate per riprovare.", "many": "Impossibile caricare {count} di liste, che non sono incluse qui: {names}. Apri le schede interessate per riprovare.", "other": "Impossibile caricare {count} liste, che non sono incluse qui: {names}. Apri le schede interessate per riprovare." },
+  "unified.oneNotSaved": "Le modifiche a «{name}» non sono salvate.",
+  "unified.manyNotSaved": { "one": "Le modifiche a {count} lista non sono salvate: {names}.", "many": "Le modifiche a {count} di liste non sono salvate: {names}.", "other": "Le modifiche a {count} liste non sono salvate: {names}." },
   "unified.loading": { "one": "Caricamento di {count} lista…", "many": "Caricamento di {count} di liste…", "other": "Caricamento di {count} liste…" },
 
   "summary.title": "Riepilogo della lista di attività",

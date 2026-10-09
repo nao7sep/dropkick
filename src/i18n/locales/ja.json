@@ -75,8 +75,10 @@
   "dialog.stillSaving.keepOpen": "開いたままにする",
   "dialog.notSaved.title": "変更を保存できませんでした",
   "dialog.notSaved.body": "Dropkick は変更を次のファイルに保存できませんでした。\n\n{paths}\n\n今終了すると、ディスクにまだ書き込まれていない変更は失われます。",
+  "dialog.notSaved.tabBody": "Dropkick は変更を次のファイルに保存できませんでした。\n\n{paths}\n\n今タブを閉じると、ディスクにまだ書き込まれていない変更は失われます。",
   "dialog.notSaved.retry": "再試行",
   "dialog.notSaved.quitAnyway": "このまま終了",
+  "dialog.notSaved.closeAnyway": "このまま閉じる",
   "dialog.unsavedChanges.title": "変更を破棄",
   "dialog.unsavedChanges.body": "保存していない変更があります。変更を破棄して閉じますか？",
   "dialog.unsavedChanges.discard": "破棄",
@@ -241,6 +243,7 @@
   "tabs.recent": "最近使ったファイル",
   "tabs.unified": "統合ビュー",
   "tabs.loadFailed": "読み込み失敗: {path}",
+  "tabs.notSaved": "未保存: {path}",
   "tabs.hasPastDue": "期限切れのタスクあり",
   "tabs.hasDueToday": "今日が期限のタスクあり",
   "tabs.close": "タブを閉じる",
@@ -359,6 +362,8 @@
 
   "unified.oneFailed": "「{name}」を読み込めなかったため、ここには含まれていません。再試行するには、そのタブを開いてください。",
   "unified.manyFailed": { "other": "{count} 個のリストを読み込めなかったため、ここには含まれていません: {names}。再試行するには、該当するタブを開いてください。" },
+  "unified.oneNotSaved": "「{name}」への変更は保存されていません。",
+  "unified.manyNotSaved": { "other": "{count} 個のリストへの変更は保存されていません: {names}。" },
   "unified.loading": { "other": "{count} 個のリストを読み込み中…" },
 
   "summary.title": "タスクリストの概要",

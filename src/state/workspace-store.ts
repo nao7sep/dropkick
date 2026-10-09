@@ -11,7 +11,9 @@ import { message, type Message } from "../i18n/translate";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
 import type { LoadWorkspaceResult } from "../repositories";
-import { loadWorkspace, flushWorkspace, log, toErrorFields } from "../repositories";
+import { loadWorkspace, flushWorkspace, drainSerial, log, toErrorFields } from "../repositories";
+import { useTaskListStore } from "./task-list-store";
+import { showAppConfirm, useDialogStore } from "./dialog-store";
 
 // File loading and unloading is owned by the React component tree (MainWindow's
 // file-lifecycle effect), so this store deliberately does NOT import or call
@@ -49,6 +51,63 @@ function startupTabIndex(openTabs: WorkspaceDto["openTabs"]): number {
   const unifiedIdx = openTabs.findIndex((t) => t.isUnifiedView);
   if (unifiedIdx !== -1) return unifiedIdx;
   return openTabs.length > 0 ? 0 : -1;
+}
+
+// How long closing a tab waits for its list's writes before saying so, the
+// bound quit uses (hooks/use-window-close).
+export const TAB_CLOSE_WAIT_MS = 3000;
+
+// A list whose latest changes are not on disk is asked about before its tab
+// closes, as quit asks (unsaved-edits-conventions): Retry saves it again, Close
+// Anyway lets the edit go, Cancel keeps the tab. A field that commits on blur
+// commits first, so its write is the one this waits for.
+async function mayCloseList(filePath: string): Promise<boolean> {
+  if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
+  for (;;) {
+    if (!(await settledOrClosedAnyway(filePath))) return false;
+    if (!useTaskListStore.getState().unsavedFiles[filePath]) return true;
+    log.warn("tab close held by changes not saved", { path: filePath });
+    const choice = await useDialogStore.getState().enqueueQuitSave([filePath], "tab");
+    if (choice === "quit") {
+      log.warn("tab closed with changes not saved", { path: filePath });
+      return true;
+    }
+    if (choice === "cancel") return false;
+    useTaskListStore.getState().retryUnsaved([filePath]);
+  }
+}
+
+// A write has no timeout, so one on storage that stopped answering would hold
+// the tab open with no feedback. Past the bound the user is told the list is
+// still being written and may close anyway; the question is withdrawn if the
+// write finishes first. Resolves false when the user keeps the tab.
+async function settledOrClosedAnyway(filePath: string): Promise<boolean> {
+  const drained = drainSerial(filePath).then(() => "settled" as const);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"late">((resolve) => {
+    timer = setTimeout(() => resolve("late"), TAB_CLOSE_WAIT_MS);
+  });
+  const first = await Promise.race([drained, late]);
+  clearTimeout(timer);
+  if (first === "settled") return true;
+  log.warn("tab close waiting on writes", { path: filePath });
+  const withdraw = new AbortController();
+  const answer = showAppConfirm(
+    message("dialog.stillSaving.title"),
+    message("dialog.stillSaving.body", { paths: filePath }),
+    {
+      tone: "warning",
+      confirmLabel: message("dialog.stillSaving.closeAnyway"),
+      cancelLabel: message("dialog.stillSaving.keepOpen"),
+      signal: withdraw.signal,
+    },
+  ).then((closeAnyway) => (closeAnyway ? "close-anyway" as const : "keep-open" as const));
+  const outcome = await Promise.race([drained, answer]);
+  withdraw.abort();
+  if (outcome === "close-anyway") log.warn("tab closed with writes pending", { path: filePath });
+  return outcome !== "keep-open";
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
@@ -157,14 +216,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     closeTab: async (index: number) => {
+      const tab = get().workspace.openTabs[index];
+      if (tab && !tab.isUnifiedView && !(await mayCloseList(tab.filePath))) return;
+      // The tabs may have changed while a question was open.
+      const at = tab
+        ? get().workspace.openTabs.findIndex(
+            (open) => open.isUnifiedView === tab.isUnifiedView && open.filePath === tab.filePath,
+          )
+        : index;
+      if (at < 0) return;
       // Remove the tab from the workspace; file unload is handled by
       // MainWindow's file-lifecycle effect after React commits the unmount.
       set((state) => {
-        const newTabs = state.workspace.openTabs.filter((_, i) => i !== index);
+        const newTabs = state.workspace.openTabs.filter((_, i) => i !== at);
         let newActive = state.workspace.activeTabIndex;
-        if (index === newActive) {
+        if (at === newActive) {
           newActive = Math.min(newActive, newTabs.length - 1);
-        } else if (index < newActive) {
+        } else if (at < newActive) {
           newActive -= 1;
         }
         return {
