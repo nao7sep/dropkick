@@ -226,3 +226,7 @@ pub fn read_detail(conn: &Connection, id: i64) -> rusqlite::Result<Option<Record
     )
     .optional()
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/records.rs"]
+mod tests;

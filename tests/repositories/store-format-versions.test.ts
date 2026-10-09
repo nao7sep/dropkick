@@ -31,7 +31,7 @@ const PATHS = {
 const disk = new Map<string, string>();
 
 // The task-list read is the core's; this stand-in answers as its classifier
-// does for the documents used here (src-tauri/tests/atomic_write.rs owns it).
+// does for the documents used here (src-tauri/tests/unit/atomic_write.rs owns it).
 function readTaskList(path: string): unknown {
   const text = disk.get(path);
   if (text === undefined) return { status: "missing" };

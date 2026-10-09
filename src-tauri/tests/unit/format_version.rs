@@ -3,17 +3,19 @@
 
 use std::fs;
 
-use dropkick_lib::format_version::{self, Format, Marker};
-use dropkick_lib::window_placement::{
+use crate::format_version::{self, Format, Marker};
+use crate::window_placement::{
     file_text, load_file, NormalRectangle, Placement, SavedPlacement,
 };
 use rusqlite::Connection;
 use serde_json::json;
 
 #[test]
-fn every_format_the_core_reads_is_in_the_shared_table_at_version_one() {
+fn every_format_the_core_reads_is_in_the_shared_table() {
     for format in Format::ALL {
-        assert_eq!(format.current(), 1, "{format:?}");
+        // The backup history gained sessions in format 2; the rest are at 1.
+        let expected = if format == Format::Backups { 2 } else { 1 };
+        assert_eq!(format.current(), expected, "{format:?}");
     }
 }
 

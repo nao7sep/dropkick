@@ -228,3 +228,7 @@ pub fn app_paths(root: &Path) -> AppPaths {
         records_file: at(RECORDS_FILE),
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/paths.rs"]
+mod tests;

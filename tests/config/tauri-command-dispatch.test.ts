@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 // for the length of the call. Tagging a synchronous function `async` only moves
 // it onto an async-runtime worker, which stalled storage can exhaust. Every
 // filesystem command is therefore an `async fn` that hands its disk work to
-// native_wait::settle, whose own test (src-tauri/tests/native_wait.rs) shows that
+// native_wait::settle, whose own test (src-tauri/tests/unit/native_wait.rs) shows that
 // stalled work holds up no other command; this guard checks that each command
 // actually goes through it.
 //

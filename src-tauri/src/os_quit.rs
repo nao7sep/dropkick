@@ -40,6 +40,15 @@ pub const SESSION_END_WAIT: Duration = Duration::from_millis(4000);
 static APP: OnceLock<AppHandle> = OnceLock::new();
 // True from asking the window to settle until the session is let go.
 static SESSION_END_PENDING: AtomicBool = AtomicBool::new(false);
+// True once the OS has begun ending the session. It stays set: if Windows lets
+// the session go on after all, a later quit only skips the backup drain, which
+// costs at most the history of the last saves.
+static SESSION_ENDED: AtomicBool = AtomicBool::new(false);
+
+/// Whether the OS has begun ending the session, so exit skips optional work.
+pub fn session_ended() -> bool {
+    SESSION_ENDED.load(Ordering::SeqCst)
+}
 
 /// Hooks the OS quit routes. Called once, after the main window exists.
 pub fn install(app: &AppHandle) {
@@ -58,6 +67,7 @@ pub fn session_end_settled() {
 // Returns false when there is no window to ask, so the session goes on at once.
 #[cfg(any(target_os = "macos", windows))]
 fn begin_session_end(app: &AppHandle) -> bool {
+    SESSION_ENDED.store(true, Ordering::SeqCst);
     if SESSION_END_PENDING.swap(true, Ordering::SeqCst) {
         return true;
     }

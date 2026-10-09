@@ -1,4 +1,4 @@
-use dropkick_lib::window_placement::{
+use crate::window_placement::{
     placement_after_close, ClosingState, NormalRectangle, Placement,
 };
 

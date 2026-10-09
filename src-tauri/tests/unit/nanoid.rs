@@ -1,10 +1,10 @@
-// Integration tests for the nanoid discriminator.
+// Tests for the nanoid discriminator.
 //
 // Its only job is to make an atomic write's temp file name unique, so what is
 // worth pinning is the shape (length and alphabet) and that the RNG is actually
 // wired up rather than handing back a constant.
 
-use dropkick_lib::nanoid::{generate, LENGTH};
+use crate::nanoid::{generate, LENGTH};
 
 
 #[test]

@@ -150,7 +150,9 @@ CREATE INDEX IF NOT EXISTS idx_logs_time ON logs (time, id);
 // then takes the fallback.
 type Records = Result<Connection, String>;
 
-// How long a write waits for another running instance's write to finish.
+// How long a write waits for SQLite's lock before taking the fallback. One
+// instance runs at a time (instance_owner); the Records window reads the same
+// file from this process.
 const BUSY_TIMEOUT_MS: u64 = 5_000;
 // Long enough for an entry that waits its full busy timeout to land.
 const FLUSH_BOUND: Duration = Duration::from_millis(BUSY_TIMEOUT_MS + 1_000);
@@ -277,7 +279,7 @@ fn open_records(records_file: &Path) -> Records {
         return Err(format_version::newer_message(records_file, found, Format::Records));
     }
     // WAL with synchronous=NORMAL keeps every committed row through an app
-    // crash; busy_timeout lets a second running instance's write wait its turn.
+    // crash; busy_timeout lets a write wait for SQLite's lock briefly.
     conn.pragma_update(None, "journal_mode", "WAL")
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "synchronous", "NORMAL")
@@ -549,8 +551,9 @@ pub fn flush() {
 }
 
 #[cfg(test)]
-// EXCEPTION to tests-folder conventions: these build Loggers against throwaway databases and call
-// their private emit methods; the only public seam is the process-global logger, which can be
-// installed once per process. The module's pure helpers live in tests/logging.rs.
 #[path = "../tests/unit/logging.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/logging_time.rs"]
+mod time_tests;

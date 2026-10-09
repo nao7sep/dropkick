@@ -103,3 +103,7 @@ fn wait<T: Send + 'static>(bound: Duration, work: impl FnOnce() -> Result<T, Str
         }
     })?
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/native_wait.rs"]
+mod tests;

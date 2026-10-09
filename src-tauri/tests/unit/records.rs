@@ -1,8 +1,8 @@
 // The Records window's reads of records.sqlite3: paging, filters, the launch
 // list and one record whole, against a database of the logger's own shape.
 
-use dropkick_lib::logging::SCHEMA;
-use dropkick_lib::records::{
+use crate::logging::SCHEMA;
+use crate::records::{
     open, read_detail, read_page, read_sources, LevelFilter, RecordCursor, RecordsQuery, PAGE_SIZE,
 };
 use rusqlite::Connection;
@@ -60,7 +60,7 @@ impl Fixture {
 const S1: &str = "2026-10-01T08:00:00.000Z";
 const S2: &str = "2026-10-02T08:00:00.000Z";
 
-fn messages(page: &dropkick_lib::records::RecordsPage) -> Vec<&str> {
+fn messages(page: &crate::records::RecordsPage) -> Vec<&str> {
     page.records.iter().map(|r| r.message.as_str()).collect()
 }
 

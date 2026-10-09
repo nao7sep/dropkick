@@ -1,10 +1,10 @@
-// Integration tests for the natively applied theme: which window theme a saved
+// Tests for the natively applied theme: which window theme a saved
 // preferences document asks for, which document the startup picker previews,
 // and that reading them never changes either file.
 
 use std::fs;
 
-use dropkick_lib::theme::{
+use crate::theme::{
     last_launched_preferences_path, preferences_window_theme, read_saved_window_theme,
     window_background, window_theme_for,
 };

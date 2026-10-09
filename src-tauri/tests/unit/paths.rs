@@ -1,12 +1,12 @@
-// Integration tests for the storage-root resolver.
+// Tests for the storage-root resolver.
 //
 // resolve_root is the pure half of data_root: it takes the home directory and
 // the DROPKICK_DATA_DIR override as values, so every branch of the override grammar
 // can be exercised without touching the real environment or an AppHandle.
 
-use dropkick_lib::paths::{app_paths, resolve_root};
+use crate::paths::{app_paths, resolve_root};
 #[cfg(unix)]
-use dropkick_lib::paths::{create_storage_root, secure_root};
+use crate::paths::{create_storage_root, secure_root};
 use std::path::PathBuf;
 
 #[test]
@@ -117,7 +117,7 @@ fn app_paths_names_each_store_distinctly() {
 
 #[test]
 fn native_window_state_has_its_own_file_name() {
-    assert_eq!(dropkick_lib::paths::WINDOW_FILE_NAME, "window.json");
+    assert_eq!(crate::paths::WINDOW_FILE_NAME, "window.json");
 }
 
 // Storage-path-conventions: the root is owner-only (0700) on POSIX — created
@@ -180,9 +180,9 @@ fn existing_broader_root_is_tightened_on_launch() {
 
 #[test]
 fn the_records_window_keeps_its_placement_in_its_own_file() {
-    assert_eq!(dropkick_lib::paths::RECORDS_WINDOW_FILE_NAME, "records-window.json");
+    assert_eq!(crate::paths::RECORDS_WINDOW_FILE_NAME, "records-window.json");
     assert_ne!(
-        dropkick_lib::paths::RECORDS_WINDOW_FILE_NAME,
-        dropkick_lib::paths::WINDOW_FILE_NAME
+        crate::paths::RECORDS_WINDOW_FILE_NAME,
+        crate::paths::WINDOW_FILE_NAME
     );
 }

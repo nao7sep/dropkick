@@ -1,10 +1,10 @@
-// Integration tests for the logging module's pure helpers: the timestamp
+// Tests for the logging module's pure helpers: the timestamp
 // grammar the fallback log filenames and records use.
 //
 // The Logger's own internals are tested in-file — see the comment on that
 // module for why they cannot be reached through a public seam.
 
-use dropkick_lib::logging::{filename_stamp, iso_millis};
+use crate::logging::{filename_stamp, iso_millis};
 
 #[test]
 fn iso_epoch() {

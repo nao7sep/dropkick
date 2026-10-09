@@ -1,4 +1,4 @@
-use dropkick_lib::native_wait::run_with_bound;
+use crate::native_wait::run_with_bound;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc, Arc,
@@ -26,7 +26,7 @@ fn the_exit_deadline_covers_a_stalled_optional_tail() {
     let (release, held) = mpsc::channel();
     let (expired, expiry) = mpsc::channel();
     let thread = std::thread::spawn(move || {
-        dropkick_lib::native_wait::exit_tail_with_bound(
+        crate::native_wait::exit_tail_with_bound(
             Duration::from_millis(20),
             move || {
                 let _ = expired.send(());
@@ -79,7 +79,7 @@ fn a_timed_out_worker_keeps_ownership_until_its_real_work_finishes() {
 // start until one of them gave up.
 #[test]
 fn stalled_commands_do_not_hold_up_another_and_settle_with_their_real_result() {
-    use dropkick_lib::native_wait::settle;
+    use crate::native_wait::settle;
     use tauri::async_runtime::{block_on, spawn};
     const STALLED: usize = 64;
     let (release, held) = std::sync::mpsc::channel::<()>();

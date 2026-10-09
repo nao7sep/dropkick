@@ -19,6 +19,7 @@ use crate::i18n;
 
 /// Every catalogue key the native menu reads; the tests check each one exists
 /// in every language.
+#[cfg(test)]
 pub const KEYS: [&str; 22] = [
     "nativeMenu.about",
     "nativeMenu.services",

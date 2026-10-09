@@ -31,3 +31,7 @@ pub fn generate() -> String {
         .map(|b| ALPHABET[(b & 0x3F) as usize] as char)
         .collect()
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/nanoid.rs"]
+mod tests;

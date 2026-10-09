@@ -1,4 +1,4 @@
-// Integration tests for the natively resolved interface language: which tag the
+// Tests for the natively resolved interface language: which tag the
 // computer's languages resolve to, how a saved choice is normalized and read
 // from the previewed preferences document, and that the native menu's text
 // exists in every catalogue.
@@ -6,11 +6,11 @@
 use std::fs;
 use std::path::Path;
 
-use dropkick_lib::i18n::{
+use crate::i18n::{
     catalogue, normalize_preference, read_saved_preference, saved_preference, system_language,
     LANGUAGES,
 };
-use dropkick_lib::menu::KEYS;
+use crate::menu::KEYS;
 use serde_json::json;
 
 #[test]

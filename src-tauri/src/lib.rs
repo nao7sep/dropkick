@@ -6,25 +6,23 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State};
 
-// The modules are `pub` so the integration tests in `tests/` can reach them.
-// This crate's only real consumer is `main.rs`, so the "public API" is a seam
-// for testing rather than a surface anyone depends on — which is the trade the
-// tests-folder-conventions ask for: promote the helper, do not test it through
-// a shell, and keep shipped source free of test modules.
-pub mod backup_store;
-pub mod format_version;
-pub mod i18n;
+// The crate's only consumer is `main.rs`, which calls `run`; every module is
+// private. Tests are unit tests with private access, kept in `tests/unit/` and
+// included beside their subject (tests-folder-conventions).
+mod backup_store;
+mod format_version;
+mod i18n;
 mod instance_owner;
-pub mod logging;
-pub mod menu;
-pub mod nanoid;
-pub mod native_wait;
+mod logging;
+mod menu;
+mod nanoid;
+mod native_wait;
 mod os_quit;
-pub mod paths;
-pub mod records;
-pub mod records_window;
-pub mod theme;
-pub mod window_placement;
+mod paths;
+mod records;
+mod records_window;
+mod theme;
+mod window_placement;
 
 // --- Command boundary logging ---
 //
@@ -676,10 +674,11 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     //
     // This is the ONE managed-text choke point every managed write funnels through
     // (webview -> write_text_file_atomic -> here), so the hook lives in exactly one
-    // place. record() is best-effort and silent on success; it never throws, never
-    // breaks this save that already succeeded above, and never crashes the app.
-    // Managed durable text (config.json, preferences/workspaces/task-lists — internal
-    // and external) is recorded on every save; dedup absorbs the churn. Not
+    // place. record() only queues the bytes for the history's own thread and
+    // returns at once: the save is complete, and a slow or locked store never
+    // delays its reply. Managed durable text (config.json,
+    // preferences/workspaces/task-lists — internal and external) is recorded;
+    // the history keeps one row per path per session. Not
     // recorded: volatile state saved through write_atomic_unrecorded (state.json, window.json, records-window.json),
     // records (records.sqlite3 and its fallback logs, written by logging.rs, never
     // atomically) and the backup_store's own SQLite file (written by the backup
@@ -1103,12 +1102,11 @@ pub fn run() {
                     let handle = app.handle().clone();
                     logging::on_stored(move || records_window::notify_changed(&handle));
 
-                    // Open the write-through data-backup store once, best-effort,
-                    // under the same DROPKICK_DATA_DIR-aware root (never a hardcoded
-                    // path). If it cannot open, one warn is logged and recording is
-                    // disabled for the session — it never blocks startup. Every
-                    // managed-text save from now on records through it, strictly
-                    // after its atomic rename lands (see write_atomic).
+                    // Start the data-backup history's owner under the same
+                    // DROPKICK_DATA_DIR-aware root. It opens the store on its own
+                    // thread, so startup never waits for it; every managed text
+                    // save from now on queues its bytes there after its rename
+                    // lands (see write_atomic).
                     backup_store::init(std::path::PathBuf::from(&layout.backups_file));
 
                     logging::info(
@@ -1203,6 +1201,12 @@ pub fn run() {
                     app_handle,
                     &app_handle.state::<window_placement::WindowPlacements>(),
                 );
+                // Records queued by the last saves get a short drain at an
+                // ordinary quit; the end of an OS session skips them
+                // (data-backup conventions).
+                if !os_quit::session_ended() {
+                    backup_store::flush(backup_store::QUIT_DRAIN);
+                }
                 logging::info("app shutdown", json!({ "reason": "exit" }));
                 logging::shutdown();
             });
@@ -1211,11 +1215,9 @@ pub fn run() {
 }
 
 #[cfg(test)]
-// EXCEPTION to tests-folder conventions: the subjects are #[tauri::command] functions, which
-// cannot be promoted to `pub` in this crate: the attribute macro emits a #[macro_export] copy of
-// its generated macro, which then collides with the local definition at the crate root (E0255).
-// Everything that is not a command has been promoted and moved out — the digest, the temp-file
-// naming, the JSON classifier, the quarantine name and write_atomic are exercised from
-// tests/atomic_write.rs.
 #[path = "../tests/unit/lib.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/atomic_write.rs"]
+mod atomic_write_tests;

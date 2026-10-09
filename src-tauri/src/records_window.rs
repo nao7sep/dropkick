@@ -128,3 +128,7 @@ pub fn close_with_main(app: &AppHandle) {
         app.exit(0);
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/records_window.rs"]
+mod tests;

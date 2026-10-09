@@ -139,7 +139,5 @@ pub fn init() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 }
 
 #[cfg(test)]
-// EXCEPTION to tests-folder conventions: process-lock acquisition is a private startup primitive;
-// widening it only for an integration test would make the ownership boundary less clear.
 #[path = "../tests/unit/instance_owner.rs"]
 mod tests;

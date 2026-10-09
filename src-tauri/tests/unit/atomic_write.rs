@@ -1,11 +1,9 @@
-// Integration tests for the pieces of the write path that are ordinary
+// Tests for the pieces of the write path that are ordinary
 // functions rather than IPC commands: the digest, the temp-file naming grammar,
 // the JSON classifier, the quarantine name, and write_atomic itself.
-//
-// The commands that wrap these keep their tests in src/lib.rs — see the comment
-// on that module for why they cannot be reached from here.
+// The commands that wrap them are tested in tests/unit/lib.rs.
 
-use dropkick_lib::*;
+use crate::*;
 
 #[test]
 fn sha256_hex_matches_known_vectors() {

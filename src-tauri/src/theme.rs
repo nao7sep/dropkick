@@ -85,3 +85,7 @@ pub fn apply(window: &WebviewWindow, theme: Option<Theme>) -> Result<(), String>
         .set_background_color(Some(window_background(effective)))
         .map_err(|error| error.to_string())
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/theme.rs"]
+mod tests;

@@ -1,4 +1,5 @@
 use super::*;
+use std::time::Duration;
 use serial_test::serial;
 
 // The store singleton is process-global, so every test that touches it is
@@ -42,8 +43,10 @@ fn with_store<F: FnOnce(&Path)>(body: F) {
     body(&store.file);
 }
 
-// A read-only view of every row for a path, in insert order, for assertions.
+// A read-only view of every row for a path, in insert order, for assertions,
+// once every queued record has been applied.
 fn rows_for(file: &Path, path: &str) -> Vec<(Vec<u8>, String, i64, String)> {
+    assert!(flush(Duration::from_secs(10)), "queued records were not applied");
     let conn = Connection::open(file).unwrap();
     let mut stmt = conn
         .prepare(
@@ -124,17 +127,52 @@ fn dedup_skips_an_unchanged_re_save() {
 
 #[test]
 #[serial(backup_store)]
-fn a_changed_save_and_a_revert_each_insert_a_row() {
+fn a_session_keeps_one_row_per_path_with_its_latest_content() {
     with_store(|file| {
         let p = "/abs/c.json";
         record(Path::new(p), b"v1");
-        record(Path::new(p), b"v2"); // changed -> new row
-        record(Path::new(p), b"v1"); // revert to v1: differs from the LATEST (v2) -> new row
+        record(Path::new(p), b"v2");
+        record(Path::new(p), b"v3");
         let rows = rows_for(file, p);
-        assert_eq!(rows.len(), 3, "changed save and revert each insert a row");
-        assert_eq!(rows[0].0, b"v1");
-        assert_eq!(rows[1].0, b"v2");
-        assert_eq!(rows[2].0, b"v1"); // the revert is recorded as the new version it is
+        assert_eq!(rows.len(), 1, "one row per path per session");
+        assert_eq!(rows[0].0, b"v3");
+    });
+}
+
+#[test]
+#[serial(backup_store)]
+fn a_new_session_adds_a_row_only_for_content_that_changed() {
+    let store = temp_store();
+    init(store.file.clone());
+    record(Path::new("/abs/d.json"), b"v1");
+    record(Path::new("/abs/e.json"), b"kept");
+    close_for_test();
+
+    init(store.file.clone());
+    // Equal to the previous session's last version: nothing written.
+    record(Path::new("/abs/e.json"), b"kept");
+    record(Path::new("/abs/d.json"), b"v2");
+    let d = rows_for(&store.file, "/abs/d.json");
+    assert_eq!(d.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![b"v1".to_vec(), b"v2".to_vec()]);
+    assert_eq!(rows_for(&store.file, "/abs/e.json").len(), 1);
+}
+
+#[test]
+#[serial(backup_store)]
+fn recording_never_waits_for_a_locked_store() {
+    with_store(|file| {
+        assert!(flush(Duration::from_secs(10)));
+        // Another connection holds SQLite's write lock past the store's 5 s
+        // busy timeout would allow a save to wait.
+        let holder = Connection::open(file).unwrap();
+        holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+        let started = std::time::Instant::now();
+        record(Path::new("/abs/f.json"), b"saved while locked");
+        assert!(started.elapsed() < Duration::from_millis(500), "record must only queue");
+        assert!(!flush(Duration::from_millis(200)), "the owner is still waiting on the lock");
+        holder.execute_batch("COMMIT").unwrap();
+        drop(holder);
+        assert_eq!(rows_for(file, "/abs/f.json").len(), 1);
     });
 }
 
@@ -176,6 +214,8 @@ fn record_never_panics_on_a_broken_connection() {
 
     init(store_file); // open fails -> disabled, one warn logged, no panic
     record(Path::new("/abs/whatever.json"), b"data"); // silent no-op, no panic
+    assert!(flush(Duration::from_secs(10)));
+    close_for_test();
 }
 
 // The store's format version (store-recovery-conventions).
@@ -191,8 +231,39 @@ fn user_version(file: &Path) -> i64 {
 #[serial(backup_store)]
 fn a_new_store_is_stamped_with_its_format_version() {
     with_store(|file| {
-        assert_eq!(user_version(file), 1);
+        assert!(flush(Duration::from_secs(10)));
+        assert_eq!(user_version(file), 2);
     });
+}
+
+#[test]
+#[serial(backup_store)]
+fn a_format_1_store_gains_sessions_and_keeps_its_rows() {
+    let store = temp_store();
+    {
+        let conn = Connection::open(&store.file).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE backups (id INTEGER PRIMARY KEY, path TEXT NOT NULL, content BLOB NOT NULL, \
+             content_sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, written_at_utc TEXT NOT NULL); \
+             CREATE INDEX idx_backups_path_id ON backups (path, id);",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO backups (path, content, content_sha256, byte_size, written_at_utc) VALUES (?1, ?2, ?3, 3, 'x')",
+            rusqlite::params!["/abs/g.json", b"old".to_vec(), sha256_hex(b"old")],
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 1).unwrap();
+    }
+    init(store.file.clone());
+    record(Path::new("/abs/g.json"), b"new");
+    let rows = rows_for(&store.file, "/abs/g.json");
+    assert_eq!(rows.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![b"old".to_vec(), b"new".to_vec()]);
+    assert_eq!(user_version(&store.file), 2);
+    let sessions: Vec<Option<String>> = Connection::open(&store.file).unwrap()
+        .prepare("SELECT session_id FROM backups ORDER BY id").unwrap()
+        .query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
+    assert!(sessions[0].is_none() && sessions[1].is_some());
 }
 
 #[test]
@@ -218,7 +289,7 @@ fn a_newer_store_is_left_byte_identical_and_records_nothing() {
     let file = &store.file;
     {
         let conn = Connection::open(file).unwrap();
-        conn.pragma_update(None, "user_version", 2).unwrap();
+        conn.pragma_update(None, "user_version", 3).unwrap();
         conn.execute_batch("CREATE TABLE history (anything BLOB);").unwrap();
     }
     let before = std::fs::read(file).unwrap();

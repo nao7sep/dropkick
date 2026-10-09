@@ -1,7 +1,7 @@
 // The Records window's address: the page reads the context the main window
 // handed it from here, before its first frame.
 
-use dropkick_lib::records_window::{page_url, RecordsWindowContext};
+use crate::records_window::{page_url, RecordsWindowContext};
 
 fn context(time_zone: Option<&str>) -> RecordsWindowContext {
     RecordsWindowContext {

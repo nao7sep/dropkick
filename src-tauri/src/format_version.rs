@@ -25,6 +25,8 @@ pub enum Format {
 }
 
 impl Format {
+    // Every format, so a test can read each from the table.
+    #[cfg(test)]
     pub const ALL: [Format; 6] = [
         Format::State,
         Format::Preferences,
@@ -225,3 +227,7 @@ pub fn newer_than_message(file: &std::path::Path, found: u64, current: u64) -> S
         file.display()
     )
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/format_version.rs"]
+mod tests;

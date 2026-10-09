@@ -120,7 +120,8 @@ pub fn catalogue(language: &str) -> Catalogue {
 
 impl Catalogue {
     /// Whether this language itself (not the English fallback) has a plain
-    /// entry for the key.
+    /// entry for the key. Used by the catalogue tests.
+    #[cfg(test)]
     pub fn has(&self, key: &str) -> bool {
         self.entries.get(key).is_some_and(JsonValue::is_string)
     }
@@ -161,3 +162,7 @@ pub fn align_appkit(language: &str) {
     // setVolatileDomain:forName: requires.
     unsafe { defaults.setVolatileDomain_forName(&domain, domain_name) };
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/i18n.rs"]
+mod tests;

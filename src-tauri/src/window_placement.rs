@@ -359,3 +359,7 @@ fn save(app: &AppHandle, tracked: &TrackedWindow) {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/window_placement.rs"]
+mod tests;
