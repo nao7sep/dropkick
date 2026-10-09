@@ -1,12 +1,13 @@
-//! Bounded native waits with physical ownership retained until the worker settles.
+//! Native waits: IPC commands await their work's real end; main-thread callers
+//! wait within a bound and keep physical ownership until the worker settles.
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 
 pub const WAIT_BOUND: Duration = Duration::from_secs(10);
 pub const EXIT_TAIL_BOUND: Duration = Duration::from_secs(3);
-static ACTIVE: OnceLock<Mutex<HashMap<String, (bool, usize)>>> = OnceLock::new();
+static ACTIVE: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
 pub fn exit_tail(work: impl FnOnce()) {
     exit_tail_with_bound(EXIT_TAIL_BOUND, || std::process::exit(0), work);
@@ -33,14 +34,13 @@ pub fn exit_tail_with_bound(
     let _ = done.send(());
 }
 
-struct Claim { key: String, writing: bool }
+// A main-thread caller that stops waiting leaves its worker running; the key
+// stays claimed until that worker settles, so the next write to the same
+// resource is refused rather than racing it.
+struct Claim(String);
 impl Drop for Claim {
     fn drop(&mut self) {
-        let mut active = ACTIVE.get().unwrap().lock().unwrap_or_else(|e| e.into_inner());
-        if let Some((writing, readers)) = active.get_mut(&self.key) {
-            if self.writing { *writing = false; } else { *readers -= 1; }
-            if !*writing && *readers == 0 { active.remove(&self.key); }
-        }
+        ACTIVE.get().unwrap().lock().unwrap_or_else(|e| e.into_inner()).remove(&self.0);
     }
 }
 
@@ -51,30 +51,20 @@ pub fn run<T: Send + 'static>(
     run_with_bound(key, WAIT_BOUND, work)
 }
 
-pub fn read_keyed<T: Send + 'static>(key: String, work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
-    claimed_wait(key, false, WAIT_BOUND, work)
-}
-
 pub fn run_with_bound<T: Send + 'static>(
     key: String,
     bound: Duration,
     work: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
-    claimed_wait(key, true, bound, work)
-}
-
-fn claimed_wait<T: Send + 'static>(key: String, writing: bool, bound: Duration, work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
     let mut active = ACTIVE
-        .get_or_init(|| Mutex::new(HashMap::new()))
+        .get_or_init(|| Mutex::new(HashSet::new()))
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    let access = active.entry(key.clone()).or_default();
-    if access.0 || (writing && access.1 > 0) {
+    if !active.insert(key.clone()) {
         return Err("native operation remains in progress for this resource".to_string());
     }
-    if writing { access.0 = true; } else { access.1 += 1; }
     drop(active);
-    let claim = Claim { key, writing };
+    let claim = Claim(key);
     wait(bound, move || {
         let result = work();
         drop(claim);
@@ -82,8 +72,17 @@ fn claimed_wait<T: Send + 'static>(key: String, writing: bool, bound: Duration, 
     })
 }
 
-pub fn read<T: Send + 'static>(work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
-    wait(WAIT_BOUND, work)
+// Runs an IPC command's blocking work on the runtime's blocking pool and awaits
+// its real result. The webview never blocks on a command, so no caller needs a
+// bound: a slow save stays pending while later edits queue behind it per file
+// (the frontend's withSerial), and the quit flow bounds the close. With no
+// timeout, no outcome is ever unknown, so nothing has to compensate for one.
+pub async fn settle<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 fn wait<T: Send + 'static>(bound: Duration, work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {

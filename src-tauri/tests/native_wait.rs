@@ -64,7 +64,6 @@ fn a_timed_out_worker_keeps_ownership_until_its_real_work_finishes() {
     .unwrap_err()
     .contains("remains in progress"));
     assert!(!ran.load(Ordering::SeqCst));
-    assert!(dropkick_lib::native_wait::read_keyed("native-wait-retained-claim".to_string(), || Ok(())).is_err());
     assert!(run_with_bound(
         "another-native-resource".to_string(),
         Duration::from_secs(1),
@@ -75,20 +74,43 @@ fn a_timed_out_worker_keeps_ownership_until_its_real_work_finishes() {
     fixture.finished.recv_timeout(Duration::from_secs(1)).unwrap();
 }
 
+// More stalled commands than the runtime has workers: under the old dispatch
+// (a synchronous body on an async worker) the quick command below could not
+// start until one of them gave up.
 #[test]
-fn ordinary_reads_can_overlap_for_the_same_resource() {
-    let key = "shared-native-reader".to_string();
-    let (release, held) = mpsc::channel();
+fn stalled_commands_do_not_hold_up_another_and_settle_with_their_real_result() {
+    use dropkick_lib::native_wait::settle;
+    use tauri::async_runtime::{block_on, spawn};
+    const STALLED: usize = 64;
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let held = Arc::new(std::sync::Mutex::new(held));
     let (admitted, started) = mpsc::channel();
-    let first_key = key.clone();
-    let thread = std::thread::spawn(move || {
-        dropkick_lib::native_wait::read_keyed(first_key, move || {
-            let _ = admitted.send(());
-            held.recv().map_err(|e| e.to_string())
-        }).unwrap();
+    let stalled: Vec<_> = (0..STALLED)
+        .map(|index| {
+            let held = held.clone();
+            let admitted = admitted.clone();
+            spawn(settle(move || {
+                let _ = admitted.send(());
+                held.lock().unwrap().recv().map_err(|e| e.to_string())?;
+                Ok(index)
+            }))
+        })
+        .collect();
+    started.recv_timeout(Duration::from_secs(5)).unwrap();
+
+    let (answered, answer) = mpsc::channel();
+    spawn(async move {
+        let _ = answered.send(settle(|| Ok("quick")).await);
     });
-    let _fixture = HeldThread { release: Some(release), thread: Some(thread) };
-    started.recv_timeout(Duration::from_secs(1)).unwrap();
-    assert!(dropkick_lib::native_wait::read_keyed(key.clone(), || Ok(())).is_ok());
-    assert!(run_with_bound(key, Duration::from_secs(1), || Ok(())).is_err());
+    assert_eq!(answer.recv_timeout(Duration::from_secs(5)).unwrap(), Ok("quick"));
+
+    for _ in 0..STALLED {
+        release.send(()).unwrap();
+    }
+    let mut settled: Vec<usize> = stalled
+        .into_iter()
+        .map(|task| block_on(task).unwrap().unwrap())
+        .collect();
+    settled.sort_unstable();
+    assert_eq!(settled, (0..STALLED).collect::<Vec<_>>());
 }

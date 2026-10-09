@@ -184,26 +184,22 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(hasher.finalize())
 }
 
-// Every filesystem command below carries `#[tauri::command(async)]`.
+// Every filesystem command below is an `async fn` whose blocking work runs
+// through native_wait::settle, on the runtime's blocking pool.
 //
-// A plain `#[tauri::command]` executes INLINE on the thread that drives the
-// webview, so all of this ran on the UI thread: a single save costs three
-// fsyncs plus a SQLite insert of the whole document, note drafts write through
-// every few seconds while the user is typing, and a contended backup write
-// waits up to the store's five-second busy timeout — a five-second frozen
-// window. The attribute on a SYNC function is the one that dispatches to
-// Tauri's thread pool (its own name for it is "sync_threadpool"); writing these
-// as `async fn` instead would hand blocking std::fs work to an async-runtime
-// worker, which is the wrong pool for it.
+// A plain synchronous `#[tauri::command]` executes inline on the thread that
+// drives the webview, so a save (three fsyncs plus a backup insert) would freeze
+// the window. Tagging a synchronous function `#[tauri::command(async)]` does not
+// help: Tauri 2 runs its body inside a task on an async-runtime worker, of which
+// there are only as many as cores, so stalled storage could occupy all of them.
+// settle hands the work to the blocking pool and awaits its real end, with no
+// timeout, so the frontend always learns what a write actually did.
 //
-// file_exists takes an owned String because a command that returns something
-// other than a Result cannot borrow from the invoke message.
 // Computes SHA-256 hash of a file's raw bytes.
 // Called from TypeScript before every write to detect external modifications.
-#[tauri::command(async)]
-fn hash_file(path: &str) -> Result<Option<String>, String> {
-    let path = path.to_string();
-    native_wait::read_keyed(path.clone(), move || {
+#[tauri::command]
+async fn hash_file(path: String) -> Result<Option<String>, String> {
+    native_wait::settle(move || {
         let path = path.as_str();
         let started = log_cmd_start("hash_file", json!({ "path": path }));
         match std::fs::read(path) {
@@ -230,14 +226,14 @@ fn hash_file(path: &str) -> Result<Option<String>, String> {
             }
         }
     })
+    .await
 }
 
 // Reads a JSON file once, parses it, and returns an explicit result with a
 // hash of the exact bytes that were read.
-#[tauri::command(async)]
-fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String> {
-    let path = path.to_string();
-    native_wait::read_keyed(path.clone(), move || {
+#[tauri::command]
+async fn read_json_file_with_hash(path: String) -> Result<JsonFileWithHashResult, String> {
+    native_wait::settle(move || {
         let path = path.as_str();
         let started = log_cmd_start("read_json_file_with_hash", json!({ "path": path }));
         let bytes = match std::fs::read(path) {
@@ -285,6 +281,7 @@ fn read_json_file_with_hash(path: &str) -> Result<JsonFileWithHashResult, String
         }
         Ok(result)
     })
+    .await
 }
 
 // The pure parse/classify half of read_json_file_with_hash: given a file's
@@ -375,10 +372,9 @@ pub enum TextReadResult {
     Error { message: String },
 }
 
-#[tauri::command(async)]
-fn read_text_file(path: &str) -> Result<TextReadResult, String> {
-    let path = path.to_string();
-    native_wait::read_keyed(path.clone(), move || {
+#[tauri::command]
+async fn read_text_file(path: String) -> Result<TextReadResult, String> {
+    native_wait::settle(move || {
         let path = path.as_str();
         let started = log_cmd_start("read_text_file", json!({ "path": path }));
         match std::fs::read_to_string(path) {
@@ -410,6 +406,7 @@ fn read_text_file(path: &str) -> Result<TextReadResult, String> {
             }
         }
     })
+    .await
 }
 
 // Atomic write: write to a temp file in the same directory, fsync it, then
@@ -425,15 +422,13 @@ fn read_text_file(path: &str) -> Result<TextReadResult, String> {
 // already in hand saves reading the whole file back — and removes the window in
 // which a re-read could hash a concurrent writer's content instead of this
 // call's.
-#[tauri::command(async)]
-fn write_text_file_atomic(
-    path: &str,
-    contents: &str,
+#[tauri::command]
+async fn write_text_file_atomic(
+    path: String,
+    contents: String,
     record_backup: Option<bool>,
 ) -> Result<String, String> {
-    let path = path.to_string();
-    let contents = contents.to_string();
-    native_wait::run(path.clone(), move || {
+    native_wait::settle(move || {
         let path = path.as_str();
         let contents = contents.as_str();
         let started = log_cmd_start(
@@ -455,6 +450,7 @@ fn write_text_file_atomic(
         }
         result
     })
+    .await
 }
 
 // The staging temp-file name an atomic write renames into place:
@@ -705,11 +701,12 @@ fn refuse_newer_json(path: &std::path::Path) -> Result<(), String> {
     }
 }
 
-#[tauri::command(async)]
-fn file_exists(path: String) -> Result<bool, String> {
-    native_wait::read_keyed(path.clone(), move || {
+#[tauri::command]
+async fn file_exists(path: String) -> Result<bool, String> {
+    native_wait::settle(move || {
         Ok(std::path::Path::new(&path).exists())
     })
+    .await
 }
 
 // `<stem>-<yyyymmdd-hhmmss-fff-utc>.invalid` beside the source — the
@@ -728,10 +725,9 @@ pub fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
 // caller recreates defaults. The rename either lands or errors — a failure must
 // reach the caller and halt the load, never fall through to a default-reset
 // over the very bytes quarantine exists to preserve (storage-path conventions).
-#[tauri::command(async)]
-fn quarantine_file(path: &str) -> Result<String, String> {
-    let path = path.to_string();
-    native_wait::run(path.clone(), move || {
+#[tauri::command]
+async fn quarantine_file(path: String) -> Result<String, String> {
+    native_wait::settle(move || {
         let path = path.as_str();
         let started = log_cmd_start("quarantine_file", json!({ "path": path }));
         let target = quarantine_target(std::path::Path::new(path));
@@ -753,12 +749,12 @@ fn quarantine_file(path: &str) -> Result<String, String> {
             }
         }
     })
+    .await
 }
 
-#[tauri::command(async)]
-fn ensure_dir(path: &str) -> Result<(), String> {
-    let path = path.to_string();
-    native_wait::run(path.clone(), move || {
+#[tauri::command]
+async fn ensure_dir(path: String) -> Result<(), String> {
+    native_wait::settle(move || {
         let path = path.as_str();
         let started = log_cmd_start("ensure_dir", json!({ "path": path }));
         match std::fs::create_dir_all(path) {
@@ -773,6 +769,7 @@ fn ensure_dir(path: &str) -> Result<(), String> {
             }
         }
     })
+    .await
 }
 
 // Returns the absolute storage root (`~/.dropkick`, or `DROPKICK_DATA_DIR`),
@@ -780,9 +777,9 @@ fn ensure_dir(path: &str) -> Result<(), String> {
 // calls this once at startup and derives every subpath from the returned
 // absolute root, rather than reconstructing the root from `homeDir()` itself
 // (which cannot read `DROPKICK_DATA_DIR` and is forbidden by the per-stack rule).
-#[tauri::command(async)]
-fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
-    native_wait::run("app-paths".to_string(), move || {
+#[tauri::command]
+async fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
+    native_wait::settle(move || {
         let started = log_cmd_start("app_paths", json!({}));
         match paths::data_root(&app) {
             Ok(root) => {
@@ -796,6 +793,7 @@ fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
             }
         }
     })
+    .await
 }
 
 // Applies a saved theme preference to the calling window: the window theme,
@@ -903,42 +901,46 @@ fn open_records_window(
 // record signals the Records window, so a logged success would start the next
 // read. A failure is recorded once, and the window reads no further on
 // signals until a read succeeds.
-fn read_records<T: Send + 'static>(
+async fn read_records<T: Send + 'static>(
     command: &str,
     read: impl FnOnce(&rusqlite::Connection) -> rusqlite::Result<T> + Send + 'static,
 ) -> Result<T, String> {
     let started = Instant::now();
-    let result = native_wait::read(move || {
+    let result = native_wait::settle(move || {
         logging::records_file()
             .ok_or_else(|| "the records database is not open".to_string())
             .and_then(|path| records::open(&path))
             .and_then(|conn| read(&conn).map_err(|e| e.to_string()))
-    });
+    })
+    .await;
     if let Err(message) = &result {
         log_cmd_err(command, started, message.clone());
     }
     result
 }
 
-#[tauri::command(async)]
-fn read_records_page(query: records::RecordsQuery) -> Result<records::RecordsPage, String> {
+#[tauri::command]
+async fn read_records_page(query: records::RecordsQuery) -> Result<records::RecordsPage, String> {
     read_records("read_records_page", move |conn| {
         records::read_page(conn, &query)
     })
+    .await
 }
 
-#[tauri::command(async)]
-fn read_record_sources() -> Result<records::RecordSources, String> {
+#[tauri::command]
+async fn read_record_sources() -> Result<records::RecordSources, String> {
     read_records("read_record_sources", |conn| {
         records::read_sources(conn, logging::session())
     })
+    .await
 }
 
-#[tauri::command(async)]
-fn read_record_detail(id: i64) -> Result<Option<records::RecordDetail>, String> {
+#[tauri::command]
+async fn read_record_detail(id: i64) -> Result<Option<records::RecordDetail>, String> {
     read_records("read_record_detail", move |conn| {
         records::read_detail(conn, id)
     })
+    .await
 }
 
 // Reports whether developer-only `debug` logging is on, so the frontend can

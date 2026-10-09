@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// A plain #[tauri::command] runs INLINE on the thread that drives the webview.
-// For a command that touches the filesystem that means the window freezes for
-// the length of the call - three fsyncs and a SQLite insert per save, and up to
-// the backup store's five-second busy timeout when a write is contended. The
-// attribute on a sync function is what dispatches it to Tauri's thread pool.
+// A plain synchronous #[tauri::command] runs INLINE on the thread that drives
+// the webview, so a command that touches the filesystem would freeze the window
+// for the length of the call. Tagging a synchronous function `async` only moves
+// it onto an async-runtime worker, which stalled storage can exhaust. Every
+// filesystem command is therefore an `async fn` that hands its disk work to
+// native_wait::settle, whose own test (src-tauri/tests/native_wait.rs) shows that
+// stalled work holds up no other command; this guard checks that each command
+// actually goes through it.
 //
 // The list of which commands need it is DERIVED from what each body actually
 // does, not hand-maintained: a hand-kept list goes stale the moment a command
@@ -21,6 +24,7 @@ const shipped = source.slice(0, source.indexOf("\n#[cfg(test)]"));
 
 interface Command {
   attribute: string;
+  isAsync: boolean;
   name: string;
   body: string;
   touchesDisk: boolean;
@@ -28,14 +32,15 @@ interface Command {
 
 function commands(input = shipped): Command[] {
   const found: Command[] = [];
-  const attr = /#\[tauri::command(\([^)]*\))?\]\s*\n\s*(?:async\s+)?fn\s+(\w+)/g;
+  const attr = /#\[tauri::command(\([^)]*\))?\]\s*\n\s*(async\s+)?fn\s+(\w+)/g;
   let match: RegExpExecArray | null;
-  const starts: { index: number; attribute: string; name: string }[] = [];
+  const starts: { index: number; attribute: string; isAsync: boolean; name: string }[] = [];
   while ((match = attr.exec(input)) !== null) {
     starts.push({
       index: match.index,
       attribute: match[1] ?? "",
-      name: match[2],
+      isAsync: match[2] !== undefined,
+      name: match[3],
     });
   }
   for (let i = 0; i < starts.length; i += 1) {
@@ -47,6 +52,7 @@ function commands(input = shipped): Command[] {
     const body = input.slice(from, close === -1 ? input.length : close);
     found.push({
       attribute: starts[i].attribute,
+      isAsync: starts[i].isAsync,
       name: starts[i].name,
       body,
       // Direct filesystem use, or the helpers that reach it.
@@ -61,11 +67,21 @@ function commands(input = shipped): Command[] {
 
 const all = commands();
 
+// A command whose disk work does not go through settle, from an async fn.
+function unsettled(found: Command[]): string[] {
+  return found
+    .filter((c) => c.touchesDisk && !(c.isAsync && c.body.includes("native_wait::settle(")))
+    .map((c) => c.name);
+}
+
 describe("Tauri command dispatch (src-tauri/src/lib.rs)", () => {
-  it("detects an inline command that reaches the unrecorded writer", () => {
-    const planted = commands("#[tauri::command]\nfn unsafe_save() {\n    write_atomic_unrecorded(path, contents);\n}\n");
-    expect(planted.filter((c) => c.touchesDisk && !c.attribute.includes("async")).map((c) => c.name))
-      .toEqual(["unsafe_save"]);
+  it("detects a command that reaches the disk without settle", () => {
+    const planted = commands(
+      "#[tauri::command]\nfn inline_save() {\n    write_atomic_unrecorded(path, contents);\n}\n" +
+        "#[tauri::command(async)]\nfn worker_save() {\n    write_atomic(path, contents);\n}\n" +
+        "#[tauri::command]\nasync fn settled_save() {\n    native_wait::settle(move || write_atomic(path, contents)).await\n}\n",
+    );
+    expect(unsettled(planted)).toEqual(["inline_save", "worker_save"]);
   });
   it("finds the shipped commands", () => {
     // A regex that matched nothing would make every assertion below vacuous.
@@ -73,11 +89,8 @@ describe("Tauri command dispatch (src-tauri/src/lib.rs)", () => {
     expect(all.some((c) => c.name === "write_text_file_atomic")).toBe(true);
   });
 
-  it("runs every filesystem command off the UI thread", () => {
-    const inline = all
-      .filter((c) => c.touchesDisk && !c.attribute.includes("async"))
-      .map((c) => c.name);
-    expect(inline).toEqual([]);
+  it("runs every filesystem command through settle", () => {
+    expect(unsettled(all)).toEqual([]);
   });
 
   it("writes log records off the UI thread", () => {

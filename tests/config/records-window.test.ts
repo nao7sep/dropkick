@@ -67,11 +67,12 @@ describe("the Records window", () => {
   it("reads records without writing a record of its own success", () => {
     const reader = shipped.slice(shipped.indexOf("fn read_records<"), shipped.indexOf("fn read_records_page("));
     expect(reader).toContain("log_cmd_err(");
+    expect(reader).toContain("native_wait::settle(");
     expect(reader).not.toMatch(/log_cmd_start|log_cmd_ok|logging::(info|debug|warn)\(/);
     for (const command of ["read_records_page", "read_record_sources", "read_record_detail"]) {
       const at = shipped.indexOf(`fn ${command}(`);
       const body = shipped.slice(at, shipped.indexOf("\n}\n", at));
-      expect(shipped.slice(at - 40, at)).toContain("#[tauri::command(async)]");
+      expect(shipped.slice(at - 40, at)).toMatch(/#\[tauri::command\]\nasync $/);
       expect(body).toContain(`read_records("${command}"`);
       expect(body).not.toMatch(/log_cmd_start|log_cmd_ok|logging::(info|debug|warn|error)\(/);
     }
