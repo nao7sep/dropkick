@@ -185,7 +185,7 @@ describe("StartupPicker — native picker failures", () => {
 });
 
 // Built on the same shell every dialog uses — one shared background, the
-// header/body/footer bands and their control-edge separators — with two
+// header/body/footer bands and their band-edge separators — with two
 // deliberate differences: no close control (there is nothing to close back
 // to at startup) and the footer's primary action reads "Open", the app's own
 // existing term, rather than "Launch" (wrong once the app is already
@@ -197,9 +197,9 @@ describe("StartupPicker — the shared dialog shell", () => {
     const card = header.parentElement!;
     const footer = card.lastElementChild as HTMLElement;
     expect(header.className).toContain("border-b");
-    expect(header.className).toContain("border-control-edge");
+    expect(header.className).toContain("border-border");
     expect(footer.className).toContain("border-t");
-    expect(footer.className).toContain("border-control-edge");
+    expect(footer.className).toContain("border-border");
   });
 
   it("carries the title as the header band's own content, with no close control", async () => {

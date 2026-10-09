@@ -77,7 +77,7 @@ export function AppModal({
   footer,
   maxWidth = 448,
   bodyClassName = "overflow-y-auto px-6 py-5",
-  footerClassName = "flex items-center justify-end gap-2 border-t border-control-edge px-6 py-4",
+  footerClassName = "flex items-center justify-end gap-2 border-t border-border px-6 py-4",
   contentClassName = "",
   contentProps,
   passiveBodyLabel,
@@ -195,7 +195,7 @@ export function AppModal({
         >
           <div
             className={`flex min-h-14 shrink-0 items-center justify-between gap-3 px-6 py-3 ${
-              titleVisuallyHidden ? "" : "border-b border-control-edge"
+              titleVisuallyHidden ? "" : "border-b border-border"
             }`}
           >
             <Dialog.Title

@@ -73,11 +73,17 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   ["--ink", "--surface-sunken"],
 ];
 
-// Boundaries that alone identify a control or its state: a form field's
-// outline, and the focus border that replaces it.
+// The focus border identifies focus on its own, so it keeps 3:1. Lines follow
+// the interface-styling-conventions' line kinds instead of a WCAG threshold:
+// a control edge (a field's outline, a bordered button) sits at 2.0-2.5 against
+// the surface it is painted on; company/tools/measure-lines checks every line
+// as rendered.
 const BOUNDARY_PAIRS: ReadonlyArray<[string, string]> = [
-  ["--input-border", "--surface"],
   ["--primary-ring", "--surface"],
+];
+const CONTROL_EDGE_PAIRS: ReadonlyArray<[string, string]> = [
+  ["--input-border", "--surface"],
+  ["--control-edge", "--control"],
 ];
 
 function pairContrast(theme: (typeof themes)[number], foreground: string, background: string): number {
@@ -104,10 +110,18 @@ describe("theme token contrast", () => {
       }
     });
 
-    it(`keeps control boundaries at 3:1 or more in the ${theme} theme`, () => {
+    it(`keeps the focus border at 3:1 or more in the ${theme} theme`, () => {
       for (const [foreground, background] of BOUNDARY_PAIRS) {
         expect(pairContrast(theme, foreground, background), `${foreground} on ${background}`)
           .toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it(`keeps control edges within 2.0-2.5 in the ${theme} theme`, () => {
+      for (const [foreground, background] of CONTROL_EDGE_PAIRS) {
+        const ratio = pairContrast(theme, foreground, background);
+        expect(ratio, `${foreground} on ${background}`).toBeGreaterThanOrEqual(2);
+        expect(ratio, `${foreground} on ${background}`).toBeLessThanOrEqual(2.55);
       }
     });
   }

@@ -26,13 +26,18 @@ export function tokenValue(source: string, token: string): string {
 }
 
 // Resolves a token in `block` to sRGB (0–255 channels), following var()
-// references through `sources` (App.css plus Tailwind's theme.css).
+// references through the same block first, as the cascade would for that
+// theme, then through `sources` (App.css plus Tailwind's theme.css).
 export function resolveRgb(block: string, token: string, sources: string): Rgb {
   let value = tokenValue(block, token);
   for (let depth = 0; depth < 4; depth += 1) {
     const reference = value.match(/^var\((--[^)]+)\)$/)?.[1];
     if (reference === undefined) break;
-    value = tokenValue(sources, reference);
+    try {
+      value = tokenValue(block, reference);
+    } catch {
+      value = tokenValue(sources, reference);
+    }
   }
   const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
   if (hex !== undefined) {
