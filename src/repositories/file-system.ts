@@ -8,7 +8,7 @@
 // src-tauri/src/lib.rs for the exposure this does and does not cover.
 
 import { invoke } from "@tauri-apps/api/core";
-import { checkFormatVersion, withFormatVersion, type StoreFormat } from "../models/store-format";
+import { checkFormatVersion, FORMAT_VERSIONS, withFormatVersion, type StoreFormat } from "../models/store-format";
 import { log, toErrorFields } from "./logging";
 
 // Mirror of the Rust TextReadResult union (read_text_file command).
@@ -98,9 +98,9 @@ export async function writeJsonFile(
   const text = JSON.stringify(withFormatVersion(format, document), null, 2);
   try {
     // Atomic on the Rust side (temp + fsync + rename), so a crash mid-write
-    // never leaves a half-written file. The staging file
-    // (`<stem>-<nanoid>.tmp`, beside `path`) is named from a nanoid the Rust
-    // core generates itself.
+    // never leaves a half-written file. The new file is staged in a directory
+    // beside `path` (`<stem>-<nanoid>.tmp`) named from a nanoid the Rust core
+    // generates itself.
     const hash = await invoke<string>("write_text_file_atomic", {
       path,
       contents: text,
@@ -115,12 +115,13 @@ export async function writeJsonFile(
 }
 
 // Quarantines a present-but-unparseable managed store: the Rust core renames it
-// beside itself to `<stem>-<millisecond-utc-stamp>.invalid` and returns the new
-// path. Failure propagates to the caller — a failed quarantine must halt the
+// beside itself to `<stem>-<yyyymmdd-hhmmss-utc>.invalid`, never over an
+// earlier copy, and returns the new path. Failure propagates to the caller — a failed quarantine must halt the
 // load, never fall through to defaults over the preserved bytes (storage-path
 // conventions).
-export async function quarantineFile(path: string): Promise<string> {
-  return await invoke<string>("quarantine_file", { path });
+export async function quarantineFile(path: string, format: StoreFormat): Promise<string> {
+  // The core refuses to set aside a file a newer build of this format wrote.
+  return await invoke<string>("quarantine_file", { path, formatVersion: FORMAT_VERSIONS[format] });
 }
 
 // Computes SHA-256 hash of a file via the Rust backend.

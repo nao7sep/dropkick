@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "Os locais salvos foram redefinidos",
   "startup.appConfigNewer.title": "Os locais salvos não foram carregados",
   "startup.appStateFailed": "O Dropkick não conseguiu ler o estado salvo do aplicativo. Seus arquivos de espaço de trabalho e de preferências não foram alterados. Saia, verifique o log e tente novamente.",
+  "startup.appConfigFailed": "O Dropkick não conseguiu ler os locais salvos. Seus arquivos de espaço de trabalho e de preferências não foram alterados. Saia, verifique o log e tente novamente.",
   "startup.preferencesFailed.title": "Falha ao carregar as preferências",
   "startup.workspaceFailed.title": "Falha ao carregar o espaço de trabalho",
   "startup.errorTitle": "O Dropkick não conseguiu iniciar",

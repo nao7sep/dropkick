@@ -158,7 +158,10 @@ pub struct TaskDto {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskListDto {
-    // The list's stable identity, generated once when the list is created.
+    // The list's stable identity, generated once when the list is created. A
+    // v0.1.0 list may lack one; classify_json_bytes gives it one, which its
+    // next save writes. Any other list without one is invalid.
+    #[serde(default)]
     pub id: String,
     pub tasks: Vec<TaskDto>,
 }
@@ -298,13 +301,18 @@ pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
         Err(message) => return JsonFileWithHashResult::Invalid { message },
     }
     match serde_json::from_slice::<TaskListDto>(bytes) {
-        Ok(data) => match validate_task_list_identities(&data) {
+        Ok(mut data) => {
+            if data.id.is_empty() && format_version::is_v010(bytes) {
+                data.id = nanoid::generate();
+            }
+            match validate_task_list_identities(&data) {
             Ok(()) => JsonFileWithHashResult::Success {
                 data,
                 hash: sha256_hex(bytes),
             },
-            Err(message) => JsonFileWithHashResult::Invalid { message },
-        },
+                Err(message) => JsonFileWithHashResult::Invalid { message },
+            }
+        }
         Err(err) => JsonFileWithHashResult::Invalid {
             message: err.to_string(),
         },
@@ -453,11 +461,12 @@ async fn write_text_file_atomic(
     .await
 }
 
-// The staging temp-file name an atomic write renames into place:
-// `<stem>-<nanoid>.tmp`, sibling to the target (stem = the target's file name
-// without its final extension). The nanoid discriminator is generated fresh
-// per call, so distinct calls — even concurrent ones to the same path — get
-// distinct staging files. That said, the frontend still serializes writes per
+// The staging directory an atomic write creates beside its target:
+// `<stem>-<nanoid>.tmp` (stem = the target's file name without its final
+// extension), holding the new file under the target's own name until it is
+// renamed into place. The nanoid discriminator is generated fresh per call, so
+// distinct calls — even concurrent ones to the same path — get distinct
+// staging directories, and creating one fails rather than reuse another's. That said, the frontend still serializes writes per
 // path (withSerial in file-system.ts) for the unrelated reason of keeping
 // hash-checked reads and writes from interleaving.
 pub fn atomic_temp_name(file_name: &str) -> String {
@@ -607,7 +616,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         .and_then(|n| n.to_str())
         .ok_or_else(|| "path has no file name".to_string())?;
 
-    refuse_newer_json(target)?;
+    refuse_newer_json(target, contents.as_bytes())?;
 
     // A write that changes nothing is skipped (content-lifecycle-conventions,
     // Files). A target that is missing or cannot be read takes the write below.
@@ -645,7 +654,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         return Err(e.to_string());
     }
 
-    if let Err(e) = refuse_newer_json(target)
+    if let Err(e) = refuse_newer_json(target, contents.as_bytes())
         .and_then(|()| replace_target(&tmp, target).map_err(|e| e.to_string()))
     {
         let _ = std::fs::remove_file(&tmp);
@@ -682,20 +691,26 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     Ok(sha256_hex(contents.as_bytes()))
 }
 
-fn refuse_newer_json(path: &std::path::Path) -> Result<(), String> {
+// A write never replaces a file a newer build wrote. The target's marker is
+// compared with the marker of the document being written, which its writer
+// stamps with that format's current version, so each format is judged against
+// its own. Contents without a marker are not a store document and are not
+// judged; a target without one (v0.1.0's files) is never newer.
+fn refuse_newer_json(path: &std::path::Path, contents: &[u8]) -> Result<(), String> {
+    match format_version::stamped(contents) {
+        Some(writing) => refuse_newer_than(path, writing),
+        None => Ok(()),
+    }
+}
+
+fn refuse_newer_than(path: &std::path::Path, current: u64) -> Result<(), String> {
     match std::fs::read(path) {
-        Ok(bytes) => {
-            if let Ok(format_version::Marker::Newer(found)) =
-                format_version::json_bytes(&bytes, format_version::Format::State)
-            {
-                return Err(format_version::newer_message(
-                    path,
-                    found,
-                    format_version::Format::State,
-                ));
+        Ok(bytes) => match format_version::stamped(&bytes) {
+            Some(found) if found > current => {
+                Err(format_version::newer_than_message(path, found, current))
             }
-            Ok(())
-        }
+            _ => Ok(()),
+        },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.to_string()),
     }
@@ -709,31 +724,49 @@ async fn file_exists(path: String) -> Result<bool, String> {
     .await
 }
 
-// `<stem>-<yyyymmdd-hhmmss-fff-utc>.invalid` beside the source — the
+// `<stem>-<yyyymmdd-hhmmss-utc>.invalid` beside the source — the
 // derived-filename grammar with a moment discriminator (storage-path
-// conventions' quarantine name).
+// conventions' quarantine name). Seconds suffice: a store is set aside at most
+// once per launch, and set_aside refuses rather than replace an earlier copy.
 pub fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("store");
-    path.with_file_name(format!("{stem}-{}.invalid", logging::filename_stamp_now()))
+    path.with_file_name(format!("{stem}-{}.invalid", logging::filename_stamp_seconds_now()))
 }
 
-// Quarantines a present-but-unparseable managed store: renames it beside itself
-// to its quarantine name so the original bytes survive for recovery while the
-// caller recreates defaults. The rename either lands or errors — a failure must
-// reach the caller and halt the load, never fall through to a default-reset
-// over the very bytes quarantine exists to preserve (storage-path conventions).
+// Renames an unreadable store to its quarantine name so the original bytes
+// survive while the caller starts fresh. An existing file at that name is never
+// replaced (a rename would replace it silently), and every failure reaches the
+// caller, which must not fall through to a reset over the bytes this keeps.
+pub fn set_aside(path: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    set_aside_to(path, quarantine_target(path))
+}
+
+pub fn set_aside_to(
+    path: &std::path::Path,
+    target: std::path::PathBuf,
+) -> Result<std::path::PathBuf, String> {
+    if std::fs::symlink_metadata(&target).is_ok() {
+        return Err(format!("{} already exists", target.display()));
+    }
+    std::fs::rename(path, &target).map_err(|e| e.to_string())?;
+    Ok(target)
+}
+
+// Quarantines a present-but-unparseable managed store. `format_version` is the
+// version this build writes for the store's format, so a file a newer build
+// wrote meanwhile is refused and left in place.
 #[tauri::command]
-async fn quarantine_file(path: String) -> Result<String, String> {
+async fn quarantine_file(path: String, format_version: u64) -> Result<String, String> {
     native_wait::settle(move || {
         let path = path.as_str();
         let started = log_cmd_start("quarantine_file", json!({ "path": path }));
-        let target = quarantine_target(std::path::Path::new(path));
-        refuse_newer_json(std::path::Path::new(path))?;
-        match std::fs::rename(path, &target) {
-            Ok(()) => {
+        let result = refuse_newer_than(std::path::Path::new(path), format_version)
+            .and_then(|()| set_aside(std::path::Path::new(path)));
+        match result {
+            Ok(target) => {
                 let target = target.to_string_lossy().to_string();
                 log_cmd_ok(
                     "quarantine_file",
@@ -742,8 +775,7 @@ async fn quarantine_file(path: String) -> Result<String, String> {
                 );
                 Ok(target)
             }
-            Err(e) => {
-                let message = e.to_string();
+            Err(message) => {
                 log_cmd_err("quarantine_file", started, message.clone());
                 Err(message)
             }

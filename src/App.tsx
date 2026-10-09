@@ -192,10 +192,14 @@ function App() {
   // Initialize on mount.
   useEffect(() => {
     (async () => {
+      // Which store a failure leaves unread, so its message names the right one.
+      let failure: "startup.appStateFailed" | "startup.appConfigFailed" = "startup.appStateFailed";
       try {
         await loadLanguageEnvironment();
         await initializeAppState();
+        failure = "startup.appConfigFailed";
         const configRecovery = await initializeAppConfig();
+        failure = "startup.appStateFailed";
 
         // The picker appears before the user chooses a preferences document,
         // so preview the last successfully opened one. This gives the initial
@@ -225,7 +229,7 @@ function App() {
         await loadInterfaceCatalogue(currentInterfaceLanguage());
         setPhase({
           kind: "error",
-          message: message("startup.appStateFailed"),
+          message: message(failure),
         });
       }
     })();

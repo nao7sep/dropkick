@@ -58,7 +58,9 @@ vi.mock("../src/components/layout/StartupPicker", async () => {
   };
 });
 vi.mock("../src/components/layout/StartupErrorScreen", () => ({
-  StartupErrorScreen: () => "Startup error",
+  // Names which message it was given without putting a raw catalogue key on screen.
+  StartupErrorScreen: ({ message }: { message: { key: string } }) =>
+    `Startup error: ${message.key.replace(/^startup\./, "").replace(/Failed$/, "")}`,
 }));
 vi.mock("../src/components/layout/MainWindow", () => ({
   MainWindow: () => "Main window",
@@ -187,8 +189,19 @@ describe("startup theme", () => {
     });
     await mountApp();
 
-    expect(document.body.textContent).toContain("Startup error");
+    expect(document.body.textContent).toContain("Startup error: appState");
     expect(applyWindowTheme).not.toHaveBeenCalled();
+  });
+
+  it("names the saved locations when they are what could not be read", async () => {
+    useAppConfigStore.setState({
+      initialize: vi.fn(async () => {
+        throw new Error("config unreadable");
+      }),
+    });
+    await mountApp();
+
+    expect(document.body.textContent).toContain("Startup error: appConfig");
   });
 
   it("applies a changed theme once the app is running", async () => {

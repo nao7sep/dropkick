@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "Gemerkte Speicherorte wurden zurückgesetzt",
   "startup.appConfigNewer.title": "Gemerkte Speicherorte wurden nicht geladen",
   "startup.appStateFailed": "Dropkick konnte seinen gespeicherten Anwendungszustand nicht lesen. Ihre Arbeitsbereichs- und Einstellungsdateien wurden nicht geändert. Beenden Sie die App, prüfen Sie das Protokoll und versuchen Sie es erneut.",
+  "startup.appConfigFailed": "Dropkick konnte seine gemerkten Speicherorte nicht lesen. Ihre Arbeitsbereichs- und Einstellungsdateien wurden nicht geändert. Beenden Sie die App, prüfen Sie das Protokoll und versuchen Sie es erneut.",
   "startup.preferencesFailed.title": "Einstellungen konnten nicht geladen werden",
   "startup.workspaceFailed.title": "Arbeitsbereich konnte nicht geladen werden",
   "startup.errorTitle": "Dropkick konnte nicht starten",

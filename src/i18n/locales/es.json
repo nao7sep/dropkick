@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "Se restablecieron las ubicaciones guardadas",
   "startup.appConfigNewer.title": "No se cargaron las ubicaciones guardadas",
   "startup.appStateFailed": "Dropkick no pudo leer el estado guardado de la aplicación. Tus archivos de espacio de trabajo y de preferencias no se modificaron. Sal de la app, revisa el registro y vuelve a intentarlo.",
+  "startup.appConfigFailed": "Dropkick no pudo leer las ubicaciones guardadas. Tus archivos de espacio de trabajo y de preferencias no se modificaron. Sal de la app, revisa el registro y vuelve a intentarlo.",
   "startup.preferencesFailed.title": "Error al cargar las preferencias",
   "startup.workspaceFailed.title": "Error al cargar el espacio de trabajo",
   "startup.errorTitle": "Dropkick no pudo iniciarse",

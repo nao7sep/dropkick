@@ -187,6 +187,37 @@ export function isValidPreferenceSet(key: PreferenceSetKey, value: unknown): boo
   }
 }
 
+// A preferences document v0.1.0 wrote, as this build reads one (developer
+// decision: the next version opens v0.1.0's files). Sets that still mean the
+// same carry over; `darkMode: true` becomes the Dark theme, while `false`, the
+// only other choice v0.1.0 had, takes today's built-in, which follows the
+// computer; a null time zone and v0.1.0's default font ("system-ui") take their
+// built-ins too. Zoom and sidebar width are window state now and are dropped,
+// as is any identity v0.1.0 never materialized, which is generated here and
+// written at the next save. The values pass the ordinary set check after this.
+// Only a document without another kind's keys is converted, so a v0.1.0
+// workspace or task list picked as preferences is still refused.
+export function isV010PreferencesCandidate(data: Record<string, unknown>): boolean {
+  return typeof data.name === "string"
+    && !OTHER_DOCUMENT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(data, key));
+}
+
+export function fromV010Preferences(data: Record<string, unknown>): Record<string, unknown> {
+  const converted: Record<string, unknown> = {
+    id: typeof data.id === "string" && data.id !== "" ? data.id : generateId(),
+    name: data.name,
+  };
+  if (data.darkMode === true) converted.theme = "dark";
+  if (typeof data.timezone === "string") converted.timezone = data.timezone;
+  if (typeof data.fontFamily === "string" && data.fontFamily !== "system-ui") {
+    converted.fontFamily = data.fontFamily;
+  }
+  for (const key of ["kickDistances", "dueSoonDays", "handledTasksPageSize"] as const) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) converted[key] = data[key];
+  }
+  return converted;
+}
+
 // The document Save writes: identity and every set that differs from its
 // built-in (config-sets-conventions). An invalid set is refused, not written.
 export function preferencesDocument(preferences: PreferencesDto): Record<string, unknown> {

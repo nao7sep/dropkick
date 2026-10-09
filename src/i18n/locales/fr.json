@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "Emplacements mémorisés réinitialisés",
   "startup.appConfigNewer.title": "Emplacements mémorisés non chargés",
   "startup.appStateFailed": "Dropkick n’a pas pu lire l’état enregistré de l’application. Vos fichiers d’espace de travail et de préférences n’ont pas été modifiés. Quittez l’app, consultez le journal et réessayez.",
+  "startup.appConfigFailed": "Dropkick n’a pas pu lire les emplacements mémorisés. Vos fichiers d’espace de travail et de préférences n’ont pas été modifiés. Quittez l’app, consultez le journal et réessayez.",
   "startup.preferencesFailed.title": "Échec du chargement des préférences",
   "startup.workspaceFailed.title": "Échec du chargement de l’espace de travail",
   "startup.errorTitle": "Dropkick n’a pas pu démarrer",

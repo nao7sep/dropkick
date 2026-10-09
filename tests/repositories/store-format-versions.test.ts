@@ -35,8 +35,8 @@ const disk = new Map<string, string>();
 function readTaskList(path: string): unknown {
   const text = disk.get(path);
   if (text === undefined) return { status: "missing" };
-  const { formatVersion, id = "", tasks } = JSON.parse(text);
-  if (formatVersion === undefined) return { status: "invalid", message: "formatVersion is missing" };
+  const { formatVersion, version, id = "", tasks } = JSON.parse(text);
+  if (formatVersion === undefined && version !== "1.0.0") return { status: "invalid", message: "formatVersion is missing" };
   if (formatVersion > FORMAT_VERSIONS.taskList) return { status: "newer", formatVersion };
   return { status: "success", data: { id, tasks }, hash: text };
 }
@@ -94,7 +94,7 @@ function writesTo(path: string): unknown[] {
 
 describe("state.json", () => {
   it("sets aside a file without a marker and starts on the defaults", async () => {
-    const text = put(PATHS.stateFile, { version: "1.0.0", zoomLevel: 1.5 });
+    const text = put(PATHS.stateFile, { zoomLevel: 1.5 });
     const { appState } = await initializeAppState();
     expect(appState.zoomLevel).toBe(1);
     expect(disk.get(`${PATHS.stateFile}.invalid`)).toBe(text);
@@ -151,7 +151,7 @@ describe("preferences documents", () => {
   const path = "/docs/prefs.json";
 
   it("reports a document without a marker as invalid and leaves it alone", async () => {
-    const text = put(path, { version: "1.0.0", id: "p", name: "Work", theme: "dark" });
+    const text = put(path, { version: "1.0.1", id: "p", name: "Work", theme: "dark" });
     expect((await loadPreferences(path)).status).toBe("invalid");
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);
@@ -181,7 +181,7 @@ describe("workspace documents", () => {
   const path = "/docs/workspace.json";
 
   it("reports a document without a marker as invalid and leaves it alone", async () => {
-    const text = put(path, { version: "1.0.0", id: "w", name: "Work", openTabs: [], recentFiles: [] });
+    const text = put(path, { id: "w", name: "Work", openTabs: [], recentFiles: [] });
     expect((await loadWorkspace(path)).status).toBe("invalid");
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);
@@ -207,7 +207,7 @@ describe("workspace documents", () => {
 describe("task lists", () => {
   it("reports a list without a marker as invalid and leaves it alone", async () => {
     const path = "/repo/legacy.json";
-    const text = put(path, { version: "1.0.0", id: "L1", tasks: [] });
+    const text = put(path, { id: "L1", tasks: [] });
     expect((await loadTaskList(path)).status).toBe("invalid");
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);
@@ -229,5 +229,92 @@ describe("task lists", () => {
     expect(await loadTaskList(path)).toEqual({ status: "newer", formatVersion: 2 });
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);
+  });
+});
+
+// v0.1.0, the one published release before format markers, labelled every
+// document `"version": "1.0.0"` (developer decision: the next version opens
+// those files). Each loads as this build reads it, stays untouched until the
+// next save, and that save writes this build's format.
+describe("files from v0.1.0", () => {
+  it("opens preferences, keeping what still means the same", async () => {
+    const path = "/docs/prefs.json";
+    const text = put(path, {
+      version: "1.0.0", id: "p", name: "Work", fontFamily: "system-ui", darkMode: true,
+      zoomLevel: 1.2, sidebarWidth: 300, timezone: null, kickDistances: [3, 10],
+      dueSoonDays: 5, handledTasksPageSize: 50,
+    });
+    const result = await loadPreferences(path);
+    expect(result).toMatchObject({ status: "success", preferences: {
+      id: "p", name: "Work", theme: "dark", timezone: "system", fontFamily: "",
+      kickDistances: [3, 10], dueSoonDays: 5, handledTasksPageSize: 50,
+    } });
+    expect(disk.get(path)).toBe(text);
+    expect(writes()).toEqual([]);
+    if (result.status !== "success") return;
+    await flushPreferences(path, () => result.preferences);
+    expect(stored(path)).toEqual({
+      formatVersion: 1, id: "p", name: "Work", theme: "dark", kickDistances: [3, 10], dueSoonDays: 5,
+    });
+  });
+
+  it("gives v0.1.0's light mode today's built-in theme and a missing identity a new one", async () => {
+    const path = "/docs/prefs.json";
+    put(path, { version: "1.0.0", name: "Work", darkMode: false, timezone: "Asia/Tokyo" });
+    const result = await loadPreferences(path);
+    expect(result).toMatchObject({ status: "success", preferences: { theme: "system", timezone: "Asia/Tokyo" } });
+    expect(result.status === "success" && result.preferences.id).toBeTruthy();
+  });
+
+  it("opens a workspace as it is", async () => {
+    const path = "/docs/workspace.json";
+    const tabs = [{ filePath: "/repo/tasks.json", displayName: "tasks", isUnifiedView: false }];
+    const text = put(path, { version: "1.0.0", id: "w", name: "Work", openTabs: tabs, recentFiles: [] });
+    const result = await loadWorkspace(path);
+    expect(result).toMatchObject({ status: "success", workspace: { id: "w", openTabs: tabs } });
+    expect(disk.get(path)).toBe(text);
+    if (result.status !== "success") return;
+    await flushWorkspace(path, () => result.workspace);
+    expect(stored(path)).toEqual({ formatVersion: 1, id: "w", name: "Work", openTabs: tabs, recentFiles: [] });
+  });
+
+  it("opens a task list and writes this build's format at its next save", async () => {
+    const path = "/repo/tasks.json";
+    put(path, { version: "1.0.0", id: "L1", tasks: [] });
+    expect((await loadTaskList(path)).status).toBe("success");
+    expect(writes()).toEqual([]);
+    await flushTaskList(path, () => ({ id: "L1", tasks: [] }));
+    expect(stored(path)).toEqual({ formatVersion: 1, id: "L1", tasks: [] });
+  });
+
+  it("carries the last-used paths and saved locations over from its state.json", async () => {
+    const text = put(PATHS.stateFile, {
+      version: "1.0.0", lastPreferencesPath: "/docs/prefs.json", lastWorkspacePath: "/docs/workspace.json",
+      knownPreferences: [PATHS.preferencesFile, "/docs/prefs.json"],
+      knownWorkspaces: [PATHS.workspaceFile, "/docs/workspace.json"],
+    });
+    const { appState } = await initializeAppState();
+    expect(appState).toMatchObject({
+      lastPreferencesPath: "/docs/prefs.json", lastLaunchedPreferencesPath: "/docs/prefs.json",
+      lastWorkspacePath: "/docs/workspace.json",
+    });
+    expect(disk.get(PATHS.stateFile)).toBe(text);
+
+    const { appConfig } = await loadAppConfig();
+    expect(appConfig.knownPreferences).toEqual([PATHS.preferencesFile, "/docs/prefs.json"]);
+    // Written at once: the next view-state save rewrites state.json without them.
+    expect(stored(PATHS.configFile)).toEqual({
+      formatVersion: 1,
+      knownPreferences: [PATHS.preferencesFile, "/docs/prefs.json"],
+      knownWorkspaces: [PATHS.workspaceFile, "/docs/workspace.json"],
+    });
+    expect(disk.get(PATHS.stateFile)).toBe(text);
+  });
+
+  it("leaves an existing config.json in charge of the saved locations", async () => {
+    put(PATHS.stateFile, { version: "1.0.0", knownWorkspaces: ["/old.json"] });
+    put(PATHS.configFile, { formatVersion: 1, knownWorkspaces: ["/w.json"] });
+    const { appConfig } = await loadAppConfig();
+    expect(appConfig.knownWorkspaces).toEqual(["/w.json"]);
   });
 });

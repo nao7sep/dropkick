@@ -120,12 +120,12 @@ pub fn filename_stamp(ms: i64) -> String {
     format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{ms3:03}-utc")
 }
 
-// The bare filename stamp for other derived-sibling names that carry a moment
-// discriminator (a quarantined store's `<stem>-<stamp>.invalid`) — the same
-// formatter as the session's fallback log name, so there is exactly one
-// filename stamp.
-pub fn filename_stamp_now() -> String {
-    filename_stamp(now_unix_millis())
+// The seconds form, `yyyymmdd-hhmmss-utc`, the timestamp-conventions' default
+// for file names, for derived-sibling names that carry a moment discriminator
+// (a quarantined store's `<stem>-<stamp>.invalid`).
+pub fn filename_stamp_seconds_now() -> String {
+    let (y, mo, d, h, mi, s, _) = parts_from_millis(now_unix_millis());
+    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-utc")
 }
 
 // --- The logger itself ---

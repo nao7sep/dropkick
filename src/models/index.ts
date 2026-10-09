@@ -23,6 +23,8 @@ export type {
 export {
   changedPreferenceSets,
   createDefaultPreferences,
+  fromV010Preferences,
+  isV010PreferencesCandidate,
   PREFERENCE_SET_KEYS,
   isPreferencesDocument,
   isValidPreferenceSet,
@@ -71,4 +73,4 @@ export type {
 export { TASK_GROUP_ORDER } from "./domain";
 
 export type { StoreFormat, FormatVersionCheck, StoreRecovery } from "./store-format";
-export { FORMAT_VERSIONS, checkFormatVersion, withFormatVersion } from "./store-format";
+export { FORMAT_VERSIONS, V010_LABEL, checkFormatVersion, isV010Document, withFormatVersion } from "./store-format";

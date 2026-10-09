@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "Saved Locations Were Reset",
   "startup.appConfigNewer.title": "Saved Locations Were Not Loaded",
   "startup.appStateFailed": "Dropkick could not read its saved application state. Your workspace and preferences files were not changed. Quit, check the log, and try again.",
+  "startup.appConfigFailed": "Dropkick could not read its saved locations. Your workspace and preferences files were not changed. Quit, check the log, and try again.",
   "startup.preferencesFailed.title": "Preferences Load Failed",
   "startup.workspaceFailed.title": "Workspace Load Failed",
   "startup.errorTitle": "Dropkick couldn’t start",

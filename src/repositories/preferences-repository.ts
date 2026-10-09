@@ -3,8 +3,9 @@
 
 import type { PreferencesDto } from "../models";
 import {
-  createDefaultPreferences, isPreferencesDocument, isValidPreferenceSet,
-  PREFERENCE_SET_KEYS, preferencesDocument,
+  createDefaultPreferences, fromV010Preferences, isPreferencesDocument, isV010Document,
+  isV010PreferencesCandidate,
+  isValidPreferenceSet, PREFERENCE_SET_KEYS, preferencesDocument,
 } from "../models";
 import { readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
 import { log } from "./logging";
@@ -34,13 +35,19 @@ function effectivePreferences(
   return preferences;
 }
 
+// A read document as this build's: v0.1.0's converted, any other as it is.
+function current(data: unknown): unknown {
+  return isV010Document(data) && isV010PreferencesCandidate(data) ? fromV010Preferences(data) : data;
+}
+
 export async function loadPreferences(path: string): Promise<LoadPreferencesResult> {
   const result = await readJsonFileResult<unknown>(path, "preferences");
   if (result.status !== "success") return result;
-  if (!isPreferencesDocument(result.data)) {
+  const data = current(result.data);
+  if (!isPreferencesDocument(data)) {
     return { status: "invalid", message: "not a preferences document" };
   }
-  return { status: "success", preferences: effectivePreferences(result.data, path) };
+  return { status: "success", preferences: effectivePreferences(data, path) };
 }
 
 export async function flushPreferences(
@@ -51,7 +58,7 @@ export async function flushPreferences(
     // A newer build's document is refused like any other unavailable one.
     const result = await readJsonFileResult<unknown>(path, "preferences");
     if (result.status !== "missing"
-      && (result.status !== "success" || !isPreferencesDocument(result.data))) {
+      && (result.status !== "success" || !isPreferencesDocument(current(result.data)))) {
       throw new Error("Cannot save an unavailable preferences document");
     }
     await writeJsonFile(path, "preferences", preferencesDocument(getPreferences()));

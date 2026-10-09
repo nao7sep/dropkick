@@ -1,6 +1,7 @@
 // A minimal, hand-rolled nanoid: generates the discriminator used to name an
-// atomic write's temp file (`<stem>-<nanoid>.tmp`, see the derived-filename
-// grammar in the storage-path-conventions). Previously this discriminator was
+// atomic write's staging directory (`<stem>-<nanoid>.tmp`, see the
+// derived-filename grammar in the storage-path-conventions), and the identity
+// given to a v0.1.0 task list that has none. Previously this discriminator was
 // a nanoid generated in the webview (via the `nanoid` npm package) and passed
 // across the IPC boundary as a caller-supplied string parameter. Since only
 // the Rust core ever consumes it, and generating it there removes an IPC

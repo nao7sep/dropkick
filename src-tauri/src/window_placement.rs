@@ -184,8 +184,7 @@ fn load_file_owned(path: &Path) -> Result<SavedPlacement, String> {
     match parsed {
         Ok(placement) => Ok(SavedPlacement::Found(placement)),
         Err(error) => {
-            let quarantined = crate::quarantine_target(path);
-            std::fs::rename(path, &quarantined).map_err(|rename| rename.to_string())?;
+            let quarantined = crate::set_aside(path)?;
             logging::warn(
                 "invalid window placement was set aside",
                 serde_json::json!({

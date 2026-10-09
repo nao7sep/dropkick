@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "登録済みのファイルの場所がリセットされました",
   "startup.appConfigNewer.title": "登録済みのファイルの場所を読み込めませんでした",
   "startup.appStateFailed": "Dropkick は保存されたアプリケーションの状態を読み込めませんでした。ワークスペースファイルと環境設定ファイルは変更されていません。アプリを終了し、ログを確認してから、もう一度お試しください。",
+  "startup.appConfigFailed": "Dropkick は登録済みのファイルの場所を読み込めませんでした。ワークスペースファイルと環境設定ファイルは変更されていません。アプリを終了し、ログを確認してから、もう一度お試しください。",
   "startup.preferencesFailed.title": "環境設定を読み込めませんでした",
   "startup.workspaceFailed.title": "ワークスペースを読み込めませんでした",
   "startup.errorTitle": "Dropkick を起動できませんでした",

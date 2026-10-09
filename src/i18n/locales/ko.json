@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "등록된 파일 위치가 재설정됨",
   "startup.appConfigNewer.title": "등록된 파일 위치를 불러오지 못함",
   "startup.appStateFailed": "Dropkick이 저장된 애플리케이션 상태를 읽을 수 없습니다. 작업 공간 파일과 환경설정 파일은 변경되지 않았습니다. 앱을 종료하고 로그를 확인한 다음 다시 시도하십시오.",
+  "startup.appConfigFailed": "Dropkick이 등록된 파일 위치를 읽을 수 없습니다. 작업 공간 파일과 환경설정 파일은 변경되지 않았습니다. 앱을 종료하고 로그를 확인한 다음 다시 시도하십시오.",
   "startup.preferencesFailed.title": "환경설정을 불러오지 못함",
   "startup.workspaceFailed.title": "작업 공간을 불러오지 못함",
   "startup.errorTitle": "Dropkick을 시작할 수 없습니다",

@@ -30,7 +30,7 @@ fn quarantine_file_renames_and_preserves_bytes() {
     let path = dir.join("state.json");
     std::fs::write(&path, b"{ corrupt bytes").unwrap();
 
-    let quarantined = settled(quarantine_file(path.to_str().unwrap().to_string())).unwrap();
+    let quarantined = settled(quarantine_file(path.to_str().unwrap().to_string(), 1)).unwrap();
 
     assert!(!path.exists(), "source must be renamed away");
     assert_eq!(std::fs::read(&quarantined).unwrap(), b"{ corrupt bytes");
@@ -41,7 +41,7 @@ fn quarantine_file_errors_for_missing_source() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
     let path = dir.join("absent.json");
-    assert!(settled(quarantine_file(path.to_str().unwrap().to_string())).is_err());
+    assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), 1)).is_err());
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn quarantine_refuses_a_newer_document_at_the_native_boundary() {
     let path = dir.path().join("state.json");
     let bytes = br#"{"formatVersion":2,"newState":"preserve"}"#;
     std::fs::write(&path, bytes).unwrap();
-    assert!(settled(quarantine_file(path.to_str().unwrap().to_string())).is_err());
+    assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), 1)).is_err());
     assert_eq!(std::fs::read(&path).unwrap(), bytes);
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
 }

@@ -24,9 +24,11 @@ fn quarantine_target_is_stem_stamp_dot_invalid_beside_the_source() {
     let target = quarantine_target(std::path::Path::new("/data/state.json"));
     assert_eq!(target.parent(), Some(std::path::Path::new("/data")));
     let name = target.file_name().and_then(|n| n.to_str()).unwrap();
-    // <stem>-<yyyymmdd-hhmmss-fff-utc>.invalid — one final role extension,
-    // never a suffix dot-appended after the full "state.json".
+    // <stem>-<yyyymmdd-hhmmss-utc>.invalid — seconds, one final role
+    // extension, never a suffix dot-appended after the full "state.json".
     assert!(name.starts_with("state-"), "unexpected name: {name}");
+    let stamp = name.trim_start_matches("state-").trim_end_matches("-utc.invalid");
+    assert_eq!(stamp.len(), "yyyymmdd-hhmmss".len(), "not seconds: {name}");
     assert!(name.ends_with("-utc.invalid"), "unexpected name: {name}");
     assert!(!name.contains("state.json"), "old shape leaked in: {name}");
 }
@@ -47,11 +49,12 @@ fn classify_json_bytes_success_and_invalid() {
     ));
 }
 
-// The task list's format version (store-recovery-conventions).
+// The task list's format version (store-recovery-conventions). v0.1.0's label
+// is the one stand-in for a marker; see a_v010_task_list_is_read_*.
 #[test]
 fn a_task_list_without_a_marker_is_invalid() {
     for json in [
-        &br#"{"version":"1.0.0","id":"L1","tasks":[]}"#[..],
+        &br#"{"version":"1.0.1","id":"L1","tasks":[]}"#[..],
         br#"{"id":"L1","tasks":[]}"#,
         br#"[]"#,
     ] {
@@ -158,9 +161,63 @@ fn native_publication_preserves_a_newer_document_even_for_equal_bytes() {
     let bytes = r#"{"formatVersion":2,"newField":"keep"}"#;
     std::fs::write(&path, bytes).unwrap();
     assert!(write_atomic(path.to_str().unwrap(), r#"{"formatVersion":1}"#).is_err());
-    assert!(write_atomic_unrecorded(path.to_str().unwrap(), bytes).is_err());
+    assert!(write_atomic_unrecorded(path.to_str().unwrap(), r#"{"formatVersion":1,"newField":"keep"}"#).is_err());
     assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+// Each write is judged against its own format's version, which it stamps, not
+// against one shared number.
+#[test]
+fn a_write_is_judged_against_the_version_it_writes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("store.json");
+    let p = path.to_str().unwrap();
+    std::fs::write(&path, r#"{"formatVersion":3}"#).unwrap();
+    assert!(write_atomic(p, r#"{"formatVersion":2}"#).is_err());
+    write_atomic(p, r#"{"formatVersion":3,"x":1}"#).unwrap();
+    // v0.1.0's files carry a label, not a marker, so they are never newer.
+    std::fs::write(&path, r#"{"version":"1.0.0","id":"L1","tasks":[]}"#).unwrap();
+    write_atomic(p, r#"{"formatVersion":1,"id":"L1","tasks":[]}"#).unwrap();
+}
+
+#[test]
+fn setting_a_store_aside_never_replaces_an_earlier_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("state.json");
+    let earlier = dir.path().join("state-20261009-120000-utc.invalid");
+    std::fs::write(&path, "now").unwrap();
+    std::fs::write(&earlier, "earlier").unwrap();
+    assert!(set_aside_to(&path, earlier.clone()).is_err());
+    assert_eq!(std::fs::read_to_string(&earlier).unwrap(), "earlier");
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "now");
+}
+
+#[test]
+fn a_v010_task_list_is_read_and_given_an_identity_when_it_has_none() {
+    let task = r#"{"id":"t1","title":"T","description":"","status":"Pending","priority":"Default","dueDate":null,"createdAtUtc":"2026-07-01T00:00:00.000Z","updatedAtUtc":"2026-07-01T00:00:00.000Z","completedAtUtc":null,"notes":[{"id":"n1","content":"c","actionability":"Informational","createdAtUtc":"2026-07-01T00:00:00.000Z"}]}"#;
+    let with_id = format!(r#"{{"version":"1.0.0","id":"L1","tasks":[{task}]}}"#);
+    match classify_json_bytes(with_id.as_bytes()) {
+        JsonFileWithHashResult::Success { data, hash } => {
+            assert_eq!(data.id, "L1");
+            assert_eq!(data.tasks.len(), 1);
+            assert_eq!(hash, sha256_hex(with_id.as_bytes()));
+        }
+        _ => panic!("a v0.1.0 list must be read"),
+    }
+    let without_id = format!(r#"{{"version":"1.0.0","tasks":[{task}]}}"#);
+    match classify_json_bytes(without_id.as_bytes()) {
+        JsonFileWithHashResult::Success { data, .. } => assert!(!data.id.is_empty()),
+        _ => panic!("a v0.1.0 list without an id must be read"),
+    }
+    // Only v0.1.0's label stands in for the marker, and only for v0.1.0.
+    for bytes in [
+        r#"{"version":"2.0.0","id":"L1","tasks":[]}"#,
+        r#"{"id":"L1","tasks":[]}"#,
+        r#"{"formatVersion":1,"tasks":[]}"#,
+    ] {
+        assert!(matches!(classify_json_bytes(bytes.as_bytes()), JsonFileWithHashResult::Invalid { .. }), "{bytes}");
+    }
 }
 
 #[cfg(unix)]

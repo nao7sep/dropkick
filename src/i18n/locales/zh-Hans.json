@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "已记录的文件位置已重置",
   "startup.appConfigNewer.title": "未能载入已记录的文件位置",
   "startup.appStateFailed": "Dropkick 无法读取已保存的应用状态。你的工作区文件和偏好设置文件未被更改。请退出应用，查看日志后重试。",
+  "startup.appConfigFailed": "Dropkick 无法读取已记录的文件位置。你的工作区文件和偏好设置文件未被更改。请退出应用，查看日志后重试。",
   "startup.preferencesFailed.title": "无法加载偏好设置",
   "startup.workspaceFailed.title": "无法加载工作区",
   "startup.errorTitle": "Dropkick 无法启动",

@@ -81,7 +81,17 @@ fn cached_mutation_admission_refuses_a_newer_marker() {
 fn a_missing_marker_is_unreadable_and_a_newer_one_is_reported() {
     let format = Format::State;
     assert!(format_version::json_value(&json!({}), format).is_err());
-    assert!(format_version::json_value(&json!({ "version": "1.0.0" }), format).is_err());
+    assert!(format_version::json_value(&json!({ "version": "1.0.1" }), format).is_err());
+    assert!(format_version::json_value(&json!({ "version": 1 }), format).is_err());
+    // v0.1.0's label stands in for version 1; a real marker beside it wins.
+    assert_eq!(
+        format_version::json_value(&json!({ "version": "1.0.0" }), format),
+        Ok(Marker::Readable)
+    );
+    assert_eq!(
+        format_version::json_value(&json!({ "version": "1.0.0", "formatVersion": 2 }), format),
+        Ok(Marker::Newer(2))
+    );
     assert!(format_version::json_value(&json!([1]), format).is_err());
     assert!(format_version::json_bytes(b"{ not json", format).is_err());
     assert!(format_version::json_bytes(br#"{"formatVersion":null}"#, format).is_err());

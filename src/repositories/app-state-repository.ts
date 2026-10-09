@@ -1,7 +1,7 @@
 // Owns state.json, initial document creation, and serialized view-state writes.
 
 import type { AppStateDto } from "../models";
-import { createDefaultAppState } from "../models";
+import { createDefaultAppState, isV010Document } from "../models";
 import {
   readJsonFileResult,
   writeJsonFile,
@@ -81,13 +81,28 @@ export async function initializeAppState(): Promise<{
   let resetReason: LogFields | null = null;
   if (configResult.status === "invalid") {
     resetReason = { error: { message: configResult.message } };
+  } else if (configResult.status === "success" && isV010Document(configResult.data)) {
+    // v0.1.0's state.json held the last-used paths and the saved locations
+    // (developer decision: the next version opens v0.1.0's files). The paths
+    // carry over here, the locations in loadAppConfig, and the file is left as
+    // it is until the next view-state save writes this build's state.
+    const data = configResult.data;
+    const path = (value: unknown, fallback: string) =>
+      typeof value === "string" && value !== "" ? value : fallback;
+    const lastPreferencesPath = path(data.lastPreferencesPath, prefsPath);
+    appState = {
+      ...createDefaultAppState(),
+      lastPreferencesPath,
+      lastLaunchedPreferencesPath: lastPreferencesPath,
+      lastWorkspacePath: path(data.lastWorkspacePath, workspacePath),
+    };
   } else if (configResult.status === "success") {
     const parsed = parseAppState(configResult.data);
     if (typeof parsed === "string") resetReason = { issue: parsed };
     else appState = parsed;
   }
   if (resetReason) {
-    const quarantinedTo = await quarantineFile(statePath);
+    const quarantinedTo = await quarantineFile(statePath, "state");
     log.warn("state.json reset", { statePath, quarantinedTo, ...resetReason });
   }
 

@@ -185,6 +185,7 @@
   "startup.appConfigReset.title": "Le posizioni salvate sono state reimpostate",
   "startup.appConfigNewer.title": "Le posizioni salvate non sono state caricate",
   "startup.appStateFailed": "Dropkick non è riuscito a leggere lo stato salvato dell’applicazione. I file dell’area di lavoro e delle preferenze non sono stati modificati. Esci, controlla il log e riprova.",
+  "startup.appConfigFailed": "Dropkick non è riuscito a leggere le posizioni salvate. I file dell’area di lavoro e delle preferenze non sono stati modificati. Esci, controlla il log e riprova.",
   "startup.preferencesFailed.title": "Caricamento delle preferenze non riuscito",
   "startup.workspaceFailed.title": "Caricamento dell’area di lavoro non riuscito",
   "startup.errorTitle": "Dropkick non è riuscito ad avviarsi",
