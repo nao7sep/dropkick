@@ -404,9 +404,28 @@ fn write_atomic_errors_when_parent_missing() {
     assert!(write_atomic(path.to_str().unwrap(), "x").is_err());
 }
 
+#[cfg(windows)]
+#[test]
+fn write_atomic_preserves_a_target_open_without_delete_sharing() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tasks.json");
+    let original = r#"{"formatVersion":1,"id":"list","tasks":[]}"#;
+    std::fs::write(&path, original).unwrap();
+    // FILE_SHARE_READ | FILE_SHARE_WRITE, deliberately no FILE_SHARE_DELETE:
+    // another program can read the list but prevents its atomic replacement.
+    let held = std::fs::OpenOptions::new().read(true).share_mode(0x00000003)
+        .open(&path).unwrap();
+    assert!(write_atomic(path.to_str().unwrap(), r#"{"formatVersion":1,"id":"changed","tasks":[]}"#).is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "staging must be cleaned up");
+    drop(held);
+}
+
 
 #[test]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn write_atomic_writes_through_a_symlink_instead_of_replacing_it() {
     // A rename replaces a directory entry, so writing to the link's own path
     // would turn the link into a regular file: every later save would land on
@@ -418,7 +437,11 @@ fn write_atomic_writes_through_a_symlink_instead_of_replacing_it() {
     let real = dir.join("real.json");
     let link = dir.join("link.json");
     std::fs::write(&real, "before").unwrap();
+    #[cfg(unix)]
     std::os::unix::fs::symlink(&real, &link).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(&real, &link)
+        .expect("Windows symlink test requires Developer Mode or symlink creation privilege");
 
     write_atomic(link.to_str().unwrap(), "after").unwrap();
 

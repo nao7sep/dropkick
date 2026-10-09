@@ -44,6 +44,24 @@ fn quarantine_file_errors_for_missing_source() {
     assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), 1)).is_err());
 }
 
+#[cfg(windows)]
+#[test]
+fn quarantine_preserves_a_target_open_without_delete_sharing() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("state.json");
+    let original = b"{ corrupt bytes";
+    std::fs::write(&path, original).unwrap();
+    // Permit reading, but deny the delete/rename needed to quarantine it.
+    let held = std::fs::OpenOptions::new().read(true).share_mode(0x00000003)
+        .open(&path).unwrap();
+    assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), 1)).is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "no quarantine copy on failure");
+    drop(held);
+}
+
 #[test]
 fn quarantine_refuses_a_newer_document_at_the_native_boundary() {
     let dir = tempfile::tempdir().unwrap();

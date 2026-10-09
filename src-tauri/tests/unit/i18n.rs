@@ -114,3 +114,36 @@ fn every_menu_key_is_in_every_language() {
 fn catalogue_text_fills_in_the_app_name() {
     assert_eq!(catalogue("en").text("nativeMenu.quit", "Dropkick"), "Quit Dropkick");
 }
+
+#[cfg(target_os = "macos")]
+#[test]
+#[serial_test::serial(appkit_defaults)]
+fn appkit_language_is_a_volatile_override() {
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{NSArgumentDomain, NSArray, NSDictionary, NSString, NSUserDefaults};
+
+    // Restore the process-global override even if an assertion unwinds. This
+    // exercises Foundation without writing to the user's persistent defaults.
+    struct RestoreDomain(Retained<NSUserDefaults>, Retained<NSDictionary<NSString, AnyObject>>);
+    impl Drop for RestoreDomain {
+        fn drop(&mut self) {
+            // SAFETY: this is the original property-list domain from Foundation.
+            unsafe { self.0.setVolatileDomain_forName(&self.1, NSArgumentDomain) };
+        }
+    }
+
+    let defaults = NSUserDefaults::standardUserDefaults();
+    // SAFETY: Foundation defines this constant domain name.
+    let domain_name = unsafe { NSArgumentDomain };
+    let _restore = RestoreDomain(defaults.clone(), defaults.volatileDomainForName(domain_name));
+    crate::i18n::align_appkit("ja");
+
+    let key = NSString::from_str("AppleLanguages");
+    let domain = defaults.volatileDomainForName(domain_name);
+    let value = domain.objectForKey(&key).expect("volatile AppleLanguages");
+    let languages = value.downcast_ref::<NSArray>().expect("language array");
+    assert_eq!(languages.count(), 1);
+    assert_eq!(languages.objectAtIndex(0).downcast_ref::<NSString>().unwrap().to_string(), "ja");
+    assert_eq!(&*defaults.arrayForKey(&key).unwrap(), languages);
+}
