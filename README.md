@@ -10,7 +10,7 @@ Let tasks sort themselves by urgency, kick the ones you can't do yet down the li
 - **Notes with actionability** — mark notes Informational, Actionable, or Resolved; a task with an unresolved actionable note can't be completed
 - **Unsaved text stays while you work** — text typed into a new note or an existing note's editor stays when you switch tasks or tabs, until you save it, **Cancel** it, or press **Escape** on a changed edit, which asks first. Quitting with unsaved note text asks before discarding it, and it does not come back after a restart. A task's title or description is saved when you leave the field, and at quit.
 - **Keyboard-first** — change status, priority, and due dates without leaving the keys
-- **Safe on disk** — an open list picks up edits made to its file outside the app; while you have unsaved text for one of its tasks it keeps your copy instead, and SHA-256 change detection before every overwrite means the outside edit is never silently clobbered
+- **Safe on disk** — an open list re-reads its file when you return to it (its tab, the unified view, or the window coming to the front), so changes made by an editor, git or a synced folder show up; while you have unsaved changes for it, it keeps your copy, and a check before every save means an outside change is never silently overwritten — you choose to overwrite it or reload. A save that fails keeps your edit, marks the list **Not saved** and offers **Retry**
 - **IME-safe** — Japanese/Chinese/Korean input works in every text field
 - **Ten interface languages** — English, Japanese, Chinese, Korean, Spanish, Portuguese, French, German, Italian, and Russian, following the computer's language by default
 
