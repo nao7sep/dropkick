@@ -869,6 +869,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
                 [sourceFilePath]: { data: settled.sourceData },
                 [destFilePath]: { data: settled.destData },
               }, selectedKeys: new Set() }));
+              // Both writes carried the store's whole copy of each list, so a
+              // list left unsaved by an earlier failure is saved now.
+              clearUnsaved(sourceFilePath);
+              clearUnsaved(destFilePath);
               for (const [path, retained, saved] of [
                 [sourceFilePath, settled.sourceData, sourceData],
                 [destFilePath, settled.destData, destData],
@@ -893,6 +897,14 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         return { status: "success" };
       }
 
+      // The destination still holds the moved tasks on disk while the screen
+      // shows them only in the source. Marking it unsaved lets its Retry, its
+      // next save, and the quit and tab-close questions write the screen copy
+      // back, so a failed move still changes nothing.
+      if (result.status === "dest-unsaved") {
+        markUnsaved(destFilePath, message("write.taskList"));
+      }
+
       const failure =
         result.status === "dest-conflict"
           ? message("move.destConflict")
@@ -902,7 +914,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
               ? message("move.sourceConflict")
               : result.status === "source-deleted"
                 ? message("move.sourceDeleted")
-                : result.message;
+                : result.status === "dest-unsaved"
+                  ? message("move.failed")
+                  : result.message;
 
       log.warn("move tasks failed", {
         source: sourceFilePath,

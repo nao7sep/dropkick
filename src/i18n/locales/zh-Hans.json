@@ -104,7 +104,6 @@
   "move.sourceNotLoaded": "源任务列表已不再加载。请重新打开后再移动任务。",
   "move.destNotLoaded": "目标任务列表已不再加载。请重新打开后再移动任务。",
   "move.nothing": "没有可移动的任务",
-  "move.rollbackFailed": "移动失败，且 Dropkick 无法恢复目标列表。请先重新载入这两个文件，再继续操作。",
   "move.sameFile": "源列表和目标列表必须不同",
   "move.failed": "无法移动任务。任务仍保留在原来的列表中，请重试。",
   "move.destConflict": "目标文件已在 Dropkick 之外被修改。未移动任何任务。",

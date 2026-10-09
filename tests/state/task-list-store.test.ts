@@ -606,6 +606,47 @@ describe("moveTasks", () => {
     expect(tasksOf(SRC).map((t) => t.id)).toEqual(["s1", "s2"]);
     expect(tasksOf(DST).map((t) => t.id)).toEqual(["d1"]);
   });
+
+  it("marks a destination that could not be restored unsaved, and Retry writes it back", async () => {
+    seedTwoFiles();
+    flushMove.mockResolvedValue({ status: "dest-unsaved" });
+
+    const result = await useTaskListStore.getState().moveTasks(SRC, DST, new Set(["s1"]));
+
+    expect(result).toEqual({ status: "error", message: message("move.failed") });
+    expect(tasksOf(SRC).map((t) => t.id)).toEqual(["s1", "s2"]);
+    expect(tasksOf(DST).map((t) => t.id)).toEqual(["d1"]);
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([DST]);
+
+    const written: string[][] = [];
+    flushTaskList.mockImplementation(async (_p: string, getData: () => TaskListDto) => {
+      written.push(getData().tasks.map((t) => t.id));
+      return { status: "success" };
+    });
+    useTaskListStore.getState().retryUnsaved();
+    await vi.waitFor(() => expect(written).toEqual([["d1"]]));
+    await vi.waitFor(() => expect(useTaskListStore.getState().unsavedPaths()).toEqual([]));
+  });
+
+  it("clears both lists' unsaved marks when a repeated move lands", async () => {
+    seedTwoFiles();
+    flushMove.mockResolvedValueOnce({ status: "dest-unsaved" });
+    await useTaskListStore.getState().moveTasks(SRC, DST, new Set(["s1"]));
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([DST]);
+
+    flushMove.mockImplementationOnce(async (_s, _d, getInputs: () => MoveInputs | null) => {
+      const inputs = getInputs()!;
+      const sourceData = { ...inputs.sourceDataPreMove, tasks: inputs.sourceTasksPostMove };
+      const destData = { ...inputs.destDataPreMove, tasks: inputs.destTasksPostMove };
+      return { status: "success", sourceData, destData };
+    });
+    const result = await useTaskListStore.getState().moveTasks(SRC, DST, new Set(["s1"]));
+
+    expect(result).toEqual({ status: "success" });
+    expect(tasksOf(SRC).map((t) => t.id)).toEqual(["s2"]);
+    expect(tasksOf(DST).map((t) => t.id)).toEqual(["s1", "d1"]);
+    expect(useTaskListStore.getState().unsavedPaths()).toEqual([]);
+  });
 });
 
 describe("handled pagination", () => {

@@ -70,7 +70,7 @@ export type MoveResult =
   | { status: "dest-conflict" }
   | { status: "source-deleted" }
   | { status: "dest-deleted" }
-  | { status: "rollback-failed"; message: Message }
+  | { status: "dest-unsaved" }
   | { status: "error"; message: Message };
 
 // Inputs the store provides to `flushMove`. Returned by a closure invoked
@@ -358,7 +358,10 @@ export async function flushMove(
     }
 
     // Source-write failed; roll the destination back. A throw here is a failed
-    // rollback like any other.
+    // rollback like any other. A destination left holding the moved tasks is
+    // reported as unsaved rather than told to reload: its stored hash is the
+    // moved copy's, so returning to it reads it as unchanged, and the store's
+    // in-memory copy (pre-move) is what a Retry or the next save writes back.
     let rolledBack = false;
     try {
       rolledBack =
@@ -366,13 +369,7 @@ export async function flushMove(
     } catch (e) {
       log.error("move rollback write failed", { dest: destFilePath, ...toErrorFields(e) });
     }
-    if (!rolledBack) {
-      return {
-        status: "rollback-failed",
-        message:
-          message("move.rollbackFailed"),
-      };
-    }
+    if (!rolledBack) return { status: "dest-unsaved" };
     switch (sourceResult.status) {
       case "conflict":
         return { status: "source-conflict" };

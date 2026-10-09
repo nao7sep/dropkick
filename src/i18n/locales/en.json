@@ -104,7 +104,6 @@
   "move.sourceNotLoaded": "The source task list is no longer loaded. Reopen it before moving tasks.",
   "move.destNotLoaded": "The destination task list is no longer loaded. Reopen it before moving tasks.",
   "move.nothing": "Nothing to move",
-  "move.rollbackFailed": "The move failed and Dropkick could not restore the destination. Reload both files before continuing.",
   "move.sameFile": "Source and destination must be different",
   "move.failed": "The tasks could not be moved. They remain in their current lists; try again.",
   "move.destConflict": "The destination file was modified outside Dropkick. No tasks were moved.",

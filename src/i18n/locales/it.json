@@ -104,7 +104,6 @@
   "move.sourceNotLoaded": "La lista di attività di origine non è più caricata. Riaprila prima di spostare le attività.",
   "move.destNotLoaded": "La lista di attività di destinazione non è più caricata. Riaprila prima di spostare le attività.",
   "move.nothing": "Niente da spostare",
-  "move.rollbackFailed": "Lo spostamento non è riuscito e Dropkick non ha potuto ripristinare la destinazione. Ricarica entrambi i file prima di continuare.",
   "move.sameFile": "L’origine e la destinazione devono essere diverse",
   "move.failed": "Impossibile spostare le attività. Restano nelle liste attuali; riprova.",
   "move.destConflict": "Il file di destinazione è stato modificato al di fuori di Dropkick. Nessuna attività è stata spostata.",

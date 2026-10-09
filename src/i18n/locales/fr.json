@@ -104,7 +104,6 @@
   "move.sourceNotLoaded": "La liste de tâches source n’est plus chargée. Rouvrez-la avant de déplacer des tâches.",
   "move.destNotLoaded": "La liste de tâches de destination n’est plus chargée. Rouvrez-la avant de déplacer des tâches.",
   "move.nothing": "Rien à déplacer",
-  "move.rollbackFailed": "Le déplacement a échoué et Dropkick n’a pas pu restaurer la destination. Rechargez les deux fichiers avant de continuer.",
   "move.sameFile": "La source et la destination doivent être différentes",
   "move.failed": "Les tâches n’ont pas pu être déplacées. Elles restent dans leurs listes actuelles\u00a0; réessayez.",
   "move.destConflict": "Le fichier de destination a été modifié en dehors de Dropkick. Aucune tâche n’a été déplacée.",

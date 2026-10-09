@@ -312,7 +312,7 @@ describe("flushMove", () => {
     expect(dstWrites[1][1]).toEqual(inputs().destDataPreMove);
   });
 
-  it("reports rollback-failed when the rollback write itself throws", async () => {
+  it("reports the destination unsaved when the rollback write itself throws", async () => {
     await registerBoth();
     hashFile
       .mockResolvedValueOnce("D0")
@@ -323,23 +323,17 @@ describe("flushMove", () => {
       .mockRejectedValueOnce(new Error("device not configured"))
       .mockRejectedValueOnce(new Error("device not configured"));
     const result = await repo.flushMove(SRC, DST, inputs);
-    expect(result).toEqual({
-      status: "rollback-failed",
-      message: message("move.rollbackFailed"),
-    });
+    expect(result).toEqual({ status: "dest-unsaved" });
   });
 
-  it("reports rollback-failed when restoring the destination also fails", async () => {
+  it("reports the destination unsaved when restoring it also conflicts", async () => {
     await registerBoth();
     hashFile
       .mockResolvedValueOnce("D0").mockResolvedValueOnce("D1") // dest write ok
       .mockResolvedValueOnce("SRC-CHANGED") // source conflict
       .mockResolvedValueOnce("ROLLBACK-CHANGED"); // rollback also conflicts
     const result = await repo.flushMove(SRC, DST, inputs);
-    expect(result).toEqual({
-      status: "rollback-failed",
-      message: message("move.rollbackFailed"),
-    });
+    expect(result).toEqual({ status: "dest-unsaved" });
   });
 });
 

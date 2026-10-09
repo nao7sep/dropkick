@@ -104,7 +104,6 @@
   "move.sourceNotLoaded": "Die Quellliste ist nicht mehr geladen. Öffnen Sie sie erneut, bevor Sie Aufgaben verschieben.",
   "move.destNotLoaded": "Die Zielliste ist nicht mehr geladen. Öffnen Sie sie erneut, bevor Sie Aufgaben verschieben.",
   "move.nothing": "Nichts zu verschieben",
-  "move.rollbackFailed": "Das Verschieben ist fehlgeschlagen, und Dropkick konnte das Ziel nicht wiederherstellen. Laden Sie beide Dateien neu, bevor Sie fortfahren.",
   "move.sameFile": "Quelle und Ziel müssen verschieden sein",
   "move.failed": "Die Aufgaben konnten nicht verschoben werden. Sie bleiben in ihren bisherigen Listen; versuchen Sie es erneut.",
   "move.destConflict": "Die Zieldatei wurde außerhalb von Dropkick geändert. Es wurden keine Aufgaben verschoben.",

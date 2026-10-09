@@ -104,7 +104,6 @@
   "move.sourceNotLoaded": "La lista de tareas de origen ya no está cargada. Vuelve a abrirla antes de mover tareas.",
   "move.destNotLoaded": "La lista de tareas de destino ya no está cargada. Vuelve a abrirla antes de mover tareas.",
   "move.nothing": "No hay nada que mover",
-  "move.rollbackFailed": "No se pudo completar el traslado y Dropkick no pudo restaurar el destino. Vuelve a cargar ambos archivos antes de continuar.",
   "move.sameFile": "El origen y el destino deben ser distintos",
   "move.failed": "No se pudieron mover las tareas. Siguen en sus listas actuales; inténtalo de nuevo.",
   "move.destConflict": "El archivo de destino se modificó fuera de Dropkick. No se movió ninguna tarea.",
