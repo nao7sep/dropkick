@@ -887,14 +887,13 @@ async fn suggested_setup_directory() -> Result<String, String> {
 #[tauri::command]
 async fn create_initial_documents(
     directory: String,
-    preferences: Value,
     workspace: Value,
     task_list: Option<Value>,
     task_list_name: String,
 ) -> Result<first_run::InitialDocuments, first_run::Failure> {
     native_wait::settle(move || {
         let started = log_cmd_start("create_initial_documents", json!({ "directory": directory }));
-        let result = first_run::create(std::path::Path::new(&directory), preferences, workspace, task_list, &task_list_name);
+        let result = first_run::create(std::path::Path::new(&directory), workspace, task_list, &task_list_name);
         match &result {
             Ok(_) => log_cmd_ok("create_initial_documents", started, json!({})),
             Err(error) => log_cmd_err("create_initial_documents", started, &error.diagnostic),

@@ -27,8 +27,6 @@ beforeEach(() => {
 });
 
 const STORED = {
-  lastPreferencesPath: "/selected.json",
-  lastLaunchedPreferencesPath: "/launched.json",
   lastWorkspacePath: "/work.json",
   zoomLevel: 1.5,
   sidebarWidth: 440,
@@ -51,7 +49,7 @@ describe("app-level view state", () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
     fileExists.mockImplementation(async (path: string) => path === `${ROOT}/preferences.json`);
     const { appState } = await initializeAppState();
-    expect(appState.lastPreferencesPath).toBe(`${ROOT}/preferences.json`);
+    expect(appState).not.toHaveProperty("lastPreferencesPath");
     expect(appState.lastWorkspacePath).toBe("");
     expect(writeJsonFile.mock.calls.map((call) => call[0])).toEqual([`${ROOT}/state.json`]);
   });
@@ -83,7 +81,6 @@ describe("app-level view state", () => {
     { status: "success", data: { ...STORED, zoomLevel: 0 } },
     { status: "success", data: { ...STORED, zoomLevel: 5.1 } },
     { status: "success", data: { ...STORED, lastWorkspacePath: [] } },
-    { status: "success", data: { ...STORED, lastLaunchedPreferencesPath: undefined } },
     { status: "success", data: {} },
   ])("quarantines damaged or incomplete state before recreating view defaults", async (result) => {
     readJsonFileResult.mockResolvedValue(result);

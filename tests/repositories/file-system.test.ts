@@ -168,7 +168,7 @@ describe("managed JSON backup policy", () => {
     expect(await writeJsonFile("/store.json", "state", { value: 1 }, recorded)).toBe("digest");
     const writes = vi.mocked(invoke).mock.calls.filter(([command]) => command === "write_text_file_atomic");
     expect(writes).toEqual([["write_text_file_atomic", {
-      path: "/store.json", contents: JSON.stringify({ formatVersion: 1, value: 1 }, null, 2),
+      path: "/store.json", contents: JSON.stringify({ formatVersion: 2, value: 1 }, null, 2),
       ...(recorded ? {} : { recordBackup: false }),
     }]]);
   });

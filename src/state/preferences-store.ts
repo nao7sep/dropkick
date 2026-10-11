@@ -1,4 +1,4 @@
-// PreferencesStore — loaded once at launch from the selected preferences file.
+// PreferencesStore — loaded once at launch from the app-wide settings collection.
 // Provides display settings, timezone, kick distances, etc. to the entire app.
 //
 // `update` mutates synchronously, then awaits a serialized flush via the
@@ -16,7 +16,7 @@ import type { ActionResult } from "./action-result";
 import { changedPreferenceSets, createDefaultPreferences } from "../models";
 import type { LoadPreferencesResult } from "../repositories";
 import {
-  loadPreferences,
+  initializePreferences,
   flushPreferences,
   log,
 } from "../repositories";
@@ -32,8 +32,7 @@ interface PreferencesState {
   loaded: boolean;
 
   // Actions.
-  load: (filePath: string) => Promise<LoadPreferencesResult>;
-  adopt: (filePath: string, preferences: PreferencesDto) => void;
+  initialize: () => Promise<LoadPreferencesResult & { filePath: string }>;
   update: (changes: Partial<PreferenceSets>) => Promise<ActionResult>;
 }
 
@@ -42,32 +41,24 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
   // The confirmed snapshot provides a safe rollback point after the final
   // outstanding write fails.
   let nextRevision = 0;
-  let documentRevision = 0;
   let pendingWrites = 0;
   let lastPersistedWrite = 0;
-  let persistedPreferences = createDefaultPreferences("Default");
+  let persistedPreferences = createDefaultPreferences();
 
   return {
-    preferences: createDefaultPreferences("Default"),
+    preferences: createDefaultPreferences(),
     filePath: "",
     loaded: false,
 
-    load: async (filePath: string) => {
-      const result = await loadPreferences(filePath);
+    initialize: async () => {
+      const result = await initializePreferences();
       if (result.status !== "success") return result;
 
-      get().adopt(filePath, result.preferences);
-      return result;
-    },
-
-    adopt: (filePath, preferences) => {
-      // A newly loaded document supersedes any completion still in flight from
-      // the previous one.
-      documentRevision += 1;
       pendingWrites = 0;
       lastPersistedWrite = 0;
-      persistedPreferences = preferences;
-      set({ preferences, filePath, loaded: true });
+      persistedPreferences = result.preferences;
+      set({ preferences: result.preferences, filePath: result.filePath, loaded: true });
+      return result;
     },
 
     update: async (changes: Partial<PreferenceSets>) => {
@@ -90,7 +81,6 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
 
       const { filePath } = get();
       if (!filePath) return { status: "success" };
-      const writeDocumentRevision = documentRevision;
       pendingWrites += 1;
 
       // Serialized flush. The getter is invoked inside the slot so it captures
@@ -105,12 +95,8 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
           return written;
         });
       } catch (e) {
-        if (documentRevision === writeDocumentRevision) {
-          pendingWrites = Math.max(0, pendingWrites - 1);
-          if (pendingWrites === 0) {
-            set({ preferences: persistedPreferences });
-          }
-        }
+        pendingWrites = Math.max(0, pendingWrites - 1);
+        if (pendingWrites === 0) set({ preferences: persistedPreferences });
         return {
           status: "error",
           message: message("write.preferences"),
@@ -122,9 +108,6 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       // Ignore an out-of-order older completion when selecting the rollback
       // snapshot (the repository serializes these in production; this also
       // makes the store robust to an equivalent adapter).
-      if (documentRevision !== writeDocumentRevision) {
-        return { status: "success" };
-      }
       pendingWrites = Math.max(0, pendingWrites - 1);
       if (written && revision > lastPersistedWrite) {
         persistedPreferences = written;

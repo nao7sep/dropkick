@@ -152,7 +152,8 @@ export interface AppPaths {
   root: string;
   stateFile: string;
   configFile: string;
-  preferencesFile: string;
+  preferencesFile: string; // legacy import only
+  settingsFile: string;
   workspaceFile: string;
   logsDir: string;
   backupsFile: string;

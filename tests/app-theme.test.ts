@@ -91,7 +91,7 @@ const LAST_PREFERENCES = "/last-preferences.json";
 let host: Mounted;
 let loadedTheme: ThemePreference;
 let loadedLanguage: LanguagePreference;
-let lastLaunchedPreferencesPath: string;
+
 
 beforeEach(() => {
   applyWindowTheme.mockReset().mockResolvedValue(undefined);
@@ -108,35 +108,33 @@ beforeEach(() => {
   onMoved.mockReset().mockResolvedValue(() => {});
   onScaleChanged.mockReset().mockResolvedValue(() => {});
   loadedTheme = "dark";
-  lastLaunchedPreferencesPath = LAST_PREFERENCES;
   const appState = {
     ...createDefaultAppState(),
-    lastPreferencesPath: LAST_PREFERENCES,
-    lastLaunchedPreferencesPath,
   };
   const initialize = vi.fn(async () => {
     useAppStateStore.setState({
-      appState: { ...appState, lastLaunchedPreferencesPath },
+      appState: appState,
       loaded: true,
     });
   });
   useAppStateStore.setState({ appState, initialize, loaded: false });
-  useAppConfigStore.setState({ initialize: vi.fn().mockResolvedValue(null), appConfig: { knownPreferences: [LAST_PREFERENCES], knownWorkspaces: [] } });
+  useAppConfigStore.setState({ initialize: vi.fn().mockResolvedValue(null), appConfig: { knownWorkspaces: ["/workspace.json"] } });
 
-  const load = vi.fn(async (filePath: string) => {
+  const initializePreferences = vi.fn(async () => {
+    const filePath = LAST_PREFERENCES;
     const preferences = {
-      ...createDefaultPreferences("Last"),
+      ...createDefaultPreferences(),
       theme: loadedTheme,
       language: loadedLanguage,
     };
     usePreferencesStore.setState({ preferences, filePath, loaded: true });
-    return { status: "success" as const, preferences };
+    return { status: "success" as const, preferences, filePath };
   });
   usePreferencesStore.setState({
-    preferences: createDefaultPreferences("Default"),
+    preferences: createDefaultPreferences(),
     filePath: "",
     loaded: false,
-    load,
+    initialize: initializePreferences,
   });
 });
 
@@ -155,23 +153,21 @@ async function mountApp() {
   });
 }
 
-// The Rust core applies the previewed document's theme before the window is
+// The Rust core applies the app-wide theme before the window is
 // shown; the page re-applies only once it knows the same answer.
 describe("startup theme", () => {
-  it("applies System when no preferences document has launched the main window", async () => {
-    lastLaunchedPreferencesPath = "";
+  it("applies System when the app settings use System", async () => {
+    loadedTheme = "system";
     await mountApp();
 
-    expect(usePreferencesStore.getState().load).not.toHaveBeenCalled();
+    expect(usePreferencesStore.getState().initialize).toHaveBeenCalledOnce();
     expect(applyWindowTheme.mock.calls).toEqual([["system"]]);
   });
 
-  it("applies the previewed document's theme, never the pre-load default", async () => {
+  it("applies the app-wide theme, never the pre-load default", async () => {
     await mountApp();
 
-    expect(usePreferencesStore.getState().load).toHaveBeenCalledWith(
-      LAST_PREFERENCES,
-    );
+    expect(usePreferencesStore.getState().initialize).toHaveBeenCalledWith();
     expect(document.body.textContent).toContain("Startup picker");
     expect(applyWindowTheme.mock.calls).toEqual([["dark"]]);
   });

@@ -1,7 +1,6 @@
 use super::*;
 use std::fs;
 
-fn preferences() -> Value { json!({ "formatVersion": 1, "id": "p", "name": "Settings" }) }
 fn workspace() -> Value { json!({ "formatVersion": 1, "id": "w", "name": "Work", "openTabs": [], "recentFiles": [] }) }
 fn tasks() -> Value { json!({ "formatVersion": 1, "id": "t", "tasks": [] }) }
 
@@ -10,22 +9,22 @@ fn tasks() -> Value { json!({ "formatVersion": 1, "id": "t", "tasks": [] }) }
 fn creates_new_documents_and_opens_the_optional_list_in_the_workspace() {
     let root = tempfile::tempdir().unwrap();
     let directory = root.path().join("chosen");
-    let result = create(&directory, preferences(), workspace(), Some(tasks()), "Tasks").unwrap();
-    assert_eq!(fs::read_dir(&directory).unwrap().count(), 3);
+    let result = create(&directory, workspace(), Some(tasks()), "Tasks").unwrap();
+    assert_eq!(fs::read_dir(&directory).unwrap().count(), 2);
     let stored: Value = serde_json::from_slice(&fs::read(&result.workspace_path).unwrap()).unwrap();
     assert_eq!(stored["openTabs"], json!([{
         "filePath": result.task_list_path.unwrap(), "displayName": "Tasks", "isUnifiedView": false,
     }]));
-    assert_eq!(serde_json::from_slice::<Value>(&fs::read(&result.preferences_path).unwrap()).unwrap(), preferences());
+    assert!(!directory.join("preferences.json").exists());
 }
 
 #[test]
 #[serial_test::serial(backup_store)]
-fn skipping_the_optional_list_creates_only_the_two_documents() {
+fn skipping_the_optional_list_creates_only_the_workspace() {
     let root = tempfile::tempdir().unwrap();
-    let result = create(root.path(), preferences(), workspace(), None, "unused").unwrap();
+    let result = create(root.path(), workspace(), None, "unused").unwrap();
     assert!(result.task_list_path.is_none());
-    assert_eq!(fs::read_dir(root.path()).unwrap().count(), 2);
+    assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
     assert_eq!(serde_json::from_slice::<Value>(&fs::read(result.workspace_path).unwrap()).unwrap(), workspace());
 }
 
@@ -33,18 +32,17 @@ fn skipping_the_optional_list_creates_only_the_two_documents() {
 #[serial_test::serial(backup_store)]
 fn a_late_collision_keeps_completed_documents_and_the_other_writers_bytes() {
     let root = tempfile::tempdir().unwrap();
-    let result = create_with_writer(root.path(), preferences(), workspace(), Some(tasks()), "Tasks", |path, contents| {
+    let result = create_with_writer(root.path(), workspace(), Some(tasks()), "Tasks", |path, contents| {
         if path.file_name().unwrap() == "workspace.json" {
-            // Another writer wins after preflight and the first two publications.
+            // Another writer wins after preflight and the task-list publication.
             fs::write(path, "other workspace").unwrap();
         }
         crate::write_atomic_impl(path.to_str().unwrap(), contents, true, true).map(|_| ())
     });
     assert!(result.is_err());
-    assert_eq!(serde_json::from_slice::<Value>(&fs::read(root.path().join("preferences.json")).unwrap()).unwrap(), preferences());
     assert_eq!(serde_json::from_slice::<Value>(&fs::read(root.path().join("tasks.json")).unwrap()).unwrap(), tasks());
     assert_eq!(fs::read_to_string(root.path().join("workspace.json")).unwrap(), "other workspace");
-    assert_eq!(fs::read_dir(root.path()).unwrap().count(), 3);
+    assert_eq!(fs::read_dir(root.path()).unwrap().count(), 2);
 }
 
 #[test]
@@ -57,10 +55,10 @@ fn newly_created_documents_enter_backup_history_with_the_exact_published_bytes()
     crate::backup_store::init(history.clone());
     let _close = Close;
     let directory = root.path().join("documents");
-    let paths = create(&directory, preferences(), workspace(), Some(tasks()), "Tasks").unwrap();
+    let paths = create(&directory, workspace(), Some(tasks()), "Tasks").unwrap();
     assert!(crate::backup_store::flush(std::time::Duration::from_secs(10)));
     let connection = rusqlite::Connection::open(history).unwrap();
-    for path in [paths.preferences_path, paths.workspace_path, paths.task_list_path.unwrap()] {
+    for path in [paths.workspace_path, paths.task_list_path.unwrap()] {
         let bytes: Vec<u8> = connection.query_row("SELECT content FROM backups WHERE path = ?1", [&path], |row| row.get(0)).unwrap();
         assert_eq!(bytes, fs::read(path).unwrap());
     }
@@ -68,11 +66,11 @@ fn newly_created_documents_enter_backup_history_with_the_exact_published_bytes()
 
 #[test]
 fn any_occupied_target_prevents_predictable_partial_setup() {
-    for filename in ["preferences.json", "workspace.json", "tasks.json"] {
+    for filename in ["workspace.json", "tasks.json"] {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join(filename);
         fs::write(&path, "existing user bytes").unwrap();
-        let error = create(root.path(), preferences(), workspace(), Some(tasks()), "Tasks").unwrap_err();
+        let error = create(root.path(), workspace(), Some(tasks()), "Tasks").unwrap_err();
         assert_eq!(error.code, "occupied");
         assert_eq!(fs::read_to_string(&path).unwrap(), "existing user bytes");
         assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
@@ -117,5 +115,5 @@ fn create_only_writer_never_follows_an_existing_symlink() {
 
 #[test]
 fn relative_setup_locations_are_rejected_before_writing() {
-    assert!(create(Path::new("relative"), preferences(), workspace(), None, "unused").is_err());
+    assert!(create(Path::new("relative"), workspace(), None, "unused").is_err());
 }

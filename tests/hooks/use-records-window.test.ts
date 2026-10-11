@@ -63,7 +63,7 @@ beforeEach(async () => {
     loaded: true,
   });
   usePreferencesStore.setState({
-    preferences: { ...createDefaultPreferences("Default"), language: "ja", timezone: "Asia/Tokyo", theme: "dark" },
+    preferences: { ...createDefaultPreferences(), language: "ja", timezone: "Asia/Tokyo", theme: "dark" },
   });
   useLanguageStore.setState({ systemLanguage: "en", systemLocale: "en-US" });
   mounted = await mount(createElement(Host));

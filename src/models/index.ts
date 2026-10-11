@@ -23,10 +23,7 @@ export type {
 export {
   changedPreferenceSets,
   createDefaultPreferences,
-  fromV010Preferences,
-  isV010PreferencesCandidate,
   PREFERENCE_SET_KEYS,
-  isPreferencesDocument,
   isValidPreferenceSet,
   preferencesDocument,
   normalizeDueSoonDays,

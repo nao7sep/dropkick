@@ -47,7 +47,7 @@ describe("updateViewState", () => {
       filePath: "/state.json",
       appState: {
         ...createDefaultAppState(),
-        lastPreferencesPath: "/x/preferences.json",
+        lastWorkspacePath: "/x/workspace.json",
       },
     });
 
@@ -57,7 +57,7 @@ describe("updateViewState", () => {
     expect(appState.sidebarWidth).toBe(440);
     // The view patch must not touch the register/unregister-owned fields.
     expect("knownPreferences" in appState).toBe(false);
-    expect(appState.lastPreferencesPath).toBe("/x/preferences.json");
+    expect(appState.lastWorkspacePath).toBe("/x/workspace.json");
   });
 
   it("does not flush when no file path is set", async () => {
@@ -68,29 +68,18 @@ describe("updateViewState", () => {
 });
 
 describe("saved locations", () => {
-  it("records a preferences path as launched only after a successful launch", async () => {
+  it("remembers only the successfully opened workspace", async () => {
     useAppStateStore.setState({ filePath: "/state.json" });
-
-    await useAppStateStore
-      .getState()
-      .selectPreferences("/selected.json");
-    expect(
-      useAppStateStore.getState().appState.lastLaunchedPreferencesPath,
-    ).toBe("");
-
-    await useAppStateStore
-      .getState()
-      .setLastPaths("/selected.json", "/workspace.json");
-    expect(
-      useAppStateStore.getState().appState.lastLaunchedPreferencesPath,
-    ).toBe("/selected.json");
+    await useAppStateStore.getState().setLastWorkspace("/workspace.json");
+    expect(useAppStateStore.getState().appState.lastWorkspacePath).toBe("/workspace.json");
+    expect(flushAppState.mock.calls[0][1]()).not.toHaveProperty("lastPreferencesPath");
   });
 
   it("names a failed location write accurately", async () => {
     useAppStateStore.setState({ filePath: "/state.json" });
     flushAppState.mockRejectedValueOnce(new Error("disk full"));
 
-    await useAppStateStore.getState().selectPreferences("/prefs.json");
+    await useAppStateStore.getState().setLastWorkspace("/prefs.json");
 
     expect(useToastStore.getState().backgroundWriteError).toEqual({
       what: "savedLocations",

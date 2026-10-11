@@ -65,12 +65,12 @@ describe("normalizeKickDistances", () => {
 
 describe("createDefaultPreferences", () => {
   it("follows the OS theme by default", () => {
-    expect(createDefaultPreferences("Default").theme).toBe("system");
+    expect(createDefaultPreferences().theme).toBe("system");
   });
 
   it("uses DEFAULT_KICK_DISTANCES and returns an independent array", () => {
-    const a = createDefaultPreferences("A");
-    const b = createDefaultPreferences("B");
+    const a = createDefaultPreferences();
+    const b = createDefaultPreferences();
     expect(a.kickDistances).toEqual([...DEFAULT_KICK_DISTANCES]);
     // Each default object must own its array — no shared module-level reference.
     expect(a.kickDistances).not.toBe(b.kickDistances);
@@ -78,25 +78,25 @@ describe("createDefaultPreferences", () => {
   });
 
   it("confirms permanent deletions by default", () => {
-    expect(createDefaultPreferences("Default").confirmPermanentDeletions).toBe(
+    expect(createDefaultPreferences().confirmPermanentDeletions).toBe(
       true,
     );
   });
 });
 
 describe("preferencesDocument", () => {
-  it("holds only identity when every set is its built-in, each built-in valid", () => {
-    const preferences = createDefaultPreferences("Default");
+  it("holds an empty map when every set is its built-in, each built-in valid", () => {
+    const preferences = createDefaultPreferences();
     for (const key of PREFERENCE_SET_KEYS) {
       expect(isValidPreferenceSet(key, preferences[key])).toBe(true);
     }
-    expect(preferencesDocument(preferences)).toEqual({ id: preferences.id, name: "Default" });
+    expect(preferencesDocument(preferences)).toEqual({});
   });
 });
 
 describe("changedPreferenceSets", () => {
   it("keeps only sets that differ, compared whole, and never document identity", () => {
-    const c = createDefaultPreferences("Default");
+    const c = createDefaultPreferences();
     const draft = { ...c, theme: "dark" as const, id: "other", name: "Other", kickDistances: [...c.kickDistances] };
     expect(changedPreferenceSets(draft, c)).toEqual({ theme: "dark" });
     expect(changedPreferenceSets({ kickDistances: [25, 5] }, c)).toEqual({ kickDistances: [25, 5] });

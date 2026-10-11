@@ -47,11 +47,11 @@ import { useI18n } from "../../i18n/I18nContext";
 import type { Message } from "../../i18n/translate";
 
 interface MainWindowProps {
-  onSwitchDocuments?: () => void;
+  onSwitchWorkspace?: () => void;
   onChromeHeightChange: (height: number) => void;
 }
 
-export function MainWindow({ onChromeHeightChange, onSwitchDocuments }: MainWindowProps) {
+export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWindowProps) {
   const { t } = useI18n();
   // Zoom and sidebar width are view state (state.json), not preferences.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
@@ -409,7 +409,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchDocuments }: MainWind
         <TabBar
         onChromeHeightChange={onChromeHeightChange}
         onMenuSelect={(item) => {
-          if (item === "documents") onSwitchDocuments?.();
+          if (item === "documents") onSwitchWorkspace?.();
           else if (item === "settings") setShowSettings(true);
           else if (item === "records") void openRecords();
           else if (item === "shortcuts") setShowShortcuts(true);

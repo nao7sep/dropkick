@@ -13,8 +13,8 @@ use serde_json::json;
 #[test]
 fn every_format_the_core_reads_is_in_the_shared_table() {
     for format in Format::ALL {
-        // The backup history gained sessions in format 2; the rest are at 1.
-        let expected = if format == Format::Backups { 2 } else { 1 };
+        // Backup history and view state have advanced independently.
+        let expected = if matches!(format, Format::Backups | Format::State) { 2 } else { 1 };
         assert_eq!(format.current(), expected, "{format:?}");
     }
 }
@@ -91,8 +91,8 @@ fn a_missing_marker_is_unreadable_and_a_newer_one_is_reported() {
         Ok(Marker::Readable)
     );
     assert_eq!(
-        format_version::json_value(&json!({ "version": "1.0.0", "formatVersion": 2 }), format),
-        Ok(Marker::Newer(2))
+        format_version::json_value(&json!({ "version": "1.0.0", "formatVersion": 3 }), format),
+        Ok(Marker::Newer(3))
     );
     assert!(format_version::json_value(&json!([1]), format).is_err());
     assert!(format_version::json_bytes(b"{ not json", format).is_err());
@@ -104,8 +104,8 @@ fn a_missing_marker_is_unreadable_and_a_newer_one_is_reported() {
         Ok(Marker::Readable)
     );
     assert_eq!(
-        format_version::json_value(&json!({ "formatVersion": 2 }), format),
-        Ok(Marker::Newer(2))
+        format_version::json_value(&json!({ "formatVersion": 3 }), format),
+        Ok(Marker::Newer(3))
     );
 }
 

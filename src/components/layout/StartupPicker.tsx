@@ -1,14 +1,12 @@
-// Select existing documents during recovery or an explicit switch.
-// Its selection is local until both files open successfully. A switch can be
+// Select a workspace during recovery or an explicit switch.
+// Its selection is local until the workspace opens successfully. A switch can be
 // cancelled; initial recovery always offers Quit. Drafts stay in session stores.
 
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { ArrowLeft, FolderOpen, Plus, X } from "lucide-react";
 import {
-  createPreferencesFile,
   createWorkspaceFile,
-  loadPreferences,
   loadWorkspace,
   openJsonFileDialog,
   saveJsonFileDialog,
@@ -29,7 +27,7 @@ import { message } from "../../i18n/translate";
 const STARTUP_LIST_PAGE = 4;
 
 interface StartupPickerProps {
-  onLaunch: (preferencesPath: string, workspacePath: string) => void | Promise<void>;
+  onLaunch: (workspacePath: string) => void | Promise<void>;
   onCancel?: () => void;
   onQuit?: () => void;
 }
@@ -41,41 +39,31 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
   const register = useAppConfigStore((s) => s.register);
   const unregister = useAppConfigStore((s) => s.unregister);
 
-  const [selectedPrefs, setSelectedPrefs] = useState(
-    appConfig.knownPreferences.includes(appState.lastPreferencesPath)
-      ? appState.lastPreferencesPath : (appConfig.knownPreferences[0] ?? ""),
-  );
   const [selectedWorkspace, setSelectedWorkspace] = useState(
     appConfig.knownWorkspaces.includes(appState.lastWorkspacePath)
       ? appState.lastWorkspacePath : (appConfig.knownWorkspaces[0] ?? ""),
   );
   const [opening, setOpening] = useState(false);
-  const prefsOpenRef = useRef<HTMLButtonElement>(null);
   const workspaceOpenRef = useRef<HTMLButtonElement>(null);
   const launchRef = useRef<HTMLButtonElement>(null);
 
   // The next actionable control: the first empty section's Open button, or
-  // the footer's Open once both files are chosen. Shared by the reactive
+  // the footer's Open once a workspace is chosen. Shared by the reactive
   // effect below (a selection changes after mount) and AppModal's
   // onOpenAutoFocus (the very first focus, on mount) — Radix's own focus
   // scope activates around that callback, so setting focus reactively
   // afterwards instead of there raced it and lost.
   const focusNextActionable = () => {
-    const target =
-      selectedPrefs === ""
-        ? prefsOpenRef.current
-        : selectedWorkspace === ""
-          ? workspaceOpenRef.current
-          : launchRef.current;
+    const target = selectedWorkspace === "" ? workspaceOpenRef.current : launchRef.current;
 
     target?.focus();
   };
 
-  useEffect(focusNextActionable, [selectedPrefs, selectedWorkspace]);
+  useEffect(focusNextActionable, [selectedWorkspace]);
 
   // Native selection, document creation and saved-location writes report failures here.
   const guarded = async (
-    action: "openPreferences" | "createPreferences" | "openWorkspace" | "createWorkspace",
+    action: "openWorkspace" | "createWorkspace",
     run: () => Promise<void>,
   ): Promise<void> => {
     try {
@@ -87,31 +75,6 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
         message(`startup.${action}Failed.body` as MessageKey),
       );
     }
-  };
-
-  const handleOpenPreferences = async () => {
-    await guarded("openPreferences", async () => {
-      const path = await openJsonFileDialog();
-      if (!path) return;
-      const loadResult = await loadPreferences(path);
-      if (loadResult.status !== "success") {
-        await showMessage(
-          message("startup.preferencesFailed.title"),
-          describeLoadFailure("preferences", loadResult, path),
-        );
-        return;
-      }
-      if (await register("preferences", path)) setSelectedPrefs(path);
-    });
-  };
-
-  const handleNewPreferences = async () => {
-    await guarded("createPreferences", async () => {
-      const normalizedPath = await saveJsonFileDialog("preferences.json");
-      if (!normalizedPath) return;
-      await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-      if (await register("preferences", normalizedPath)) setSelectedPrefs(normalizedPath);
-    });
   };
 
   const handleOpenWorkspace = async () => {
@@ -126,7 +89,7 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
         );
         return;
       }
-      if (await register("workspace", path)) setSelectedWorkspace(path);
+      if (await register(path)) setSelectedWorkspace(path);
     });
   };
 
@@ -135,25 +98,19 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
       const normalizedPath = await saveJsonFileDialog("workspace.json");
       if (!normalizedPath) return;
       await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-      if (await register("workspace", normalizedPath)) setSelectedWorkspace(normalizedPath);
+      if (await register(normalizedPath)) setSelectedWorkspace(normalizedPath);
     });
   };
 
-  const handleRemovePreferences = async (path: string) => {
-    if (await unregister("preferences", path) && selectedPrefs === path) {
-      setSelectedPrefs(useAppConfigStore.getState().appConfig.knownPreferences[0] ?? "");
-    }
-  };
-
   const handleRemoveWorkspace = async (path: string) => {
-    if (await unregister("workspace", path) && selectedWorkspace === path) {
+    if (await unregister(path) && selectedWorkspace === path) {
       setSelectedWorkspace(
         useAppConfigStore.getState().appConfig.knownWorkspaces[0] ?? "",
       );
     }
   };
 
-  const canLaunch = selectedPrefs !== "" && selectedWorkspace !== "";
+  const canLaunch = selectedWorkspace !== "";
 
   return (
     <>
@@ -168,7 +125,7 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
         // Radix's own default — focus the dialog surface on open — would
         // fight the effect above that advances focus to the next actionable
         // control (the first empty section's Open button, or Open itself
-        // once both are chosen); ceding it here lets that effect win.
+        // once it is chosen); ceding it here lets that effect win.
         contentProps={{
           onOpenAutoFocus: (e) => {
             e.preventDefault();
@@ -179,7 +136,7 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
           <>
             {onQuit && <Button onClick={onQuit}>{t("startup.quit")}</Button>}
             {onCancel && <Button disabled={opening} onClick={onCancel}>{t("common.cancel")}</Button>}
-            <Button ref={launchRef} variant="primary" onClick={async () => { if (opening) return; setOpening(true); try { await onLaunch(selectedPrefs, selectedWorkspace); } finally { setOpening(false); } }} disabled={opening || !canLaunch}>
+            <Button ref={launchRef} variant="primary" onClick={async () => { if (opening) return; setOpening(true); try { await onLaunch(selectedWorkspace); } finally { setOpening(false); } }} disabled={opening || !canLaunch}>
               {t("startup.continue")}
             </Button>
           </>
@@ -187,20 +144,6 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
       >
         <fieldset disabled={opening} className="flex min-w-0 w-full flex-col gap-6">
           <p className="text-sm text-ink-soft">{t("startup.description")}</p>
-          {/* Preferences section */}
-          <Section
-            id="preferences"
-            label={t("startup.preferences")}
-            emptyText={t("startup.noPreferences")}
-            items={appConfig.knownPreferences}
-            selected={selectedPrefs}
-            onSelect={setSelectedPrefs}
-            onOpen={handleOpenPreferences}
-            onNew={handleNewPreferences}
-            onRemove={handleRemovePreferences}
-            openButtonRef={prefsOpenRef}
-          />
-
           {/* Workspace section */}
           <Section
             id="workspace"
@@ -220,13 +163,12 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
   );
 }
 
-// A stable, HTML-safe option id. Prefixed with the section id because the
-// same path could legitimately appear in both lists.
+// A stable, HTML-safe option id for the workspace list.
 function optionDomId(section: string, path: string): string {
   return `${section}-${rowDomId(path)}`;
 }
 
-// Reusable section for preferences and workspace selection.
+// Saved workspace selection.
 function Section({
   id,
   label,

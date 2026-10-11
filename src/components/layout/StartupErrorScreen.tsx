@@ -33,7 +33,7 @@ export function StartupErrorScreen({ message }: StartupErrorScreenProps) {
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="max-w-md rounded-[var(--radius-dialog)] bg-surface p-6 shadow-lg">
         <h2 className="mb-2 text-lg font-bold text-danger">{t("startup.errorTitle")}</h2>
-        <p className="whitespace-pre-wrap text-sm text-ink-soft">{text(message)}</p>
+        <p className="whitespace-pre-wrap break-words text-sm text-ink-soft">{text(message)}</p>
         <div className="mt-5 flex justify-end">
           <Button variant="primary" onClick={quit}>
             {t("startup.quit")}

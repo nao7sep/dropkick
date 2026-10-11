@@ -5,7 +5,7 @@
 use std::fs;
 
 use crate::theme::{
-    last_launched_preferences_path, preferences_window_theme, read_saved_window_theme,
+    preferences_window_theme, read_saved_window_theme,
     window_background, window_theme_for,
 };
 use serde_json::json;
@@ -51,22 +51,19 @@ fn a_document_without_a_valid_theme_follows_the_os() {
 }
 
 #[test]
-fn the_previewed_document_is_the_last_launched_one() {
-    assert_eq!(
-        last_launched_preferences_path(&json!({
-            "lastLaunchedPreferencesPath": "/a.json",
-            "lastPreferencesPath": "/b.json"
-        })),
-        Some("/a.json")
-    );
-    assert_eq!(
-        last_launched_preferences_path(&json!({ "lastPreferencesPath": "/b.json" })),
-        None
-    );
-    assert_eq!(
-        last_launched_preferences_path(&json!({ "lastLaunchedPreferencesPath": "" })),
-        None
-    );
+fn app_settings_take_precedence_over_legacy_selection() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = dir.path().join("state.json");
+    let legacy = dir.path().join("preferences.json");
+    let settings = dir.path().join("settings.json");
+    fs::write(&legacy, r#"{"formatVersion":1,"theme":"dark"}"#).unwrap();
+    fs::write(&state, json!({"formatVersion":1,"lastLaunchedPreferencesPath":legacy}).to_string()).unwrap();
+    fs::write(&settings, r#"{"formatVersion":1,"theme":"light"}"#).unwrap();
+    assert_eq!(read_saved_window_theme(&state), Some(Theme::Light));
+    fs::write(&settings, r#"{"formatVersion":2,"theme":"dark"}"#).unwrap();
+    assert_eq!(read_saved_window_theme(&state), None);
+    fs::write(&settings, r#"{"formatVersion":1}"#).unwrap();
+    assert_eq!(read_saved_window_theme(&state), None);
 }
 
 #[test]
@@ -108,10 +105,10 @@ fn each_theme_has_its_own_window_background() {
 }
 
 #[test]
-fn an_unmarked_or_newer_state_or_preferences_file_is_not_previewed() {
+fn an_unmarked_or_newer_selected_file_is_not_previewed() {
     let dir = tempfile::tempdir().expect("temp dir");
     let state = dir.path().join("state.json");
-    let preferences = dir.path().join("preferences.json");
+    let preferences = dir.path().join("external.json");
     fs::write(&preferences, r#"{"formatVersion":1,"theme":"dark"}"#).expect("write preferences");
     let state_body =
         json!({ "formatVersion": 1, "lastLaunchedPreferencesPath": preferences }).to_string();
@@ -130,7 +127,7 @@ fn an_unmarked_or_newer_state_or_preferences_file_is_not_previewed() {
     assert_eq!(read_saved_window_theme(&state), None);
 
     fs::write(&preferences, r#"{"formatVersion":1,"theme":"dark"}"#).expect("write preferences");
-    let newer_state = json!({ "formatVersion": 2, "lastLaunchedPreferencesPath": preferences }).to_string();
+    let newer_state = json!({ "formatVersion": 3, "lastLaunchedPreferencesPath": preferences }).to_string();
     fs::write(&state, &newer_state).expect("write state");
     assert_eq!(read_saved_window_theme(&state), None);
     assert_eq!(fs::read_to_string(&state).expect("read state"), newer_state);

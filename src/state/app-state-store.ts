@@ -25,14 +25,7 @@ interface AppStateStore {
   // and the divider drags — the state-store analogue of the preferences store's
   // `update`.
   updateViewState: (changes: ViewStateChanges) => Promise<void>;
-  setLastPaths: (
-    preferencesPath: string,
-    workspacePath: string,
-  ) => Promise<void>;
-  selectPreferences: (path: string) => Promise<void>;
-  selectWorkspace: (path: string) => Promise<void>;
-  forgetPreferences: (path: string, nextPath: string) => Promise<void>;
-  forgetWorkspace: (path: string, nextPath: string) => Promise<void>;
+  setLastWorkspace: (workspacePath: string) => Promise<void>;
 }
 
 export const useAppStateStore = create<AppStateStore>((set, get) => {
@@ -65,40 +58,15 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
       await flush("viewSettings");
     },
 
-    setLastPaths: async (preferencesPath, workspacePath) => {
+    setLastWorkspace: async (workspacePath) => {
       set((state) => ({
         appState: {
           ...state.appState,
-          lastPreferencesPath: preferencesPath,
-          lastLaunchedPreferencesPath: preferencesPath,
           lastWorkspacePath: workspacePath,
         },
       }));
       await flush("savedLocations");
     },
 
-    selectPreferences: async (path) => {
-      set((state) => ({ appState: { ...state.appState, lastPreferencesPath: path } }));
-      await flush("savedLocations");
-    },
-    selectWorkspace: async (path) => {
-      set((state) => ({ appState: { ...state.appState, lastWorkspacePath: path } }));
-      await flush("savedLocations");
-    },
-    forgetPreferences: async (path, nextPath) => {
-      set((state) => ({ appState: {
-        ...state.appState,
-        lastPreferencesPath: state.appState.lastPreferencesPath === path ? nextPath : state.appState.lastPreferencesPath,
-        lastLaunchedPreferencesPath: state.appState.lastLaunchedPreferencesPath === path ? "" : state.appState.lastLaunchedPreferencesPath,
-      } }));
-      await flush("savedLocations");
-    },
-    forgetWorkspace: async (path, nextPath) => {
-      set((state) => ({ appState: {
-        ...state.appState,
-        lastWorkspacePath: state.appState.lastWorkspacePath === path ? nextPath : state.appState.lastWorkspacePath,
-      } }));
-      await flush("savedLocations");
-    },
   };
 });

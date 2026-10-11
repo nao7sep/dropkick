@@ -1,16 +1,9 @@
-// Known-document lists are config. Browsing never changes the last successful pair.
+// Saved workspace locations are config. Browsing never changes the active workspace.
 import { create } from "zustand";
 import type { AppConfigDto, AppConfigSetKey, StoreRecovery } from "../models";
 import { createDefaultAppConfig, registerDocument, unregisterDocument } from "../models";
 import { loadAppConfig, flushAppConfig } from "../repositories";
 import { guardBackgroundWrite } from "./background-write";
-
-export type KnownDocumentKind = "preferences" | "workspace";
-
-const LIST_KEY: Readonly<Record<KnownDocumentKind, AppConfigSetKey>> = {
-  preferences: "knownPreferences",
-  workspace: "knownWorkspaces",
-};
 
 interface AppConfigStore {
   appConfig: AppConfigDto;
@@ -18,8 +11,8 @@ interface AppConfigStore {
   loaded: boolean;
   initialize: () => Promise<StoreRecovery | null>;
   // Each resolves true only once the list change is saved.
-  register: (kind: KnownDocumentKind, path: string) => Promise<boolean>;
-  unregister: (kind: KnownDocumentKind, path: string) => Promise<boolean>;
+  register: (path: string) => Promise<boolean>;
+  unregister: (path: string) => Promise<boolean>;
 }
 
 export const useAppConfigStore = create<AppConfigStore>((set, get) => {
@@ -52,7 +45,7 @@ export const useAppConfigStore = create<AppConfigStore>((set, get) => {
       set({ appConfig, filePath, loaded: true });
       return recovery;
     },
-    register: (kind, path) => changeList(LIST_KEY[kind], path, true),
-    unregister: (kind, path) => changeList(LIST_KEY[kind], path, false),
+    register: (path) => changeList("knownWorkspaces", path, true),
+    unregister: (path) => changeList("knownWorkspaces", path, false),
   };
 });

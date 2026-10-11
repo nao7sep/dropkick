@@ -30,8 +30,8 @@ async function readMap(
 async function builtInAppConfig(): Promise<AppConfigDto> {
   // Existing sparse files omit these paths when their lists equal the original
   // defaults. Keep that on-disk meaning, including explicitly empty overrides.
-  const { preferencesFile, workspaceFile } = await appPaths();
-  return createDefaultAppConfig(preferencesFile, workspaceFile);
+  const { workspaceFile } = await appPaths();
+  return createDefaultAppConfig(workspaceFile);
 }
 
 // v0.1.0 kept the saved locations in state.json, which has no config.json
@@ -57,9 +57,8 @@ export async function loadAppConfig() {
   if (read.map === null && carried === null) {
     // No saved list exists yet. Discover documents left by older releases,
     // without advertising or creating nonexistent defaults on a fresh launch.
-    const { preferencesFile, workspaceFile } = await appPaths();
+    const { workspaceFile } = await appPaths();
     appConfig = createDefaultAppConfig(
-      await fileExists(preferencesFile) ? preferencesFile : "",
       await fileExists(workspaceFile) ? workspaceFile : "",
     );
   }

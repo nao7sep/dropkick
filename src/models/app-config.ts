@@ -1,14 +1,12 @@
 // Portable app-level configuration: the document lists the user builds.
-export const APP_CONFIG_SET_KEYS = ["knownPreferences", "knownWorkspaces"] as const;
+export const APP_CONFIG_SET_KEYS = ["knownWorkspaces"] as const;
 export type AppConfigSetKey = (typeof APP_CONFIG_SET_KEYS)[number];
 export interface AppConfigDto {
-  knownPreferences: string[];
   knownWorkspaces: string[];
 }
 
-export function createDefaultAppConfig(preferencesPath = "", workspacePath = ""): AppConfigDto {
+export function createDefaultAppConfig(workspacePath = ""): AppConfigDto {
   return {
-    knownPreferences: preferencesPath ? [preferencesPath] : [],
     knownWorkspaces: workspacePath ? [workspacePath] : [],
   };
 }

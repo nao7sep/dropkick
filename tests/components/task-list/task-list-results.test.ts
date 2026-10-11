@@ -25,7 +25,7 @@ beforeEach(async () => {
     status: "error",
     message: message("write.taskList"),
   });
-  usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
+  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
   useWorkspaceStore.setState({
     workspace: {
       ...createDefaultWorkspace("Test"),

@@ -64,7 +64,7 @@ beforeEach(async () => {
 
   usePreferencesStore.setState({
     preferences: {
-      ...createDefaultPreferences("Test"),
+      ...createDefaultPreferences(),
       timezone: "UTC",
       confirmPermanentDeletions: false,
     },

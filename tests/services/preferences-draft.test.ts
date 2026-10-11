@@ -7,7 +7,7 @@ import {
   stagedPreferences,
 } from "../../src/services/preferences-draft";
 
-const committed = (): PreferencesDto => createDefaultPreferences("Default");
+const committed = (): PreferencesDto => createDefaultPreferences();
 
 // committed defaults to kickDistances [5, 25] -> the matching field string.
 const KICK_STRING = "5, 25";

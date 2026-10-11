@@ -20,9 +20,7 @@ const repositories = vi.hoisted(() => ({
 vi.mock("../../../src/repositories", () => ({
   openJsonFileDialog: repositories.openJsonFileDialog,
   saveJsonFileDialog: repositories.saveJsonFileDialog,
-  createPreferencesFile: vi.fn(),
   createWorkspaceFile: vi.fn(),
-  loadPreferences: vi.fn(),
   loadWorkspace: vi.fn(),
   showMessage: repositories.showMessage,
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -41,32 +39,31 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
-async function mountWithKnownFiles(onLaunch: (prefs: string, workspace: string) => void = () => {}) {
+async function mountWithKnownFiles(onLaunch: (workspace: string) => void = () => {}) {
   useAppStateStore.setState({
     appState: {
       ...createDefaultAppState(),
-      lastPreferencesPath: "/a/prefs.json",
       lastWorkspacePath: "/a/ws.json",
     },
     filePath: "/home/state.json",
     loaded: true,
   });
   useAppConfigStore.setState({
-    appConfig: { knownPreferences: ["/a/prefs.json", "/b/prefs.json"], knownWorkspaces: ["/a/ws.json"] },
+    appConfig: { knownWorkspaces: ["/a/ws.json", "/b/ws.json"] },
     filePath: "/home/config.json", loaded: true,
   });
   host = await mount(createElement(StartupPicker, { onLaunch }));
 }
 
-function preferencesListbox(): HTMLElement {
-  const list = document.querySelector('[role="listbox"][aria-label="Settings file"]');
+function workspaceListbox(): HTMLElement {
+  const list = document.querySelector('[role="listbox"][aria-label="Workspace file"]');
   if (!list) throw new Error("preferences listbox not found");
   return list as HTMLElement;
 }
 
 function selectedOptionText(): string | undefined {
   return document
-    .querySelector('[aria-label="Settings file"] [aria-selected="true"]')
+    .querySelector('[aria-label="Workspace file"] [aria-selected="true"]')
     ?.textContent?.trim();
 }
 
@@ -79,7 +76,7 @@ async function pressOn(el: HTMLElement, key: string) {
 describe("StartupPicker — the file lists are real listboxes", () => {
   it("exposes one tab stop with option semantics", async () => {
     await mountWithKnownFiles();
-    const list = preferencesListbox();
+    const list = workspaceListbox();
     expect(list.getAttribute("tabindex")).toBe("0");
     const options = list.querySelectorAll('[role="option"]');
     expect(options).toHaveLength(2);
@@ -88,49 +85,49 @@ describe("StartupPicker — the file lists are real listboxes", () => {
 
   it("moves the selection with the arrow keys", async () => {
     await mountWithKnownFiles();
-    expect(selectedOptionText()).toContain("/a/prefs.json");
+    expect(selectedOptionText()).toContain("/a/ws.json");
 
-    await pressOn(preferencesListbox(), "ArrowDown");
-    expect(selectedOptionText()).toContain("/b/prefs.json");
+    await pressOn(workspaceListbox(), "ArrowDown");
+    expect(selectedOptionText()).toContain("/b/ws.json");
 
-    await pressOn(preferencesListbox(), "ArrowUp");
-    expect(selectedOptionText()).toContain("/a/prefs.json");
+    await pressOn(workspaceListbox(), "ArrowUp");
+    expect(selectedOptionText()).toContain("/a/ws.json");
   });
 
   it("jumps to the ends with Home and End", async () => {
     await mountWithKnownFiles();
-    await pressOn(preferencesListbox(), "End");
-    expect(selectedOptionText()).toContain("/b/prefs.json");
-    await pressOn(preferencesListbox(), "Home");
-    expect(selectedOptionText()).toContain("/a/prefs.json");
+    await pressOn(workspaceListbox(), "End");
+    expect(selectedOptionText()).toContain("/b/ws.json");
+    await pressOn(workspaceListbox(), "Home");
+    expect(selectedOptionText()).toContain("/a/ws.json");
   });
 
   it("moves by a page with PageUp and PageDown", async () => {
     await mountWithKnownFiles();
-    await pressOn(preferencesListbox(), "PageDown");
-    expect(selectedOptionText()).toContain("/b/prefs.json");
-    await pressOn(preferencesListbox(), "PageUp");
-    expect(selectedOptionText()).toContain("/a/prefs.json");
+    await pressOn(workspaceListbox(), "PageDown");
+    expect(selectedOptionText()).toContain("/b/ws.json");
+    await pressOn(workspaceListbox(), "PageUp");
+    expect(selectedOptionText()).toContain("/a/ws.json");
   });
 
   it("does not wrap past the ends", async () => {
     await mountWithKnownFiles();
-    await pressOn(preferencesListbox(), "ArrowUp");
-    expect(selectedOptionText()).toContain("/a/prefs.json");
-    await pressOn(preferencesListbox(), "End");
-    await pressOn(preferencesListbox(), "ArrowDown");
-    expect(selectedOptionText()).toContain("/b/prefs.json");
+    await pressOn(workspaceListbox(), "ArrowUp");
+    expect(selectedOptionText()).toContain("/a/ws.json");
+    await pressOn(workspaceListbox(), "End");
+    await pressOn(workspaceListbox(), "ArrowDown");
+    expect(selectedOptionText()).toContain("/b/ws.json");
   });
 
   it("scrolls an arrow-selected option into view", async () => {
     await mountWithKnownFiles();
-    const second = preferencesListbox().querySelectorAll<HTMLElement>(
+    const second = workspaceListbox().querySelectorAll<HTMLElement>(
       '[role="option"]',
     )[1];
     const scrollIntoView = vi.fn();
     second.scrollIntoView = scrollIntoView;
 
-    await pressOn(preferencesListbox(), "ArrowDown");
+    await pressOn(workspaceListbox(), "ArrowDown");
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
   });
@@ -151,8 +148,8 @@ describe("StartupPicker — native picker failures", () => {
 
     expect(repositories.showMessage.mock.calls.map((args: unknown[]) => args.map((m) => inEnglish(m as never)))).toEqual([
       [
-        "Open Preferences Failed",
-        "Opening the preferences file could not be completed. Check that the selected location is available and try again.",
+        "Open Workspace Failed",
+        "Opening the workspace file could not be completed. Check that the selected location is available and try again.",
       ],
     ]);
     expect(JSON.stringify(repositories.showMessage.mock.calls)).not.toMatch(
@@ -174,8 +171,8 @@ describe("StartupPicker — native picker failures", () => {
 
     expect(repositories.showMessage.mock.calls.map((args: unknown[]) => args.map((m) => inEnglish(m as never)))).toEqual([
       [
-        "Create Preferences Failed",
-        "Creating the preferences file could not be completed. Check that the selected location is available and try again.",
+        "Create Workspace Failed",
+        "Creating the workspace file could not be completed. Check that the selected location is available and try again.",
       ],
     ]);
     expect(JSON.stringify(repositories.showMessage.mock.calls)).not.toMatch(
@@ -223,7 +220,7 @@ describe("StartupPicker — the shared dialog shell", () => {
 });
 
 describe("StartupPicker — keyboard behaviour", () => {
-  it("focuses the primary Open action once both files are selected, so Enter opens the selection", async () => {
+  it("focuses the primary Open action once a workspace is selected, so Enter opens the selection", async () => {
     await mountWithKnownFiles();
     const buttons = Array.from(document.querySelectorAll("button"));
     const primaryOpen = buttons.find((button) => button.className.includes("dk-btn-primary"));

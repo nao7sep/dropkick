@@ -10,7 +10,7 @@ vi.mock("../../../src/repositories", () => ({ showMessage: mocks.showMessage, lo
 import { FirstRunSetup } from "../../../src/components/layout/FirstRunSetup";
 let host: Mounted;
 const button = (label: string) => [...document.querySelectorAll("button")].find((b) => b.textContent === label)!;
-beforeEach(() => { vi.resetAllMocks(); mocks.register.mockResolvedValue(true); mocks.create.mockResolvedValue({ preferencesPath: "/picked/preferences.json", workspacePath: "/picked/workspace.json" }); });
+beforeEach(() => { vi.resetAllMocks(); mocks.register.mockResolvedValue(true); mocks.create.mockResolvedValue({ workspacePath: "/picked/workspace.json" }); });
 afterEach(async () => { await host?.unmount(); });
 describe("first setup", () => {
   it("suggests Documents/Dropkick without writing, and a cancelled folder picker writes nothing", async () => {
@@ -29,8 +29,8 @@ describe("first setup", () => {
     await act(async () => { (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click(); });
     await act(async () => { button("Create and open").click(); });
     expect(mocks.create).toHaveBeenCalledWith("/picked", false, expect.objectContaining({ taskList: "Tasks" }));
-    expect(mocks.register).toHaveBeenCalledTimes(2);
-    expect(onLaunch).toHaveBeenCalledWith("/picked/preferences.json", "/picked/workspace.json");
+    expect(mocks.register).toHaveBeenCalledTimes(1);
+    expect(onLaunch).toHaveBeenCalledWith("/picked/workspace.json");
     expect(mocks.create.mock.invocationCallOrder[0]).toBeLessThan(mocks.register.mock.invocationCallOrder[0]);
   });
   it("offers recovery after failure without adopting paths or retrying automatically", async () => {

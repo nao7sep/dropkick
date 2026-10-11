@@ -1,6 +1,6 @@
 # Dropkick
 
-Let tasks sort themselves by urgency, kick the ones you can't do yet down the list, and keep every list in plain JSON files. Task lists, workspaces, and preferences are plain JSON files at paths you choose — no cloud, no accounts, no sync — so your tasks can live anywhere, including inside project repositories. It's a cross-platform desktop app (macOS and Windows) built with Tauri v2, React, and TypeScript, with a keyboard-first workflow and automatic priority grouping.
+Let tasks sort themselves by urgency, kick the ones you can't do yet down the list, and keep every list in plain JSON files. Task lists and workspaces are plain JSON files at paths you choose — no cloud, no accounts, no sync — so your tasks can live anywhere, including inside project repositories. It's a cross-platform desktop app (macOS and Windows) built with Tauri v2, React, and TypeScript, with a keyboard-first workflow and automatic priority grouping.
 
 ## Features
 
@@ -28,9 +28,11 @@ Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows ar
 
 ## First run
 
-Dropkick keeps your settings and your open tabs in separate preferences and workspace JSON files. On first launch, choose a folder for these files; Dropkick suggests **Documents/Dropkick**. You can also create your first task list there. Nothing is created until you choose **Create and open**, and setup never replaces existing files.
+All workspaces use the same app settings. A workspace remembers your open task lists. On first launch, choose a folder for your workspace and optional first task list; Dropkick suggests **Documents/Dropkick**. Nothing is created until you choose **Create and open**, and setup never replaces existing files.
 
-Choose **Use existing files…** during setup to open files you already have. Later launches reopen your last successful settings and workspace pair directly. To change either file, choose **Switch settings or workspace…** from the main menu, then **Browse…** for an existing file or **New** to create one. Existing files stay where they are, including files from earlier versions. A missing or unreadable file returns you to the picker without replacing it.
+Choose **Use existing files…** during setup to open a workspace you already have. Later launches reopen your last workspace directly. Choose **Switch workspace…** from the main menu, then **Browse…** for an existing workspace or **New** to create one. Existing files stay where they are. A missing or unreadable workspace returns you to the picker without replacing it.
+
+Settings are saved privately in `~/.dropkick/settings.json` (or the configured `DROPKICK_DATA_DIR`). Only choices that differ from the built-ins are stored. On upgrade, Dropkick copies the last-used preferences into this app-wide collection once; the original preferences files remain unchanged. If those selected preferences cannot be read, startup names the file to restore or make accessible before trying again. Settings files are no longer selected separately for each workspace.
 
 Task lists themselves are separate files, created from **New task list...** in the tab bar's ☰ menu, and can live anywhere — including inside a project repository.
 

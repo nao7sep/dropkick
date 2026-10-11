@@ -14,7 +14,7 @@ vi.mock("../../src/repositories/file-system", () => ({
 }));
 vi.mock("../../src/repositories/logging", () => ({ log: { warn: (...args: unknown[]) => warn(...args) } }));
 import { loadAppConfig, flushAppConfig } from "../../src/repositories/app-config-repository";
-const defaults = { knownPreferences: ["/root/preferences.json"], knownWorkspaces: ["/root/workspace.json"] };
+const defaults = { knownWorkspaces: ["/root/workspace.json"] };
 beforeEach(() => {
   readJsonFileResult.mockReset(); writeJsonFile.mockReset(); warn.mockReset();
   quarantineFile.mockReset().mockResolvedValue("/root/config-stamp.invalid");
@@ -24,13 +24,13 @@ beforeEach(() => {
 describe("known-document config sets", () => {
   it("starts with empty document lists without creating config.json", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
-    expect(await loadAppConfig()).toEqual({ appConfig: { knownPreferences: [], knownWorkspaces: [] }, filePath: "/root/config.json", recovery: null });
+    expect(await loadAppConfig()).toEqual({ appConfig: { knownWorkspaces: [] }, filePath: "/root/config.json", recovery: null });
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
   it("discovers an existing private-root document without adding its missing companion", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
     fileExists.mockImplementation(async (path: string) => path === "/root/workspace.json");
-    expect((await loadAppConfig()).appConfig).toEqual({ knownPreferences: [], knownWorkspaces: defaults.knownWorkspaces });
+    expect((await loadAppConfig()).appConfig).toEqual({ knownWorkspaces: defaults.knownWorkspaces });
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
   it("preserves the omitted defaults of existing sparse config even while their files are missing", async () => {
@@ -40,9 +40,9 @@ describe("known-document config sets", () => {
   });
   it("keeps explicitly removed defaults out even when the documents still exist", async () => {
     fileExists.mockResolvedValue(true);
-    readJsonFileResult.mockResolvedValue({ status: "success", data: { knownPreferences: [], knownWorkspaces: [] } });
+    readJsonFileResult.mockResolvedValue({ status: "success", data: { knownWorkspaces: [] } });
     const { appConfig } = await loadAppConfig();
-    expect(appConfig).toEqual({ knownPreferences: [], knownWorkspaces: [] });
+    expect(appConfig).toEqual({ knownWorkspaces: [] });
     await flushAppConfig("/root/config.json", () => appConfig);
     expect(writeJsonFile).toHaveBeenCalledWith("/root/config.json", appConfig);
   });
@@ -60,7 +60,7 @@ describe("known-document config sets", () => {
     readJsonFileResult.mockResolvedValue({ status: "success", data: { knownPreferences: ["/external.json"], knownWorkspaces: ["/root/workspace.json"], version: "999", unknown: true } });
     const { appConfig } = await loadAppConfig();
     await flushAppConfig("/root/config.json", () => ({ ...appConfig, knownWorkspaces: ["/new.json"] }));
-    expect(writeJsonFile).toHaveBeenCalledWith("/root/config.json", { knownPreferences: ["/external.json"], knownWorkspaces: ["/new.json"] });
+    expect(writeJsonFile).toHaveBeenCalledWith("/root/config.json", { knownWorkspaces: ["/new.json"] });
   });
   it("writes an empty map when every set is back at its built-in", async () => {
     await flushAppConfig("/root/config.json", () => defaults);
@@ -72,11 +72,11 @@ describe("known-document config sets", () => {
     await flushAppConfig("/root/config.json", () => appConfig);
     expect(writeJsonFile).toHaveBeenCalledWith("/root/config.json", { knownWorkspaces: [] });
   });
-  it.each(["not a list", ["/valid.json", {}], null])("reads an invalid set as its built-in and warns (%j)", async (knownPreferences) => {
-    readJsonFileResult.mockResolvedValue({ status: "success", data: { knownPreferences, knownWorkspaces: ["/valid.json"] } });
-    expect((await loadAppConfig()).appConfig).toEqual({ ...defaults, knownWorkspaces: ["/valid.json"] });
+  it.each(["not a list", ["/valid.json", {}], null])("reads an invalid set as its built-in and warns (%j)", async (knownWorkspaces) => {
+    readJsonFileResult.mockResolvedValue({ status: "success", data: { knownWorkspaces } });
+    expect((await loadAppConfig()).appConfig).toEqual(defaults);
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0][1].key).toBe("knownPreferences");
+    expect(warn.mock.calls[0][1].key).toBe("knownWorkspaces");
     expect(quarantineFile).not.toHaveBeenCalled();
     expect(writeJsonFile).not.toHaveBeenCalled();
   });

@@ -2,7 +2,7 @@
 //! Theme). The window theme is the one theme authority: it paints the title bar
 //! and drives the webview's prefers-color-scheme, which App.css's dark block
 //! follows. It is applied before the window is first shown — from the
-//! preferences document the startup picker will preview — and again on every
+//! app-wide settings — and again on every
 //! Save, together with the window background behind the page.
 
 use std::path::Path;
@@ -28,30 +28,37 @@ pub fn preferences_window_theme(preferences: &Value) -> Option<Theme> {
     preferences.get("theme").and_then(Value::as_str).and_then(window_theme_for)
 }
 
-/// The preferences document the startup picker previews: state.json's
-/// `lastLaunchedPreferencesPath`.
-pub fn last_launched_preferences_path(state: &Value) -> Option<&str> {
-    let path = state.get("lastLaunchedPreferencesPath")?.as_str()?;
-    (!path.is_empty()).then_some(path)
-}
-
-/// The preferences document the startup picker will preview, read without
-/// touching it or state.json. Anything missing, unreadable, unparseable, or
-/// written by a newer build is None; recovery stays with the frontend's load
-/// path.
+/// App-wide settings, or the legacy source that the first upgraded launch will
+/// adopt. Read-only bootstrap shares the frontend's source precedence.
 pub fn previewed_preferences(state_file: &Path) -> Option<Value> {
     let state_file = state_file.to_path_buf();
     crate::native_wait::run(state_file.to_string_lossy().into_owned(), move || {
         Ok(previewed_preferences_owned(&state_file))
-    })
-    .ok()
-    .flatten()
+    }).ok().flatten()
 }
 
 fn previewed_preferences_owned(state_file: &Path) -> Option<Value> {
-    let state = readable_document(state_file, Format::State)?;
-    let preferences_path = last_launched_preferences_path(&state)?;
-    readable_document(Path::new(preferences_path), Format::Preferences)
+    let paths = crate::paths::app_paths(state_file.parent()?);
+    let settings = Path::new(&paths.settings_file);
+    // Unavailable canonical settings never fall back to a retired source.
+    match std::fs::symlink_metadata(settings) {
+        Ok(_) => return readable_document(settings, Format::Settings),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+        Err(_) => return None,
+    }
+    let state = readable_document(state_file, Format::State);
+    let source = state.as_ref().and_then(|value| {
+        ["lastLaunchedPreferencesPath", "lastPreferencesPath"].into_iter()
+            .filter_map(|key| value.get(key).and_then(Value::as_str))
+            .find(|path| !path.is_empty())
+    }).unwrap_or(&paths.preferences_file);
+    let mut preferences = readable_document(Path::new(source), Format::Preferences)?;
+    if preferences.get("formatVersion").is_none()
+        && preferences.get("version").and_then(Value::as_str) == Some(format_version::V010_LABEL)
+        && preferences.get("darkMode").and_then(Value::as_bool) == Some(true) {
+        preferences.as_object_mut()?.insert("theme".into(), Value::String("dark".into()));
+    }
+    Some(preferences)
 }
 
 fn readable_document(path: &Path, format: Format) -> Option<Value> {

@@ -1,4 +1,4 @@
-// App root: restore the last successful pair, or guide setup/recovery.
+// App root: restore the last workspace, or guide setup/recovery.
 // Session drafts remain in their stores when the document picker replaces the view.
 
 import { useState, useEffect, useRef } from "react";
@@ -21,7 +21,6 @@ import {
   showMessage,
   log,
   toErrorFields,
-  loadFailureFields,
 } from "./repositories";
 import { DEFAULT_UI_FONT_STACK } from "./models";
 import { usePreferencesStore } from "./state/preferences-store";
@@ -32,7 +31,7 @@ import { currentInterfaceLanguage, useInterfaceLanguage } from "./hooks/useInter
 import { I18nProvider, loadInterfaceCatalogue } from "./i18n/I18nContext";
 import { message, type Message } from "./i18n/translate";
 import { useWindowClose } from "./hooks/use-window-close";
-import { openSession } from "./services/open-session";
+import { openWorkspaceSession } from "./services/open-workspace-session";
 import { FirstRunSetup } from "./components/layout/FirstRunSetup";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
@@ -56,10 +55,10 @@ function App() {
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
   const [startupNotices, setStartupNotices] = useState<Array<{ title: Message; body: Message }>>([]);
   const [mainChromeHeight, setMainChromeHeight] = useState(TAB_BAR_MIN_HEIGHT);
-  const loadPreferences = usePreferencesStore((s) => s.load);
+  const initializePreferences = usePreferencesStore((s) => s.initialize);
   const initializeAppConfig = useAppConfigStore((s) => s.initialize);
   const initializeAppState = useAppStateStore((s) => s.initialize);
-  const setLastPaths = useAppStateStore((s) => s.setLastPaths);
+  const setLastWorkspace = useAppStateStore((s) => s.setLastWorkspace);
   const theme = usePreferencesStore((s) => s.preferences.theme);
   const loadLanguageEnvironment = useLanguageStore((s) => s.load);
   const { language, locale } = useInterfaceLanguage();
@@ -72,7 +71,7 @@ function App() {
   // The window theme is the one theme authority: it paints the title bar, and
   // App.css's tokens follow it through prefers-color-scheme, which reaches the
   // startup picker, the main window, and every portaled Radix surface alike.
-  // The Rust core already applied the last-launched document's theme before
+  // The Rust core already applied the app-wide settings' theme before
   // showing the window, so nothing is sent while the app is still loading (or
   // failed to): the in-memory default would replace that choice with System.
   const themeSettled = phase.kind !== "loading" && phase.kind !== "error";
@@ -87,7 +86,7 @@ function App() {
   }, [themeSettled, theme]);
 
   // The native menu follows the interface language. The Rust core built it in
-  // the last-launched document's language before the window was shown, and
+  // the app-wide settings' language before the window was shown, and
   // skips a language it already has.
   useEffect(() => {
     if (!themeSettled) return;
@@ -204,7 +203,7 @@ function App() {
   }, [startupNotices]);
 
   // One initialization also in development StrictMode: its effect replay must
-  // not adopt an old pair after the first pass has shown an editable session.
+  // not adopt an old workspace after the first pass has shown an editable session.
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
@@ -213,44 +212,32 @@ function App() {
       let failure: "startup.appStateFailed" | "startup.appConfigFailed" = "startup.appStateFailed";
       try {
         await loadLanguageEnvironment();
+        const preferences = await initializePreferences();
+        if (preferences.status !== "success") {
+          await loadInterfaceCatalogue(currentInterfaceLanguage());
+          setPhase({ kind: "error", message: describeLoadFailure("preferences", preferences, preferences.filePath) });
+          return;
+        }
         await initializeAppState();
         failure = "startup.appConfigFailed";
         const configRecovery = await initializeAppConfig();
-        failure = "startup.appStateFailed";
-
-        // The picker appears before the user chooses a preferences document,
-        // so preview the last successfully opened one. This gives the initial
-        // window that document's System/Light/Dark policy without duplicating
-        // portable configuration into state.json. A missing or damaged former
-        // selection naturally leaves the in-memory System default in place.
-        const lastPreferencesPath =
-          useAppStateStore.getState().appState.lastLaunchedPreferencesPath;
-        if (lastPreferencesPath) {
-          const previewResult = await loadPreferences(lastPreferencesPath);
-          if (previewResult.status !== "success") {
-            log.warn(
-              "startup theme preferences load failed",
-              loadFailureFields(lastPreferencesPath, previewResult),
-            );
-          }
-        }
         // The first text on screen is already in the interface language.
         await loadInterfaceCatalogue(currentInterfaceLanguage());
         const notices: Array<{ title: Message; body: Message }> = [];
         const state = useAppStateStore.getState().appState;
-        if (lastPreferencesPath && state.lastWorkspacePath) {
-          const opened = await openSession(lastPreferencesPath, state.lastWorkspacePath);
+        if (state.lastWorkspacePath) {
+          const opened = await openWorkspaceSession(state.lastWorkspacePath);
           if (opened.kind === "success") setPhase({ kind: "main" });
           else {
             setPhase({ kind: "startup" });
             if (opened.kind !== "save") notices.push({
-              title: message(opened.kind === "preferences" ? "startup.preferencesFailed.title" : "startup.workspaceFailed.title"),
-              body: describeLoadFailure(opened.kind, opened.failure, opened.kind === "preferences" ? lastPreferencesPath : state.lastWorkspacePath),
+              title: message("startup.workspaceFailed.title"),
+              body: describeLoadFailure(opened.kind, opened.failure, state.lastWorkspacePath),
             });
           }
         } else {
           const config = useAppConfigStore.getState().appConfig;
-          setPhase({ kind: config.knownPreferences.length || config.knownWorkspaces.length ? "startup" : "setup" });
+          setPhase({ kind: config.knownWorkspaces.length ? "startup" : "setup" });
         }
         if (configRecovery) {
           const notice = describeAppConfigRecovery(configRecovery);
@@ -266,28 +253,27 @@ function App() {
         });
       }
     })();
-  }, [initializeAppState, initializeAppConfig, loadLanguageEnvironment, loadPreferences]);
+  }, [initializeAppState, initializeAppConfig, loadLanguageEnvironment, initializePreferences]);
 
   const handleLaunch = async (
-    preferencesPath: string,
     workspacePath: string,
   ) => {
     if (launchingRef.current) return;
     launchingRef.current = true;
     try {
-      const opened = await openSession(preferencesPath, workspacePath);
+      const opened = await openWorkspaceSession(workspacePath);
       if (opened.kind === "save") {
         await showMessage(message("startup.workspaceFailed.title"), message("write.openTabs"));
         return;
       }
       if (opened.kind !== "success") {
         await showMessage(
-          message(opened.kind === "preferences" ? "startup.preferencesFailed.title" : "startup.workspaceFailed.title"),
-          describeLoadFailure(opened.kind, opened.failure, opened.kind === "preferences" ? preferencesPath : workspacePath),
+          message("startup.workspaceFailed.title"),
+          describeLoadFailure(opened.kind, opened.failure, workspacePath),
         );
         return;
       }
-      await setLastPaths(preferencesPath, workspacePath);
+      await setLastWorkspace(workspacePath);
       await loadInterfaceCatalogue(currentInterfaceLanguage());
       setPhase({ kind: "main" });
     } catch (error) {
@@ -324,7 +310,7 @@ function App() {
       break;
 
     case "main":
-      content = <MainWindow onChromeHeightChange={setMainChromeHeight} onSwitchDocuments={() => setPhase({ kind: "startup", returnTo: "main" })} />;
+      content = <MainWindow onChromeHeightChange={setMainChromeHeight} onSwitchWorkspace={() => setPhase({ kind: "startup", returnTo: "main" })} />;
       break;
   }
 

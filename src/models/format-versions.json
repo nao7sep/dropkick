@@ -1,7 +1,8 @@
 {
-  "state": 1,
-  "config": 1,
+  "state": 2,
+  "config": 2,
   "preferences": 1,
+  "settings": 1,
   "workspace": 1,
   "taskList": 1,
   "windowPlacement": 1,

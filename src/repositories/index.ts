@@ -47,9 +47,8 @@ export { applyLanguage, loadLanguageEnvironment } from "./language";
 export type { LanguageEnvironment } from "./language";
 
 export {
-  loadPreferences,
+  initializePreferences,
   flushPreferences,
-  createPreferencesFile,
 } from "./preferences-repository";
 export type { LoadPreferencesResult } from "./preferences-repository";
 

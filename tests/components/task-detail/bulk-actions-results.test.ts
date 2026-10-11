@@ -38,7 +38,7 @@ beforeEach(async () => {
     .mockResolvedValueOnce({ status: "validation", reason: "Has actionable notes" });
   moveUp.mockReset().mockResolvedValue({ status: "success", changed: true });
   moveDown.mockReset().mockResolvedValue({ status: "success", changed: true });
-  usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
+  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
   useTaskListStore.setState({ setStatus, moveUp, moveDown });
   host = await mount(

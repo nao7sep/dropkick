@@ -10,7 +10,7 @@ import { AppModal } from "../shared/AppModal";
 import { Button } from "../shared/Button";
 
 export function FirstRunSetup({ onLaunch, onExisting, onQuit }: {
-  onLaunch: (preferences: string, workspace: string) => Promise<void>;
+  onLaunch: (workspace: string) => Promise<void>;
   onExisting: () => void;
   onQuit: () => void;
 }) {
@@ -41,12 +41,11 @@ export function FirstRunSetup({ onLaunch, onExisting, onQuit }: {
     setBusy(true);
     try {
       const files = await createInitialDocuments(directory, includeTaskList, {
-        preferences: t("startup.preferences"), workspace: t("startup.workspace"), taskList: t("setup.taskListName"),
+        workspace: t("startup.workspace"), taskList: t("setup.taskListName"),
       });
       const config = useAppConfigStore.getState();
-      await config.register("preferences", files.preferencesPath);
-      await config.register("workspace", files.workspacePath);
-      await onLaunch(files.preferencesPath, files.workspacePath);
+      await config.register(files.workspacePath);
+      await onLaunch(files.workspacePath);
     } catch (error) {
       log.error("first setup failed", toErrorFields(error));
       await showMessage(message("setup.failed.title"), message("setup.failed.body"));

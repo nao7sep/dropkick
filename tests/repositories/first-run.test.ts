@@ -4,8 +4,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { createInitialDocuments, getSuggestedSetupDirectory } from "../../src/repositories/first-run";
 import { drainAllSerial, pendingSerialKeys } from "../../src/repositories/file-system";
 
-const names = { preferences: "設定", workspace: "作業", taskList: "タスク" };
-const paths = { preferencesPath: "/chosen/preferences.json", workspacePath: "/chosen/workspace.json", taskListPath: "/chosen/tasks.json" };
+const names = { workspace: "作業", taskList: "タスク" };
+const paths = { workspacePath: "/chosen/workspace.json", taskListPath: "/chosen/tasks.json" };
 beforeEach(() => { vi.mocked(invoke).mockReset(); });
 
 describe("first-run documents", () => {
@@ -20,7 +20,6 @@ describe("first-run documents", () => {
     expect(await createInitialDocuments("/chosen", includeTasks, names)).toEqual(paths);
     expect(invoke).toHaveBeenCalledExactlyOnceWith("create_initial_documents", {
       directory: "/chosen",
-      preferences: { formatVersion: 1, id: expect.any(String), name: names.preferences },
       workspace: { formatVersion: 1, id: expect.any(String), name: names.workspace, openTabs: [], recentFiles: [] },
       taskList: includeTasks ? { formatVersion: 1, id: expect.any(String), tasks: [] } : null,
       taskListName: names.taskList,

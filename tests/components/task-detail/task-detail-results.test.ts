@@ -48,7 +48,7 @@ beforeEach(async () => {
   updateTitle.mockReset().mockResolvedValue({ status: "success" });
   updateDescription.mockReset().mockResolvedValue({ status: "success" });
   addNewNote.mockReset().mockResolvedValue({ status: "success" });
-  usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
+  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
   useNoteDraftStore.setState({ drafts: {}, draftVersions: {} });
   useTaskListStore.setState({

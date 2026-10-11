@@ -1,22 +1,15 @@
-// User preferences stored as a portable JSON file at any path.
+// One app-wide collection of user preferences.
 // Controls display and behavior settings.
 
 import { normalizeLanguagePreference, type LanguagePreference } from "../i18n/languages";
-import { generateId } from "../utils/ids";
 import { singleLine } from "../utils/textCleanup";
 import { isKnownTimeZone, SYSTEM_TIME_ZONE } from "../utils/timezone";
-import type { TaskListDto } from "./task-list";
-import type { PersistedWorkspaceDto } from "./workspace";
 
 export type ThemePreference = "system" | "light" | "dark";
 
 export interface PreferencesDto {
-  // Stable identity generated once when the document is created.
-  id: string;
-  name: string;
   // The interface language: "system" follows the computer's language on every
-  // launch; otherwise a supported language tag. An authored setting that travels
-  // with the portable document, like the theme.
+  // launch; otherwise a supported language tag.
   language: LanguagePreference;
   fontFamily: string;
   theme: ThemePreference;
@@ -115,28 +108,12 @@ export function normalizeHandledTasksPageSize(value: unknown): number {
   );
 }
 
-// The known settings sets. Identity is document metadata, never a settings set.
+// The app-wide settings sets.
 export const PREFERENCE_SET_KEYS = [
   "language", "fontFamily", "theme", "timezone", "kickDistances", "dueSoonDays",
   "handledTasksPageSize", "confirmPermanentDeletions",
 ] as const satisfies readonly (keyof PreferencesDto)[];
 export type PreferenceSetKey = (typeof PREFERENCE_SET_KEYS)[number];
-
-// Keys only a workspace or a task list carries.
-const OTHER_DOCUMENT_KEYS = ["openTabs", "recentFiles", "tasks"] as const satisfies
-  readonly (keyof PersistedWorkspaceDto | keyof TaskListDto)[];
-
-// User-picked JSON is a preferences document only when it carries its identity
-// and name and no key of another kind of document.
-export function isPreferencesDocument(
-  data: unknown,
-): data is Record<string, unknown> & { id: string; name: string } {
-  if (typeof data !== "object" || data === null || Array.isArray(data)) return false;
-  const candidate = data as Record<string, unknown>;
-  return typeof candidate.id === "string"
-    && typeof candidate.name === "string"
-    && !OTHER_DOCUMENT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(candidate, key));
-}
 
 export type PreferenceSets = Pick<PreferencesDto, PreferenceSetKey>;
 
@@ -165,8 +142,8 @@ function builtInPreferenceSets(): PreferenceSets {
   };
 }
 
-export function createDefaultPreferences(name: string): PreferencesDto {
-  return { id: generateId(), name, ...builtInPreferenceSets() };
+export function createDefaultPreferences(): PreferencesDto {
+  return builtInPreferenceSets();
 }
 
 // The one check per set, applied where a document is read and where Save
@@ -187,42 +164,11 @@ export function isValidPreferenceSet(key: PreferenceSetKey, value: unknown): boo
   }
 }
 
-// A preferences document v0.1.0 wrote, as this build reads one (developer
-// decision: the next version opens v0.1.0's files). Sets that still mean the
-// same carry over; `darkMode: true` becomes the Dark theme, while `false`, the
-// only other choice v0.1.0 had, takes today's built-in, which follows the
-// computer; a null time zone and v0.1.0's default font ("system-ui") take their
-// built-ins too. Zoom and sidebar width are window state now and are dropped,
-// as is any identity v0.1.0 never materialized, which is generated here and
-// written at the next save. The values pass the ordinary set check after this.
-// Only a document without another kind's keys is converted, so a v0.1.0
-// workspace or task list picked as preferences is still refused.
-export function isV010PreferencesCandidate(data: Record<string, unknown>): boolean {
-  return typeof data.name === "string"
-    && !OTHER_DOCUMENT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(data, key));
-}
-
-export function fromV010Preferences(data: Record<string, unknown>): Record<string, unknown> {
-  const converted: Record<string, unknown> = {
-    id: typeof data.id === "string" && data.id !== "" ? data.id : generateId(),
-    name: data.name,
-  };
-  if (data.darkMode === true) converted.theme = "dark";
-  if (typeof data.timezone === "string") converted.timezone = data.timezone;
-  if (typeof data.fontFamily === "string" && data.fontFamily !== "system-ui") {
-    converted.fontFamily = data.fontFamily;
-  }
-  for (const key of ["kickDistances", "dueSoonDays", "handledTasksPageSize"] as const) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) converted[key] = data[key];
-  }
-  return converted;
-}
-
-// The document Save writes: identity and every set that differs from its
+// The settings Save writes: every set that differs from its
 // built-in (config-sets-conventions). An invalid set is refused, not written.
 export function preferencesDocument(preferences: PreferencesDto): Record<string, unknown> {
   const builtIn = builtInPreferenceSets();
-  const document: Record<string, unknown> = { id: preferences.id, name: preferences.name };
+  const document: Record<string, unknown> = {};
   for (const key of PREFERENCE_SET_KEYS) {
     const value = preferences[key];
     if (!isValidPreferenceSet(key, value)) {

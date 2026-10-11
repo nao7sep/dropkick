@@ -98,7 +98,7 @@ describe("TabBar wrapped visibility", () => {
       loaded: true,
     });
     usePreferencesStore.setState({
-      preferences: createDefaultPreferences("Test"),
+      preferences: createDefaultPreferences(),
       filePath: "",
       loaded: true,
     });
@@ -340,7 +340,7 @@ describe("TabBar wrapped visibility", () => {
       loaded: true,
     });
     usePreferencesStore.setState({
-      preferences: createDefaultPreferences("Test"),
+      preferences: createDefaultPreferences(),
       filePath: "",
       loaded: true,
     });
@@ -428,7 +428,7 @@ describe("TabBar load problems", () => {
       filePath: "",
       loaded: true,
     });
-    usePreferencesStore.setState({ preferences: createDefaultPreferences("Test"), filePath: "", loaded: true });
+    usePreferencesStore.setState({ preferences: createDefaultPreferences(), filePath: "", loaded: true });
     useAppStateStore.setState({ appState: createDefaultAppState(), filePath: "", loaded: true });
     useTaskListStore.setState({
       files: {
@@ -488,7 +488,7 @@ describe("TabBar hamburger menu", () => {
     );
     expect(rows).toEqual([
       "Settings",
-      "Switch settings or workspace…",
+      "Switch workspace…",
       "Records",
       "|",
       "Zoom",
@@ -499,7 +499,7 @@ describe("TabBar hamburger menu", () => {
     // Zoom is a contained control, not a command: arrow navigation skips it.
     expect([...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual([
       "Settings",
-      "Switch settings or workspace…",
+      "Switch workspace…",
       "Records",
       "Keyboard Shortcuts",
       "About Dropkick",

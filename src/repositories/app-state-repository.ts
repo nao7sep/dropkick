@@ -16,8 +16,6 @@ import { ZOOM_MIN, ZOOM_MAX } from "../utils/zoom";
 
 
 const STRING_FIELDS = [
-  "lastPreferencesPath",
-  "lastLaunchedPreferencesPath",
   "lastWorkspacePath",
 ] as const satisfies readonly (keyof AppStateDto)[];
 const NUMBER_FIELDS = ["zoomLevel", "sidebarWidth", "recordsListWidth"] as const satisfies
@@ -59,7 +57,6 @@ export async function initializeAppState(): Promise<{
   const {
     root,
     stateFile: statePath,
-    preferencesFile: prefsPath,
     workspaceFile: workspacePath,
   } = await appPaths();
 
@@ -86,11 +83,8 @@ export async function initializeAppState(): Promise<{
     const data = configResult.data;
     const path = (value: unknown, fallback: string) =>
       typeof value === "string" && value !== "" ? value : fallback;
-    const lastPreferencesPath = path(data.lastPreferencesPath, await fileExists(prefsPath) ? prefsPath : "");
     appState = {
       ...createDefaultAppState(),
-      lastPreferencesPath,
-      lastLaunchedPreferencesPath: lastPreferencesPath,
       lastWorkspacePath: path(data.lastWorkspacePath, await fileExists(workspacePath) ? workspacePath : ""),
     };
   } else if (configResult.status === "success") {
@@ -115,7 +109,6 @@ export async function initializeAppState(): Promise<{
   if (appState === null) {
     appState = {
       ...createDefaultAppState(),
-      lastPreferencesPath: await fileExists(prefsPath) ? prefsPath : "",
       lastWorkspacePath: await fileExists(workspacePath) ? workspacePath : "",
     };
   }

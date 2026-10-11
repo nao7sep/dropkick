@@ -7,7 +7,6 @@ use serde_json::{json, Value};
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitialDocuments {
-    pub preferences_path: String,
     pub workspace_path: String,
     pub task_list_path: Option<String>,
 }
@@ -28,12 +27,11 @@ impl Failure {
 
 pub fn create(
     directory: &Path,
-    preferences: Value,
     workspace: Value,
     task_list: Option<Value>,
     task_list_name: &str,
 ) -> Result<InitialDocuments, Failure> {
-    create_with_writer(directory, preferences, workspace, task_list, task_list_name, |path, contents| {
+    create_with_writer(directory, workspace, task_list, task_list_name, |path, contents| {
         let path_text = path.to_str().ok_or_else(|| "setup path is not UTF-8".to_string())?;
         crate::write_atomic_impl(path_text, contents, true, true).map(|_| ())
     })
@@ -41,7 +39,6 @@ pub fn create(
 
 fn create_with_writer(
     directory: &Path,
-    preferences: Value,
     mut workspace: Value,
     task_list: Option<Value>,
     task_list_name: &str,
@@ -50,7 +47,6 @@ fn create_with_writer(
     if !directory.is_absolute() {
         return Err(Failure::failed("setup directory must be absolute"));
     }
-    let preferences_path = directory.join("preferences.json");
     let workspace_path = directory.join("workspace.json");
     let task_list_path = task_list.as_ref().map(|_| directory.join("tasks.json"));
     if let Some(path) = &task_list_path {
@@ -61,7 +57,7 @@ fn create_with_writer(
             "isUnifiedView": false,
         }]));
     }
-    let mut documents: Vec<(PathBuf, Value)> = vec![(preferences_path.clone(), preferences)];
+    let mut documents: Vec<(PathBuf, Value)> = vec![];
     // Publish a task list before a workspace that refers to it.
     if let (Some(path), Some(document)) = (&task_list_path, task_list) {
         documents.push((path.clone(), document));
@@ -84,7 +80,6 @@ fn create_with_writer(
             .map_err(|error| Failure::failed(format!("{}: {error}", path.display())))?;
     }
     Ok(InitialDocuments {
-        preferences_path: preferences_path.to_string_lossy().into_owned(),
         workspace_path: workspace_path.to_string_lossy().into_owned(),
         task_list_path: task_list_path.map(|path| path.to_string_lossy().into_owned()),
     })

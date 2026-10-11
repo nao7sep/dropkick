@@ -18,6 +18,7 @@ const TABLE: &str = include_str!("../../src/models/format-versions.json");
 pub enum Format {
     State,
     Preferences,
+    Settings,
     TaskList,
     WindowPlacement,
     Backups,
@@ -27,9 +28,10 @@ pub enum Format {
 impl Format {
     // Every format, so a test can read each from the table.
     #[cfg(test)]
-    pub const ALL: [Format; 6] = [
+    pub const ALL: [Format; 7] = [
         Format::State,
         Format::Preferences,
+        Format::Settings,
         Format::TaskList,
         Format::WindowPlacement,
         Format::Backups,
@@ -40,6 +42,7 @@ impl Format {
         match self {
             Format::State => "state",
             Format::Preferences => "preferences",
+            Format::Settings => "settings",
             Format::TaskList => "taskList",
             Format::WindowPlacement => "windowPlacement",
             Format::Backups => "backups",

@@ -22,7 +22,7 @@ beforeEach(async () => {
     return { status: "success" };
   });
   usePreferencesStore.setState({
-    preferences: createDefaultPreferences("Default"),
+    preferences: createDefaultPreferences(),
     update,
   });
   onClose.mockReset();
@@ -147,7 +147,7 @@ describe("SettingsModal time zone", () => {
   it("keeps a saved zone the platform list lacks selectable", async () => {
     await host.unmount();
     usePreferencesStore.setState({
-      preferences: { ...createDefaultPreferences("Default"), timezone: "Asia/Calcutta" },
+      preferences: { ...createDefaultPreferences(), timezone: "Asia/Calcutta" },
       update,
     });
     host = await mount(createElement(SettingsModal, { onClose }));

@@ -2,11 +2,11 @@ import { message } from "../../src/i18n/translate";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { PreferencesDto } from "../../src/models";
 
-const loadPreferences = vi.fn();
+const initializePreferences = vi.fn();
 const flushPreferences = vi.fn();
 
 vi.mock("../../src/repositories", () => ({
-  loadPreferences: (p: string) => loadPreferences(p),
+  initializePreferences: () => initializePreferences(),
   flushPreferences: (p: string, getPrefs: () => PreferencesDto) => flushPreferences(p, getPrefs),
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -15,10 +15,10 @@ import { usePreferencesStore } from "../../src/state/preferences-store";
 import { createDefaultPreferences } from "../../src/models";
 
 beforeEach(() => {
-  loadPreferences.mockReset();
+  initializePreferences.mockReset();
   flushPreferences.mockReset();
   usePreferencesStore.setState({
-    preferences: createDefaultPreferences("Default"),
+    preferences: createDefaultPreferences(),
     filePath: "",
     loaded: false,
   });
@@ -26,10 +26,10 @@ beforeEach(() => {
 
 describe("load", () => {
   it("sets preferences, file path, and loaded flag on success", async () => {
-    const prefs = { ...createDefaultPreferences("Loaded"), dueSoonDays: 3 };
-    loadPreferences.mockResolvedValue({ status: "success", preferences: prefs });
+    const prefs = { ...createDefaultPreferences(), dueSoonDays: 3 };
+    initializePreferences.mockResolvedValue({ status: "success", preferences: prefs, filePath: "/prefs.json" });
 
-    const result = await usePreferencesStore.getState().load("/prefs.json");
+    const result = await usePreferencesStore.getState().initialize();
     expect(result.status).toBe("success");
     const state = usePreferencesStore.getState();
     expect(state.preferences.dueSoonDays).toBe(3);
@@ -38,8 +38,8 @@ describe("load", () => {
   });
 
   it("returns the failure result and leaves state untouched on non-success", async () => {
-    loadPreferences.mockResolvedValue({ status: "error", message: "bad" });
-    const result = await usePreferencesStore.getState().load("/prefs.json");
+    initializePreferences.mockResolvedValue({ status: "error", message: "bad" });
+    const result = await usePreferencesStore.getState().initialize();
     expect(result).toEqual({ status: "error", message: "bad" });
     expect(usePreferencesStore.getState().loaded).toBe(false);
   });
@@ -61,8 +61,8 @@ describe("update", () => {
   });
 
   it("rolls back its optimistic fields after a failed write so Save can retry", async () => {
-    loadPreferences.mockResolvedValue({ status: "success", preferences: createDefaultPreferences("Default") });
-    await usePreferencesStore.getState().load("/p.json");
+    initializePreferences.mockResolvedValue({ status: "success", preferences: createDefaultPreferences(), filePath: "/p.json" });
+    await usePreferencesStore.getState().initialize();
     flushPreferences.mockRejectedValue(new Error("disk full"));
 
     const result = await usePreferencesStore.getState().update({ dueSoonDays: 10 });

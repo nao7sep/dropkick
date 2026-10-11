@@ -43,7 +43,7 @@ describe("task target validation", () => {
         activeTabIndex: 0,
       },
     });
-    usePreferencesStore.setState({ preferences: createDefaultPreferences("Test") });
+    usePreferencesStore.setState({ preferences: createDefaultPreferences() });
     host = await mount(
       createElement(NewTaskModal, {
         currentFilePath: "",

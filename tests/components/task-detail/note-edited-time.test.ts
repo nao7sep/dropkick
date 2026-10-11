@@ -45,7 +45,7 @@ function noteCard(content: string): HTMLElement {
 
 beforeEach(async () => {
   usePreferencesStore.setState({
-    preferences: { ...createDefaultPreferences("Test"), timezone: "UTC" },
+    preferences: { ...createDefaultPreferences(), timezone: "UTC" },
   });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
   useNoteDraftStore.setState({ drafts: {} });
