@@ -18,6 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Drafts belong to the exact task-list copy being edited; saving, deleting or moving another copy preserves its text. Save receipts follow successful moves without clearing newer typing.
+- Switching workspaces retires departed lists and unfinished reads, preserves unsaved work, and opens without waiting for unrelated background state saves.
+- Bulk changes save each affected list once. Records keeps contiguous new entries during paging, and date grouping updates after midnight or resume.
+- Pending Settings and New Task submissions prevent duplicate saves and further edits until completion.
+- Startup ownership is bounded, Records opening leaves asynchronous workers free, and saves follow long file-symlink chains without replacing the links.
 - Retry can save retained edits after cancelled file recreation or a failed conflict reload.
 - Closing an inactive tab saves parked title and description edits; quit still names note drafts from closed lists.
 - Quitting checks failed workspace saves, and OS shutdown no longer treats a withdrawn conflict question as permission to discard local changes.

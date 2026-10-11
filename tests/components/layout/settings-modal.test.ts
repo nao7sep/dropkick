@@ -154,3 +154,20 @@ describe("SettingsModal time zone", () => {
     expect(timeZoneSelect().value).toBe("Asia/Calcutta");
   });
 });
+
+it("owns one pending save, holds close and editing, and retains a failed draft", async () => {
+  let settle!: (result: unknown) => void;
+  update.mockImplementation(() => new Promise((resolve) => { settle = resolve; }));
+  await choose(timeZoneSelect(), "Asia/Tokyo");
+  const save = [...document.querySelectorAll("button")].find((button) => button.textContent === "Save")!;
+  await act(async () => { save.click(); save.click(); });
+  expect(update).toHaveBeenCalledOnce();
+  expect(timeZoneSelect().disabled).toBe(true);
+  const cancel = [...document.querySelectorAll("button")].find((button) => button.textContent === "Cancel")!;
+  await act(async () => { cancel.click(); document.querySelector('[role="dialog"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+  expect(onClose).not.toHaveBeenCalled();
+  await act(async () => settle({ status: "error", message: message("write.preferences") }));
+  expect(timeZoneSelect().disabled).toBe(false);
+  expect(timeZoneSelect().value).toBe("Asia/Tokyo");
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain("try again");
+});

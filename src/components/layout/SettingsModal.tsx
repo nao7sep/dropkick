@@ -1,7 +1,7 @@
 // Settings modal — edits preferences (font, timezone, kick distances, etc.).
 // Opens from the hamburger menu in the tab bar. Changes are staged locally and saved only on "Save".
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { usePreferencesStore } from "../../state/preferences-store";
 import {
   DUE_SOON_DAYS_DEFAULT,
@@ -59,6 +59,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [kickInput, setKickInput] = useState(
     preferences.kickDistances.join(", "),
   );
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<Message | null>(null);
   // Offered once per opening: the platform's zone list does not change while
   // the modal is open.
@@ -72,39 +74,48 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const handleSave = async () => {
     // Mirror the Save button's disabled state: an explicit commit requires both
     // dirty and valid, so Cmd+Enter is a no-op when there is nothing to save.
-    if (!isDirty) return;
-    setActionError(null);
+    if (!isDirty || submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      setActionError(null);
 
-    const result = await update({
-      ...draft,
-      fontFamily: singleLine(draft.fontFamily),
-      kickDistances: parseKickDistances(kickInput),
-      // Range-clamp on commit rather than per keystroke, so typing "50" is not
-      // fought by the minimum after the first digit. A min/max attribute is not
-      // enforced for typed input, and both values reach consumers that cannot
-      // recover from an out-of-range one — dueSoonDays feeds date arithmetic,
-      // handledTasksPageSize is a slice length.
-      dueSoonDays: normalizeDueSoonDays(draft.dueSoonDays),
-      handledTasksPageSize: normalizeHandledTasksPageSize(
-        draft.handledTasksPageSize,
-      ),
-    });
-    // A failed write leaves the draft on screen with its message, rather than
-    // closing over settings that never reached disk.
-    if (result.status === "error") {
-      setActionError(message("settings.saveFailed"));
-      return;
+      const result = await update({
+        ...draft,
+        fontFamily: singleLine(draft.fontFamily),
+        kickDistances: parseKickDistances(kickInput),
+        // Range-clamp on commit rather than per keystroke, so typing "50" is not
+        // fought by the minimum after the first digit. A min/max attribute is not
+        // enforced for typed input, and both values reach consumers that cannot
+        // recover from an out-of-range one — dueSoonDays feeds date arithmetic,
+        // handledTasksPageSize is a slice length.
+        dueSoonDays: normalizeDueSoonDays(draft.dueSoonDays),
+        handledTasksPageSize: normalizeHandledTasksPageSize(
+          draft.handledTasksPageSize,
+        ),
+      });
+      // A failed write leaves the draft on screen with its message, rather than
+      // closing over settings that never reached disk.
+      if (result.status === "error") {
+        setActionError(message("settings.saveFailed"));
+        return;
+      }
+      onClose();
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
-    onClose();
   };
 
   // Single close guard for every close path (X, Cancel, Escape, backdrop).
-  const handleRequestClose = useDirtyClose(isDirty, onClose);
+  const closeDirty = useDirtyClose(isDirty, onClose);
+  const handleRequestClose = () => { if (!submittingRef.current) closeDirty(); };
 
   const setField = <K extends keyof StagedPreferences>(
     key: K,
     value: StagedPreferences[K],
   ) => {
+    if (submittingRef.current) return;
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -117,8 +128,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       bodyClassName="space-y-5 overflow-y-auto px-6 py-5"
       footer={
         <>
-          <Button onClick={handleRequestClose}>{t("common.cancel")}</Button>
-          <Button variant="primary" onClick={handleSave} disabled={!isDirty}>
+          <Button onClick={handleRequestClose} disabled={submitting}>{t("common.cancel")}</Button>
+          <Button variant="primary" onClick={handleSave} disabled={!isDirty || submitting}>
             {t("settings.save")}
           </Button>
         </>
@@ -145,6 +156,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           reader of any of them can find it whatever language is showing. */}
       <Field label={t("settings.language")}>
         <select
+          disabled={submitting}
           value={draft.language}
           onChange={(e) => setField("language", normalizeLanguagePreference(e.target.value))}
           className="dk-field w-full"
@@ -169,6 +181,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           {THEME_OPTIONS.map(({ value, label }) => (
             <label key={value} className="flex items-center gap-2 text-sm text-ink">
               <input
+                disabled={submitting}
                 type="radio"
                 name="theme"
                 value={value}
@@ -187,6 +200,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       {/* Font family */}
       <Field label={t("settings.font")}>
         <input
+          disabled={submitting}
           type="text"
           value={draft.fontFamily}
           placeholder={t("settings.fontPlaceholder")}
@@ -202,6 +216,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           computer's zone on every launch. */}
       <Field label={t("settings.timezone")}>
         <select
+          disabled={submitting}
           value={draft.timezone}
           onChange={(e) => setField("timezone", e.target.value)}
           className="dk-field w-full"
@@ -218,9 +233,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       {/* Kick distances */}
       <Field label={t("settings.kickDistances")}>
         <input
+          disabled={submitting}
           type="text"
           value={kickInput}
-          onChange={(e) => setKickInput(e.target.value)}
+          onChange={(e) => { if (!submittingRef.current) setKickInput(e.target.value); }}
           placeholder="5, 25"
           className="dk-field w-full"
         />
@@ -232,6 +248,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       {/* Due soon window */}
       <Field label={t("settings.dueSoon")}>
         <input
+          disabled={submitting}
           type="number"
           min={DUE_SOON_DAYS_MIN}
           max={DUE_SOON_DAYS_MAX}
@@ -252,6 +269,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       {/* Handled tasks page size */}
       <Field label={t("settings.handledPageSize")}>
         <input
+          disabled={submitting}
           type="number"
           min={HANDLED_TASKS_PAGE_SIZE_MIN}
           max={HANDLED_TASKS_PAGE_SIZE_MAX}
@@ -270,6 +288,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       <Field label={t("settings.deletion")}>
         <label className="flex min-h-8 items-center gap-2 text-sm text-ink">
           <input
+            disabled={submitting}
             type="checkbox"
             checked={draft.confirmPermanentDeletions}
             onChange={(e) =>

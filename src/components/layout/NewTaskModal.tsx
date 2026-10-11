@@ -81,7 +81,8 @@ export function NewTaskModal({
   );
 
   // Single close guard for every close path (X, Cancel, Escape, backdrop).
-  const handleRequestClose = useDirtyClose(isDirty, onClose);
+  const closeDirty = useDirtyClose(isDirty, onClose);
+  const handleRequestClose = () => { if (!submittingRef.current) closeDirty(); };
 
   const handleCreate = async () => {
     if (submittingRef.current) return;
@@ -116,6 +117,7 @@ export function NewTaskModal({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (submittingRef.current) { e.preventDefault(); return; }
     if (e.defaultPrevented || !hasPrimaryShortcutModifier(e)) return;
 
     // Primary modifier + Enter submits from anywhere in the modal — except that the
@@ -186,7 +188,7 @@ export function NewTaskModal({
       bodyClassName="space-y-4 overflow-y-auto px-6 py-5"
       footer={
         <>
-          <Button onClick={handleRequestClose}>{t("common.cancel")}</Button>
+          <Button onClick={handleRequestClose} disabled={submitting}>{t("common.cancel")}</Button>
           <Button variant="primary" onClick={handleCreate} disabled={!canCreate || submitting}>
             {t("newTask.create")}
           </Button>
@@ -213,6 +215,7 @@ export function NewTaskModal({
             {t("newTask.list")}
           </label>
           <select
+            disabled={submitting}
             ref={targetSelectRef}
             aria-invalid={targetError}
             aria-describedby={targetError ? "new-task-target-error" : undefined}
@@ -254,6 +257,7 @@ export function NewTaskModal({
           {t("newTask.titleLabel")}
         </label>
         <textarea
+          disabled={submitting}
           ref={titleRef}
           value={title}
           onChange={(e) => {
@@ -280,6 +284,7 @@ export function NewTaskModal({
           {t("newTask.description")}
         </label>
         <textarea
+          disabled={submitting}
           ref={descRef}
           value={description}
           onChange={(e) => {
@@ -299,6 +304,7 @@ export function NewTaskModal({
             {t("newTask.priority")}
           </label>
           <select
+            disabled={submitting}
             value={priority}
             onChange={(e) => setPriority(e.target.value as TaskPriority)}
             className="dk-field w-full"
@@ -315,7 +321,7 @@ export function NewTaskModal({
           <label className="dk-label">
             {t("newTask.dueDate")}
           </label>
-          <DatePicker value={dueDate} onChange={setDueDate} popoverPosition="top" />
+          <DatePicker disabled={submitting} value={dueDate} onChange={setDueDate} popoverPosition="top" />
         </div>
       </div>
     </AppModal>
