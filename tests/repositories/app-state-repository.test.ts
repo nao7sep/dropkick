@@ -36,16 +36,24 @@ const STORED = {
 };
 
 describe("app-level view state", () => {
-  it("creates first-run state and default documents without a config file or known-document lists", async () => {
+  it("creates only first-run view state with no selected documents", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
     fileExists.mockResolvedValue(false);
     const { appState, statePath } = await initializeAppState();
     expect(statePath).toBe(`${ROOT}/state.json`);
-    expect(appState).toEqual({ ...createDefaultAppState(), lastPreferencesPath: `${ROOT}/preferences.json`, lastWorkspacePath: `${ROOT}/workspace.json` });
+    expect(appState).toEqual(createDefaultAppState());
     const paths = writeJsonFile.mock.calls.map((c) => c[0]);
-    expect(paths).toEqual([`${ROOT}/state.json`, `${ROOT}/preferences.json`, `${ROOT}/workspace.json`]);
+    expect(paths).toEqual([`${ROOT}/state.json`]);
     expect(writeJsonFile.mock.calls[0][2]).toBe(false);
-    expect(writeJsonFile.mock.calls[1][1]).toEqual({ id: expect.any(String), name: "Default" });
+  });
+
+  it("selects only private-root documents that an earlier build already created", async () => {
+    readJsonFileResult.mockResolvedValue({ status: "missing" });
+    fileExists.mockImplementation(async (path: string) => path === `${ROOT}/preferences.json`);
+    const { appState } = await initializeAppState();
+    expect(appState.lastPreferencesPath).toBe(`${ROOT}/preferences.json`);
+    expect(appState.lastWorkspacePath).toBe("");
+    expect(writeJsonFile.mock.calls.map((call) => call[0])).toEqual([`${ROOT}/state.json`]);
   });
 
   it("reads last selections and geometry, leaving unrecognized keys behind", async () => {
@@ -61,12 +69,11 @@ describe("app-level view state", () => {
     expect("knownPreferences" in writeJsonFile.mock.calls[0][1]).toBe(false);
   });
 
-  it("recreates only a missing default preferences document, with identity only", async () => {
+  it("keeps saved selections without recreating missing documents", async () => {
     readJsonFileResult.mockResolvedValue({ status: "success", data: STORED });
     fileExists.mockImplementation(async (path: string) => path !== `${ROOT}/preferences.json`);
-    await initializeAppState();
-    expect(writeJsonFile).toHaveBeenCalledOnce();
-    expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/preferences.json`, { id: expect.any(String), name: "Default" });
+    expect((await initializeAppState()).appState).toEqual(STORED);
+    expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
   it.each([

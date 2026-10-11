@@ -119,6 +119,19 @@ describe("state.json", () => {
 });
 
 describe("config.json", () => {
+  it("preserves a fresh install's empty lists through its first saved location and restart", async () => {
+    const { appState } = await initializeAppState();
+    const { appConfig, filePath } = await loadAppConfig();
+    expect(appState.lastPreferencesPath).toBe("");
+    expect(appState.lastWorkspacePath).toBe("");
+    expect(appConfig).toEqual({ knownPreferences: [], knownWorkspaces: [] });
+    expect([...disk.keys()]).toEqual([PATHS.stateFile]);
+    await flushAppConfig(filePath, () => ({ ...appConfig, knownPreferences: ["/docs/preferences.json"] }));
+    expect((await loadAppConfig()).appConfig).toEqual({ knownPreferences: ["/docs/preferences.json"], knownWorkspaces: [] });
+    expect(disk.has(PATHS.preferencesFile)).toBe(false);
+    expect(disk.has(PATHS.workspaceFile)).toBe(false);
+  });
+
   it("quarantines a file without a marker and uses the built-ins", async () => {
     const text = put(PATHS.configFile, { knownWorkspaces: ["/w.json"] });
     const { appConfig, recovery } = await loadAppConfig();

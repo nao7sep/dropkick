@@ -13,7 +13,6 @@ import { useTaskListStore } from "../../state/task-list-store";
 import { useNoteDraftStore } from "../../state/note-draft-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { useViewTasks } from "../../hooks/useViewTasks";
-import { useWindowClose } from "../../hooks/use-window-close";
 import { useRecordsWindow } from "../../hooks/useRecordsWindow";
 import { useTaskListRefresh } from "../../hooks/useTaskListRefresh";
 import { isComposingEvent } from "../../hooks/useComposing";
@@ -48,10 +47,11 @@ import { useI18n } from "../../i18n/I18nContext";
 import type { Message } from "../../i18n/translate";
 
 interface MainWindowProps {
+  onSwitchDocuments?: () => void;
   onChromeHeightChange: (height: number) => void;
 }
 
-export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
+export function MainWindow({ onChromeHeightChange, onSwitchDocuments }: MainWindowProps) {
   const { t } = useI18n();
   // Zoom and sidebar width are view state (state.json), not preferences.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
@@ -286,7 +286,7 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
 
   // Hold the window open until pending writes are on disk (see the hook for
   // which exits this can and cannot see).
-  useWindowClose();
+
 
   // An open list edited outside the app is re-read as the user returns to it
   // (the store decides whether it may take the new copy).
@@ -409,7 +409,8 @@ export function MainWindow({ onChromeHeightChange }: MainWindowProps) {
         <TabBar
         onChromeHeightChange={onChromeHeightChange}
         onMenuSelect={(item) => {
-          if (item === "settings") setShowSettings(true);
+          if (item === "documents") onSwitchDocuments?.();
+          else if (item === "settings") setShowSettings(true);
           else if (item === "records") void openRecords();
           else if (item === "shortcuts") setShowShortcuts(true);
           else if (item === "about") setShowAbout(true);

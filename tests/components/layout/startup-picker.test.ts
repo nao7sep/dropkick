@@ -59,14 +59,14 @@ async function mountWithKnownFiles(onLaunch: (prefs: string, workspace: string) 
 }
 
 function preferencesListbox(): HTMLElement {
-  const list = document.querySelector('[role="listbox"][aria-label="Preferences"]');
+  const list = document.querySelector('[role="listbox"][aria-label="Settings file"]');
   if (!list) throw new Error("preferences listbox not found");
   return list as HTMLElement;
 }
 
 function selectedOptionText(): string | undefined {
   return document
-    .querySelector('[aria-label="Preferences"] [aria-selected="true"]')
+    .querySelector('[aria-label="Settings file"] [aria-selected="true"]')
     ?.textContent?.trim();
 }
 
@@ -144,7 +144,7 @@ describe("StartupPicker — native picker failures", () => {
     );
 
     const open = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "Open",
+      (button) => button.textContent?.trim() === "Browse…",
     );
     expect(open).toBeTruthy();
     await act(async () => open!.click());
@@ -217,7 +217,7 @@ describe("StartupPicker — the shared dialog shell", () => {
     // The footer's Open button is the one with the primary appearance —
     // every other "Open" on screen is a section's own file picker.
     const primaryOpen = buttons.find((button) => button.className.includes("dk-btn-primary"));
-    expect(primaryOpen?.textContent?.trim()).toBe("Open");
+    expect(primaryOpen?.textContent?.trim()).toBe("Open workspace");
     expect(document.body.textContent).not.toContain("Launch");
   });
 });

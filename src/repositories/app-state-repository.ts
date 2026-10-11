@@ -1,4 +1,4 @@
-// Owns state.json, initial document creation, and serialized view-state writes.
+// Owns state.json and serialized view-state writes.
 
 import type { AppStateDto } from "../models";
 import { createDefaultAppState, isV010Document } from "../models";
@@ -11,8 +11,6 @@ import {
   appPaths,
   withSerial,
 } from "./file-system";
-import { createPreferencesFile } from "./preferences-repository";
-import { createWorkspaceFile } from "./workspace-repository";
 import { log, type LogFields } from "./logging";
 import { ZOOM_MIN, ZOOM_MAX } from "../utils/zoom";
 
@@ -49,9 +47,8 @@ function parseAppState(value: unknown): AppStateDto | string {
   ) as unknown as AppStateDto;
 }
 
-// First-launch setup: creates ~/.dropkick/ with the default state, preferences
-// and workspace documents. Once the state file exists, selected files are never
-// recreated implicitly; missing selections are reported by their loaders.
+// First launch creates only private view state. Documents are created only
+// when the user chooses a location; defaults left by older builds remain usable.
 //
 // `statePath` is empty when state.json was written by a newer build: the
 // session runs on the default state and writes nothing over that file.
@@ -89,12 +86,12 @@ export async function initializeAppState(): Promise<{
     const data = configResult.data;
     const path = (value: unknown, fallback: string) =>
       typeof value === "string" && value !== "" ? value : fallback;
-    const lastPreferencesPath = path(data.lastPreferencesPath, prefsPath);
+    const lastPreferencesPath = path(data.lastPreferencesPath, await fileExists(prefsPath) ? prefsPath : "");
     appState = {
       ...createDefaultAppState(),
       lastPreferencesPath,
       lastLaunchedPreferencesPath: lastPreferencesPath,
-      lastWorkspacePath: path(data.lastWorkspacePath, workspacePath),
+      lastWorkspacePath: path(data.lastWorkspacePath, await fileExists(workspacePath) ? workspacePath : ""),
     };
   } else if (configResult.status === "success") {
     const parsed = parseAppState(configResult.data);
@@ -118,19 +115,11 @@ export async function initializeAppState(): Promise<{
   if (appState === null) {
     appState = {
       ...createDefaultAppState(),
-      lastPreferencesPath: prefsPath,
-      lastWorkspacePath: workspacePath,
+      lastPreferencesPath: await fileExists(prefsPath) ? prefsPath : "",
+      lastWorkspacePath: await fileExists(workspacePath) ? workspacePath : "",
     };
   }
   if (created) await writeJsonFile(statePath, "state", appState, false);
-
-  // Create missing default documents through their owning repositories.
-  if (!(await fileExists(prefsPath))) {
-    await createPreferencesFile(prefsPath, "Default");
-  }
-  if (!(await fileExists(workspacePath))) {
-    await createWorkspaceFile(workspacePath, "Default");
-  }
 
   log.info("app state initialized", { statePath, created });
   return { appState, statePath: newer ? "" : statePath };

@@ -33,6 +33,7 @@ interface PreferencesState {
 
   // Actions.
   load: (filePath: string) => Promise<LoadPreferencesResult>;
+  adopt: (filePath: string, preferences: PreferencesDto) => void;
   update: (changes: Partial<PreferenceSets>) => Promise<ActionResult>;
 }
 
@@ -55,14 +56,18 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
       const result = await loadPreferences(filePath);
       if (result.status !== "success") return result;
 
+      get().adopt(filePath, result.preferences);
+      return result;
+    },
+
+    adopt: (filePath, preferences) => {
       // A newly loaded document supersedes any completion still in flight from
       // the previous one.
       documentRevision += 1;
       pendingWrites = 0;
       lastPersistedWrite = 0;
-      persistedPreferences = result.preferences;
-      set({ preferences: result.preferences, filePath, loaded: true });
-      return result;
+      persistedPreferences = preferences;
+      set({ preferences, filePath, loaded: true });
     },
 
     update: async (changes: Partial<PreferenceSets>) => {

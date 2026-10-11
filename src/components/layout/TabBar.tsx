@@ -34,7 +34,7 @@ import { useI18n } from "../../i18n/I18nContext";
 import type { MessageKey } from "../../i18n/catalogues";
 import { message } from "../../i18n/translate";
 
-type MenuItemId = "settings" | "records" | "shortcuts" | "about";
+type MenuItemId = "documents" | "settings" | "records" | "shortcuts" | "about";
 
 const TAB_DRAG_TYPE = "workspace-tab";
 
@@ -510,6 +510,10 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 >
                   <Settings size={14} className="text-ink-muted" />
                   {t("menu.settings")}
+                </DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={() => onMenuSelect("documents")} className={MENU_ITEM_ICON_CLASS}>
+                  <FileText size={14} className="text-ink-muted" />
+                  {t("menu.documents")}
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("records")}

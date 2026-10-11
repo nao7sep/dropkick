@@ -38,6 +38,8 @@ interface WorkspaceState {
 
   // Actions — each persists to disk after updating state.
   load: (filePath: string) => Promise<LoadWorkspaceResult>;
+  adopt: (filePath: string, workspace: WorkspaceDto) => void;
+  saveBeforeSwitch: () => Promise<boolean>;
   addTab: (taskFilePath: string, displayName: string) => Promise<void>;
   addUnifiedViewTab: () => Promise<void>;
   closeTab: (index: number) => Promise<void>;
@@ -146,17 +148,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const loadResult = await loadWorkspace(filePath);
       if (loadResult.status !== "success") return loadResult;
 
-      // On startup: prefer unified view tab, otherwise first tab. Keep all
-      // saved tabs and recent files intact; missing task lists are surfaced
-      // when loaded.
-      const ws = loadResult.workspace;
-      const startIdx = startupTabIndex(ws.openTabs);
-      const updated = { ...ws, activeTabIndex: startIdx };
-
-      structuralVersion += 1;
-      set({ workspace: updated, filePath, loaded: true, workspacePersistenceError: null });
-      return { status: "success", workspace: updated };
+      get().adopt(filePath, loadResult.workspace);
+      return { status: "success", workspace: get().workspace };
     },
+
+    adopt: (filePath, workspace) => {
+      structuralVersion += 1;
+      set({ workspace: { ...workspace, activeTabIndex: startupTabIndex(workspace.openTabs) }, filePath, loaded: true, workspacePersistenceError: null });
+    },
+    saveBeforeSwitch: () => flush(),
 
     addTab: async (taskFilePath: string, displayName: string) => {
       // Synchronously update state. If the file is already open, just focus it.

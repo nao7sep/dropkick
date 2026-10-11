@@ -32,48 +32,48 @@ beforeEach(async () => {
 
 describe("known-document list changes", () => {
   it("selecting an already known default document writes no config file", async () => {
-    expect(await useAppConfigStore.getState().registerAndSelect("preferences", "/preferences.json")).toBe(true);
+    expect(await useAppConfigStore.getState().register("preferences", "/preferences.json")).toBe(true);
     expect(flushAppConfig).not.toHaveBeenCalled();
   });
-  it("registering one workspace writes the config from memory, then selects it", async () => {
-    expect(await useAppConfigStore.getState().registerAndSelect("workspace", "/second.json")).toBe(true);
+  it("registering one workspace writes the config from memory, without changing the successful pair", async () => {
+    expect(await useAppConfigStore.getState().register("workspace", "/second.json")).toBe(true);
     expect(flushAppConfig).toHaveBeenCalledOnce();
     expect(flushAppConfig.mock.calls[0][0]).toBe("/config.json");
     expect(flushAppConfig.mock.calls[0][1]()).toEqual({ ...defaults, knownWorkspaces: ["/workspace.json", "/second.json"] });
-    expect(selection()).toEqual({ lastPreferencesPath: "/preferences.json", lastWorkspacePath: "/second.json" });
+    expect(selection()).toEqual({ lastPreferencesPath: "/preferences.json", lastWorkspacePath: "/workspace.json" });
   });
-  it("unregistering the selected document moves the selection to the first one left", async () => {
-    await useAppConfigStore.getState().registerAndSelect("preferences", "/other.json");
-    expect(await useAppConfigStore.getState().unregisterAndReselect("preferences", "/other.json")).toBe(true);
+  it("unregistering a document preserves the last successful pair", async () => {
+    await useAppConfigStore.getState().register("preferences", "/other.json");
+    expect(await useAppConfigStore.getState().unregister("preferences", "/other.json")).toBe(true);
     expect(useAppConfigStore.getState().appConfig.knownPreferences).toEqual(["/preferences.json"]);
     expect(selection().lastPreferencesPath).toBe("/preferences.json");
   });
   it("unregistering the final document writes an empty authored list", async () => {
-    await useAppConfigStore.getState().unregisterAndReselect("preferences", "/preferences.json");
+    await useAppConfigStore.getState().unregister("preferences", "/preferences.json");
     expect(useAppConfigStore.getState().appConfig.knownPreferences).toEqual([]);
     expect(flushAppConfig.mock.calls[0][1]()).toEqual({ ...defaults, knownPreferences: [] });
-    expect(selection().lastPreferencesPath).toBe("");
+    expect(selection().lastPreferencesPath).toBe("/preferences.json");
   });
   it("a failed register undoes the list change, selects nothing, and a retry writes it", async () => {
     flushAppConfig.mockRejectedValueOnce(new Error("disk full"));
-    expect(await useAppConfigStore.getState().registerAndSelect("workspace", "/second.json")).toBe(false);
+    expect(await useAppConfigStore.getState().register("workspace", "/second.json")).toBe(false);
     expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual(["/workspace.json"]);
     expect(selection().lastWorkspacePath).toBe("/workspace.json");
     expect(flushAppState).not.toHaveBeenCalled();
     expect(useToastStore.getState().backgroundWriteError?.what).toBe("savedLocations");
-    expect(await useAppConfigStore.getState().registerAndSelect("workspace", "/second.json")).toBe(true);
+    expect(await useAppConfigStore.getState().register("workspace", "/second.json")).toBe(true);
     expect(flushAppConfig).toHaveBeenCalledTimes(2);
     expect(flushAppConfig.mock.calls[1][1]().knownWorkspaces).toEqual(["/workspace.json", "/second.json"]);
-    expect(selection().lastWorkspacePath).toBe("/second.json");
+    expect(selection().lastWorkspacePath).toBe("/workspace.json");
     expect(useToastStore.getState().backgroundWriteError).toBeNull();
   });
   it("a failed unregister keeps the row and the selection, and a retry writes it", async () => {
     flushAppConfig.mockRejectedValueOnce(new Error("disk full"));
-    expect(await useAppConfigStore.getState().unregisterAndReselect("preferences", "/preferences.json")).toBe(false);
+    expect(await useAppConfigStore.getState().unregister("preferences", "/preferences.json")).toBe(false);
     expect(useAppConfigStore.getState().appConfig.knownPreferences).toEqual(["/preferences.json"]);
     expect(selection().lastPreferencesPath).toBe("/preferences.json");
     expect(flushAppState).not.toHaveBeenCalled();
-    expect(await useAppConfigStore.getState().unregisterAndReselect("preferences", "/preferences.json")).toBe(true);
+    expect(await useAppConfigStore.getState().unregister("preferences", "/preferences.json")).toBe(true);
     expect(flushAppConfig).toHaveBeenCalledTimes(2);
     expect(useAppConfigStore.getState().appConfig.knownPreferences).toEqual([]);
   });
@@ -83,8 +83,8 @@ describe("known-document list changes", () => {
       getConfig();
       await new Promise<void>((resolve) => { release = resolve; });
     });
-    const first = useAppConfigStore.getState().registerAndSelect("workspace", "/second.json");
-    const second = useAppConfigStore.getState().registerAndSelect("workspace", "/third.json");
+    const first = useAppConfigStore.getState().register("workspace", "/second.json");
+    const second = useAppConfigStore.getState().register("workspace", "/third.json");
     release();
     await Promise.all([first, second]);
     expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual(["/workspace.json", "/second.json", "/third.json"]);

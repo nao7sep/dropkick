@@ -1,10 +1,6 @@
-// Startup picker — shown on every launch.
-// User selects a preferences file and a workspace file, then clicks Launch.
-//
-// Root launch gate, not a stacked modal: it replaces the whole app until the
-// user launches and has no "cancel" target, so it is intentionally exempt from
-// the *Modal/*Dialog naming rule (recorded as an exempt root surface in the
-// modal-dialog conventions).
+// Select existing documents during recovery or an explicit switch.
+// Its selection is local until both files open successfully. A switch can be
+// cancelled; initial recovery always offers Quit. Drafts stay in session stores.
 
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -33,22 +29,27 @@ import { message } from "../../i18n/translate";
 const STARTUP_LIST_PAGE = 4;
 
 interface StartupPickerProps {
-  onLaunch: (preferencesPath: string, workspacePath: string) => void;
+  onLaunch: (preferencesPath: string, workspacePath: string) => void | Promise<void>;
+  onCancel?: () => void;
+  onQuit?: () => void;
 }
 
-export function StartupPicker({ onLaunch }: StartupPickerProps) {
+export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps) {
   const { t } = useI18n();
   const appState = useAppStateStore((s) => s.appState);
   const appConfig = useAppConfigStore((s) => s.appConfig);
-  const registerAndSelect = useAppConfigStore((s) => s.registerAndSelect);
-  const unregisterAndReselect = useAppConfigStore((s) => s.unregisterAndReselect);
+  const register = useAppConfigStore((s) => s.register);
+  const unregister = useAppConfigStore((s) => s.unregister);
 
   const [selectedPrefs, setSelectedPrefs] = useState(
-    appState.lastPreferencesPath,
+    appConfig.knownPreferences.includes(appState.lastPreferencesPath)
+      ? appState.lastPreferencesPath : (appConfig.knownPreferences[0] ?? ""),
   );
   const [selectedWorkspace, setSelectedWorkspace] = useState(
-    appState.lastWorkspacePath,
+    appConfig.knownWorkspaces.includes(appState.lastWorkspacePath)
+      ? appState.lastWorkspacePath : (appConfig.knownWorkspaces[0] ?? ""),
   );
+  const [opening, setOpening] = useState(false);
   const prefsOpenRef = useRef<HTMLButtonElement>(null);
   const workspaceOpenRef = useRef<HTMLButtonElement>(null);
   const launchRef = useRef<HTMLButtonElement>(null);
@@ -72,12 +73,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
 
   useEffect(focusNextActionable, [selectedPrefs, selectedWorkspace]);
 
-  // Every write this screen performs — creating a file, or recording the
-  // selection in state.json — goes through here. Without it a failed write left
-  // the rejection to the global unhandled-rejection logger: the button simply
-  // did nothing, with no dialog, no selection change and no clue why. TabBar's
-  // equivalent already wrapped the identical sequence.
-  // `action` names the failure's title and body keys, and the log line.
+  // Native selection, document creation and saved-location writes report failures here.
   const guarded = async (
     action: "openPreferences" | "createPreferences" | "openWorkspace" | "createWorkspace",
     run: () => Promise<void>,
@@ -105,7 +101,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
         );
         return;
       }
-      if (await registerAndSelect("preferences", path)) setSelectedPrefs(path);
+      if (await register("preferences", path)) setSelectedPrefs(path);
     });
   };
 
@@ -114,7 +110,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
       const normalizedPath = await saveJsonFileDialog("preferences.json");
       if (!normalizedPath) return;
       await createPreferencesFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-      if (await registerAndSelect("preferences", normalizedPath)) setSelectedPrefs(normalizedPath);
+      if (await register("preferences", normalizedPath)) setSelectedPrefs(normalizedPath);
     });
   };
 
@@ -130,7 +126,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
         );
         return;
       }
-      if (await registerAndSelect("workspace", path)) setSelectedWorkspace(path);
+      if (await register("workspace", path)) setSelectedWorkspace(path);
     });
   };
 
@@ -139,20 +135,20 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
       const normalizedPath = await saveJsonFileDialog("workspace.json");
       if (!normalizedPath) return;
       await createWorkspaceFile(normalizedPath, fileNameWithoutExt(normalizedPath));
-      if (await registerAndSelect("workspace", normalizedPath)) setSelectedWorkspace(normalizedPath);
+      if (await register("workspace", normalizedPath)) setSelectedWorkspace(normalizedPath);
     });
   };
 
   const handleRemovePreferences = async (path: string) => {
-    if (await unregisterAndReselect("preferences", path) && selectedPrefs === path) {
-      setSelectedPrefs(useAppStateStore.getState().appState.lastPreferencesPath);
+    if (await unregister("preferences", path) && selectedPrefs === path) {
+      setSelectedPrefs(useAppConfigStore.getState().appConfig.knownPreferences[0] ?? "");
     }
   };
 
   const handleRemoveWorkspace = async (path: string) => {
-    if (await unregisterAndReselect("workspace", path) && selectedWorkspace === path) {
+    if (await unregister("workspace", path) && selectedWorkspace === path) {
       setSelectedWorkspace(
-        useAppStateStore.getState().appState.lastWorkspacePath,
+        useAppConfigStore.getState().appConfig.knownWorkspaces[0] ?? "",
       );
     }
   };
@@ -161,24 +157,14 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
 
   return (
     <>
-      {/* AppModal's own overlay and Dialog.Content positioning already centre
-          the card on screen; this just paints the canvas behind it, since —
-          unlike every other AppModal use — there is no main window underneath
-          to show through (modal-dialog-conventions: root launch gate, not a
-          stacked modal, exempt from the *Modal/*Dialog naming rule). */}
       <div className="fixed inset-0 bg-background" />
-      {/* Built on the same shared shell every dialog uses, so it can't drift
-          from it. Two differences from an ordinary AppModal: `closable=false`
-          drops the header's close control and makes Escape and an outside
-          click no-ops — there is nothing to close back to — and `dimmed=false`
-          skips the backdrop tint, since the card sits on the app's own canvas
-          rather than over other content. */}
       <AppModal
         title="Dropkick"
-        onClose={() => {}}
-        closable={false}
+        onClose={() => { if (!opening) onCancel?.(); }}
+        closable={Boolean(onCancel)}
         dimmed={false}
-        maxWidth={448}
+        maxWidth={520}
+        footerClassName="flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4"
         // Radix's own default — focus the dialog surface on open — would
         // fight the effect above that advances focus to the next actionable
         // control (the first empty section's Open button, or Open itself
@@ -190,22 +176,17 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
           },
         }}
         footer={
-          // Opens the selected pair into the main window — the app is already
-          // running, so this never reads "Launch"; it reuses the app's own
-          // "Open" wording (startup.open), the same term each section's own
-          // Open button already carries.
-          <Button
-            ref={launchRef}
-            variant="primary"
-            onClick={() => onLaunch(selectedPrefs, selectedWorkspace)}
-            disabled={!canLaunch}
-            className="min-w-28"
-          >
-            {t("startup.open")}
-          </Button>
+          <>
+            {onQuit && <Button onClick={onQuit}>{t("startup.quit")}</Button>}
+            {onCancel && <Button disabled={opening} onClick={onCancel}>{t("common.cancel")}</Button>}
+            <Button ref={launchRef} variant="primary" onClick={async () => { if (opening) return; setOpening(true); try { await onLaunch(selectedPrefs, selectedWorkspace); } finally { setOpening(false); } }} disabled={opening || !canLaunch}>
+              {t("startup.continue")}
+            </Button>
+          </>
         }
       >
-        <div className="flex flex-col gap-6">
+        <fieldset disabled={opening} className="flex min-w-0 w-full flex-col gap-6">
+          <p className="text-sm text-ink-soft">{t("startup.description")}</p>
           {/* Preferences section */}
           <Section
             id="preferences"
@@ -233,7 +214,7 @@ export function StartupPicker({ onLaunch }: StartupPickerProps) {
             onRemove={handleRemoveWorkspace}
             openButtonRef={workspaceOpenRef}
           />
-        </div>
+        </fieldset>
       </AppModal>
     </>
   );
@@ -353,7 +334,7 @@ function Section({
       <div className="mt-2 flex gap-2">
         <Button ref={openButtonRef} size="sm" onClick={onOpen}>
           <FolderOpen size={14} />
-          {t("startup.open")}
+          {t("startup.browse")}
         </Button>
         <Button size="sm" onClick={onNew}>
           <Plus size={14} />

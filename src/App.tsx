@@ -1,6 +1,5 @@
-// App root — orchestrates the startup picker and main window.
-// On launch: initialize app state → preview the last preferences → show the startup
-// picker → load its selected preferences and workspace → show the main window.
+// App root: restore the last successful pair, or guide setup/recovery.
+// Session drafts remain in their stores when the document picker replaces the view.
 
 import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
@@ -26,13 +25,15 @@ import {
 } from "./repositories";
 import { DEFAULT_UI_FONT_STACK } from "./models";
 import { usePreferencesStore } from "./state/preferences-store";
-import { useWorkspaceStore } from "./state/workspace-store";
 import { useAppConfigStore } from "./state/app-config-store";
 import { useAppStateStore } from "./state/app-state-store";
 import { useLanguageStore } from "./state/language-store";
 import { currentInterfaceLanguage, useInterfaceLanguage } from "./hooks/useInterfaceLanguage";
 import { I18nProvider, loadInterfaceCatalogue } from "./i18n/I18nContext";
 import { message, type Message } from "./i18n/translate";
+import { useWindowClose } from "./hooks/use-window-close";
+import { openSession } from "./services/open-session";
+import { FirstRunSetup } from "./components/layout/FirstRunSetup";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
@@ -45,15 +46,17 @@ import {
 
 type AppPhase =
   | { kind: "loading" }
-  | { kind: "startup" }
+  | { kind: "setup" }
+  | { kind: "startup"; returnTo?: "main" | "setup" }
   | { kind: "error"; message: Message }
   | { kind: "main" };
 
 function App() {
+  useWindowClose();
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
+  const [startupNotices, setStartupNotices] = useState<Array<{ title: Message; body: Message }>>([]);
   const [mainChromeHeight, setMainChromeHeight] = useState(TAB_BAR_MIN_HEIGHT);
   const loadPreferences = usePreferencesStore((s) => s.load);
-  const loadWorkspace = useWorkspaceStore((s) => s.load);
   const initializeAppConfig = useAppConfigStore((s) => s.initialize);
   const initializeAppState = useAppStateStore((s) => s.initialize);
   const setLastPaths = useAppStateStore((s) => s.setLastPaths);
@@ -64,6 +67,7 @@ function App() {
   // Guards against a double Launch: phase stays "startup" until the awaited
   // loads finish, so two quick clicks would otherwise both run the sequence.
   const launchingRef = useRef(false);
+  const initializedRef = useRef(false);
 
   // The window theme is the one theme authority: it paints the title bar, and
   // App.css's tokens follow it through prefers-color-scheme, which reaches the
@@ -71,7 +75,7 @@ function App() {
   // The Rust core already applied the last-launched document's theme before
   // showing the window, so nothing is sent while the app is still loading (or
   // failed to): the in-memory default would replace that choice with System.
-  const themeSettled = phase.kind === "startup" || phase.kind === "main";
+  const themeSettled = phase.kind !== "loading" && phase.kind !== "error";
   useEffect(() => {
     if (!themeSettled) return;
     applyWindowTheme(theme).catch((e) =>
@@ -189,8 +193,21 @@ function App() {
     };
   }, [zoomLevel, mainChromeHeight]);
 
-  // Initialize on mount.
+  // Mount the recovery picker before its message. Mounting two Radix focus
+  // scopes in the same commit can hide the message's title/body from AX.
   useEffect(() => {
+    if (startupNotices.length === 0) return;
+    setStartupNotices([]);
+    void (async () => {
+      for (const notice of startupNotices) await showMessage(notice.title, notice.body);
+    })().catch((error) => log.error("startup notice failed", toErrorFields(error)));
+  }, [startupNotices]);
+
+  // One initialization also in development StrictMode: its effect replay must
+  // not adopt an old pair after the first pass has shown an editable session.
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     (async () => {
       // Which store a failure leaves unread, so its message names the right one.
       let failure: "startup.appStateFailed" | "startup.appConfigFailed" = "startup.appStateFailed";
@@ -219,11 +236,27 @@ function App() {
         }
         // The first text on screen is already in the interface language.
         await loadInterfaceCatalogue(currentInterfaceLanguage());
-        setPhase({ kind: "startup" });
+        const notices: Array<{ title: Message; body: Message }> = [];
+        const state = useAppStateStore.getState().appState;
+        if (lastPreferencesPath && state.lastWorkspacePath) {
+          const opened = await openSession(lastPreferencesPath, state.lastWorkspacePath);
+          if (opened.kind === "success") setPhase({ kind: "main" });
+          else {
+            setPhase({ kind: "startup" });
+            if (opened.kind !== "save") notices.push({
+              title: message(opened.kind === "preferences" ? "startup.preferencesFailed.title" : "startup.workspaceFailed.title"),
+              body: describeLoadFailure(opened.kind, opened.failure, opened.kind === "preferences" ? lastPreferencesPath : state.lastWorkspacePath),
+            });
+          }
+        } else {
+          const config = useAppConfigStore.getState().appConfig;
+          setPhase({ kind: config.knownPreferences.length || config.knownWorkspaces.length ? "startup" : "setup" });
+        }
         if (configRecovery) {
           const notice = describeAppConfigRecovery(configRecovery);
-          await showMessage(notice.title, notice.body);
+          notices.push(notice);
         }
+        setStartupNotices(notices);
       } catch (e) {
         log.error("app initialization failed", toErrorFields(e));
         await loadInterfaceCatalogue(currentInterfaceLanguage());
@@ -239,60 +272,33 @@ function App() {
     preferencesPath: string,
     workspacePath: string,
   ) => {
-    if (phase.kind !== "startup" || launchingRef.current) return;
+    if (launchingRef.current) return;
     launchingRef.current = true;
     try {
-      log.info("user launch", { preferencesPath, workspacePath });
-
-      // Load preferences and workspace into stores.
-      const preferencesResult = await loadPreferences(preferencesPath);
-      if (preferencesResult.status !== "success") {
-        log.warn(
-          "preferences load failed",
-          loadFailureFields(preferencesPath, preferencesResult),
-        );
+      const opened = await openSession(preferencesPath, workspacePath);
+      if (opened.kind === "save") {
+        await showMessage(message("startup.workspaceFailed.title"), message("write.openTabs"));
+        return;
+      }
+      if (opened.kind !== "success") {
         await showMessage(
-          message("startup.preferencesFailed.title"),
-          describeLoadFailure("preferences", preferencesResult, preferencesPath),
+          message(opened.kind === "preferences" ? "startup.preferencesFailed.title" : "startup.workspaceFailed.title"),
+          describeLoadFailure(opened.kind, opened.failure, opened.kind === "preferences" ? preferencesPath : workspacePath),
         );
         return;
       }
-
-      const workspaceResult = await loadWorkspace(workspacePath);
-      if (workspaceResult.status !== "success") {
-        log.warn(
-          "workspace load failed",
-          loadFailureFields(workspacePath, workspaceResult),
-        );
-        await showMessage(
-          message("startup.workspaceFailed.title"),
-          describeLoadFailure("workspace", workspaceResult, workspacePath),
-        );
-        return;
-      }
-
-      // Remember only a successfully loaded selection.
       await setLastPaths(preferencesPath, workspacePath);
-
-      const workspace = useWorkspaceStore.getState().workspace;
-
-      // Record the effective configuration once the session is live: the
-      // preferences object (no secret-bearing fields) and a workspace summary.
-      const preferences = preferencesResult.preferences;
-      log.info("session ready", {
-        preferences,
-        workspace: {
-          id: workspace.id,
-          openTabs: workspace.openTabs.length,
-          recentFiles: workspace.recentFiles.length,
-        },
-      });
-
+      await loadInterfaceCatalogue(currentInterfaceLanguage());
       setPhase({ kind: "main" });
+    } catch (error) {
+      log.error("open session failed", toErrorFields(error));
+      await showMessage(message("startup.workspaceFailed.title"), message("startup.openWorkspaceFailed.body"));
     } finally {
-      // On failure, allow a retry; on success the picker unmounts so this is moot.
       launchingRef.current = false;
     }
+  };
+  const quit = () => {
+    void getCurrentWindow().close().catch((error) => log.warn("quit request failed", toErrorFields(error)));
   };
 
   let content: ReactNode;
@@ -308,12 +314,17 @@ function App() {
       content = <StartupErrorScreen message={phase.message} />;
       break;
 
+    case "setup":
+      content = <FirstRunSetup onLaunch={handleLaunch} onExisting={() => setPhase({ kind: "startup", returnTo: "setup" })} onQuit={quit} />;
+      break;
+
     case "startup":
-      content = <StartupPicker onLaunch={handleLaunch} />;
+      content = <StartupPicker onLaunch={handleLaunch} onQuit={quit}
+        onCancel={phase.returnTo ? () => { if (!launchingRef.current) setPhase({ kind: phase.returnTo! }); } : undefined} />;
       break;
 
     case "main":
-      content = <MainWindow onChromeHeightChange={setMainChromeHeight} />;
+      content = <MainWindow onChromeHeightChange={setMainChromeHeight} onSwitchDocuments={() => setPhase({ kind: "startup", returnTo: "main" })} />;
       break;
   }
 

@@ -1,7 +1,7 @@
 // Sparse app-level config sets (config-sets-conventions).
 import type { AppConfigDto, StoreRecovery } from "../models";
 import { appConfigDocument, APP_CONFIG_SET_KEYS, createDefaultAppConfig, isV010Document, isValidAppConfigSet } from "../models";
-import { appPaths, readJsonFileResult, quarantineFile, writeJsonFile, withSerial } from "./file-system";
+import { appPaths, fileExists, readJsonFileResult, quarantineFile, writeJsonFile, withSerial } from "./file-system";
 import { log } from "./logging";
 
 function isMap(value: unknown): value is Record<string, unknown> {
@@ -28,6 +28,8 @@ async function readMap(
 }
 
 async function builtInAppConfig(): Promise<AppConfigDto> {
+  // Existing sparse files omit these paths when their lists equal the original
+  // defaults. Keep that on-disk meaning, including explicitly empty overrides.
   const { preferencesFile, workspaceFile } = await appPaths();
   return createDefaultAppConfig(preferencesFile, workspaceFile);
 }
@@ -51,7 +53,16 @@ export async function loadAppConfig() {
   const { recovery } = read;
   const carried = read.map === null ? await v010Locations(stateFile) : null;
   const map = read.map ?? carried ?? {};
-  const appConfig = await builtInAppConfig();
+  let appConfig = await builtInAppConfig();
+  if (read.map === null && carried === null) {
+    // No saved list exists yet. Discover documents left by older releases,
+    // without advertising or creating nonexistent defaults on a fresh launch.
+    const { preferencesFile, workspaceFile } = await appPaths();
+    appConfig = createDefaultAppConfig(
+      await fileExists(preferencesFile) ? preferencesFile : "",
+      await fileExists(workspaceFile) ? workspaceFile : "",
+    );
+  }
   for (const key of APP_CONFIG_SET_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(map, key)) continue;
     const value = map[key];

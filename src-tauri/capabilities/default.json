@@ -13,6 +13,7 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "core:window:allow-destroy",
+    "core:window:allow-close",
     "core:window:allow-set-title",
     "core:window:allow-set-min-size",
     "core:webview:allow-set-webview-zoom"

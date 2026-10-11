@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Choose a folder for settings and workspace files on first launch, with an optional first task list. Later launches reopen the last successful pair; the main menu can switch either file. Setup never replaces existing documents.
+
 - An open task list re-reads its file when you return to it, instead of watching the file for changes.
 - A save that fails keeps your edit on screen with a **Not saved** notice and **Retry**, instead of reverting the list; quitting or closing the list's tab asks first.
 - Unsaved note text lasts while Dropkick runs and no longer comes back after a restart; quitting asks before discarding it.

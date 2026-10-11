@@ -15,6 +15,8 @@ const onMoved = vi.fn();
 const onScaleChanged = vi.fn();
 const pickerLanguages = vi.hoisted((): string[] => []);
 
+vi.mock("../src/hooks/use-window-close", () => ({ useWindowClose: vi.fn() }));
+
 vi.mock("@tauri-apps/api/window", () => ({
   LogicalSize: class LogicalSize {
     constructor(
@@ -119,7 +121,7 @@ beforeEach(() => {
     });
   });
   useAppStateStore.setState({ appState, initialize, loaded: false });
-  useAppConfigStore.setState({ initialize: vi.fn().mockResolvedValue(null) });
+  useAppConfigStore.setState({ initialize: vi.fn().mockResolvedValue(null), appConfig: { knownPreferences: [LAST_PREFERENCES], knownWorkspaces: [] } });
 
   const load = vi.fn(async (filePath: string) => {
     const preferences = {

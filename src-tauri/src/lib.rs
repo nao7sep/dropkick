@@ -11,6 +11,7 @@ use tauri::{AppHandle, Manager, State};
 // included beside their subject (tests-folder-conventions).
 mod backup_store;
 mod format_version;
+mod first_run;
 mod i18n;
 mod instance_owner;
 mod logging;
@@ -592,19 +593,21 @@ mod windows_replace {
 }
 
 pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
-    write_atomic_impl(path, contents, true)
+    write_atomic_impl(path, contents, true, false)
 }
 
 // The same atomic write, minus the backup-history record: for volatile state
 // that is state and nothing else (view state and window placement), which the data-backup
 // convention excludes from backups.sqlite3.
 pub fn write_atomic_unrecorded(path: &str, contents: &str) -> Result<String, String> {
-    write_atomic_impl(path, contents, false)
+    write_atomic_impl(path, contents, false, false)
 }
 
-fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String, String> {
+fn write_atomic_impl(path: &str, contents: &str, record: bool, create_only: bool) -> Result<String, String> {
     use std::io::Write;
-    let resolved = resolve_symlink(std::path::Path::new(path));
+    // Creation must reject even an existing symlink, never follow it and replace
+    // somebody else's file. Ordinary saves retain their write-through behavior.
+    let resolved = if create_only { std::path::PathBuf::from(path) } else { resolve_symlink(std::path::Path::new(path)) };
     let target = resolved.as_path();
     let parent = target
         .parent()
@@ -614,11 +617,11 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         .and_then(|n| n.to_str())
         .ok_or_else(|| "path has no file name".to_string())?;
 
-    refuse_newer_json(target, contents.as_bytes())?;
+    if !create_only { refuse_newer_json(target, contents.as_bytes())?; }
 
     // A write that changes nothing is skipped (content-lifecycle-conventions,
     // Files). A target that is missing or cannot be read takes the write below.
-    if std::fs::read(target).is_ok_and(|existing| existing == contents.as_bytes()) {
+    if !create_only && std::fs::read(target).is_ok_and(|existing| existing == contents.as_bytes()) {
         return Ok(sha256_hex(contents.as_bytes()));
     }
 
@@ -644,7 +647,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         options.write(true).create_new(true);
         let mut file = options.open(&tmp)?;
         file.write_all(contents.as_bytes())?;
-        carry_replaced_permissions(target, &file)?;
+        if !create_only { carry_replaced_permissions(target, &file)?; }
         file.sync_all()?;
         Ok(())
     })();
@@ -652,8 +655,13 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         return Err(e.to_string());
     }
 
-    if let Err(e) = refuse_newer_json(target, contents.as_bytes())
-        .and_then(|()| replace_target(&tmp, target).map_err(|e| e.to_string()))
+    let publication = if create_only {
+        publish_new(&tmp, target).map_err(|e| e.to_string())
+    } else {
+        refuse_newer_json(target, contents.as_bytes())
+            .and_then(|()| replace_target(&tmp, target).map_err(|e| e.to_string()))
+    };
+    if let Err(e) = publication
     {
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
@@ -735,6 +743,49 @@ pub fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
     path.with_file_name(format!("{stem}-{}.invalid", logging::filename_stamp_seconds_now()))
 }
 
+// These OS primitives fail when the target exists, including a dangling link.
+// No check-then-overwriting-rename window, and no partial public document.
+#[cfg(target_os = "macos")]
+fn publish_new(staged: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    extern "C" {
+        fn renamex_np(from: *const std::ffi::c_char, to: *const std::ffi::c_char, flags: u32) -> i32;
+    }
+    let from = CString::new(staged.as_os_str().as_bytes())?;
+    let to = CString::new(target.as_os_str().as_bytes())?;
+    // RENAME_EXCL. Both NUL-terminated strings outlive the native call.
+    if unsafe { renamex_np(from.as_ptr(), to.as_ptr(), 0x0000_0004) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(windows)]
+fn publish_new(staged: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+    // std::fs::rename replaces on Windows too; MoveFileExW with zero flags does not.
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    extern "system" { fn MoveFileExW(from: *const u16, to: *const u16, flags: u32) -> i32; }
+    let from: Vec<u16> = staged.as_os_str().encode_wide().chain(Some(0)).collect();
+    let to: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+    // No REPLACE_EXISTING or COPY_ALLOWED: same-volume atomic publication only.
+    if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), 0) } != 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+fn publish_new(staged: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+    // Other builds retain atomic no-clobber publication on filesystems that
+    // support hard links, then remove the source only after publication succeeds.
+    std::fs::hard_link(staged, target)?;
+    std::fs::remove_file(staged)
+}
+
 // Renames an unreadable store to its quarantine name so the original bytes
 // survive while the caller starts fresh. An existing file at that name is never
 // replaced (a rename would replace it silently), and every failure reaches the
@@ -747,10 +798,7 @@ pub fn set_aside_to(
     path: &std::path::Path,
     target: std::path::PathBuf,
 ) -> Result<std::path::PathBuf, String> {
-    if std::fs::symlink_metadata(&target).is_ok() {
-        return Err(format!("{} already exists", target.display()));
-    }
-    std::fs::rename(path, &target).map_err(|e| e.to_string())?;
+    publish_new(path, &target).map_err(|e| e.to_string())?;
     Ok(target)
 }
 
@@ -825,6 +873,34 @@ async fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
         }
     })
     .await
+}
+
+#[tauri::command]
+async fn suggested_setup_directory() -> Result<String, String> {
+    native_wait::settle(|| {
+        dirs::document_dir()
+            .map(|path| path.join("Dropkick").to_string_lossy().into_owned())
+            .ok_or_else(|| "Documents directory is unavailable".to_string())
+    }).await
+}
+
+#[tauri::command]
+async fn create_initial_documents(
+    directory: String,
+    preferences: Value,
+    workspace: Value,
+    task_list: Option<Value>,
+    task_list_name: String,
+) -> Result<first_run::InitialDocuments, first_run::Failure> {
+    native_wait::settle(move || {
+        let started = log_cmd_start("create_initial_documents", json!({ "directory": directory }));
+        let result = first_run::create(std::path::Path::new(&directory), preferences, workspace, task_list, &task_list_name);
+        match &result {
+            Ok(_) => log_cmd_ok("create_initial_documents", started, json!({})),
+            Err(error) => log_cmd_err("create_initial_documents", started, &error.diagnostic),
+        }
+        Ok(result)
+    }).await.map_err(first_run::Failure::failed)?
 }
 
 // Applies a saved theme preference to the calling window: the window theme,
@@ -1171,6 +1247,8 @@ pub fn run() {
             quarantine_file,
             ensure_dir,
             app_paths,
+            suggested_setup_directory,
+            create_initial_documents,
             log_event,
             logging_debug_enabled,
             open_records_window,
