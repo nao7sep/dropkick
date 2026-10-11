@@ -59,7 +59,8 @@ function commands(input = shipped): Command[] {
       touchesDisk:
         /std::fs::/.test(body) ||
         /write_atomic(?:_unrecorded)?\(/.test(body) ||
-        /paths::data_root\(/.test(body),
+        /paths::data_root\(/.test(body) ||
+        /records_window::open\(/.test(body),
     });
   }
   return found;
@@ -82,6 +83,7 @@ describe("Tauri command dispatch (src-tauri/src/lib.rs)", () => {
         "#[tauri::command]\nasync fn settled_save() {\n    native_wait::settle(move || write_atomic(path, contents)).await\n}\n",
     );
     expect(unsettled(planted)).toEqual(["inline_save", "worker_save"]);
+    expect(unsettled(commands("#[tauri::command(async)]\nfn records_open() {\n    records_window::open(app, context);\n}\n"))).toEqual(["records_open"]);
   });
   it("finds the shipped commands", () => {
     // A regex that matched nothing would make every assertion below vacuous.

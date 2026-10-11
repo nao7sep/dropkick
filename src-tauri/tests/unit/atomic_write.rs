@@ -452,6 +452,49 @@ fn write_atomic_writes_through_a_symlink_instead_of_replacing_it() {
     assert_eq!(std::fs::read_to_string(&real).unwrap(), "after");
 }
 
+#[cfg(any(unix, windows))]
+fn file_symlink(target: &std::path::Path, link: &std::path::Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(target, link)
+        .expect("Windows symlink test requires Developer Mode or symlink creation privilege");
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn write_atomic_follows_a_readable_long_symlink_chain_without_replacing_any_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("target.json");
+    std::fs::write(&target, "before").unwrap();
+    let mut previous = target.clone();
+    let mut links = Vec::new();
+    for index in 0..12 {
+        let link = dir.path().join(format!("link-{index}.json"));
+        file_symlink(std::path::Path::new(previous.file_name().unwrap()), &link);
+        previous = link.clone();
+        links.push(link);
+    }
+    assert_eq!(std::fs::read_to_string(&previous).unwrap(), "before");
+    write_atomic_unrecorded(previous.to_str().unwrap(), "after").unwrap();
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "after");
+    assert!(links.iter().all(|link| std::fs::symlink_metadata(link).unwrap().file_type().is_symlink()));
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn write_atomic_refuses_a_link_loop_without_replacing_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = dir.path().join("a.json");
+    let b = dir.path().join("b.json");
+    file_symlink(std::path::Path::new("b.json"), &a);
+    file_symlink(std::path::Path::new("a.json"), &b);
+    assert!(write_atomic_unrecorded(a.to_str().unwrap(), "after").is_err());
+    assert_eq!(std::fs::read_link(&a).unwrap(), std::path::PathBuf::from("b.json"));
+    assert_eq!(std::fs::read_link(&b).unwrap(), std::path::PathBuf::from("a.json"));
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+}
+
 #[test]
 #[cfg(unix)]
 fn write_atomic_keeps_the_target_permissions() {

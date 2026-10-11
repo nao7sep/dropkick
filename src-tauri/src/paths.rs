@@ -20,10 +20,14 @@ use tauri::{AppHandle, Manager};
 const DATA_DIR_NAME: &str = ".dropkick";
 const DATA_DIR_ENV_VAR: &str = "DROPKICK_DATA_DIR";
 
-// Resolves the absolute storage root and ensures it exists. Returns a clear
-// error (and the caller stops) if the home directory is unknown or the root
-// cannot be created — never a silent fallback to a different location.
+// Returns the root admitted by the bounded startup ownership worker. Reusing
+// its outcome avoids repeated I/O and cannot bypass a failed ownership claim.
 pub fn data_root(app: &AppHandle) -> Result<PathBuf, String> {
+    crate::instance_owner::admitted_root(app)
+}
+
+// Only the startup ownership worker may resolve/create/secure this root.
+pub fn initialize_data_root(app: &AppHandle) -> Result<PathBuf, String> {
     let home = app
         .path()
         .home_dir()

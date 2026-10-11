@@ -23,6 +23,20 @@ struct Owner {
     _lock: File,
 }
 
+// A timed-out launch stays on the startup error surface until relaunch. The
+// worker keeps actual ownership through settlement, but cannot admit a normal
+// session after setup has skipped its other owners.
+pub struct StartupRoot(Result<PathBuf, String>);
+fn establish_with_bound(
+    bound: Duration,
+    work: impl FnOnce() -> Result<PathBuf, String> + Send + 'static,
+) -> StartupRoot {
+    StartupRoot(crate::native_wait::run_with_bound("startup-owner".into(), bound, work))
+}
+pub fn admitted_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.try_state::<StartupRoot>().ok_or_else(|| "storage ownership is unavailable".to_string())?.0.clone()
+}
+
 enum Claim {
     Primary { lock: File, listener: TcpListener },
     Secondary { endpoint_path: PathBuf },
@@ -116,24 +130,25 @@ fn listen<R: Runtime>(listener: TcpListener, app: tauri::AppHandle<R>) {
 pub fn init() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri::plugin::Builder::<tauri::Wry>::new("instance-owner")
         .setup(|app, _api| {
-            // Preserve Dropkick's existing startup-error screen when its root is
-            // unusable. No shared store can open in that case, so ownership is
-            // unnecessary and the normal setup path reports the root error.
-            let root = match crate::paths::data_root(app.app_handle()) {
-                Ok(root) => root,
-                Err(_) => return Ok(()),
-            };
-            match claim(&root)? {
-                Claim::Primary { lock, listener } => {
-                    listen(listener, app.app_handle().clone());
-                    app.manage(Owner { _lock: lock });
-                    Ok(())
+            let handle = app.app_handle().clone();
+            let root = establish_with_bound(crate::native_wait::WAIT_BOUND, move || {
+                let path = crate::paths::initialize_data_root(&handle)?;
+                match claim(&path)? {
+                    Claim::Primary { lock, listener } => {
+                        handle.manage(Owner { _lock: lock });
+                        listen(listener, handle.clone());
+                        Ok(path)
+                    }
+                    Claim::Secondary { endpoint_path } => {
+                        let _ = notify_primary(&endpoint_path);
+                        std::process::exit(0);
+                    }
                 }
-                Claim::Secondary { endpoint_path } => {
-                    let _ = notify_primary(&endpoint_path);
-                    std::process::exit(0);
-                }
-            }
+            });
+            // Failure or timeout opens the existing error surface. All normal
+            // root consumers require this admitted result before opening stores.
+            app.manage(root);
+            Ok(())
         })
         .build()
 }

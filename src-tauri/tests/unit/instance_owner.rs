@@ -84,3 +84,41 @@ fn secondary_activation_uses_the_published_endpoint() {
     notify_primary(&endpoint_path).unwrap();
     assert_eq!(receiver.join().unwrap(), "activate");
 }
+
+struct HeldStartup {
+    release: std::sync::mpsc::Sender<()>,
+    caller: Option<std::thread::JoinHandle<()>>,
+}
+impl Drop for HeldStartup {
+    fn drop(&mut self) {
+        let _ = self.release.send(());
+        if let Some(caller) = self.caller.take() { let _ = caller.join(); }
+    }
+}
+
+#[test]
+fn startup_wait_is_bounded_and_a_late_claim_never_admits_a_writable_session() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().to_path_buf();
+    let (release, held) = std::sync::mpsc::channel();
+    let (finished, settled) = std::sync::mpsc::channel();
+    let (done, result) = std::sync::mpsc::channel();
+    let caller = std::thread::spawn(move || {
+        let root = establish_with_bound(Duration::from_millis(20), move || {
+            held.recv().unwrap();
+            let owner = claim(&path)?;
+            finished.send(owner).unwrap();
+            Ok(path)
+        });
+        done.send(root).unwrap();
+    });
+    let fixture = HeldStartup { release, caller: Some(caller) };
+    let root = result.recv_timeout(Duration::from_secs(1)).unwrap();
+    assert!(root.0.is_err());
+    fixture.release.send(()).unwrap();
+    let owner = settled.recv_timeout(Duration::from_secs(1)).unwrap();
+    assert!(root.0.is_err(), "late completion must not bypass failed startup");
+    assert!(matches!(claim(dir.path()).unwrap(), Claim::Secondary { .. }));
+    drop(owner);
+    assert!(matches!(claim(dir.path()).unwrap(), Claim::Primary { .. }));
+}

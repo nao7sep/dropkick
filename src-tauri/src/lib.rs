@@ -476,8 +476,9 @@ pub fn atomic_temp_name(file_name: &str) -> String {
     format!("{}-{}.tmp", stem, nanoid::generate())
 }
 
-// Follows a symlinked target to the file it points at, up to a small bound so a
-// link loop cannot spin.
+// Follows a symlinked target. A bounded chain can fail, but success must never
+// leave a symlink for atomic publication to replace. Missing final targets can
+// still be created; other lookup failures preserve the original path.
 //
 // An atomic write replaces a directory entry, so writing to the link's own path
 // would replace the LINK with a regular file: every later save would land on the
@@ -488,18 +489,17 @@ pub fn atomic_temp_name(file_name: &str) -> String {
 // keeps the returned path in its original form — canonicalize hands back a
 // `\\?\` extended-length path on Windows, which would then leak into the temp
 // file's sibling name and the backup store's key.
-pub fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
+pub fn resolve_symlink(path: &std::path::Path) -> Result<std::path::PathBuf, String> {
     let mut current = path.to_path_buf();
-    for _ in 0..8 {
-        let is_link = std::fs::symlink_metadata(&current)
-            .map(|m| m.file_type().is_symlink())
-            .unwrap_or(false);
-        if !is_link {
-            break;
-        }
-        let Ok(dest) = std::fs::read_link(&current) else {
-            break;
+    for _ in 0..40 {
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) if !metadata.file_type().is_symlink() => return Ok(current),
+            Ok(_) => {},
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(current),
+            Err(error) => return Err(format!("could not inspect save target {}: {error}", current.display())),
         };
+        let dest = std::fs::read_link(&current)
+            .map_err(|error| format!("could not resolve save target {}: {error}", current.display()))?;
         current = if dest.is_absolute() {
             dest
         } else {
@@ -509,7 +509,7 @@ pub fn resolve_symlink(path: &std::path::Path) -> std::path::PathBuf {
             }
         };
     }
-    current
+    Err(format!("too many symlink hops for save target {}", path.display()))
 }
 
 // Keep ordinary permissions on the replacement. Its modified time belongs
@@ -607,7 +607,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool, create_only: bool
     use std::io::Write;
     // Creation must reject even an existing symlink, never follow it and replace
     // somebody else's file. Ordinary saves retain their write-through behavior.
-    let resolved = if create_only { std::path::PathBuf::from(path) } else { resolve_symlink(std::path::Path::new(path)) };
+    let resolved = if create_only { std::path::PathBuf::from(path) } else { resolve_symlink(std::path::Path::new(path))? };
     let target = resolved.as_path();
     let parent = target
         .parent()
@@ -989,13 +989,13 @@ fn apply_language(
 
 // Opens the Records window, or brings it forward. Window creation runs off the
 // main thread, where a synchronous command would deadlock it on Windows.
-#[tauri::command(async)]
-fn open_records_window(
+#[tauri::command]
+async fn open_records_window(
     app: AppHandle,
     context: records_window::RecordsWindowContext,
 ) -> Result<(), String> {
     let started = log_cmd_start("open_records_window", json!({}));
-    let result = records_window::open(&app, &context);
+    let result = native_wait::settle(move || records_window::open(&app, &context)).await;
     match &result {
         Ok(()) => log_cmd_ok("open_records_window", started, json!({})),
         Err(message) => log_cmd_err("open_records_window", started, message.clone()),
@@ -1145,26 +1145,10 @@ pub fn run() {
             }
         })
         .setup(move |app| {
-            // Open this session's logger under the app's own data dir. The Rust
-            // core has filesystem access even though the webview is sandboxed, and
-            // it routes through the single storage-root resolver (paths::data_root)
-            // so the records database and the data directory share one source of
-            // truth and both honor DROPKICK_DATA_DIR.
-            //
-            // A storage-root failure must NOT abort the launch. This hook runs
-            // before the logger is open and before the panic hook is installed,
-            // so propagating the error here turns into a panic at the .expect()
-            // below: the window is already built, so it flashes and vanishes
-            // with exit code 101, and the carefully-worded message from
-            // paths::data_root reaches nowhere — no record, no dialog — while
-            // StartupErrorScreen, built for exactly this class of failure, is
-            // never reached. Degrade instead: skip the logger and the backup
-            // store, let the window open, and let the webview's own
-            // app_paths call return the same error for that screen to show.
-            let root_handle = app.handle().clone();
-            match native_wait::run("app-paths".to_string(), move || {
-                paths::data_root(&root_handle)
-            }) {
+            // The process-ownership worker resolved the root once. A failed
+            // or still-pending claim opens only the startup error surface;
+            // ordinary consumers cannot bypass it by resolving again.
+            match paths::data_root(app.handle()) {
                 Ok(data_root) => {
                     let layout = paths::app_paths(&data_root);
                     let records_path = std::path::Path::new(&layout.records_file);
@@ -1212,10 +1196,8 @@ pub fn run() {
                 app.set_menu(menu)?;
             }
             if let Some(window) = app.get_webview_window("main") {
-                // The theme of the preferences document the startup picker will
-                // preview is applied before the window is shown, so the first
-                // frame and title bar already match it; the frontend re-applies
-                // the theme whenever a document loads or Settings are saved.
+                // The admitted root is a cached lookup; the saved theme reader
+                // bounds its own storage work before the window is shown.
                 let saved_theme = paths::data_root(app.handle()).ok().and_then(|root| {
                     theme::read_saved_window_theme(std::path::Path::new(
                         &paths::app_paths(&root).state_file,
