@@ -23,6 +23,7 @@ import {
   cursorAfter,
   hasFields,
   mergeNewestPage,
+  readNewestRecords,
   prettyJson,
 } from "../../services/records";
 import { pageStepIndex, stepIndex } from "../../utils/selection";
@@ -101,6 +102,10 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const [available, setAvailable] = useState(0);
   const listGeneration = useRef(0);
+  const currentList = useRef(list);
+  currentList.current = list;
+  const fetchingNewest = useRef<number | null>(null);
+  const firstPagePending = useRef<number | null>(null);
   // The busy claim for the next page (PLAYBOOK, Own the work in flight).
   const fetchingMore = useRef(false);
   // The filters the current list was read for, for the live reads below.
@@ -169,21 +174,25 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   useEffect(() => {
     filtersRef.current = filters;
     const generation = ++listGeneration.current;
+    firstPagePending.current = generation;
     fetchingMore.current = false;
     newestPending.current = false;
     setList({ status: "loading" });
     readRecordsPage({ ...filters, after: null }).then(
       (page) => {
         if (generation !== listGeneration.current) return;
+        firstPagePending.current = null;
         liveSuspended.current = false;
         setList({ status: "ready", records: page.records, more: page.more, loadingMore: false, moreFailed: false });
       },
       () => {
         if (generation !== listGeneration.current) return;
+        firstPagePending.current = null;
         liveSuspended.current = true;
         setList({ status: "failed" });
       },
     );
+    return () => { listGeneration.current += 1; };
   }, [filters]);
 
   // The newest page read again for new records. It joins the rows already
@@ -192,22 +201,35 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   // copy serves the live subscription below.
   const readNewest = useCallback((): void => {
     const generation = listGeneration.current;
-    readRecordsPage({ ...filtersRef.current, after: null }).then(
+    if (firstPagePending.current === generation || currentList.current.status === "loading" || fetchingNewest.current === generation) {
+      newestPending.current = true;
+      return;
+    }
+    fetchingNewest.current = generation;
+    newestPending.current = false;
+    const shown = currentList.current.status === "ready" ? currentList.current.records : [];
+    readNewestRecords(shown, (after) => readRecordsPage({ ...filtersRef.current, after }), () => generation !== listGeneration.current).then(
       (page) => {
-        if (generation !== listGeneration.current) return;
+        if (page === null || generation !== listGeneration.current) return;
         liveSuspended.current = false;
-        setList((current) =>
-          current.status === "ready"
-            ? { ...current, ...mergeNewestPage(current.records, current.more, page) }
-            : { status: "ready", records: page.records, more: page.more, loadingMore: false, moreFailed: false },
-        );
+        setList((current) => current.status === "ready"
+          ? { ...current, ...mergeNewestPage(current.records, current.more, page) }
+          : { status: "ready", records: page.records, more: page.more, loadingMore: false, moreFailed: false });
       },
-      () => {
-        if (generation !== listGeneration.current) return;
-        liveSuspended.current = true;
-      },
-    );
+      () => { if (generation === listGeneration.current) liveSuspended.current = true; },
+    ).finally(() => {
+      if (fetchingNewest.current !== generation) return;
+      fetchingNewest.current = null;
+      if (newestPending.current && !liveSuspended.current && scrollRef.current && atTop(scrollRef.current)) readNewest();
+    });
   }, []);
+
+  // Arrivals during the first read wait for its ready render, so the first
+  // page cannot overwrite a newer read and the bridge starts from shown rows.
+  useEffect(() => {
+    if (list.status === "ready" && newestPending.current && !liveSuspended.current
+      && scrollRef.current && atTop(scrollRef.current)) readNewest();
+  }, [list.status, readNewest]);
 
   // A stored record reaches the list at once while it is scrolled to the top;
   // otherwise it waits until the list is back there, so the list never moves
@@ -264,7 +286,7 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
         liveSuspended.current = false;
         setList((current) =>
           current.status === "ready"
-            ? { ...current, records: [...current.records, ...page.records], more: page.more, loadingMore: false }
+            ? { ...current, records: mergeNewestPage(current.records, current.more, page).records, more: page.more, loadingMore: false }
             : current,
         );
       },

@@ -76,6 +76,28 @@ export function mergeNewestPage(
   return { records, more: beyond ? shownMore : page.more };
 }
 
+// A live read must connect to the already shown range, even if several pages
+// arrived while the reader was scrolled away. Stop stale generations between
+// reads; the caller owns admission and application.
+export async function readNewestRecords(
+  shown: readonly RecordSummary[],
+  readPage: (after: RecordCursor | null) => Promise<RecordsPage>,
+  cancelled: () => boolean,
+): Promise<RecordsPage | null> {
+  const ids = new Set(shown.map((record) => record.id));
+  const records: RecordSummary[] = [];
+  let after: RecordCursor | null = null;
+  for (;;) {
+    const page = await readPage(after);
+    if (cancelled()) return null;
+    records.push(...page.records);
+    if (!shown.length || !page.more || !page.records.length || page.records.some((record) => ids.has(record.id))) {
+      return { records, more: page.more };
+    }
+    after = cursorAfter(page.records);
+  }
+}
+
 function usableLocale(locale: string | null): locale is string {
   if (locale === null || locale === "") return false;
   try {

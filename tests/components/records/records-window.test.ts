@@ -168,6 +168,20 @@ const choose = async (select: HTMLSelectElement, value: string) => {
 };
 
 describe("RecordsWindow", () => {
+  it("queues live arrivals behind a held first page, then merges them after it settles", async () => {
+    const initial = deferred<RecordsPage>();
+    records.readRecordsPage.mockReturnValueOnce(initial.promise)
+      .mockResolvedValueOnce({ records: [newer, error, warn], more: false });
+    await render();
+    vi.useFakeTimers();
+    await signal();
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(records.readRecordsPage).toHaveBeenCalledOnce();
+    await act(async () => initial.resolve({ records: [error, warn], more: false }));
+    expect(records.readRecordsPage).toHaveBeenCalledTimes(2);
+    expect(messages()).toEqual(["view state updated", "command error", "window placement could not be loaded"]);
+  });
+
   it("lists the records newest first, with nothing selected and every filter off", async () => {
     await render();
 
@@ -513,4 +527,45 @@ describe("RecordsWindow", () => {
     expect(document.title).toBe("Records");
     expect(nativeWindow.setTitle).toHaveBeenLastCalledWith("Records");
   });
+});
+
+it("bridges every page of records accumulated while scrolled away, even after the old end", async () => {
+  await render(); await act(async () => options()[1]!.click()); await scrollTo(100);
+  const arriving = Array.from({ length: 205 }, (_, index) => summary(1000 - index, `2026-10-03T08:${String(Math.floor((204 - index) / 60)).padStart(2, "0")}:${String((204 - index) % 60).padStart(2, "0")}.000Z`, "info", `arrived-${index}`));
+  records.readRecordsPage.mockResolvedValueOnce({ records: arriving.slice(0, 100), more: true })
+    .mockResolvedValueOnce({ records: arriving.slice(100, 200), more: true })
+    .mockResolvedValueOnce({ records: [...arriving.slice(200), error, warn], more: false });
+  vi.useFakeTimers(); await signal(); await act(async () => vi.advanceTimersByTime(1000));
+  expect(options()).toHaveLength(2);
+  await scrollTo(0);
+  expect(options()).toHaveLength(207);
+  expect(records.readRecordsPage.mock.calls.slice(1).map(([query]) => query.after)).toEqual([
+    null, { time: arriving[99].time, id: arriving[99].id }, { time: arriving[199].time, id: arriving[199].id },
+  ]);
+  expect(options().at(-1)?.getAttribute("aria-selected")).toBe("true");
+});
+
+it("a filter change cancels a held bridge before it can read another page or replace the new filter", async () => {
+  await render(); vi.useFakeTimers();
+  const bridge = deferred<RecordsPage>();
+  records.readRecordsPage.mockReturnValueOnce(bridge.promise)
+    .mockResolvedValueOnce({ records: [error], more: false });
+  await signal(); await act(async () => vi.advanceTimersByTime(1000));
+  await choose(document.querySelectorAll("select")[1]!, "error");
+  await act(async () => bridge.resolve({ records: [newer], more: true }));
+  expect(records.readRecordsPage).toHaveBeenCalledTimes(3);
+  expect(messages()).toEqual(["command error"]);
+});
+
+it("repeated signals during a held live read queue one refresh after settlement", async () => {
+  await render(); vi.useFakeTimers();
+  const live = deferred<RecordsPage>();
+  records.readRecordsPage.mockReturnValueOnce(live.promise)
+    .mockResolvedValueOnce({ records: [newer, error, warn], more: false });
+  await signal(); await act(async () => vi.advanceTimersByTime(1000));
+  for (let index = 0; index < 3; index++) { await signal(); await act(async () => vi.advanceTimersByTime(1000)); }
+  expect(records.readRecordsPage).toHaveBeenCalledTimes(2);
+  await act(async () => live.resolve({ records: [error, warn], more: false }));
+  expect(records.readRecordsPage).toHaveBeenCalledTimes(3);
+  expect(messages()).toEqual(["view state updated", "command error", "window placement could not be loaded"]);
 });
