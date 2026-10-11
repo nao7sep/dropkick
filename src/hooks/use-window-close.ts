@@ -34,9 +34,10 @@ import {
   toErrorFields,
 } from "../repositories";
 import { useNoteDraftStore } from "../state/note-draft-store";
-import { draftTaskId, unsavedNoteText } from "../services/note-drafts";
-import { multiline, singleLine } from "../utils/textCleanup";
+import { unsavedNoteText } from "../services/note-drafts";
+import { commitParkedFields } from "../services/commit-task-fields";
 import { useTaskListStore } from "../state/task-list-store";
+import { useWorkspaceStore } from "../state/workspace-store";
 import { refuseDialogs, showAppConfirm, useDialogStore } from "../state/dialog-store";
 import { message } from "../i18n/translate";
 
@@ -46,36 +47,8 @@ export const CLOSE_WAIT_MS = 3000;
 // not be saved within the bound is logged and left.
 let sessionEnding = false;
 
-// Commits every title and description draft still in the draft store, as its
-// blur would have: a field whose pane went away without a blur parks its text
-// there, and nothing else would save it before the session ends. An empty
-// title is not allowed, so its draft is dropped and the title stays.
-function commitParkedFields(): void {
-  const drafts = useNoteDraftStore.getState();
-  const lists = useTaskListStore.getState();
-  for (const [key, typed] of Object.entries(drafts.drafts)) {
-    const field = key.endsWith("#title") ? "title" : key.endsWith("#description") ? "description" : null;
-    if (field === null) continue;
-    const taskId = draftTaskId(key);
-    const filePath = Object.keys(lists.files)
-      .find((path) => lists.files[path].data.tasks.some((task) => task.id === taskId));
-    const task = filePath && lists.files[filePath].data.tasks.find((t) => t.id === taskId);
-    if (filePath && task) {
-      const editedAtUtc = drafts.editedAtUtc[key];
-      if (field === "title") {
-        const cleaned = singleLine(typed, { minify: true });
-        if (cleaned && cleaned !== task.title) void lists.updateTitle(filePath, taskId, cleaned, editedAtUtc);
-      } else {
-        const cleaned = multiline(typed);
-        if (cleaned !== task.description) void lists.updateDescription(filePath, taskId, cleaned, editedAtUtc);
-      }
-    }
-    drafts.clearDraftIf(key, typed, drafts.draftVersions[key]);
-  }
-}
-
 // The work that must finish before the window is destroyed. Resolves to every
-// task list left unsaved; empty when everything is on disk.
+// task list or workspace left unsaved; empty when everything is on disk.
 async function settlePendingWrites(): Promise<string[]> {
   // Blur first, so a field that commits on blur fires its write synchronously
   // and lands in the serial chain we are about to drain; then commit fields
@@ -84,8 +57,15 @@ async function settlePendingWrites(): Promise<string[]> {
     document.activeElement.blur();
   }
   commitParkedFields();
+  const workspace = useWorkspaceStore.getState();
+  // Dismissing a structural-save notice does not make the workspace durable.
+  // Use its existing full-save owner, just as switching workspaces does.
+  const workspaceSaved = !workspace.loaded || await workspace.saveBeforeSwitch();
   await drainAllSerial();
-  return useTaskListStore.getState().unsavedPaths();
+  return [
+    ...useTaskListStore.getState().unsavedPaths(),
+    ...(!workspaceSaved ? [workspace.filePath] : []),
+  ];
 }
 
 // Asks before an ordinary quit discards note text not yet added or saved.
@@ -96,6 +76,7 @@ async function confirmDiscardNoteText(): Promise<boolean> {
   const unsaved = unsavedNoteText(
     useNoteDraftStore.getState().drafts,
     Object.values(useTaskListStore.getState().files).map((file) => file.data),
+    Object.values(useNoteDraftStore.getState().parkedTasks),
   );
   if (!unsaved.any) return true;
   const discard = await showQuitDiscardConfirm(unsaved.taskTitles);

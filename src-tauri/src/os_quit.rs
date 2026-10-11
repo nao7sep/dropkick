@@ -28,6 +28,10 @@ use tauri::Emitter;
 
 use crate::logging;
 
+#[cfg(any(windows, test))]
+#[path = "session_wait.rs"]
+mod session_wait;
+
 /// Tells the main window that the session is ending (src/repositories/session-end.ts).
 pub const SESSION_ENDING_EVENT: &str = "session-ending";
 
@@ -221,6 +225,7 @@ mod platform {
     use serde_json::json;
     use tauri::{AppHandle, Manager};
 
+    use super::session_wait::{wait_for_settlement, Message, Outcome};
     use super::{begin_session_end, release_session, APP, SESSION_END_PENDING, SESSION_END_WAIT};
     use crate::logging;
 
@@ -235,8 +240,6 @@ mod platform {
     const QS_ALLINPUT: u32 = 0x04FF;
     // Any value unique among this window's subclasses.
     const SUBCLASS_ID: usize = 0x444B;
-    // How often the wait looks at the window's report when no message wakes it.
-    const POLL_MS: u128 = 50;
 
     #[repr(C)]
     struct Point {
@@ -320,41 +323,47 @@ mod platform {
     // waits for this answer before it ends any window's session, so tao's own
     // WM_ENDSESSION handling comes only after it.
     fn wait_for_window() {
-        let deadline = Instant::now() + SESSION_END_WAIT;
-        // SAFETY: a zeroed MSG is a valid out-parameter, and every message is
-        // dispatched on the thread that owns its window.
-        unsafe {
-            let mut msg: Msg = std::mem::zeroed();
-            while SESSION_END_PENDING.load(Ordering::SeqCst) {
-                let now = Instant::now();
-                if now >= deadline {
-                    release_session("timed out");
-                    return;
-                }
-                let wait = (deadline - now).as_millis().min(POLL_MS) as u32;
-                MsgWaitForMultipleObjects(0, std::ptr::null(), 0, wait, QS_ALLINPUT);
-                loop {
-                    if !SESSION_END_PENDING.load(Ordering::SeqCst) {
-                        return;
-                    }
-                    if Instant::now() >= deadline {
-                        release_session("timed out");
-                        return;
-                    }
-                    if PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) == 0 {
-                        break;
-                    }
-                    if msg.message == WM_QUIT {
-                        PostQuitMessage(msg.wparam as i32);
-                        release_session("quit");
-                        return;
-                    }
-                    TranslateMessage(&msg);
-                    DispatchMessageW(&msg);
-                }
-            }
+        let outcome = wait_for_settlement(
+            Instant::now() + SESSION_END_WAIT,
+            || SESSION_END_PENDING.load(Ordering::SeqCst),
+            Instant::now,
+            wait_for_input,
+            dispatch_one,
+        );
+        match outcome {
+            Outcome::Settled => {}
+            Outcome::TimedOut => release_session("timed out"),
+            Outcome::Quit => release_session("quit"),
         }
     }
+
+    fn wait_for_input(wait: std::time::Duration) {
+        // SAFETY: no handles are supplied; this waits on the calling thread's queue.
+        unsafe {
+            MsgWaitForMultipleObjects(0, std::ptr::null(), 0, wait.as_millis() as u32, QS_ALLINPUT);
+        }
+    }
+
+    fn dispatch_one() -> Message {
+        // SAFETY: a zeroed MSG is a valid out-parameter. The calling thread owns
+        // the queue and dispatches its own messages. Preserve WM_QUIT for tao.
+        unsafe {
+            let mut msg: Msg = std::mem::zeroed();
+            if PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) == 0 {
+                return Message::Empty;
+            }
+            if msg.message == WM_QUIT {
+                PostQuitMessage(msg.wparam as i32);
+                return Message::Quit;
+            }
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+            Message::Dispatched
+        }
+    }
+
+    #[cfg(test)]
+    include!("../tests/unit/windows_session_wait.rs");
 
     // The wait above watches the flag release_session cleared.
     pub fn release() {}

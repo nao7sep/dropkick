@@ -17,6 +17,8 @@ interface DialogOptions {
   // settles through its cancel path. For a question the app stops needing an
   // answer to, such as "close anyway?" once the pending writes have finished.
   signal?: AbortSignal;
+  // Withdrawal is not a user choice when both buttons are destructive.
+  onWithdraw?: () => void;
 }
 
 // Dialog text is a key plus values, rendered by AppDialogHost in the current
@@ -39,6 +41,7 @@ interface ConfirmDialogRequest {
   cancelLabel: Message;
   noSafeAction: boolean;
   resolve: (confirmed: boolean) => void;
+  withdraw: () => void;
 }
 
 interface QuitSaveDialogRequest {
@@ -70,6 +73,7 @@ interface DialogState {
   ) => Promise<boolean>;
   confirmCurrent: () => void;
   cancelCurrent: () => void;
+  withdrawCurrent: () => void;
   retryCurrent: () => void;
   // Asks about changes not saved, for a quit or (scope "tab") for closing the
   // tab of an unsaved list; "quit" is the answer that goes ahead anyway.
@@ -174,8 +178,9 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         cancelLabel: options.cancelLabel ?? message("common.cancel"),
         noSafeAction: options.noSafeAction ?? false,
         resolve,
+        withdraw: () => { options.onWithdraw?.(); resolve(false); },
       };
-      present(request, options.signal, get, set, () => resolve(false));
+      present(request, options.signal, get, set, request.withdraw);
     }),
 
   confirmCurrent: () => {
@@ -193,6 +198,12 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     }
   },
 
+  withdrawCurrent: () => {
+    const { current, queue } = get();
+    if (current?.kind !== "confirm") { get().cancelCurrent(); return; }
+    set(advanceQueue(queue));
+    current.withdraw();
+  },
   cancelCurrent: () => {
     const { current, queue } = get();
     if (!current) return;
@@ -210,12 +221,12 @@ export const useDialogStore = create<DialogState>((set, get) => ({
 }));
 
 // While the OS ends the session, every request on screen or queued resolves
-// through its cancel path and each new one is cancelled as it arrives; turned
+// through its withdrawal path and each new one is withdrawn as it arrives; turned
 // off again if the session goes on after all.
 export function refuseDialogs(refuse: boolean): void {
   refusing = refuse;
   while (refuse && useDialogStore.getState().current) {
-    useDialogStore.getState().cancelCurrent();
+    useDialogStore.getState().withdrawCurrent();
   }
 }
 

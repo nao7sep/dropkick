@@ -205,29 +205,23 @@ async function resolveConflict(
     return { status: "error", message: message("write.newerOnDisk") };
   }
   const choice = await showFileConflictDialog(filePath);
+  if (choice === "withdrawn") {
+    return { status: "error", message: message("write.taskList") };
+  }
   if (choice === "overwrite") {
     await writeAndRemember(filePath, data);
     return { status: "success" };
   }
-  // Reload: drop local change and pick up disk state.
-  //
-  // On any non-success outcome (missing, invalid, error) we drop the stored
-  // hash. Keeping the old hash would mean the next write attempt sees the
-  // same mismatch against disk and triggers the same conflict dialog,
-  // looping until the user fixes the file externally or restarts. Dropping
-  // it surfaces a "File not loaded" error on the next action instead — a
-  // dead-end the user can resolve by closing the tab or recovering the file
-  // outside Dropkick, rather than the same dialog over and over.
+  // A failed reload leaves the local edit and its last confirmed hash owned
+  // by this open list. Retry must recheck disk and offer recovery again.
   const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
   if (loaded.status === "missing") {
-    knownHashes.delete(filePath);
     return {
       status: "error",
       message: message("write.fileGone"),
     };
   }
   if (loaded.status !== "success") {
-    knownHashes.delete(filePath);
     return {
       status: "error",
       message: message("write.reloadFailed"),
@@ -251,12 +245,8 @@ async function resolveDeleted(
     await writeAndRemember(filePath, data);
     return { status: "success" };
   }
-  // Drop the stored hash on cancel, symmetric with resolveConflict. Otherwise
-  // the next write attempt would again find the file missing on disk and
-  // re-show this same dialog, looping until the user picks Save or closes
-  // the tab. With the hash gone, the next action surfaces a "File not
-  // loaded" dead-end that the user can resolve by closing the tab.
-  knownHashes.delete(filePath);
+  // Cancelling recreation keeps the local edit retryable. Only unloading
+  // the list releases its hash; a later retry may recreate or find a conflict.
   return {
     status: "error",
     message: message("write.notRecreated"),

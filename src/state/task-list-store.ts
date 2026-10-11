@@ -609,6 +609,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       // queued flush completes (using the still-present in-memory data) before
       // the hash is dropped.
       log.debug("task list unloaded", { path: filePath });
+      const closing = get().files[filePath];
+      if (closing) useNoteDraftStore.getState().rememberTasks(closing.data.tasks);
       await forgetTaskList(filePath);
       pendingWrites.delete(filePath);
       set((state) => {

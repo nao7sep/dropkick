@@ -13,11 +13,12 @@ import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../mode
 import type { LoadWorkspaceResult } from "../repositories";
 import { loadWorkspace, flushWorkspace, drainSerial, log, toErrorFields } from "../repositories";
 import { useTaskListStore } from "./task-list-store";
+import { commitParkedFields } from "../services/commit-task-fields";
 import { showAppConfirm, useDialogStore } from "./dialog-store";
 
 // File loading and unloading is owned by the React component tree (MainWindow's
-// file-lifecycle effect), so this store deliberately does NOT import or call
-// useTaskListStore. Keeping unload off the close-tab path lets unmount-fired
+// file-lifecycle effect). This store settles task-list saves before closing
+// their tabs. Keeping unload off the close-tab path lets unmount-fired
 // writes (like a blur on a focused title input) commit to disk before the
 // file's hash is forgotten.
 
@@ -67,6 +68,7 @@ async function mayCloseList(filePath: string): Promise<boolean> {
   if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();
   }
+  commitParkedFields(filePath);
   for (;;) {
     if (!(await settledOrClosedAnyway(filePath))) return false;
     if (!useTaskListStore.getState().unsavedFiles[filePath]) return true;

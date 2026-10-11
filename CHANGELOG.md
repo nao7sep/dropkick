@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Retry can save retained edits after cancelled file recreation or a failed conflict reload.
+- Closing an inactive tab saves parked title and description edits; quit still names note drafts from closed lists.
+- Quitting checks failed workspace saves, and OS shutdown no longer treats a withdrawn conflict question as permission to discard local changes.
+
 - Files saved by 0.1.0 open again: task lists, workspaces, preferences and saved locations.
 
 ## [0.1.0] - 2026-07-08

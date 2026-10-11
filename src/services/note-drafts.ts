@@ -9,7 +9,7 @@
 // Keys deliberately omit the file path. Task ids are stable per-entity nanoids,
 // so a draft follows its task when the task is moved to another list.
 
-import type { TaskListDto } from "../models";
+import type { TaskListDto, TaskDto } from "../models";
 import { singleLine, multiline } from "../utils/textCleanup";
 
 export function canonicalDraftText(key: string, text: string): string {
@@ -81,8 +81,8 @@ export function holdsDraftFor(
 // delete path (which clears drafts itself). It lasts until quit, which counts
 // it without a name; the rule it replaces cost the user text they had typed.
 //
-// Returns the SAME object when nothing was dropped, so the caller can skip both
-// the state update and the disk write on the overwhelmingly common no-op.
+// Returns the SAME object when nothing was dropped, so the caller can skip
+// the state update on the overwhelmingly common no-op.
 export function reconcileDrafts(
   drafts: Record<string, string>,
   loadedLists: readonly TaskListDto[],
@@ -109,14 +109,16 @@ export function reconcileDrafts(
 // The note text an ordinary quit would discard: a new-note box holding text,
 // or a note editor whose text differs from its note. Title and description
 // drafts are ordinary saving, committed at quit, so they never count. A draft
-// whose task is in no loaded list cannot be checked against its note, so it
-// counts without a name; one whose note is gone has nowhere to return to and
+// whose task has neither loaded nor retained context cannot be checked, so
+// it counts without a name; one whose note is gone has nowhere to return to and
 // does not count.
 export function unsavedNoteText(
   drafts: Record<string, string>,
   loadedLists: readonly TaskListDto[],
+  parkedTasks: readonly Pick<TaskDto, "id" | "title" | "notes">[] = [],
 ): { any: boolean; taskTitles: string[] } {
-  const tasks = new Map(loadedLists.flatMap((list) => list.tasks.map((task) => [task.id, task] as const)));
+  const tasks = new Map([...parkedTasks, ...loadedLists.flatMap((list) => list.tasks)]
+    .map((task) => [task.id, task] as const));
   let any = false;
   const titles = new Set<string>();
   for (const [key, text] of Object.entries(drafts)) {

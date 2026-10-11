@@ -82,6 +82,8 @@ import { withSerial } from "../../src/repositories/file-system";
 import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { useDialogStore } from "../../src/state/dialog-store";
 import { useTaskListStore } from "../../src/state/task-list-store";
+import { useWorkspaceStore } from "../../src/state/workspace-store";
+import { createDefaultWorkspace } from "../../src/models";
 import { makeTask, makeNote } from "../helpers/task";
 
 const invokeMock = invoke as unknown as Mock;
@@ -117,8 +119,9 @@ beforeEach(async () => {
   listDisk.fail = false;
   listDisk.written.length = 0;
   useTaskListStore.setState({ files: {}, unsavedFiles: {} });
+  useWorkspaceStore.setState({ loaded: false, filePath: "", workspacePersistenceError: null });
 
-  useNoteDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {} });
+  useNoteDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {}, parkedTasks: {} });
   useDialogStore.setState({ current: null, queue: [] });
 
   invokeMock.mockReset();
@@ -480,4 +483,106 @@ describe("the end of an OS session", () => {
     useDialogStore.getState().confirmCurrent();
     await expect(closing).resolves.toBe(true);
   });
+});
+
+
+describe("workspace saves at quit", () => {
+  it("keeps a failed workspace change through Cancel and retries even after its notice was dismissed", async () => {
+    useWorkspaceStore.getState().adopt("/workspace.json", createDefaultWorkspace("Home"));
+    invokeMock.mockImplementation(async (command) => {
+      if (command === "write_text_file_atomic") throw new Error("read-only volume");
+    });
+    await useWorkspaceStore.getState().addTab("/tasks.json", "Tasks");
+    useWorkspaceStore.getState().dismissWorkspacePersistenceError();
+    const first = prepareWindowClose();
+    await waitForDialog();
+    expect(useDialogStore.getState().current?.body.values).toEqual({ paths: "/workspace.json" });
+    useDialogStore.getState().cancelCurrent();
+    await expect(first).resolves.toBe(false);
+    expect(useWorkspaceStore.getState().workspace.openTabs[0].filePath).toBe("/tasks.json");
+    const retry = prepareWindowClose();
+    await waitForDialog();
+    invokeMock.mockResolvedValue(undefined);
+    useDialogStore.getState().retryCurrent();
+    await expect(retry).resolves.toBe(true);
+    expect(useWorkspaceStore.getState().workspacePersistenceError).toBeNull();
+  });
+});
+
+
+describe("drafts from closed tabs", () => {
+  it("saves a parked field before its inactive tab closes, then permits quit", async () => {
+    await seedList();
+    useWorkspaceStore.getState().adopt("/workspace.json", createDefaultWorkspace("Home"));
+    await useWorkspaceStore.getState().addTab(LIST, "Tasks");
+    await useWorkspaceStore.getState().addTab("/other.json", "Other");
+    useNoteDraftStore.getState().setDraft("t1#title", "Parked title");
+    useNoteDraftStore.getState().setDraft("t1#description", "Parked description");
+    await useWorkspaceStore.getState().closeTab(0);
+    const task = useTaskListStore.getState().files[LIST].data.tasks[0];
+    expect(task.title).toBe("Parked title");
+    expect(task.description).toBe("Parked description");
+    expect(listDisk.written.length).toBeGreaterThan(0);
+    await useTaskListStore.getState().unloadFile(LIST);
+    expect(useNoteDraftStore.getState().drafts).toEqual({});
+    await expect(prepareWindowClose()).resolves.toBe(true);
+  });
+
+  it("keeps an inactive tab open when saving its parked field fails", async () => {
+    await seedList();
+    useWorkspaceStore.getState().adopt("/workspace.json", createDefaultWorkspace("Home"));
+    await useWorkspaceStore.getState().addTab(LIST, "Tasks");
+    await useWorkspaceStore.getState().addTab("/other.json", "Other");
+    useNoteDraftStore.getState().setDraft("t1#title", "Keep this title");
+    listDisk.fail = true;
+    const closing = useWorkspaceStore.getState().closeTab(0);
+    await waitForDialog();
+    useDialogStore.getState().cancelCurrent();
+    await closing;
+    expect(useWorkspaceStore.getState().workspace.openTabs[0].filePath).toBe(LIST);
+    expect(useTaskListStore.getState().files[LIST].data.tasks[0].title).toBe("Keep this title");
+    expect(useTaskListStore.getState().unsavedPaths()).toContain(LIST);
+  });
+
+  it("names a note draft after its list unloads and releases context with the draft", async () => {
+    await seedList();
+    const title = useTaskListStore.getState().files[LIST].data.tasks[0].title;
+    useNoteDraftStore.getState().setDraft("t1", "half a thought");
+    await useTaskListStore.getState().unloadFile(LIST);
+    const closing = prepareWindowClose();
+    await waitForDialog();
+    expect(useDialogStore.getState().current?.body.values).toEqual({ tasks: title });
+    useDialogStore.getState().cancelCurrent();
+    await expect(closing).resolves.toBe(false);
+    useNoteDraftStore.getState().clearDraft("t1");
+    expect(useNoteDraftStore.getState().parkedTasks).toEqual({});
+  });
+
+  it("does not treat an unchanged editor in a closed list as a changed note", async () => {
+    useTaskListStore.setState({ files: { [LIST]: { data: { id: "L1", tasks: [
+      makeTask({ id: "t1", notes: [makeNote({ id: "n1", content: "milk" })] }),
+    ] } } } });
+    useNoteDraftStore.getState().openDraft("t1:n1", "milk");
+    await useTaskListStore.getState().unloadFile(LIST);
+    await expect(prepareWindowClose()).resolves.toBe(true);
+    expect(useDialogStore.getState().current).toBeNull();
+  });
+});
+
+
+it("does not let a failed workspace save prompt or hold OS session end", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  await mountHarness();
+  useWorkspaceStore.getState().adopt("/workspace.json", createDefaultWorkspace("Home"));
+  invokeMock.mockImplementation(async (command) => {
+    if (command === "write_text_file_atomic") throw new Error("read-only volume");
+  });
+  await useWorkspaceStore.getState().addTab("/tasks.json", "Tasks");
+  useWorkspaceStore.getState().dismissWorkspacePersistenceError();
+  await endSession();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(useDialogStore.getState().current).toBeNull();
+  expect(reported()).toBe(1);
+  expect(windowStub.events).not.toContain("destroy");
+  expect(useWorkspaceStore.getState().workspace.openTabs[0].filePath).toBe("/tasks.json");
 });

@@ -151,17 +151,14 @@ describe("flushTaskList — conflict resolution", () => {
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
-  it("errors and drops the hash when reload finds the file missing", async () => {
+  it("keeps a failed reload retryable when the missing file is restored", async () => {
     showFileConflictDialog.mockResolvedValue("reload");
     readJsonFileWithHash.mockResolvedValueOnce({ status: "missing" });
-    const result = await repo.flushTaskList("/f.json", () => data());
-    expect(result.status).toBe("error");
-    // Hash dropped -> the next flush reports "File not loaded" instead of re-prompting.
-    const next = await repo.flushTaskList("/f.json", () => data());
-    expect(next).toEqual({
-      status: "error",
-      message: message("write.notLoaded"),
-    });
+    expect((await repo.flushTaskList("/f.json", () => data())).status).toBe("error");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+    hashFile.mockResolvedValue("H0");
+    expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
+    expect(writeJsonFile).toHaveBeenCalledWith("/f.json", data());
   });
 
   it("errors when reload fails to parse the file", async () => {
@@ -172,6 +169,11 @@ describe("flushTaskList — conflict resolution", () => {
     expect(result).toMatchObject({
       message: message("write.reloadFailed"),
     });
+    readJsonFileWithHash.mockResolvedValue({ status: "success", data: data(), hash: "REPAIRED" });
+    hashFile.mockResolvedValue("REPAIRED");
+    showFileConflictDialog.mockResolvedValue("overwrite");
+    expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
+    expect(showFileConflictDialog).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -192,16 +194,25 @@ describe("flushTaskList — deleted resolution", () => {
     expect(writeJsonFile).toHaveBeenCalled();
   });
 
-  it("errors and drops the hash when the user cancels", async () => {
+  it("keeps a cancelled recreation retryable without silently overwriting a returned file", async () => {
     showFileDeletedDialog.mockResolvedValue("cancel");
-    const result = await repo.flushTaskList("/f.json", () => data());
-    expect(result.status).toBe("error");
-    const next = await repo.flushTaskList("/f.json", () => data());
-    expect(next).toEqual({
-      status: "error",
-      message: message("write.notLoaded"),
-    });
+    expect((await repo.flushTaskList("/f.json", () => data())).status).toBe("error");
+    expect(writeJsonFile).not.toHaveBeenCalled();
+    hashFile.mockResolvedValue("OUTSIDE");
+    readJsonFileWithHash.mockResolvedValue({ status: "success", data: data(), hash: "OUTSIDE" });
+    showFileConflictDialog.mockResolvedValue("overwrite");
+    expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
+    expect(showFileConflictDialog).toHaveBeenCalledWith("/f.json");
+    expect(writeJsonFile).toHaveBeenCalledWith("/f.json", data());
   });
+
+  it("can recreate on Retry after cancelling the first request", async () => {
+    showFileDeletedDialog.mockResolvedValueOnce("cancel").mockResolvedValueOnce("save");
+    expect((await repo.flushTaskList("/f.json", () => data())).status).toBe("error");
+    expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
+    expect(showFileDeletedDialog).toHaveBeenCalledTimes(2);
+  });
+
 });
 
 describe("forgetTaskList", () => {

@@ -1,8 +1,10 @@
 // Drain pending writes before replacing the active workspace. App settings and task drafts stay in place.
 import { drainAllSerial, loadWorkspace, log, loadFailureFields } from "../repositories";
+import { commitParkedFields } from "./commit-task-fields";
 import { useWorkspaceStore } from "../state/workspace-store";
 
 export async function openWorkspaceSession(workspacePath: string) {
+  commitParkedFields();
   await drainAllSerial();
   const current = useWorkspaceStore.getState();
   // Even a dismissed structural-save warning must not lose its in-memory tabs.

@@ -93,20 +93,13 @@ export async function showNoteDeletionConfirm(): Promise<boolean> {
   );
 }
 
-// Shows a conflict dialog for external file modifications.
-// Returns "overwrite" or "cancel".
-//
-// Neither choice is safe: Overwrite destroys whatever wrote the file, and
-// Discard & Reload destroys the user's in-app change. So the dialog is opened
-// with `noSafeAction`: no button takes focus, a reflexive Enter does nothing,
-// and — because there is no safe exit to route them to — Escape and the
-// backdrop do nothing either (AppDialogHost returns early on noSafeAction).
-// The user has to pick. A third do-nothing exit was considered and rejected
-// because it would re-raise this same dialog on the next write, which the
-// repository deliberately avoids by dropping the stored hash.
+// Both visible choices destroy a different copy, so neither is focused and
+// Escape/backdrop cannot choose one. OS withdrawal is a separate non-committing
+// outcome, never an implicit choice of Discard & Reload.
 export async function showFileConflictDialog(
   filePath: string,
-): Promise<"overwrite" | "cancel"> {
+): Promise<"overwrite" | "cancel" | "withdrawn"> {
+  let withdrawn = false;
   const overwrite = await showAppConfirm(
     message("dialog.fileConflict.title"),
     message("dialog.fileConflict.body", { path: filePath }),
@@ -115,9 +108,10 @@ export async function showFileConflictDialog(
       confirmLabel: message("dialog.fileConflict.overwrite"),
       cancelLabel: message("dialog.fileConflict.reload"),
       noSafeAction: true,
+      onWithdraw: () => { withdrawn = true; },
     },
   );
-  return overwrite ? "overwrite" : "cancel";
+  return withdrawn ? "withdrawn" : overwrite ? "overwrite" : "cancel";
 }
 
 // Shows a confirmation dialog when the user tries to close a form with unsaved changes.

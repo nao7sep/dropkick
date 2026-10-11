@@ -16,13 +16,16 @@
 // still parked here.
 
 import { create } from "zustand";
-import type { TaskListDto } from "../models";
+import type { TaskListDto, TaskDto } from "../models";
 import { log } from "../repositories";
 import { draftTaskId, reconcileDrafts, canonicalDraftText } from "../services/note-drafts";
 import { nowUtc } from "../utils/dates";
 
 interface NoteDraftState {
   drafts: Record<string, string>;
+  // Only draft subjects need context after their list closes; never persisted.
+  parkedTasks: Record<string, Pick<TaskDto, "id" | "title" | "notes">>;
+  rememberTasks: (tasks: readonly TaskDto[]) => void;
   editedAtUtc: Record<string, string>;
   draftVersions: Record<string, number>;
 
@@ -69,11 +72,22 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
         && canonicalDraftText(key, drafts[key]) === canonicalDraftText(key, previous.drafts[key] ?? "")
         ? previous.editedAtUtc[key] : nowUtc(),
     ]));
-    set({ drafts, draftVersions, editedAtUtc });
+    const ids = new Set(Object.keys(drafts).map(draftTaskId));
+    const parkedTasks = Object.fromEntries(Object.entries(previous.parkedTasks).filter(([id]) => ids.has(id)));
+    set({ drafts, draftVersions, editedAtUtc, parkedTasks });
   }
 
   return {
     drafts: {},
+    parkedTasks: {},
+    rememberTasks: (tasks) => {
+      const ids = new Set(Object.keys(get().drafts).map(draftTaskId));
+      const parkedTasks = { ...get().parkedTasks };
+      for (const { id, title, notes } of tasks) {
+        if (ids.has(id)) parkedTasks[id] = { id, title, notes };
+      }
+      set({ parkedTasks });
+    },
     editedAtUtc: {},
     draftVersions: {},
     justOpenedKey: null,
