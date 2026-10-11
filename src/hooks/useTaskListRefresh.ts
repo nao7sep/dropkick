@@ -8,6 +8,7 @@
 // loaded yet is left to its load. refreshFromDisk keeps the loaded copy of a
 // list the app holds edits for, and the app's own saves read back unchanged.
 
+import { refreshCalendarDay } from "./useCalendarDay";
 import { useEffect } from "react";
 import { onWindowFocused } from "../repositories";
 import { useTaskListStore } from "../state/task-list-store";
@@ -30,5 +31,5 @@ export function useTaskListRefresh(
     else if (activePath) refreshLoaded([activePath]);
   }, [activePath, unified]);
 
-  useEffect(() => onWindowFocused(() => refreshLoaded()), []);
+  useEffect(() => onWindowFocused(() => { refreshCalendarDay(); refreshLoaded(); }), []);
 }

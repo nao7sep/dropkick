@@ -8,7 +8,7 @@ export interface DeleteSelectedTasksInputs {
     filePath: string,
     taskIds: ReadonlySet<string>,
   ) => Promise<ActionResult>;
-  clearTaskDrafts: (taskId: string) => void;
+  clearTaskDrafts: (taskId: string, sourceFile: string) => void;
 }
 
 export interface DeleteSelectedTasksResult {
@@ -43,7 +43,7 @@ export async function deleteSelectedTasks({
     );
     if (result.status === "success") {
       deletedTasks.push(...tasks);
-      for (const task of tasks) clearTaskDrafts(task.id);
+      for (const task of tasks) clearTaskDrafts(task.id, sourceFile);
       continue;
     }
 

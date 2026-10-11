@@ -108,6 +108,7 @@
   "move.nothing": "Nothing to move",
   "move.sameFile": "Source and destination must be different",
   "move.failed": "The tasks could not be moved. They remain in their current lists; try again.",
+  "move.identityCollision": "The destination already contains one of these tasks. Nothing was moved. Compare the copies before trying again.",
   "move.destConflict": "The destination file was modified outside Dropkick. No tasks were moved.",
   "move.destDeleted": "The destination file no longer exists. No tasks were moved.",
   "move.sourceConflict": "The source file was modified outside Dropkick. The destination was restored, so no tasks were moved.",

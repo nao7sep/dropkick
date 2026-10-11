@@ -126,3 +126,16 @@ it("still reloads when the user explicitly chooses Discard & Reload", async () =
   expect(writes).toEqual([]);
   expect(useTaskListStore.getState().unsavedPaths()).toEqual([]);
 });
+
+it("keeps the previous comparison hash when a conflict Reload is refused, including Retry", async () => {
+  useTaskListStore.setState((state) => ({ files: { ...state.files, "/other.json": { data: { id: "OTHER", tasks: [] } } } }));
+  hash = "outside"; disk.id = "OTHER"; disk.tasks[0].title = "External copy";
+  const saving = useTaskListStore.getState().updateTitle(PATH, "t", "Retained");
+  await question(); useDialogStore.getState().cancelCurrent(); await saving;
+  expect(title()).toBe("Retained"); expect(writes).toEqual([]);
+  useTaskListStore.getState().retryUnsaved();
+  await question();
+  expect(writes).toEqual([]);
+  refuseDialogs(true); await drainAllSerial();
+  expect(disk.tasks[0].title).toBe("External copy");
+});

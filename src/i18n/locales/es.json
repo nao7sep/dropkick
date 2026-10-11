@@ -108,6 +108,7 @@
   "move.nothing": "No hay nada que mover",
   "move.sameFile": "El origen y el destino deben ser distintos",
   "move.failed": "No se pudieron mover las tareas. Siguen en sus listas actuales; inténtalo de nuevo.",
+  "move.identityCollision": "El destino ya contiene una de estas tareas. No se ha movido nada. Compare las copias antes de volver a intentarlo.",
   "move.destConflict": "El archivo de destino se modificó fuera de Dropkick. No se movió ninguna tarea.",
   "move.destDeleted": "El archivo de destino ya no existe. No se movió ninguna tarea.",
   "move.sourceConflict": "El archivo de origen se modificó fuera de Dropkick. Se restauró el destino, así que no se movió ninguna tarea.",

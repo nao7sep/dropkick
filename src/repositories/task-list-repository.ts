@@ -96,7 +96,7 @@ function rememberHash(filePath: string, hash: string): void {
 export async function forgetTaskList(filePath: string): Promise<void> {
   await withSerial(filePath, async () => {
     knownHashes.delete(filePath);
-  });
+  }, "optional");
 }
 
 // Loads a task list and records its hash for future writes.
@@ -116,7 +116,7 @@ export async function loadTaskList(
       status: "success",
       taskList: { filePath, data: loaded.data },
     };
-  });
+  }, "optional");
 }
 
 // Creates an empty task list file on disk and records its hash.
@@ -154,7 +154,7 @@ export async function refreshTaskList(
     if (!adopt(loaded.data)) return { status: "kept" };
     rememberHash(filePath, loaded.hash);
     return { status: "reloaded" };
-  });
+  }, "optional");
 }
 
 // --- Internal helpers (always called inside a serial slot) ---
@@ -196,6 +196,7 @@ async function writeIfHashMatches(
 async function resolveConflict(
   filePath: string,
   data: TaskListDto,
+  adopt?: (data: TaskListDto) => boolean,
 ): Promise<WriteResult> {
   // A newer build's file is intact data this build cannot read, so it is never
   // offered for overwriting (store-recovery-conventions). The stored hash stays,
@@ -227,6 +228,9 @@ async function resolveConflict(
       message: message("write.reloadFailed"),
     };
   }
+  // The data and its comparison authority must be accepted together inside
+  // the serial slot. A refused identity keeps the previous hash for Retry.
+  if (adopt && !adopt(loaded.data)) return { status: "reloaded", data: loaded.data, message: message("write.reloaded") };
   rememberHash(filePath, loaded.hash);
   return {
     status: "reloaded",
@@ -262,7 +266,7 @@ async function resolveDeleted(
 export async function flushTaskList(
   filePath: string,
   getData: () => TaskListDto,
-  onReloaded?: (data: TaskListDto) => void,
+  onReloaded?: (data: TaskListDto) => boolean,
 ): Promise<WriteResult> {
   return withSerial(filePath, async () => {
     if (knownHashes.get(filePath) === undefined) {
@@ -279,13 +283,11 @@ export async function flushTaskList(
       kind: attempt.status,
     });
     if (attempt.status === "deleted") return resolveDeleted(filePath, data);
-    const result = await resolveConflict(filePath, data);
-    if (result.status === "reloaded") onReloaded?.(result.data);
-    return result;
+    return resolveConflict(filePath, data, onReloaded);
   });
 }
 
-// Atomically moves a set of tasks between two files. Holds the serial slot for
+// Publishes a move destination first, then source. Holds the serial slot for
 // both files for the entire operation. `compute` is called inside the slots so
 // it sees the latest store state; returning `null` aborts the move without
 // touching disk.

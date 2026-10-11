@@ -3,7 +3,7 @@
 // Shortcuts are suppressed when the user is typing in an input/textarea/select.
 
 import { useEffect, useCallback, useMemo } from "react";
-import { useTaskListStore } from "../state/task-list-store";
+import { type TaskFieldChange, useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
 import { usePreferencesStore } from "../state/preferences-store";
 import { useToastStore } from "../state/toast-store";
@@ -74,9 +74,7 @@ export function useKeyboardShortcuts(
   const preferences = usePreferencesStore((s) => s.preferences);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
-  const setStatus = useTaskListStore((s) => s.setStatus);
-  const setPriority = useTaskListStore((s) => s.setPriority);
-  const setDueDate = useTaskListStore((s) => s.setDueDate);
+  const updateTaskFields = useTaskListStore((s) => s.updateTaskFields);
   const moveUp = useTaskListStore((s) => s.moveUp);
   const moveDown = useTaskListStore((s) => s.moveDown);
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
@@ -109,77 +107,20 @@ export function useKeyboardShortcuts(
     [selectedKeys, tasksByKey],
   );
 
-  const applyStatusToSelection = useCallback(
-    async (status: TaskStatus) => {
-      if (selectedTasks.length === 0) return false;
-      const changed = selectedTasks.some((task) => task.status !== status);
-
-      const results: ActionResult[] = [];
-      for (const task of selectedTasks) {
-        results.push(await setStatus(task.sourceFile, task.id, status));
-      }
-      const failures = collectTaskActionFailures(selectedTasks, results);
-      if (failures.length > 0) {
-        onTaskActionFailure(
-          selectedTasks.map(taskSelectionKey),
-          message("bulk.notUpdated"),
-          describeTaskActionFailures(failures),
-        );
-        return false;
-      }
-
-      return changed;
-    },
-    [selectedTasks, setStatus, onTaskActionFailure],
-  );
-
-  // Applies one field across the selection. Priority and due date shared this
-  // shape exactly — the same loop, the same first-error report, the same
-  // "did anything actually change?" test against a different field — so they
-  // are one rule now and a fix to the error handling reaches both.
-  const applyFieldToSelection = useCallback(
-    async <T,>(
-      field: "priority" | "dueDate",
-      apply: (
-        sourceFile: string,
-        taskId: string,
-        value: T,
-      ) => Promise<ActionResult>,
-      value: T,
-    ) => {
-      if (selectedTasks.length === 0) return false;
-      const changed = selectedTasks.some((task) => task[field] !== value);
-
-      const results: ActionResult[] = [];
-      for (const task of selectedTasks) {
-        results.push(await apply(task.sourceFile, task.id, value));
-      }
-      const failures = collectTaskActionFailures(selectedTasks, results);
-      if (failures.length > 0) {
-        onTaskActionFailure(
-          selectedTasks.map(taskSelectionKey),
-          message("bulk.notUpdated"),
-          describeTaskActionFailures(failures),
-        );
-        return false;
-      }
-
-      return changed;
-    },
-    [selectedTasks, onTaskActionFailure],
-  );
-
-  const applyPriorityToSelection = useCallback(
-    (priority: TaskPriority) =>
-      applyFieldToSelection("priority", setPriority, priority),
-    [applyFieldToSelection, setPriority],
-  );
-
-  const applyDueDateToSelection = useCallback(
-    (dueDate: string | null) =>
-      applyFieldToSelection("dueDate", setDueDate, dueDate),
-    [applyFieldToSelection, setDueDate],
-  );
+  const applyFieldToSelection = useCallback(async (change: TaskFieldChange) => {
+    if (selectedTasks.length === 0) return false;
+    const changed = selectedTasks.some((task) => task[change.field] !== change.value);
+    const results = await updateTaskFields(selectedTasks, change);
+    const failures = collectTaskActionFailures(selectedTasks, results);
+    if (failures.length > 0) {
+      onTaskActionFailure(selectedTasks.map(taskSelectionKey), message("bulk.notUpdated"), describeTaskActionFailures(failures));
+      return false;
+    }
+    return changed;
+  }, [selectedTasks, updateTaskFields, onTaskActionFailure]);
+  const applyStatusToSelection = useCallback((value: TaskStatus) => applyFieldToSelection({ field: "status", value }), [applyFieldToSelection]);
+  const applyPriorityToSelection = useCallback((value: TaskPriority) => applyFieldToSelection({ field: "priority", value }), [applyFieldToSelection]);
+  const applyDueDateToSelection = useCallback((value: string | null) => applyFieldToSelection({ field: "dueDate", value }), [applyFieldToSelection]);
 
   // The four reorder chords share one shape: they need a selection, they are
   // meaningless in the unified view (there is no single file to reorder within),
@@ -514,9 +455,7 @@ export function useKeyboardShortcuts(
       onOpenSettings,
       onOpenShortcutsHelp,
       onTaskActionFailure,
-      setStatus,
-      setPriority,
-      setDueDate,
+      updateTaskFields,
       moveUp,
       moveDown,
       sendToFirst,

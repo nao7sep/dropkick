@@ -10,15 +10,14 @@ import { create } from "zustand";
 import { message, type Message } from "../i18n/translate";
 import type { WorkspaceDto, RecentFileDto } from "../models";
 import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../models";
-import type { LoadWorkspaceResult } from "../repositories";
-import { loadWorkspace, flushWorkspace, drainSerial, log, toErrorFields } from "../repositories";
+import { flushWorkspace, drainSerial, log, toErrorFields } from "../repositories";
 import { useTaskListStore } from "./task-list-store";
 import { commitParkedFields } from "../services/commit-task-fields";
 import { showAppConfirm, useDialogStore } from "./dialog-store";
 
-// File loading and unloading is owned by the React component tree (MainWindow's
+// Tab loading and unloading is owned by the React component tree (MainWindow's
 // file-lifecycle effect). This store settles task-list saves before closing
-// their tabs. Keeping unload off the close-tab path lets unmount-fired
+// their tabs; openWorkspaceSession retires lists across workspace transitions. Keeping unload off the close-tab path lets unmount-fired
 // writes (like a blur on a focused title input) commit to disk before the
 // file's hash is forgotten.
 
@@ -38,7 +37,6 @@ interface WorkspaceState {
   dismissWorkspacePersistenceError: () => void;
 
   // Actions — each persists to disk after updating state.
-  load: (filePath: string) => Promise<LoadWorkspaceResult>;
   adopt: (filePath: string, workspace: WorkspaceDto) => void;
   saveBeforeSwitch: () => Promise<boolean>;
   addTab: (taskFilePath: string, displayName: string) => Promise<void>;
@@ -145,14 +143,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     loaded: false,
     workspacePersistenceError: null,
     dismissWorkspacePersistenceError: () => set({ workspacePersistenceError: null }),
-
-    load: async (filePath: string) => {
-      const loadResult = await loadWorkspace(filePath);
-      if (loadResult.status !== "success") return loadResult;
-
-      get().adopt(filePath, loadResult.workspace);
-      return { status: "success", workspace: get().workspace };
-    },
 
     adopt: (filePath, workspace) => {
       structuralVersion += 1;

@@ -16,16 +16,17 @@
 // still parked here.
 
 import { create } from "zustand";
-import type { TaskListDto, TaskDto } from "../models";
+import type { TaskListDto } from "../models";
 import { log } from "../repositories";
-import { draftTaskId, reconcileDrafts, canonicalDraftText } from "../services/note-drafts";
+import { draftTaskId, draftSourceFile, draftSubjectKey, composerDraftKey, draftKeyAtPath, reconcileDrafts, canonicalDraftText, closedTaskContexts, type ParkedTaskContext, type DraftList } from "../services/note-drafts";
 import { nowUtc } from "../utils/dates";
 
 interface NoteDraftState {
   drafts: Record<string, string>;
   // Only draft subjects need context after their list closes; never persisted.
-  parkedTasks: Record<string, Pick<TaskDto, "id" | "title" | "notes">>;
-  rememberTasks: (tasks: readonly TaskDto[]) => void;
+  parkedTasks: Record<string, ParkedTaskContext>;
+  rememberTasks: (list: TaskListDto, sourceFile: string) => void;
+  moveTaskDrafts: (taskIds: ReadonlySet<string>, sourcePath: string, destinationPath: string) => void;
   editedAtUtc: Record<string, string>;
   draftVersions: Record<string, number>;
 
@@ -47,12 +48,12 @@ interface NoteDraftState {
   clearDraftIf: (key: string, expected: string, version: number | undefined) => boolean;
   // Drop every draft of a task: composer, note edits, title and description.
   // Called when the task is deleted — the drafts' subject no longer exists.
-  clearTaskDrafts: (taskId: string) => void;
+  clearTaskDrafts: (taskId: string, sourceFile: string) => void;
   // Drop drafts whose task or note no longer exists. `subjects` is every key the
   // loaded task lists can justify (services/note-drafts).
   // Drops drafts whose subject is provably gone, judged against the task
   // lists currently loaded. Safe to call as often as those change.
-  reconcile: (loadedLists: readonly TaskListDto[]) => void;
+  reconcile: (loadedLists: readonly DraftList[]) => void;
 }
 
 export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
@@ -72,25 +73,36 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
         && canonicalDraftText(key, drafts[key]) === canonicalDraftText(key, previous.drafts[key] ?? "")
         ? previous.editedAtUtc[key] : nowUtc(),
     ]));
-    const ids = new Set(Object.keys(drafts).map(draftTaskId));
-    const parkedTasks = Object.fromEntries(Object.entries(previous.parkedTasks).filter(([id]) => ids.has(id)));
+    const subjects = new Set(Object.keys(drafts).map(draftSubjectKey));
+    const parkedTasks = Object.fromEntries(Object.entries(previous.parkedTasks).filter(([key]) => subjects.has(key)));
     set({ drafts, draftVersions, editedAtUtc, parkedTasks });
   }
 
   return {
     drafts: {},
     parkedTasks: {},
-    rememberTasks: (tasks) => {
-      const ids = new Set(Object.keys(get().drafts).map(draftTaskId));
+    rememberTasks: (list, sourceFile) => {
+      const subjects = new Set(Object.keys(get().drafts).map(draftSubjectKey));
       const parkedTasks = { ...get().parkedTasks };
-      for (const { id, title, notes } of tasks) {
-        if (ids.has(id)) parkedTasks[id] = { id, title, notes };
+      for (const { id, title, notes } of list.tasks) {
+        const key = composerDraftKey(id, sourceFile);
+        if (subjects.has(key)) parkedTasks[key] = { id, title, notes, sourceFile };
       }
       set({ parkedTasks });
     },
     editedAtUtc: {},
     draftVersions: {},
     justOpenedKey: null,
+
+    moveTaskDrafts: (taskIds, sourcePath, destinationPath) => {
+      const state = get();
+      const moved = (key: string) => draftSourceFile(key) === sourcePath && taskIds.has(draftTaskId(key)) ? draftKeyAtPath(key, destinationPath) : key;
+      // The move owner refuses destination draft collisions before publishing.
+      // Preserve timestamps and receipt generations, including typing during I/O.
+      const remap = <T,>(values: Record<string, T>) => Object.fromEntries(Object.entries(values).map(([key, value]) => [moved(key), value]));
+      set({ drafts: remap(state.drafts), editedAtUtc: remap(state.editedAtUtc), draftVersions: remap(state.draftVersions),
+        justOpenedKey: state.justOpenedKey === null ? null : moved(state.justOpenedKey) });
+    },
 
     setDraft: (key, text) => {
       const { drafts } = get();
@@ -110,8 +122,17 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
     },
 
     clearDraftIf: (key, expected, version) => {
-      if (get().drafts[key] !== expected || get().draftVersions[key] !== version) return false;
-      get().clearDraft(key);
+      const state = get();
+      let currentKey = key;
+      if (state.drafts[key] !== expected || state.draftVersions[key] !== version) {
+        // A successful move preserves the globally unique receipt generation
+        // while changing its path. Later typing always owns a new generation.
+        const moved = version === undefined ? undefined : Object.keys(state.drafts)
+          .find((candidate) => state.draftVersions[candidate] === version && state.drafts[candidate] === expected);
+        if (moved === undefined) return false;
+        currentKey = moved;
+      }
+      get().clearDraft(currentKey);
       return true;
     },
 
@@ -122,18 +143,23 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
       commit(rest);
     },
 
-    clearTaskDrafts: (taskId) => {
+    clearTaskDrafts: (taskId, sourceFile) => {
       const { drafts } = get();
       const rest = Object.fromEntries(
-        Object.entries(drafts).filter(([key]) => draftTaskId(key) !== taskId),
+        Object.entries(drafts).filter(([key]) => draftTaskId(key) !== taskId
+          || draftSourceFile(key) !== sourceFile),
       );
       if (Object.keys(rest).length === Object.keys(drafts).length) return;
       commit(rest);
     },
 
     reconcile: (loadedLists) => {
-      const { drafts } = get();
-      const kept = reconcileDrafts(drafts, loadedLists);
+      const { drafts, parkedTasks } = get();
+      const closed = closedTaskContexts(loadedLists, Object.values(parkedTasks));
+      if (closed.length !== Object.keys(parkedTasks).length) {
+        set({ parkedTasks: Object.fromEntries(closed.map((task) => [composerDraftKey(task.id, task.sourceFile), task])) });
+      }
+      const kept = reconcileDrafts(drafts, loadedLists, closed);
       if (kept === drafts) return;
       log.info("orphaned note drafts dropped", {
         dropped: Object.keys(drafts).length - Object.keys(kept).length,

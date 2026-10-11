@@ -12,6 +12,8 @@ import {
   withSerial,
   withSerialTwo,
   drainAllSerial,
+  drainRequiredSerial,
+  pendingSerialKeys,
   drainSerial,
 } from "../../src/repositories/file-system";
 
@@ -159,6 +161,36 @@ describe("drainAllSerial", () => {
     await Promise.all([p2, drain]);
     // Drain must not resolve until the later-enqueued p2 has also run.
     expect(order).toEqual(["p1", "p2", "drain"]);
+  });
+});
+
+describe("required persistence settlement", () => {
+  it("ignores held optional work without releasing its physical reservation", async () => {
+    const gate = deferred();
+    const order: string[] = [];
+    const optional = withSerial("optional-state", async () => { await gate.promise; order.push("optional"); }, "optional");
+    const later = withSerial("optional-state", async () => { order.push("later"); }, "optional");
+    try {
+      await drainRequiredSerial();
+      expect(pendingSerialKeys()).not.toContain("optional-state");
+      expect(order).toEqual([]);
+    } finally { gate.resolve(); await Promise.all([optional, later]); }
+    expect(order).toEqual(["optional", "later"]);
+  });
+
+  it("waits for required writes behind an optional read and new writes added during settlement", async () => {
+    const readGate = deferred(), writeGate = deferred();
+    const order: string[] = [];
+    const read = withSerial("document", async () => { await readGate.promise; order.push("read"); }, "optional");
+    const first = withSerial("document", async () => { order.push("first"); });
+    const drain = drainRequiredSerial().then(() => order.push("drained"));
+    const second = withSerial("document", async () => { await writeGate.promise; order.push("second"); });
+    expect(pendingSerialKeys()).toContain("document");
+    readGate.resolve(); await first;
+    expect(order).toEqual(["read", "first"]);
+    writeGate.resolve(); await Promise.all([read, second, drain]);
+    expect(order).toEqual(["read", "first", "second", "drained"]);
+    expect(pendingSerialKeys()).not.toContain("document");
   });
 });
 

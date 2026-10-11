@@ -15,6 +15,7 @@ export {
   withSerial,
   withSerialTwo,
   drainAllSerial,
+  drainRequiredSerial,
   drainSerial,
   pendingSerialKeys,
 } from "./file-system";

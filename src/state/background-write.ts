@@ -13,9 +13,7 @@
 // focus, and the log carries the detail. A successful retry resolves its own
 // result; unrelated transient no-op feedback cannot erase it.
 //
-// Note drafts deliberately do NOT come through here: they write through every
-// few seconds while the user types, so a result per failed write would be a
-// firehose, and their own module documents that trade.
+// Note drafts are session-only and do not write through this owner.
 
 import { log, toErrorFields } from "../repositories";
 import type { MessageKey } from "../i18n/catalogues";

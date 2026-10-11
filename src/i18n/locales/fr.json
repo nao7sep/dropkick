@@ -108,6 +108,7 @@
   "move.nothing": "Rien à déplacer",
   "move.sameFile": "La source et la destination doivent être différentes",
   "move.failed": "Les tâches n’ont pas pu être déplacées. Elles restent dans leurs listes actuelles\u00a0; réessayez.",
+  "move.identityCollision": "La destination contient déjà une de ces tâches. Rien n’a été déplacé. Comparez les copies avant de réessayer.",
   "move.destConflict": "Le fichier de destination a été modifié en dehors de Dropkick. Aucune tâche n’a été déplacée.",
   "move.destDeleted": "Le fichier de destination n’existe plus. Aucune tâche n’a été déplacée.",
   "move.sourceConflict": "Le fichier source a été modifié en dehors de Dropkick. La destination a été restaurée, donc aucune tâche n’a été déplacée.",

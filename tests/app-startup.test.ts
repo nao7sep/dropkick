@@ -21,6 +21,7 @@ import App from "../src/App";
 let host: Mounted;
 beforeEach(() => {
   vi.clearAllMocks(); mocks.state.lastWorkspacePath = "";
+  mocks.paths.mockReset().mockResolvedValue(undefined);
   mocks.config.knownWorkspaces = [];
   mocks.open.mockResolvedValue({ kind: "success" });
   mocks.init.mockResolvedValue(null);
@@ -29,6 +30,17 @@ beforeEach(() => {
 afterEach(async () => { await host?.unmount(); });
 const click = async (label: string) => { await act(async () => { [...document.querySelectorAll("button")].find((b) => b.textContent === label)!.click(); }); };
 describe("startup routing", () => {
+  it("shows an opened workspace while its optional remembered-location save remains pending", async () => {
+    mocks.config.knownWorkspaces = ["known"];
+    let release!: () => void;
+    mocks.paths.mockReturnValueOnce(new Promise<void>((resolve) => { release = resolve; }));
+    host = await mount(createElement(App));
+    try {
+      await click("Open");
+      expect(mocks.paths).toHaveBeenCalledWith("new-w");
+      expect(document.body.textContent).toBe("Main");
+    } finally { await act(async () => release()); }
+  });
   it("shows setup on a fresh launch and returns from browsing without writes", async () => {
     host = await mount(createElement(App));
     expect(document.body.textContent).toBe("Setup");

@@ -1,5 +1,5 @@
 // TaskListStore — holds all loaded task list data in a map keyed by file path.
-// Task lists are loaded lazily (on first tab activation) and kept until the tab closes.
+// Open lists are loaded eagerly and kept until their tab or workspace departs.
 //
 // Mutations are split into two phases:
 //   1. A synchronous validation + `set((state) => …)` that updates the latest
@@ -38,6 +38,8 @@ import {
   refreshTaskList,
   log,
   loadFailureFields,
+  drainRequiredSerial,
+  pendingSerialKeys,
 } from "../repositories";
 import { createTask, createNote, parseTaskKey, retainSelection } from "../utils";
 import type { CreateTaskOptions } from "../utils";
@@ -75,10 +77,15 @@ interface FileState {
   data: TaskListDto;
 }
 
-type LoadFileResult = { status: "success" } | LoadFailure;
+type LoadFileResult = { status: "success" } | { status: "cancelled" } | LoadFailure;
 
 type FileLoadError = LoadFailure;
 
+
+export type TaskFieldChange =
+  | { field: "status"; value: TaskStatus }
+  | { field: "priority"; value: TaskPriority }
+  | { field: "dueDate"; value: string | null };
 
 interface TaskListState {
   // Map of file path → loaded task list data.
@@ -118,6 +125,7 @@ interface TaskListState {
   loadFile: (filePath: string) => Promise<LoadFileResult>;
   createFile: (filePath: string) => Promise<void>;
   unloadFile: (filePath: string) => Promise<void>;
+  ownedFilePaths: () => string[];
 
   // Actions: selection.
   setSelection: (keys: Set<string>) => void;
@@ -126,6 +134,9 @@ interface TaskListState {
   // Actions: handled tasks pagination.
   showMoreHandled: (viewKey: string, pageSize: number) => void;
   setHandledExpanded: (viewKey: string, expanded: boolean) => void;
+
+  // Bulk fields validate per task but publish each changed source list once.
+  updateTaskFields: (tasks: readonly { sourceFile: string; id: string }[], change: TaskFieldChange) => Promise<ActionResult[]>;
 
   // Actions: task operations (each persists asynchronously).
   addNewTask: (
@@ -278,10 +289,14 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   // and issue a duplicate read, and a retry could race a re-fired effect. Sharing
   // one promise per path collapses concurrent loads into a single read.
   const inFlightLoads = new Map<string, Promise<LoadFileResult>>();
+  // Admission starts before a reopening request waits on old physical work.
+  // A second workspace departure must also revoke that waiting successor.
+  const loadAdmissions = new Map<string, object>();
 
   // The number of writes still queued or running per file. A list with one
   // keeps its loaded copy when the disk changes (refreshFromDisk).
   const pendingWrites = new Map<string, number>();
+  const inFlightUnloads = new Map<string, Promise<void>>();
 
   function beginPendingWrite(filePath: string): void {
     pendingWrites.set(filePath, (pendingWrites.get(filePath) ?? 0) + 1);
@@ -357,7 +372,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         writtenData = f.data;
         return f.data;
       }, (data) => {
-        if (duplicateOf(get().files, data, filePath)) return;
+        if (duplicateOf(get().files, data, filePath)) return false;
         const current = get().files[filePath]?.data;
         const retained = writtenData && current ? retainLaterTaskList(writtenData, current, data) : data;
         endPendingWrite(filePath);
@@ -368,6 +383,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           beginPendingWrite(filePath);
           void flush(filePath, action, fields);
         }
+        return true;
       });
     } catch {
       endPendingWrite(filePath);
@@ -545,13 +561,24 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     // --- File management ---
 
     loadFile: async (filePath: string) => {
-      if (get().files[filePath]) return { status: "success" };
+      const admission = loadAdmissions.get(filePath) ?? {};
+      loadAdmissions.set(filePath, admission);
+      // A reopened tab belongs to the next lifetime, after the previous one
+      // has finished its writes and released its comparison hash.
+      const retiring = inFlightUnloads.get(filePath);
+      if (retiring) await retiring;
+      if (loadAdmissions.get(filePath) !== admission) return { status: "cancelled" };
+      if (get().files[filePath]) {
+        loadAdmissions.delete(filePath);
+        return { status: "success" };
+      }
 
       const existing = inFlightLoads.get(filePath);
       if (existing) return existing;
 
       const load = (async (): Promise<LoadFileResult> => {
         const read = await safeLoadTaskList(filePath);
+        if (loadAdmissions.get(filePath) !== admission) return { status: "cancelled" };
         const loaded =
           read.status === "success"
             ? (duplicateOf(get().files, read.taskList.data, filePath) ?? read)
@@ -588,6 +615,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         return await load;
       } finally {
         inFlightLoads.delete(filePath);
+        if (loadAdmissions.get(filePath) === admission) loadAdmissions.delete(filePath);
       }
     },
 
@@ -604,30 +632,37 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     },
 
     unloadFile: async (filePath: string) => {
-      // Drain any pending writes for this path before removing the entry from
-      // memory. forgetTaskList runs inside the path's serial chain, so any
-      // queued flush completes (using the still-present in-memory data) before
-      // the hash is dropped.
-      log.debug("task list unloaded", { path: filePath });
-      const closing = get().files[filePath];
-      if (closing) useNoteDraftStore.getState().rememberTasks(closing.data.tasks);
-      await forgetTaskList(filePath);
-      pendingWrites.delete(filePath);
-      set((state) => {
-        const { [filePath]: _, ...rest } = state.files;
-        const { [filePath]: __, ...restHandled } = state.handledVisible;
-        const { [filePath]: ___, ...restExpanded } = state.handledExpanded;
-        const { [filePath]: ____, ...restErrors } = state.fileLoadErrors;
-        return {
-          files: rest,
-          fileLoadErrors: restErrors,
+      loadAdmissions.delete(filePath);
+      const existing = inFlightUnloads.get(filePath);
+      if (existing) return existing;
+      const mustSave = pendingWrites.has(filePath) || pendingSerialKeys().includes(filePath);
+      const retire = () => {
+        const closing = get().files[filePath];
+        if (closing) useNoteDraftStore.getState().rememberTasks(closing.data, filePath);
+        pendingWrites.delete(filePath);
+        set((state) => ({
+          files: removeRecordKey(state.files, filePath),
+          fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
           fileDiskErrors: removeRecordKey(state.fileDiskErrors, filePath),
           unsavedFiles: removeRecordKey(state.unsavedFiles, filePath),
-          handledVisible: restHandled,
-          handledExpanded: restExpanded,
-        };
+          handledVisible: removeRecordKey(state.handledVisible, filePath),
+          handledExpanded: removeRecordKey(state.handledExpanded, filePath),
+        }));
+        log.debug("task list unloaded", { path: filePath });
+      };
+      const unload = Promise.resolve().then(async () => {
+        if (mustSave) { await drainRequiredSerial(filePath); retire(); }
+        await inFlightLoads.get(filePath);
+        // Logical admission ends before unrelated reads finish. The physical
+        // reservation/hash remains owned until settlement; reopening waits.
+        await forgetTaskList(filePath);
       });
+      inFlightUnloads.set(filePath, unload);
+      if (!mustSave) retire();
+      try { await unload; } finally { inFlightUnloads.delete(filePath); }
     },
+
+    ownedFilePaths: () => [...new Set([...Object.keys(get().files), ...Object.keys(get().fileLoadErrors), ...loadAdmissions.keys()])],
 
     // --- Selection ---
 
@@ -712,42 +747,54 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         (task) => updateTaskDescription(task, description, editedAtUtc),
       ),
 
-    setStatus: async (filePath, taskId, status) =>
-      mutateTask(
-        filePath,
-        taskId,
-        "set task status",
-        { taskId, status },
-        (task) => changeTaskStatus(task, status),
-        // Setting the status a task already has is a no-op, not a transition,
-        // so it is not validated — the transform then returns the same task and
-        // nothing is written.
-        (task) => {
-          if (task.status === status) return null;
-          const validation = canTransitionStatus(task, status);
-          return validation.valid
-            ? null
-            : { status: "validation", reason: validation.reason! };
-        },
-      ),
+    updateTaskFields: async (selected, change) => {
+      const results: (ActionResult | undefined)[] = new Array(selected.length);
+      const byFile = new Map<string, Map<string, number[]>>();
+      selected.forEach((task, index) => {
+        let ids = byFile.get(task.sourceFile);
+        if (!ids) { ids = new Map(); byFile.set(task.sourceFile, ids); }
+        ids.set(task.id, [...ids.get(task.id) ?? [], index]);
+      });
+      await Promise.all([...byFile].map(async ([path, ids]) => {
+        const changedIndices = new Set<number>();
+        const result = await mutateTasks(path, `set task ${change.field}`, { count: ids.size, value: change.value }, (tasks) => {
+          let changed = false;
+          const next = tasks.map((task) => {
+            const indices = ids.get(task.id);
+            if (!indices) return task;
+            if (change.field === "status" && task.status !== change.value) {
+              const validation = canTransitionStatus(task, change.value);
+              if (!validation.valid) {
+                for (const index of indices) results[index] = { status: "validation", reason: validation.reason! };
+                return task;
+              }
+            }
+            const updated = change.field === "status" ? changeTaskStatus(task, change.value)
+              : change.field === "priority" ? changeTaskPriority(task, change.value)
+              : changeTaskDueDate(task, change.value);
+            for (const index of indices) {
+              results[index] = { status: "success", changed: updated !== task };
+              if (updated !== task) changedIndices.add(index);
+            }
+            changed ||= updated !== task;
+            return updated;
+          });
+          return changed ? next : tasks;
+        });
+        for (const indices of ids.values()) for (const index of indices) {
+          if (!results[index]) results[index] = result.status === "error" ? result : { status: "error", message: message("task.notFound") };
+          else if (changedIndices.has(index)) results[index] = result;
+        }
+      }));
+      return results as ActionResult[];
+    },
 
-    setPriority: async (filePath, taskId, priority) =>
-      mutateTask(
-        filePath,
-        taskId,
-        "set task priority",
-        { taskId, priority },
-        (task) => changeTaskPriority(task, priority),
-      ),
-
-    setDueDate: async (filePath, taskId, dueDate) =>
-      mutateTask(
-        filePath,
-        taskId,
-        "set task due date",
-        { taskId, dueDate },
-        (task) => changeTaskDueDate(task, dueDate),
-      ),
+    setStatus: async (sourceFile, id, value) =>
+      (await get().updateTaskFields([{ sourceFile, id }], { field: "status", value }))[0],
+    setPriority: async (sourceFile, id, value) =>
+      (await get().updateTaskFields([{ sourceFile, id }], { field: "priority", value }))[0],
+    setDueDate: async (sourceFile, id, value) =>
+      (await get().updateTaskFields([{ sourceFile, id }], { field: "dueDate", value }))[0],
 
     addNewNote: async (filePath, taskId, content, actionability = "Informational", editedAtUtc) => {
       if (!content.trim()) {
@@ -824,7 +871,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     // Unlike single-file actions, the move does NOT mutate state synchronously.
     // The repository holds both files' serial slots, recomputes the move from
     // the latest store data inside those slots, and writes both files
-    // transactionally with rollback. The store applies the result on success.
+    // destination first, rolling back only after a genuine source-write failure.
+    // Interruption can leave readable copies in both files.
 
     moveTasks: async (sourceFilePath, destFilePath, taskIds) => {
       if (sourceFilePath === destFilePath) {
@@ -844,16 +892,23 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       // two files, and a rejection here would leave the UI showing tasks in a
       // list they never reached.
       let result: MoveResult;
+      let identityCollision = false;
       try {
         result = await flushMove(sourceFilePath, destFilePath, (): MoveInputs | null => {
           const sourceState = get().files[sourceFilePath];
           const destState = get().files[destFilePath];
           if (!sourceState || !destState) return null;
+          if (holdsDraftFor(useNoteDraftStore.getState().drafts,
+            sourceState.data.tasks.filter((task) => taskIds.has(task.id)), destFilePath)) {
+            identityCollision = true;
+            return null;
+          }
           const moveResult = prepareMoveOperation(
             sourceState.data.tasks,
             destState.data.tasks,
             taskIds,
           );
+          if (moveResult === null) { identityCollision = true; return null; }
           return {
             sourceDataPreMove: sourceState.data,
             destDataPreMove: destState.data,
@@ -871,6 +926,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
                 [sourceFilePath]: { data: settled.sourceData },
                 [destFilePath]: { data: settled.destData },
               }, selectedKeys: new Set() }));
+              const surviving = new Set(settled.destData.tasks.map((task) => task.id));
+              for (const id of taskIds) if (!surviving.has(id)) useNoteDraftStore.getState().clearTaskDrafts(id, sourceFilePath);
+              useNoteDraftStore.getState().moveTaskDrafts(taskIds, sourceFilePath, destFilePath);
               // Both writes carried the store's whole copy of each list, so a
               // list left unsaved by an earlier failure is saved now.
               clearUnsaved(sourceFilePath);
@@ -908,6 +966,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       }
 
       const failure =
+        identityCollision ? message("move.identityCollision") :
         result.status === "dest-conflict"
           ? message("move.destConflict")
           : result.status === "dest-deleted"
@@ -946,10 +1005,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       try {
         result = await refreshTaskList(filePath, (data) => {
           const current = get().files[filePath];
-          if (!current) return false;
+          if (!current || inFlightUnloads.has(filePath)) return false;
           if (pendingWrites.has(filePath)) return false;
           if (get().unsavedFiles[filePath]) return false;
-          if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks)) {
+          if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks, filePath)) {
             return false;
           }
           duplicate = duplicateOf(get().files, data, filePath);
@@ -964,6 +1023,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       } catch (e) {
         result = { status: "error", message: e instanceof Error ? e.message : String(e) };
       }
+      if (!get().files[filePath] || inFlightUnloads.has(filePath)) return;
       if (duplicate) result = duplicate;
       switch (result.status) {
         case "notLoaded":

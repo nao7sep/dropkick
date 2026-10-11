@@ -70,7 +70,7 @@ describe("deleteSelectedTasks", () => {
       failures: failed.map((task) => ({ task, reason: "disk full" })),
     });
     expect(clearTaskDrafts).toHaveBeenCalledOnce();
-    expect(clearTaskDrafts).toHaveBeenCalledWith("c");
+    expect(clearTaskDrafts).toHaveBeenCalledWith("c", "/two.json");
   });
 
   it("keeps each failed task with its own source failure", async () => {

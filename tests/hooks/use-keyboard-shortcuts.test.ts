@@ -89,6 +89,7 @@ beforeEach(async () => {
     },
     selectedKeys: new Set([taskKey(FILE, "a")]),
     removeTasks,
+    updateTaskFields: async (tasks, change) => Promise.all(tasks.map((task) => setStatus(task.sourceFile, task.id, change.value))),
     setStatus: (
       filePath: string,
       taskId: string,
@@ -110,7 +111,7 @@ describe("task deletion dispatch", () => {
       await press(key);
 
       expect(removeTasks).toHaveBeenCalledWith(FILE, new Set(["a"]));
-      expect(clearTaskDrafts).toHaveBeenCalledWith("a");
+      expect(clearTaskDrafts).toHaveBeenCalledWith("a", FILE);
       expect(setStatus).not.toHaveBeenCalled();
     },
   );

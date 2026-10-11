@@ -108,6 +108,7 @@
   "move.nothing": "이동할 항목이 없습니다",
   "move.sameFile": "원본과 대상은 서로 달라야 합니다",
   "move.failed": "할 일을 이동할 수 없습니다. 할 일은 현재 목록에 그대로 있습니다. 다시 시도하십시오.",
+  "move.identityCollision": "대상 목록에 같은 작업이 이미 있습니다. 아무것도 이동하지 않았습니다. 두 사본을 비교한 후 다시 시도하세요.",
   "move.destConflict": "대상 파일이 Dropkick 외부에서 수정되었습니다. 할 일을 이동하지 않았습니다.",
   "move.destDeleted": "대상 파일이 더 이상 존재하지 않습니다. 할 일을 이동하지 않았습니다.",
   "move.sourceConflict": "원본 파일이 Dropkick 외부에서 수정되었습니다. 대상 목록을 복원했으므로 할 일은 이동되지 않았습니다.",

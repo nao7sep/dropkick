@@ -40,7 +40,7 @@ beforeEach(async () => {
   moveDown.mockReset().mockResolvedValue({ status: "success", changed: true });
   usePreferencesStore.setState({ preferences: createDefaultPreferences() });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
-  useTaskListStore.setState({ setStatus, moveUp, moveDown });
+  useTaskListStore.setState({ updateTaskFields: async (tasks, change) => Promise.all(tasks.map((task) => setStatus(task.sourceFile, task.id, change.value))), moveUp, moveDown });
   host = await mount(
     createElement(BulkActions, {
       selectedTasks: [task("a", "Alpha"), task("b", "Beta")],

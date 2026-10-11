@@ -9,7 +9,7 @@
 import type { MessageKey } from "../i18n/catalogues";
 import type { Task, TaskGroup, TabDto, TaskListDto } from "../models";
 import { TASK_GROUP_ORDER } from "../models";
-import { toTask } from "../utils/domain-mapping";
+import { toTask, taskCalendar } from "../utils/domain-mapping";
 
 export interface GroupedTasks {
   // Active task groups in display order. Empty groups are omitted.
@@ -93,12 +93,14 @@ export function collectViewTasks(
   isUnifiedView: boolean,
   timezone: string,
   dueSoonDays: number,
+  today?: string,
 ): Task[] {
+  const calendar = taskCalendar(timezone, dueSoonDays, today);
   if (!isUnifiedView) {
     const fileState = files[filePath];
     if (!fileState) return [];
     return fileState.data.tasks.map((dto) =>
-      toTask(dto, filePath, timezone, dueSoonDays),
+      toTask(dto, filePath, timezone, dueSoonDays, calendar),
     );
   }
 
@@ -108,7 +110,7 @@ export function collectViewTasks(
     const fileState = files[tab.filePath];
     if (!fileState) continue;
     for (const dto of fileState.data.tasks) {
-      merged.push(toTask(dto, tab.filePath, timezone, dueSoonDays));
+      merged.push(toTask(dto, tab.filePath, timezone, dueSoonDays, calendar));
     }
   }
   return merged;

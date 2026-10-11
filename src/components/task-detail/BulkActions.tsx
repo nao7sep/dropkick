@@ -62,8 +62,7 @@ export function BulkActions({
   const moveUp = useTaskListStore((s) => s.moveUp);
   const moveDown = useTaskListStore((s) => s.moveDown);
   const dropkick = useTaskListStore((s) => s.dropkick);
-  const setStatus = useTaskListStore((s) => s.setStatus);
-  const setPriority = useTaskListStore((s) => s.setPriority);
+  const updateTaskFields = useTaskListStore((s) => s.updateTaskFields);
   const moveTasks = useTaskListStore((s) => s.moveTasks);
   const setSelection = useTaskListStore((s) => s.setSelection);
   const workspace = useWorkspaceStore((s) => s.workspace);
@@ -100,10 +99,7 @@ export function BulkActions({
   };
 
   const handleBulkStatus = async (status: TaskStatus) => {
-    const results: ActionResult[] = [];
-    for (const task of selectedTasks) {
-      results.push(await setStatus(task.sourceFile, task.id, status));
-    }
+    const results = await updateTaskFields(selectedTasks, { field: "status", value: status });
     const failures = collectTaskActionFailures(selectedTasks, results);
     if (failures.length > 0) {
       reportActionError(
@@ -123,10 +119,7 @@ export function BulkActions({
   };
 
   const handleBulkPriority = async (priority: TaskPriority) => {
-    const results: ActionResult[] = [];
-    for (const task of selectedTasks) {
-      results.push(await setPriority(task.sourceFile, task.id, priority));
-    }
+    const results = await updateTaskFields(selectedTasks, { field: "priority", value: priority });
     const failures = collectTaskActionFailures(selectedTasks, results);
     if (failures.length > 0) {
       reportActionError(

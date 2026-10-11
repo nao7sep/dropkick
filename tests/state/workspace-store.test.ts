@@ -309,7 +309,7 @@ describe("load startup tab selection", () => {
         activeTabIndex: 0,
       },
     });
-    await useWorkspaceStore.getState().load("/ws.json");
+    useWorkspaceStore.getState().adopt("/ws.json", (await loadWorkspace()).workspace);
     expect(activeIdx()).toBe(1); // the unified view tab
   });
 
@@ -322,7 +322,7 @@ describe("load startup tab selection", () => {
         activeTabIndex: -1,
       },
     });
-    await useWorkspaceStore.getState().load("/ws.json");
+    useWorkspaceStore.getState().adopt("/ws.json", (await loadWorkspace()).workspace);
     expect(activeIdx()).toBe(0);
   });
 });

@@ -54,7 +54,7 @@ async function register(filePath: string, hash = "H0") {
 describe("loadTaskList", () => {
   it("records the hash and returns the loaded data on success", async () => {
     readJsonFileWithHash.mockResolvedValue({ status: "success", data: data(), hash: "H1" });
-    const adopted = vi.fn(() => { expect(insideSerial).toBe(true); });
+    const adopted = vi.fn(() => { expect(insideSerial).toBe(true); return true; });
     const result = await repo.loadTaskList("/f.json", adopted);
     expect(adopted).toHaveBeenCalledWith(data());
     expect(result).toEqual({ status: "success", taskList: { filePath: "/f.json", data: data() } });
@@ -142,7 +142,7 @@ describe("flushTaskList — conflict resolution", () => {
   it("reloads disk data when the user chooses reload", async () => {
     showFileConflictDialog.mockResolvedValue("reload");
     readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: data(), hash: "HDISK" });
-    const adopted = vi.fn(() => { expect(insideSerial).toBe(true); });
+    const adopted = vi.fn(() => { expect(insideSerial).toBe(true); return true; });
     const result = await repo.flushTaskList("/f.json", () => data(), adopted);
     expect(adopted).toHaveBeenCalledWith(data());
     expect(result.status).toBe("reloaded");

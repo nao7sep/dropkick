@@ -17,6 +17,7 @@ import { makeTask } from "../../helpers/task";
 import { mount, type Mounted } from "../../helpers/react-dom";
 
 const updateTitle = vi.fn();
+const copyDraft = (key: string) => `${key}|%2Fone.json`;
 let host: Mounted | null = null;
 
 beforeEach(async () => {
@@ -110,7 +111,7 @@ describe("TaskListPane results", () => {
 
     expect(updateTitle).toHaveBeenCalledTimes(1);
     expect(row.querySelector("input")).toBeNull();
-    expect(useNoteDraftStore.getState().drafts["a#title"]).toBeUndefined();
+    expect(useNoteDraftStore.getState().drafts[copyDraft("a#title")]).toBeUndefined();
     expect(row.querySelector('[role="alert"]')?.textContent).toContain("reloaded from disk");
   });
 
@@ -164,10 +165,10 @@ it("keeps the rename editor and later draft after a held Reload", async () => {
   });
   await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
   await act(async () => {
-    useNoteDraftStore.getState().setDraft("a#title", "B");
-    useNoteDraftStore.getState().setDraft("a#title", "A");
+    useNoteDraftStore.getState().setDraft(copyDraft("a#title"), "B");
+    useNoteDraftStore.getState().setDraft(copyDraft("a#title"), "A");
   });
   await act(async () => { finish({ status: "reloaded", message: message("write.reloaded") }); });
-  expect(useNoteDraftStore.getState().drafts["a#title"]).toBe("A");
+  expect(useNoteDraftStore.getState().drafts[copyDraft("a#title")]).toBe("A");
   expect(row.querySelector("input")?.value).toBe("A");
 });

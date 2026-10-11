@@ -343,7 +343,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   useEffect(() => {
     useNoteDraftStore
       .getState()
-      .reconcile(Object.values(files).map((f) => f.data));
+      .reconcile(Object.entries(files).map(([sourceFile, f]) => ({ ...f.data, sourceFile })));
   }, [files]);
 
   // File-lifecycle unload. The set of file paths the workspace currently has

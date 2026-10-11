@@ -178,10 +178,14 @@ export async function appPaths(): Promise<AppPaths> {
 // not break the chain — the next caller runs either way.
 
 const serialChains = new Map<string, Promise<unknown>>();
+// Keep physical reservations for every operation. Only required persistence
+// participates in navigation/quit saving; reads and disposable view state do not.
+const requiredChains = new Map<string, Set<Promise<void>>>();
 
 export async function withSerial<T>(
   key: string,
   fn: () => Promise<T>,
+  settlement: "required" | "optional" = "required",
 ): Promise<T> {
   const prev = serialChains.get(key) ?? Promise.resolve();
   const settled = prev.then(
@@ -194,6 +198,15 @@ export async function withSerial<T>(
     () => undefined,
   );
   serialChains.set(key, tail);
+  if (settlement === "required") {
+    const pending = requiredChains.get(key) ?? new Set<Promise<void>>();
+    pending.add(tail);
+    requiredChains.set(key, pending);
+    void tail.then(() => {
+      pending.delete(tail);
+      if (pending.size === 0) requiredChains.delete(key);
+    });
+  }
   // Drop the entry once this tail settles, unless a newer tail replaced it.
   void tail.then(() => {
     if (serialChains.get(key) === tail) {
@@ -218,18 +231,26 @@ export async function withSerialTwo<T>(
 // The keys (file paths) with work still queued or running, oldest first. The
 // close path names them when a write is taking too long to finish.
 export function pendingSerialKeys(): string[] {
-  return [...serialChains.keys()];
+  return [...requiredChains.keys()];
 }
 
 // Awaits the work queued for one key so far, such as a task list's writes
 // before its tab closes.
 export async function drainSerial(key: string): Promise<void> {
-  await withSerial(key, async () => {});
+  await withSerial(key, async () => {}, "optional");
 }
 
-// Awaits every per-key serial chain currently in flight. Used at window-close
-// time to make sure pending writes (including ones triggered by the blur of a
-// focused input during shutdown) land on disk before the renderer terminates.
+export async function drainRequiredSerial(key?: string): Promise<void> {
+  for (;;) {
+    const tails = key === undefined ? [...requiredChains.values()].flatMap((pending) => [...pending])
+      : [...(requiredChains.get(key) ?? [])];
+    if (tails.length === 0) return;
+    await Promise.allSettled(tails);
+  }
+}
+
+// Awaits every physical operation, including optional reads and view-state
+// writes. Required saving at navigation/quit uses drainRequiredSerial instead.
 //
 // Loops because a chain that settles during the await may have had a new
 // callback enqueued behind it — typically the blur-fired commit we're trying

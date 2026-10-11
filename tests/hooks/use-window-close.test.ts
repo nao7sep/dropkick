@@ -83,9 +83,12 @@ import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { useDialogStore } from "../../src/state/dialog-store";
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../src/state/workspace-store";
+import { useAppStateStore } from "../../src/state/app-state-store";
 import { createDefaultWorkspace } from "../../src/models";
+import { fieldDraftKey } from "../../src/services/note-drafts";
 import { makeTask, makeNote } from "../helpers/task";
 
+const copyDraft = (key: string) => `${key}|${encodeURIComponent(LIST)}`;
 const invokeMock = invoke as unknown as Mock;
 
 function Harness() {
@@ -134,9 +137,23 @@ afterEach(() => {
 });
 
 describe("close request", () => {
+  it("does not ask about or wait for a held disposable view-state save", async () => {
+    useAppStateStore.setState({ filePath: "/state.json", loaded: true });
+    let release!: () => void;
+    invokeMock.mockImplementation((command, args) => command === "write_text_file_atomic" && args.path === "/state.json"
+      ? new Promise<void>((resolve) => { release = resolve; }) : Promise.resolve(undefined));
+    const optional = useAppStateStore.getState().updateViewState({ zoomLevel: 1.2 });
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    let allowed = false;
+    const closing = prepareWindowClose().then((value) => { allowed = value; });
+    try {
+      await vi.waitFor(() => expect(allowed).toBe(true));
+      expect(useDialogStore.getState().current).toBeNull();
+    } finally { release(); await Promise.all([optional, closing]); }
+  });
   it("closes without asking when no note text is waiting", async () => {
     await mountHarness();
-    useNoteDraftStore.getState().setDraft("t1", "   \n  ");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1"), "   \n  ");
 
     await requestClose();
 
@@ -311,6 +328,36 @@ describe("a task-list write that fails outright", () => {
 });
 
 describe("note text not yet added or saved", () => {
+  it.each([false, true])("asks about an edited note in either loaded-copy order (%s), including after its tab closes", async (reverse) => {
+    const source = { id: "source", tasks: [makeTask({ id: "t1", title: "Source", notes: [makeNote({ id: "n1", content: "milk" })] })] };
+    const destination = { id: "destination", tasks: [makeTask({ id: "t1", title: "Destination", notes: [] })] };
+    const entries = [[LIST, { data: source }], ["/copy.json", { data: destination }]] as const;
+    useTaskListStore.setState({ files: Object.fromEntries(reverse ? [...entries].reverse() : entries) });
+    useNoteDraftStore.getState().setDraft(copyDraft("t1:n1"), "milk and eggs");
+    for (const closeSource of [false, true]) {
+      if (closeSource) await useTaskListStore.getState().unloadFile(LIST);
+      useNoteDraftStore.getState().reconcile(Object.entries(useTaskListStore.getState().files).map(([sourceFile, file]) => ({ ...file.data, sourceFile })));
+      const closing = prepareWindowClose();
+      await waitForDialog();
+      expect(useDialogStore.getState().current?.body.values).toEqual({ tasks: "Source" });
+      useDialogStore.getState().cancelCurrent();
+      await expect(closing).resolves.toBe(false);
+      expect(useNoteDraftStore.getState().drafts[copyDraft("t1:n1")]).toBe("milk and eggs");
+    }
+  });
+
+  it.each([false, true])("commits a field to its edited copy rather than loaded order (%s)", async (reverse) => {
+    const entries = [[LIST, { data: { id: "source", tasks: [makeTask({ id: "t1", title: "Source" })] } }],
+      ["/copy.json", { data: { id: "destination", tasks: [makeTask({ id: "t1", title: "Destination" })] } }]] as const;
+    useTaskListStore.setState({ files: Object.fromEntries(reverse ? [...entries].reverse() : entries) });
+    useNoteDraftStore.getState().setDraft(fieldDraftKey("t1", "title", "/copy.json"), "Edited destination");
+    await expect(prepareWindowClose()).resolves.toBe(true);
+    expect(useTaskListStore.getState().files[LIST].data.tasks[0].title).toBe("Source");
+    expect(useTaskListStore.getState().files["/copy.json"].data.tasks[0].title).toBe("Edited destination");
+    expect(listDisk.written).toHaveLength(1);
+    expect(listDisk.written[0]).toContain("/copy.json:");
+  });
+
   function seedNote(): void {
     useTaskListStore.setState({
       files: { [LIST]: { data: { id: "L1", tasks: [
@@ -322,7 +369,7 @@ describe("note text not yet added or saved", () => {
   it("asks before discarding, naming the task, and Keep Editing keeps everything", async () => {
     await mountHarness();
     seedNote();
-    useNoteDraftStore.getState().setDraft("t1", "half a thought");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1"), "half a thought");
     const closing = prepareWindowClose();
 
     await waitForDialog();
@@ -333,14 +380,14 @@ describe("note text not yet added or saved", () => {
     useDialogStore.getState().cancelCurrent();
 
     await expect(closing).resolves.toBe(false);
-    expect(useNoteDraftStore.getState().drafts.t1).toBe("half a thought");
+    expect(useNoteDraftStore.getState().drafts[copyDraft("t1")]).toBe("half a thought");
     expect(listDisk.written).toEqual([]);
   });
 
   it("closes when the user discards", async () => {
     await mountHarness();
     seedNote();
-    useNoteDraftStore.getState().setDraft("t1:n1", "milk and eggs");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1:n1"), "milk and eggs");
     const closing = prepareWindowClose();
 
     await waitForDialog();
@@ -352,7 +399,7 @@ describe("note text not yet added or saved", () => {
   it("does not ask about a note opened for editing but unchanged", async () => {
     await mountHarness();
     seedNote();
-    useNoteDraftStore.getState().openDraft("t1:n1", "milk");
+    useNoteDraftStore.getState().openDraft(copyDraft("t1:n1"), "milk");
 
     await expect(prepareWindowClose()).resolves.toBe(true);
     expect(useDialogStore.getState().current).toBeNull();
@@ -372,8 +419,8 @@ describe("note text not yet added or saved", () => {
   it("commits a parked title and description instead of asking", async () => {
     await mountHarness();
     await seedList();
-    useNoteDraftStore.getState().setDraft("t1#title", "  Renamed  ");
-    useNoteDraftStore.getState().setDraft("t1#description", "described");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1#title"), "  Renamed  ");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1#description"), "described");
 
     await expect(prepareWindowClose()).resolves.toBe(true);
 
@@ -406,7 +453,7 @@ describe("the end of an OS session", () => {
   it("writes what is pending without asking, reports to the core, and leaves the window", async () => {
     await mountHarness();
     await seedList();
-    useNoteDraftStore.getState().setDraft("t1", "typed as the session ended");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1"), "typed as the session ended");
     void useTaskListStore.getState().setPriority(LIST, "t1", "Critical");
 
     await endSession();
@@ -448,7 +495,7 @@ describe("the end of an OS session", () => {
 
   it("joins a close the user started, withdrawing its question", async () => {
     await mountHarness();
-    useNoteDraftStore.getState().setDraft("t1", "half a thought");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1"), "half a thought");
     const handler = windowStub.handlers.at(-1)!;
     const userClose = handler({ preventDefault: () => {} });
     await vi.advanceTimersByTimeAsync(0);
@@ -516,8 +563,8 @@ describe("drafts from closed tabs", () => {
     useWorkspaceStore.getState().adopt("/workspace.json", createDefaultWorkspace("Home"));
     await useWorkspaceStore.getState().addTab(LIST, "Tasks");
     await useWorkspaceStore.getState().addTab("/other.json", "Other");
-    useNoteDraftStore.getState().setDraft("t1#title", "Parked title");
-    useNoteDraftStore.getState().setDraft("t1#description", "Parked description");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1#title"), "Parked title");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1#description"), "Parked description");
     await useWorkspaceStore.getState().closeTab(0);
     const task = useTaskListStore.getState().files[LIST].data.tasks[0];
     expect(task.title).toBe("Parked title");
@@ -533,7 +580,7 @@ describe("drafts from closed tabs", () => {
     useWorkspaceStore.getState().adopt("/workspace.json", createDefaultWorkspace("Home"));
     await useWorkspaceStore.getState().addTab(LIST, "Tasks");
     await useWorkspaceStore.getState().addTab("/other.json", "Other");
-    useNoteDraftStore.getState().setDraft("t1#title", "Keep this title");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1#title"), "Keep this title");
     listDisk.fail = true;
     const closing = useWorkspaceStore.getState().closeTab(0);
     await waitForDialog();
@@ -547,14 +594,14 @@ describe("drafts from closed tabs", () => {
   it("names a note draft after its list unloads and releases context with the draft", async () => {
     await seedList();
     const title = useTaskListStore.getState().files[LIST].data.tasks[0].title;
-    useNoteDraftStore.getState().setDraft("t1", "half a thought");
+    useNoteDraftStore.getState().setDraft(copyDraft("t1"), "half a thought");
     await useTaskListStore.getState().unloadFile(LIST);
     const closing = prepareWindowClose();
     await waitForDialog();
     expect(useDialogStore.getState().current?.body.values).toEqual({ tasks: title });
     useDialogStore.getState().cancelCurrent();
     await expect(closing).resolves.toBe(false);
-    useNoteDraftStore.getState().clearDraft("t1");
+    useNoteDraftStore.getState().clearDraft(copyDraft("t1"));
     expect(useNoteDraftStore.getState().parkedTasks).toEqual({});
   });
 
@@ -562,7 +609,7 @@ describe("drafts from closed tabs", () => {
     useTaskListStore.setState({ files: { [LIST]: { data: { id: "L1", tasks: [
       makeTask({ id: "t1", notes: [makeNote({ id: "n1", content: "milk" })] }),
     ] } } } });
-    useNoteDraftStore.getState().openDraft("t1:n1", "milk");
+    useNoteDraftStore.getState().openDraft(copyDraft("t1:n1"), "milk");
     await useTaskListStore.getState().unloadFile(LIST);
     await expect(prepareWindowClose()).resolves.toBe(true);
     expect(useDialogStore.getState().current).toBeNull();

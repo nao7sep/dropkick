@@ -230,7 +230,7 @@ function App() {
           if (opened.kind === "success") setPhase({ kind: "main" });
           else {
             setPhase({ kind: "startup" });
-            if (opened.kind !== "save") notices.push({
+            if (opened.kind === "workspace") notices.push({
               title: message("startup.workspaceFailed.title"),
               body: describeLoadFailure(opened.kind, opened.failure, state.lastWorkspacePath),
             });
@@ -262,6 +262,11 @@ function App() {
     launchingRef.current = true;
     try {
       const opened = await openWorkspaceSession(workspacePath);
+      if (opened.kind === "tasks") {
+        setPhase({ kind: "main" });
+        await showMessage(message("startup.workspaceFailed.title"), message("tabs.notSaved", { path: opened.paths.join("\n") }));
+        return;
+      }
       if (opened.kind === "save") {
         await showMessage(message("startup.workspaceFailed.title"), message("write.openTabs"));
         return;
@@ -273,7 +278,8 @@ function App() {
         );
         return;
       }
-      await setLastWorkspace(workspacePath);
+      // Remembering the last choice is disposable state, not session admission.
+      void setLastWorkspace(workspacePath);
       await loadInterfaceCatalogue(currentInterfaceLanguage());
       setPhase({ kind: "main" });
     } catch (error) {

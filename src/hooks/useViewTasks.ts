@@ -9,6 +9,7 @@
 // themselves are pure and live in services/grouping; this hook only wires the
 // stores to them.
 
+import { useCalendarDay } from "./useCalendarDay";
 import { useMemo } from "react";
 import type { Task } from "../models";
 import {
@@ -39,6 +40,7 @@ export function useViewTasks(
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
   const dueSoonDays = usePreferencesStore((s) => s.preferences.dueSoonDays);
 
+  const today = useCalendarDay(timezone);
   const tasks = useMemo(
     () =>
       collectViewTasks(
@@ -48,8 +50,9 @@ export function useViewTasks(
         isUnifiedView,
         timezone,
         dueSoonDays,
+        today,
       ),
-    [files, openTabs, filePath, isUnifiedView, timezone, dueSoonDays],
+    [files, openTabs, filePath, isUnifiedView, timezone, dueSoonDays, today],
   );
 
   const grouped = useMemo(

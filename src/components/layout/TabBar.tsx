@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle, ScrollText, ZoomIn } from "lucide-react";
 import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
+import { useCalendarDay } from "../../hooks/useCalendarDay";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -84,6 +85,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   // Deadline urgency per open list tab, keyed by file path. Recomputed when the
   // open tabs, task data, load errors, or timezone change. MainWindow eagerly
   // loads every open list, so this reflects all tabs — not just the active one.
+  const today = useCalendarDay(preferences.timezone);
   const urgencyByTab = useMemo(
     () =>
       computeTabUrgencies(
@@ -91,8 +93,9 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
         files,
         new Set(Object.keys(fileLoadErrors)),
         preferences.timezone,
+        today,
       ),
-    [workspace.openTabs, files, fileLoadErrors, preferences.timezone],
+    [workspace.openTabs, files, fileLoadErrors, preferences.timezone, today],
   );
 
   // Identify the tab being renamed by its filePath (stable across reorder /
@@ -186,6 +189,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       if (!path) return;
       log.info("open task list", { path });
       const loaded = await loadFile(path);
+      if (loaded.status === "cancelled") return;
       if (loaded.status !== "success") {
         // The load-failure warning is emitted once by the task-list store
         // (covers this path and background loads); here we only show the dialog.
@@ -208,6 +212,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
     try {
       log.info("open recent task list", { path });
       const loaded = await loadFile(path);
+      if (loaded.status === "cancelled") return;
       if (loaded.status !== "success") {
         // Load-failure warning is emitted once by the task-list store.
         await showMessage(

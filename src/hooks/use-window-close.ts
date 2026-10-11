@@ -25,7 +25,7 @@
 import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
-  drainAllSerial,
+  drainRequiredSerial,
   log,
   onSessionEnding,
   pendingSerialKeys,
@@ -61,7 +61,7 @@ async function settlePendingWrites(): Promise<string[]> {
   // Dismissing a structural-save notice does not make the workspace durable.
   // Use its existing full-save owner, just as switching workspaces does.
   const workspaceSaved = !workspace.loaded || await workspace.saveBeforeSwitch();
-  await drainAllSerial();
+  await drainRequiredSerial();
   return [
     ...useTaskListStore.getState().unsavedPaths(),
     ...(!workspaceSaved ? [workspace.filePath] : []),
@@ -75,7 +75,7 @@ async function confirmDiscardNoteText(): Promise<boolean> {
   if (sessionEnding) return true;
   const unsaved = unsavedNoteText(
     useNoteDraftStore.getState().drafts,
-    Object.values(useTaskListStore.getState().files).map((file) => file.data),
+    Object.entries(useTaskListStore.getState().files).map(([sourceFile, file]) => ({ ...file.data, sourceFile })),
     Object.values(useNoteDraftStore.getState().parkedTasks),
   );
   if (!unsaved.any) return true;

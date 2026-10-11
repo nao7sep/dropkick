@@ -8,11 +8,13 @@ import { DayPicker } from "react-day-picker";
 import { Calendar, X } from "lucide-react";
 import "react-day-picker/style.css";
 import { usePreferencesStore } from "../../state/preferences-store";
-import { formatDueDate, todayInTimezone } from "../../utils";
+import { formatDueDate } from "../../utils";
+import { useCalendarDay } from "../../hooks/useCalendarDay";
 import { useI18n } from "../../i18n/I18nContext";
 import { dayPickerLocale } from "../../i18n/dayPickerLocales";
 
 interface DatePickerProps {
+  disabled?: boolean;
   value: string | null; // "YYYY-MM-DD" or null
   onChange: (value: string | null) => void;
   isOverdue?: boolean;
@@ -34,7 +36,7 @@ function formatDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bottom" }: DatePickerProps) {
+export function DatePicker({ value, onChange, isOverdue, disabled = false, popoverPosition = "bottom" }: DatePickerProps) {
   const i18n = useI18n();
   const [open, setOpen] = useState(false);
   // "Today" is a preference, not an OS fact. Every other date decision in the
@@ -44,7 +46,7 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
   // New Task modal otherwise showed two different todays, and clicking the
   // ringed one filed a brand-new task straight into Past Due.
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
-  const today = parseDate(todayInTimezone(timezone));
+  const today = parseDate(useCalendarDay(timezone));
 
   const selected = value ? parseDate(value) : undefined;
 
@@ -66,10 +68,11 @@ export function DatePicker({ value, onChange, isOverdue, popoverPosition = "bott
     : {};
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open && !disabled} onOpenChange={setOpen}>
       <span {...interactiveLayerProps}>
         <Popover.Trigger asChild>
           <button
+            disabled={disabled}
             // The date trigger is a field: one height, edge and corner with the
             // selects beside it.
             className={`dk-field ${

@@ -392,7 +392,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   // write keeps the input open for retry.
   const handleRename = async (task: Task, newTitle: string) => {
     const selectionKey = taskSelectionKey(task);
-    const draftKey = fieldDraftKey(task.id, "title");
+    const draftKey = fieldDraftKey(task.id, "title", task.sourceFile);
     const version = useNoteDraftStore.getState().draftVersions[draftKey];
     const cleaned = singleLine(newTitle, { minify: true });
     if (!cleaned) {
@@ -443,7 +443,9 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   };
 
   const cancelRename = (task: Task) => {
-    useNoteDraftStore.getState().clearDraft(fieldDraftKey(task.id, "title"));
+    const state = useNoteDraftStore.getState();
+    const key = fieldDraftKey(task.id, "title", task.sourceFile);
+    state.clearDraft(key);
     setEditingTaskKey(null);
     focusList();
   };
@@ -705,7 +707,7 @@ function TaskRow({
 }) {
   const { t, text } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
-  const draftKey = fieldDraftKey(task.id, "title");
+  const draftKey = fieldDraftKey(task.id, "title", task.sourceFile);
   const draft = useNoteDraftStore((s) => s.drafts[draftKey]) ?? task.title;
   const setDraft = useNoteDraftStore((s) => s.setDraft);
   const composing = useComposing();

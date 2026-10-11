@@ -128,5 +128,5 @@ export async function flushAppState(
 ): Promise<void> {
   await withSerial(filePath, async () => {
     await writeJsonFile(filePath, "state", getAppState(), false);
-  });
+  }, "optional");
 }

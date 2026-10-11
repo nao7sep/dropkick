@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ drain: vi.fn(), preferences: vi.fn(), workspace: vi.fn(), save: vi.fn(), adoptPreferences: vi.fn(), adoptWorkspace: vi.fn() }));
-vi.mock("../../src/repositories", () => ({ log: { warn: vi.fn(), info: vi.fn() }, loadFailureFields: vi.fn(), drainAllSerial: mocks.drain, loadPreferences: mocks.preferences, loadWorkspace: mocks.workspace }));
+vi.mock("../../src/repositories", () => ({ log: { warn: vi.fn(), info: vi.fn() }, loadFailureFields: vi.fn(), drainRequiredSerial: mocks.drain, loadPreferences: mocks.preferences, loadWorkspace: mocks.workspace }));
 vi.mock("../../src/state/preferences-store", () => ({ usePreferencesStore: { getState: () => ({ adopt: mocks.adoptPreferences }) } }));
 vi.mock("../../src/state/workspace-store", () => ({ useWorkspaceStore: { getState: () => ({ loaded: true, saveBeforeSwitch: mocks.save, adopt: mocks.adoptWorkspace }) } }));
 import { openWorkspaceSession } from "../../src/services/open-workspace-session";

@@ -16,7 +16,11 @@ export function prepareMoveOperation(
   sourceTasks: TaskDto[],
   destinationTasks: TaskDto[],
   selectedIds: Set<string>,
-): MoveResult {
+): MoveResult | null {
+  // An interrupted destination-first publication can leave a copy in both
+  // files. Never publish duplicate identities or choose between divergent copies.
+  const destinationIds = new Set(destinationTasks.map((task) => task.id));
+  if (sourceTasks.some((task) => selectedIds.has(task.id) && destinationIds.has(task.id))) return null;
   const tasksToMove: TaskDto[] = [];
   const remaining: TaskDto[] = [];
 

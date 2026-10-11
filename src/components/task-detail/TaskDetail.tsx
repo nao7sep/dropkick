@@ -92,12 +92,11 @@ export function TaskDetail({
     Record<string, PaneIssue>
   >({});
 
-  // The new-note composer draft lives in the draft store, keyed by task id, so
+  // The composer draft belongs to this source copy and lives in the store, so
   // it survives this component unmounting (task switch, tab cycle, bulk action),
-  // is restored when the task is selected again, and — because the store writes
-  // through to disk — survives quitting the app.
+  // is restored when the task is selected again within this app session.
   const newNoteContent = useNoteDraftStore(
-    (s) => s.drafts[composerDraftKey(task.id)] ?? "",
+    (s) => s.drafts[composerDraftKey(task.id, filePath)] ?? "",
   );
   const setDraft = useNoteDraftStore((s) => s.setDraft);
   const clearDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
@@ -106,8 +105,8 @@ export function TaskDetail({
   // typed text is a draft in the same store, so switching tasks before a blur
   // does not lose it and quit commits it. A draft's presence is
   // the "edited, not yet committed" state; with none, the field shows the task.
-  const titleKey = fieldDraftKey(task.id, "title");
-  const descriptionKey = fieldDraftKey(task.id, "description");
+  const titleKey = fieldDraftKey(task.id, "title", filePath);
+  const descriptionKey = fieldDraftKey(task.id, "description", filePath);
   const titleDraft = useNoteDraftStore((s) => s.drafts[titleKey]) ?? task.title;
   const descDraft = useNoteDraftStore((s) => s.drafts[descriptionKey]) ?? task.description;
 
@@ -239,7 +238,7 @@ export function TaskDetail({
       void commitDescription(description);
     }
     // Once per task shown; the commits read the task from this render.
-  }, [task.id]);
+  }, [task.id, filePath]);
 
   const handleStatusChange = async (status: TaskStatus) => {
     const result = await setStatusAction(filePath, task.id, status);
@@ -288,7 +287,7 @@ export function TaskDetail({
     actionability: NoteActionability = "Informational",
   ) => {
     if (addingNoteRef.current) return;
-    const composerKey = composerDraftKey(task.id);
+    const composerKey = composerDraftKey(task.id, filePath);
     const version = useNoteDraftStore.getState().draftVersions[composerKey];
     const cleaned = multiline(newNoteContent);
     if (!cleaned) return;
@@ -600,7 +599,7 @@ export function TaskDetail({
             aria-describedby={noteComposerError ? `new-note-error-${task.id}` : undefined}
             value={newNoteContent}
             onChange={(e) => {
-              setDraft(composerDraftKey(task.id), e.target.value);
+              setDraft(composerDraftKey(task.id, filePath), e.target.value);
               autoGrowNewNote();
             }}
             onKeyDown={(e) => {
@@ -681,9 +680,9 @@ function NoteItem({
   // The edit draft lives in the draft store; its presence IS the editing state,
   // so the two can never disagree and a parked edit survives this component
   // unmounting (the detail pane re-renders on every selection or task change)
-  // and, because the store writes through to disk, quitting the app. Edit seeds
+  // for this app session. Ordinary quit asks before dropping it. Edit seeds
   // it, Save and Cancel clear it.
-  const draftKey = editorDraftKey(taskId, note.id);
+  const draftKey = editorDraftKey(taskId, note.id, filePath);
   const entry = useNoteDraftStore((s) => s.drafts[draftKey]);
   const setDraft = useNoteDraftStore((s) => s.setDraft);
   const openDraft = useNoteDraftStore((s) => s.openDraft);

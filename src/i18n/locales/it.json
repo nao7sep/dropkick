@@ -108,6 +108,7 @@
   "move.nothing": "Niente da spostare",
   "move.sameFile": "L’origine e la destinazione devono essere diverse",
   "move.failed": "Impossibile spostare le attività. Restano nelle liste attuali; riprova.",
+  "move.identityCollision": "La destinazione contiene già una di queste attività. Non è stato spostato nulla. Confronta le copie prima di riprovare.",
   "move.destConflict": "Il file di destinazione è stato modificato al di fuori di Dropkick. Nessuna attività è stata spostata.",
   "move.destDeleted": "Il file di destinazione non esiste più. Nessuna attività è stata spostata.",
   "move.sourceConflict": "Il file di origine è stato modificato al di fuori di Dropkick. La destinazione è stata ripristinata, quindi nessuna attività è stata spostata.",

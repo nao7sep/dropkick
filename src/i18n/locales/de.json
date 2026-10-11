@@ -108,6 +108,7 @@
   "move.nothing": "Nichts zu verschieben",
   "move.sameFile": "Quelle und Ziel müssen verschieden sein",
   "move.failed": "Die Aufgaben konnten nicht verschoben werden. Sie bleiben in ihren bisherigen Listen; versuchen Sie es erneut.",
+  "move.identityCollision": "Das Ziel enthält bereits eine dieser Aufgaben. Nichts wurde verschoben. Vergleichen Sie die Kopien, bevor Sie es erneut versuchen.",
   "move.destConflict": "Die Zieldatei wurde außerhalb von Dropkick geändert. Es wurden keine Aufgaben verschoben.",
   "move.destDeleted": "Die Zieldatei existiert nicht mehr. Es wurden keine Aufgaben verschoben.",
   "move.sourceConflict": "Die Quelldatei wurde außerhalb von Dropkick geändert. Das Ziel wurde wiederhergestellt, daher wurden keine Aufgaben verschoben.",

@@ -1,6 +1,12 @@
 import type { TaskDto } from "../models";
 import type { Task, TaskGroup } from "../models";
-import { isOverdue, isDueInDayRange } from "./dates";
+import { todayInTimezone } from "./dates";
+import { addDays, format, parseISO } from "date-fns";
+
+export interface TaskCalendar { today: string; dueSoonEnd: string }
+export function taskCalendar(timezone: string, dueSoonDays: number, today = todayInTimezone(timezone)): TaskCalendar {
+  return { today, dueSoonEnd: format(addDays(parseISO(today), dueSoonDays), "yyyy-MM-dd") };
+}
 
 // Computes the display group for a task based on priority and due date.
 // Each task belongs to exactly one group — the highest applicable one.
@@ -8,11 +14,12 @@ export function computeGroup(
   dto: TaskDto,
   timezone: string,
   dueSoonDays: number,
+  calendar = taskCalendar(timezone, dueSoonDays),
 ): TaskGroup {
   const hasDue = dto.dueDate !== null;
 
   // Past due takes top priority.
-  if (hasDue && isOverdue(dto.dueDate!, timezone)) {
+  if (hasDue && dto.dueDate! < calendar.today) {
     return "PastDue";
   }
 
@@ -22,7 +29,7 @@ export function computeGroup(
   }
 
   // Due today takes priority over explicit priority flags (except Critical above).
-  if (hasDue && isDueInDayRange(dto.dueDate!, 0, 1, timezone)) {
+  if (hasDue && dto.dueDate === calendar.today) {
     return "DueToday";
   }
 
@@ -31,7 +38,7 @@ export function computeGroup(
   if (dto.priority === "Urgent") return "Urgent";
 
   // Due soon: elevates Default-priority tasks with an imminent due date.
-  if (hasDue && isDueInDayRange(dto.dueDate!, 1, dueSoonDays, timezone)) {
+  if (hasDue && dto.dueDate! > calendar.today && dto.dueDate! <= calendar.dueSoonEnd) {
     return "DueSoon";
   }
   return "Default";
@@ -43,6 +50,7 @@ export function toTask(
   sourceFile: string,
   timezone: string,
   dueSoonDays: number,
+  calendar = taskCalendar(timezone, dueSoonDays),
 ): Task {
   const hasActionableNotes = dto.notes.some(
     (n) => n.actionability === "Actionable",
@@ -52,10 +60,10 @@ export function toTask(
     ...dto,
     hasActionableNotes,
     canComplete: !hasActionableNotes,
-    isOverdue: dto.dueDate !== null && isOverdue(dto.dueDate, timezone),
+    isOverdue: dto.dueDate !== null && dto.dueDate < calendar.today,
     isDueToday:
-      dto.dueDate !== null && isDueInDayRange(dto.dueDate, 0, 1, timezone),
-    group: computeGroup(dto, timezone, dueSoonDays),
+      dto.dueDate !== null && dto.dueDate === calendar.today,
+    group: computeGroup(dto, timezone, dueSoonDays, calendar),
     sourceFile,
   };
 }

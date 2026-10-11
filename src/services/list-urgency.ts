@@ -8,7 +8,7 @@
 // than the computed display group.
 
 import type { TaskDto } from "../models";
-import { isOverdue, isDueInDayRange } from "../utils/dates";
+import { todayInTimezone } from "../utils/dates";
 
 // Ordered most-pressing first; null means nothing is due today or overdue.
 export type ListUrgency = "PastDue" | "DueToday" | null;
@@ -20,12 +20,13 @@ export type ListUrgency = "PastDue" | "DueToday" | null;
 export function computeListUrgency(
   tasks: readonly TaskDto[],
   timezone: string,
+  today = todayInTimezone(timezone),
 ): ListUrgency {
   let dueToday = false;
   for (const task of tasks) {
     if (task.status !== "Pending" || task.dueDate === null) continue;
-    if (isOverdue(task.dueDate, timezone)) return "PastDue";
-    if (isDueInDayRange(task.dueDate, 0, 1, timezone)) dueToday = true;
+    if (task.dueDate < today) return "PastDue";
+    if (task.dueDate === today) dueToday = true;
   }
   return dueToday ? "DueToday" : null;
 }
@@ -45,6 +46,7 @@ export function computeTabUrgencies(
   files: Readonly<Record<string, { data: { tasks: readonly TaskDto[] } }>>,
   loadErrorPaths: ReadonlySet<string>,
   timezone: string,
+  today = todayInTimezone(timezone),
 ): Record<string, ListUrgency> {
   const result: Record<string, ListUrgency> = {};
   for (const tab of openTabs) {
@@ -52,7 +54,7 @@ export function computeTabUrgencies(
     const file = files[tab.filePath];
     result[tab.filePath] =
       file && !loadErrorPaths.has(tab.filePath)
-        ? computeListUrgency(file.data.tasks, timezone)
+        ? computeListUrgency(file.data.tasks, timezone, today)
         : null;
   }
   return result;

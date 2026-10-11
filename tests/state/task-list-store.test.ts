@@ -16,6 +16,8 @@ const forgetTaskList = vi.fn(async (_p: string) => {});
 const refreshTaskList = vi.fn();
 
 vi.mock("../../src/repositories", () => ({
+  pendingSerialKeys: vi.fn(() => []),
+  drainRequiredSerial: vi.fn(async () => {}),
   loadTaskList: async (p: string, onLoaded?: (data: TaskListDto) => void) => {
     const result = await loadTaskList(p);
     if (result.status === "success") onLoaded?.(result.taskList.data);
@@ -687,7 +689,7 @@ describe("refreshFromDisk", () => {
 
   it("keeps the loaded copy while a draft for one of its tasks is unsaved", async () => {
     seedFile([makeTask({ id: "a", title: "loaded" })]);
-    useNoteDraftStore.setState({ drafts: { [composerDraftKey("a")]: "half a note" } });
+    useNoteDraftStore.setState({ drafts: { [composerDraftKey("a", FILE)]: "half a note" } });
     diskHolds([makeTask({ id: "a", title: "edited outside" })]);
 
     await useTaskListStore.getState().refreshFromDisk(FILE);
@@ -881,4 +883,28 @@ describe("Reload preserves later edit intent", () => {
     expect(tasksOf()[0].title).toBe("later task");
     expect(tasksOf()[1].notes[0].content).toBe("later note");
   });
+});
+
+it("bulk field changes publish once per changed list and retain per-task validation", async () => {
+  seedFile([makeTask({ id: "a" }), makeTask({ id: "b" }), makeTask({ id: "blocked", notes: [makeNote({ actionability: "Actionable" })] })]);
+  const results = await useTaskListStore.getState().updateTaskFields(
+    ["a", "b", "blocked"].map((id) => ({ sourceFile: FILE, id })), { field: "status", value: "Completed" },
+  );
+  expect(results.map((r) => r.status)).toEqual(["success", "success", "validation"]);
+  expect(tasksOf().map((t) => t.status)).toEqual(["Completed", "Completed", "Pending"]);
+  expect(flushTaskList).toHaveBeenCalledTimes(1);
+  flushTaskList.mockClear();
+  await useTaskListStore.getState().updateTaskFields([{ sourceFile: FILE, id: "a" }], { field: "status", value: "Completed" });
+  expect(flushTaskList).not.toHaveBeenCalled();
+});
+
+it("bulk field changes retain every accepted edit after a failed save", async () => {
+  seedFile(); flushTaskList.mockRejectedValue(new Error("disk full"));
+  const results = await useTaskListStore.getState().updateTaskFields(
+    ["a", "b"].map((id) => ({ sourceFile: FILE, id })), { field: "priority", value: "Urgent" },
+  );
+  expect(results.map((r) => r.status)).toEqual(["success", "success"]);
+  expect(tasksOf().map((t) => t.priority)).toEqual(["Urgent", "Urgent"]);
+  expect(useTaskListStore.getState().unsavedPaths()).toEqual([FILE]);
+  expect(flushTaskList).toHaveBeenCalledTimes(1);
 });
