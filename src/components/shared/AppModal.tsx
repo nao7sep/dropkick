@@ -77,7 +77,7 @@ export function AppModal({
   footer,
   maxWidth = 448,
   bodyClassName = "overflow-y-auto px-6 py-5",
-  footerClassName = "flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4",
+  footerClassName = "flex items-center justify-end gap-2 border-t border-border px-6 py-4",
   contentClassName = "",
   contentProps,
   passiveBodyLabel,
