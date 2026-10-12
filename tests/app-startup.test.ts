@@ -12,7 +12,6 @@ vi.mock("../src/state/app-config-store", () => ({ useAppConfigStore: Object.assi
 vi.mock("../src/state/language-store", () => ({ useLanguageStore: (select: (state: unknown) => unknown) => select({ load: mocks.init }) }));
 vi.mock("../src/repositories", () => ({ applyLanguage: async () => {}, applyWindowTheme: async () => {}, showMessage: async () => {}, log: { warn: vi.fn(), error: vi.fn() }, toErrorFields: () => ({}), loadFailureFields: () => ({}) }));
 vi.mock("@tauri-apps/api/window", () => ({ LogicalSize: class {}, currentMonitor: async () => null, getCurrentWindow: () => ({ isMaximized: async () => true, isFullscreen: async () => false, isMinimized: async () => false, onMoved: async () => () => {}, onScaleChanged: async () => () => {}, close: mocks.close }) }));
-vi.mock("../src/components/layout/FirstRunSetup", () => ({ FirstRunSetup: ({ onExisting }: { onExisting: () => void }) => createElement("button", { onClick: onExisting }, "Setup") }));
 vi.mock("../src/components/layout/StartupPicker", () => ({ StartupPicker: ({ onCancel, onLaunch }: { onCancel?: () => void; onLaunch: (w: string) => void }) => createElement("div", null, "Picker", createElement("button", { onClick: onCancel }, "Cancel"), createElement("button", { onClick: () => onLaunch("new-w") }, "Open")) }));
 vi.mock("../src/components/layout/MainWindow", () => ({ MainWindow: ({ onSwitchWorkspace }: { onSwitchWorkspace: () => void }) => createElement("button", { onClick: onSwitchWorkspace }, "Main") }));
 vi.mock("../src/components/shared/AppDialogHost", () => ({ AppDialogHost: () => null }));
@@ -41,11 +40,9 @@ describe("startup routing", () => {
       expect(document.body.textContent).toBe("Main");
     } finally { await act(async () => release()); }
   });
-  it("shows setup on a fresh launch and returns from browsing without writes", async () => {
+  it("shows the workspace list on a fresh launch, writing nothing until one opens", async () => {
     host = await mount(createElement(App));
-    expect(document.body.textContent).toBe("Setup");
-    await click("Setup"); await click("Cancel");
-    expect(document.body.textContent).toBe("Setup");
+    expect(document.body.textContent).toContain("Picker");
     expect(mocks.open).not.toHaveBeenCalled(); expect(mocks.paths).not.toHaveBeenCalled();
   });
   it("reopens the last workspace directly and cancelling an explicit switch keeps it", async () => {

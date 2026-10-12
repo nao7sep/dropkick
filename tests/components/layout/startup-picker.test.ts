@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 //
-// The launch gate's two file lists drive its only decision. They were a stack
-// of clickable divs, so a keyboard-only user could tab to Open / New / Remove /
-// Launch but never change which file was selected — switching to a second
-// workspace meant re-picking the same file through the native dialog.
+// The workspace list: a real listbox of workspace files, each shown by the
+// name stored in it, with New, Add existing, Rename and Remove. It was once a
+// stack of clickable divs, so a keyboard-only user could reach the buttons but
+// never change which workspace was selected.
 
 import { inEnglish } from "../../helpers/i18n";
 import { describe, it, expect, afterEach, vi } from "vitest";
@@ -16,12 +16,21 @@ const repositories = vi.hoisted(() => ({
   openJsonFileDialog: vi.fn(),
   saveJsonFileDialog: vi.fn(),
   showMessage: vi.fn(),
+  flushAppConfig: vi.fn(async () => {}),
+  renameWorkspaceFile: vi.fn(),
+  loadWorkspace: vi.fn(),
 }));
+const NAMES: Record<string, string> = { "/a/ws.json": "Alpha", "/b/ws.json": "Beta" };
+function loaded(path: string) {
+  return { status: "success", workspace: { id: path, name: NAMES[path], openTabs: [], recentFiles: [], activeTabIndex: -1 } };
+}
 vi.mock("../../../src/repositories", () => ({
   openJsonFileDialog: repositories.openJsonFileDialog,
   saveJsonFileDialog: repositories.saveJsonFileDialog,
   createWorkspaceFile: vi.fn(),
-  loadWorkspace: vi.fn(),
+  loadWorkspace: repositories.loadWorkspace,
+  renameWorkspaceFile: repositories.renameWorkspaceFile,
+  flushAppConfig: repositories.flushAppConfig,
   showMessage: repositories.showMessage,
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   toErrorFields: (e: unknown) => ({ error: { message: String(e) } }),
@@ -30,6 +39,7 @@ vi.mock("../../../src/repositories", () => ({
 import { StartupPicker } from "../../../src/components/layout/StartupPicker";
 import { useAppConfigStore } from "../../../src/state/app-config-store";
 import { useAppStateStore } from "../../../src/state/app-state-store";
+import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { createDefaultAppState } from "../../../src/models";
 
 let host: Mounted;
@@ -40,6 +50,8 @@ afterEach(async () => {
 });
 
 async function mountWithKnownFiles(onLaunch: (workspace: string) => void = () => {}) {
+  repositories.loadWorkspace.mockImplementation(async (path: string) =>
+    NAMES[path] ? loaded(path) : { status: "missing" });
   useAppStateStore.setState({
     appState: {
       ...createDefaultAppState(),
@@ -56,14 +68,14 @@ async function mountWithKnownFiles(onLaunch: (workspace: string) => void = () =>
 }
 
 function workspaceListbox(): HTMLElement {
-  const list = document.querySelector('[role="listbox"][aria-label="Workspace file"]');
+  const list = document.querySelector('[role="listbox"][aria-label="Workspaces"]');
   if (!list) throw new Error("preferences listbox not found");
   return list as HTMLElement;
 }
 
 function selectedOptionText(): string | undefined {
   return document
-    .querySelector('[aria-label="Workspace file"] [aria-selected="true"]')
+    .querySelector('[aria-label="Workspaces"] [aria-selected="true"]')
     ?.textContent?.trim();
 }
 
@@ -154,7 +166,7 @@ describe("StartupPicker — native picker failures", () => {
     );
 
     const open = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "Browse…",
+      (button) => button.textContent?.trim() === "Add existing…",
     );
     expect(open).toBeTruthy();
     await act(async () => open!.click());
@@ -195,11 +207,9 @@ describe("StartupPicker — native picker failures", () => {
 });
 
 // Built on the same shell every dialog uses — one shared background, the
-// header/body/footer bands and their band-edge separators — with two
-// deliberate differences: no close control (there is nothing to close back
-// to at startup) and the footer's primary action reads "Open", the app's own
-// existing term, rather than "Launch" (wrong once the app is already
-// running).
+// header/body/footer bands and their band-edge separators — with no close
+// control at startup (there is nothing to close back to), and a primary
+// action that reads "Open workspace" rather than "Launch".
 describe("StartupPicker — the shared dialog shell", () => {
   it("gives the header and footer their own band lines, and no others", async () => {
     await mountWithKnownFiles();
@@ -215,7 +225,7 @@ describe("StartupPicker — the shared dialog shell", () => {
   it("carries the title as the header band's own content, with no close control", async () => {
     await mountWithKnownFiles();
     const heading = document.querySelector("h2")!;
-    expect(heading.textContent).toBe("Dropkick");
+    expect(heading.textContent).toBe("Workspaces");
     // Nothing in the header closes back to a screen behind it.
     const header = heading.parentElement!;
     expect(header.querySelectorAll("button")).toHaveLength(0);
@@ -255,6 +265,93 @@ describe("StartupPicker — keyboard behaviour", () => {
     });
     expect(onLaunch).not.toHaveBeenCalled();
     // The screen is still up — Escape did not tear anything down.
-    expect(document.querySelector("h2")?.textContent).toBe("Dropkick");
+    expect(document.querySelector("h2")?.textContent).toBe("Workspaces");
+  });
+});
+
+function button(label: string): HTMLButtonElement {
+  const found = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === label);
+  if (!found) throw new Error(`no ${label} button`);
+  return found;
+}
+
+describe("StartupPicker — the workspace list", () => {
+  it("shows each workspace by the name stored in it, with its path, or by file name when unreadable", async () => {
+    useAppConfigStore.setState({ appConfig: { knownWorkspaces: [] }, filePath: "/home/config.json", loaded: true });
+    await mountWithKnownFiles();
+    useAppConfigStore.setState({ appConfig: { knownWorkspaces: ["/a/ws.json", "/c/gone.json"] } });
+    await act(async () => {});
+    const options = Array.from(workspaceListbox().querySelectorAll('[role="option"]'));
+    expect(options.map((o) => o.textContent)).toEqual(["Alpha/a/ws.json", "gone/c/gone.json"]);
+  });
+
+  it("opens the selected workspace with Enter on the list or a double-click", async () => {
+    const onLaunch = vi.fn();
+    await mountWithKnownFiles(onLaunch);
+    await pressOn(workspaceListbox(), "Enter");
+    expect(onLaunch).toHaveBeenLastCalledWith("/a/ws.json");
+    const second = workspaceListbox().querySelectorAll<HTMLElement>('[role="option"]')[1];
+    await act(async () => second.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect(onLaunch).toHaveBeenLastCalledWith("/b/ws.json");
+  });
+
+  it("renames a workspace that is not open in its own file", async () => {
+    await mountWithKnownFiles();
+    repositories.renameWorkspaceFile.mockResolvedValue(loaded("/a/ws.json"));
+    await act(async () => button("Rename…").click());
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Workspace name"]')!;
+    expect(input.value).toBe("Alpha");
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setValue.call(input, "  Home   tasks ");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await pressOn(input, "Enter");
+    expect(repositories.renameWorkspaceFile).toHaveBeenCalledExactlyOnceWith("/a/ws.json", "Home tasks");
+    expect(selectedOptionText()).toBe("Home tasks/a/ws.json");
+  });
+
+  it("renames the open workspace through its store", async () => {
+    const renameWorkspace = vi.fn(async () => true);
+    useWorkspaceStore.setState({ filePath: "/a/ws.json", loaded: true, renameWorkspace });
+    try {
+      await mountWithKnownFiles();
+      await act(async () => button("Rename…").click());
+      const input = document.querySelector<HTMLInputElement>('input[aria-label="Workspace name"]')!;
+      await act(async () => {
+        const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+        setValue.call(input, "Work");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await pressOn(input, "Enter");
+      expect(renameWorkspace).toHaveBeenCalledExactlyOnceWith("Work");
+      expect(repositories.renameWorkspaceFile).not.toHaveBeenCalled();
+    } finally {
+      useWorkspaceStore.setState({ filePath: "", loaded: false });
+    }
+  });
+
+  it("cancels only the rename on Escape", async () => {
+    const onCancel = vi.fn();
+    useAppStateStore.setState({ appState: { ...createDefaultAppState(), lastWorkspacePath: "/a/ws.json" }, filePath: "/home/state.json", loaded: true });
+    useAppConfigStore.setState({ appConfig: { knownWorkspaces: ["/a/ws.json"] }, filePath: "/home/config.json", loaded: true });
+    repositories.loadWorkspace.mockImplementation(async (path: string) => loaded(path));
+    host = await mount(createElement(StartupPicker, { onLaunch: () => {}, onCancel }));
+    await act(async () => button("Rename…").click());
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+    expect(document.querySelector('input[aria-label="Workspace name"]')).toBeNull();
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(repositories.renameWorkspaceFile).not.toHaveBeenCalled();
+    expect(document.querySelector("h2")?.textContent).toBe("Workspaces");
+  });
+
+  it("removes a workspace from the list without touching its file", async () => {
+    await mountWithKnownFiles();
+    await act(async () => button("Remove").click());
+    expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual(["/b/ws.json"]);
+    expect(repositories.renameWorkspaceFile).not.toHaveBeenCalled();
+    expect(selectedOptionText()).toBe("Beta/b/ws.json");
   });
 });

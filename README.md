@@ -28,9 +28,9 @@ Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows ar
 
 ## First run
 
-All workspaces use the same app settings. A workspace remembers your open task lists. On first launch, choose a folder for your workspace and optional first task list; Dropkick suggests **Documents/Dropkick**. Nothing is created until you choose **Create and open**, and setup never replaces existing files.
+All workspaces use the same app settings. A workspace is a file that remembers which task lists are open, wherever those lists are stored. On first launch, Dropkick shows the workspace list: choose **New…** to save a new workspace file anywhere, or **Add existing…** to list one you already have, then **Open workspace**. Add task lists from the **+** menu with **New task list…** or **Open existing file…**.
 
-Choose **Use existing files…** during setup to open a workspace you already have. Later launches reopen your last workspace directly. Choose **Switch workspace…** from the main menu, then **Browse…** for an existing workspace or **New** to create one. Existing files stay where they are. A missing or unreadable workspace returns you to the picker without replacing it.
+Later launches reopen your last workspace directly. Choose **Switch workspace…** from the main menu to return to the list, where **Rename…** changes a workspace's name and **Remove** takes it off the list without touching its file. A missing or unreadable workspace returns you to the list without replacing it.
 
 Settings are saved privately in `~/.dropkick/settings.json` (or the configured `DROPKICK_DATA_DIR`). Only choices that differ from the built-ins are stored. On upgrade, Dropkick copies the last-used preferences into this app-wide collection once; the original preferences files remain unchanged. If those selected preferences cannot be read, startup names the file to restore or make accessible before trying again. Settings files are no longer selected separately for each workspace.
 

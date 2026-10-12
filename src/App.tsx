@@ -1,4 +1,4 @@
-// App root: restore the last workspace, or guide setup/recovery.
+// App root: restore the last workspace, or show the workspace list.
 // Session drafts remain in their stores when the document picker replaces the view.
 
 import { useState, useEffect, useRef } from "react";
@@ -32,7 +32,6 @@ import { I18nProvider, loadInterfaceCatalogue } from "./i18n/I18nContext";
 import { message, type Message } from "./i18n/translate";
 import { useWindowClose } from "./hooks/use-window-close";
 import { openWorkspaceSession } from "./services/open-workspace-session";
-import { FirstRunSetup } from "./components/layout/FirstRunSetup";
 import { StartupPicker } from "./components/layout/StartupPicker";
 import { StartupErrorScreen } from "./components/layout/StartupErrorScreen";
 import { MainWindow } from "./components/layout/MainWindow";
@@ -45,8 +44,7 @@ import {
 
 type AppPhase =
   | { kind: "loading" }
-  | { kind: "setup" }
-  | { kind: "startup"; returnTo?: "main" | "setup" }
+  | { kind: "startup"; returnTo?: "main" }
   | { kind: "error"; message: Message }
   | { kind: "main" };
 
@@ -236,8 +234,7 @@ function App() {
             });
           }
         } else {
-          const config = useAppConfigStore.getState().appConfig;
-          setPhase({ kind: config.knownWorkspaces.length ? "startup" : "setup" });
+          setPhase({ kind: "startup" });
         }
         if (configRecovery) {
           const notice = describeAppConfigRecovery(configRecovery);
@@ -304,10 +301,6 @@ function App() {
 
     case "error":
       content = <StartupErrorScreen message={phase.message} />;
-      break;
-
-    case "setup":
-      content = <FirstRunSetup onLaunch={handleLaunch} onExisting={() => setPhase({ kind: "startup", returnTo: "setup" })} onQuit={quit} />;
       break;
 
     case "startup":

@@ -11,7 +11,6 @@ use tauri::{AppHandle, Manager, State};
 // included beside their subject (tests-folder-conventions).
 mod backup_store;
 mod format_version;
-mod first_run;
 mod i18n;
 mod instance_owner;
 mod logging;
@@ -875,33 +874,6 @@ async fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
     .await
 }
 
-#[tauri::command]
-async fn suggested_setup_directory() -> Result<String, String> {
-    native_wait::settle(|| {
-        dirs::document_dir()
-            .map(|path| path.join("Dropkick").to_string_lossy().into_owned())
-            .ok_or_else(|| "Documents directory is unavailable".to_string())
-    }).await
-}
-
-#[tauri::command]
-async fn create_initial_documents(
-    directory: String,
-    workspace: Value,
-    task_list: Option<Value>,
-    task_list_name: String,
-) -> Result<first_run::InitialDocuments, first_run::Failure> {
-    native_wait::settle(move || {
-        let started = log_cmd_start("create_initial_documents", json!({ "directory": directory }));
-        let result = first_run::create(std::path::Path::new(&directory), workspace, task_list, &task_list_name);
-        match &result {
-            Ok(_) => log_cmd_ok("create_initial_documents", started, json!({})),
-            Err(error) => log_cmd_err("create_initial_documents", started, &error.diagnostic),
-        }
-        Ok(result)
-    }).await.map_err(first_run::Failure::failed)?
-}
-
 // Applies a saved theme preference to the calling window: the window theme,
 // which the page follows through prefers-color-scheme, and the matching window
 // background, together (app-chrome conventions, Theme).
@@ -1228,8 +1200,6 @@ pub fn run() {
             quarantine_file,
             ensure_dir,
             app_paths,
-            suggested_setup_directory,
-            create_initial_documents,
             log_event,
             logging_debug_enabled,
             open_records_window,

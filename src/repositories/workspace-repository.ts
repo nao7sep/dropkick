@@ -67,3 +67,16 @@ export async function createWorkspaceFile(
   await writeJsonFile(path, "workspace", persisted);
   return workspace;
 }
+
+// Renames a workspace that is not open: read, rename and write in its serial
+// slot, so it cannot interleave with another write to the same file. The open
+// workspace is renamed through its store instead, which owns its latest state.
+export async function renameWorkspaceFile(path: string, name: string): Promise<LoadWorkspaceResult> {
+  return withSerial(path, async () => {
+    const loaded = await loadWorkspace(path);
+    if (loaded.status !== "success") return loaded;
+    const { activeTabIndex: _activeTabIndex, ...persisted } = loaded.workspace;
+    await writeJsonFile(path, "workspace", { ...persisted, name });
+    return { status: "success", workspace: { ...loaded.workspace, name } };
+  });
+}

@@ -57,6 +57,7 @@ export {
   loadWorkspace,
   flushWorkspace,
   createWorkspaceFile,
+  renameWorkspaceFile,
 } from "./workspace-repository";
 export type { LoadWorkspaceResult } from "./workspace-repository";
 

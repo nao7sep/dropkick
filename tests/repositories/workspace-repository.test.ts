@@ -11,7 +11,7 @@ vi.mock("../../src/repositories/file-system", () => ({
   withSerial: (_p: string, fn: () => unknown) => fn(),
 }));
 
-import { loadWorkspace } from "../../src/repositories/workspace-repository";
+import { loadWorkspace, renameWorkspaceFile } from "../../src/repositories/workspace-repository";
 
 beforeEach(() => {
   readJsonFileResult.mockReset();
@@ -130,5 +130,29 @@ describe("loadWorkspace", () => {
     readJsonFileResult.mockResolvedValue({ status: "invalid", message: "bad json" });
     const result = await loadWorkspace("/ws.json");
     expect(result).toEqual({ status: "invalid", message: "bad json" });
+  });
+});
+
+describe("renameWorkspaceFile", () => {
+  const stored = {
+    id: "w1",
+    name: "Work",
+    openTabs: [{ filePath: "/a.json", displayName: "A", isUnifiedView: false }],
+    recentFiles: [{ filePath: "/b.json", lastOpenedAtUtc: "2026-10-13T00:00:00.000Z" }],
+  };
+
+  it("writes the new name and keeps every other stored field", async () => {
+    readJsonFileResult.mockResolvedValue({ status: "success", data: stored });
+    const result = await renameWorkspaceFile("/ws.json", "Home");
+    expect(writeJsonFile).toHaveBeenCalledExactlyOnceWith("/ws.json", { ...stored, name: "Home" });
+    expect(result).toEqual({ status: "success", workspace: { ...stored, name: "Home", activeTabIndex: -1 } });
+  });
+
+  it("writes nothing when the file cannot be read as a workspace", async () => {
+    readJsonFileResult.mockResolvedValue({ status: "missing" });
+    expect(await renameWorkspaceFile("/ws.json", "Home")).toEqual({ status: "missing" });
+    readJsonFileResult.mockResolvedValue({ status: "success", data: { not: "a workspace" } });
+    expect((await renameWorkspaceFile("/ws.json", "Home")).status).toBe("invalid");
+    expect(writeJsonFile).not.toHaveBeenCalled();
   });
 });

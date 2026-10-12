@@ -44,6 +44,8 @@ interface WorkspaceState {
   closeTab: (index: number) => Promise<void>;
   setActiveTab: (index: number) => Promise<void>;
   renameTab: (taskFilePath: string, displayName: string) => Promise<void>;
+  // Renames the open workspace; resolves whether the file now holds the name.
+  renameWorkspace: (name: string) => Promise<boolean>;
   reorderTabs: (fromIndex: number, toIndex: number) => Promise<void>;
   addRecentFile: (filePath: string) => Promise<void>;
 }
@@ -248,6 +250,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         if (index === state.workspace.activeTabIndex) return state;
         return { workspace: { ...state.workspace, activeTabIndex: index } };
       });
+    },
+
+    renameWorkspace: async (name: string) => {
+      set((state) => ({ workspace: { ...state.workspace, name } }));
+      return flush();
     },
 
     renameTab: async (taskFilePath: string, displayName: string) => {
