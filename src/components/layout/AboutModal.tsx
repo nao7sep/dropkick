@@ -70,10 +70,12 @@ export function AboutModal({ onClose }: AboutModalProps) {
       }
     >
       <p className="text-2xl font-bold leading-tight text-ink-strong">Dropkick</p>
-      <p className="mt-1 text-sm text-ink-muted">
+      {/* Empty while the version loads, with its line's height kept: a
+          not-yet-loaded value has no stand-in text (localization-conventions). */}
+      <p className="mt-1 min-h-5 text-sm text-ink-muted">
         {version
           ? t("about.version", { version })
-          : t(versionUnavailable ? "about.versionUnavailable" : "about.versionLoading")}
+          : versionUnavailable ? t("about.versionUnavailable") : null}
       </p>
       <p id="about-modal-description" className="mt-4 text-sm text-ink-soft">
         {t("about.tagline")}

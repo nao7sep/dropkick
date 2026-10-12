@@ -474,10 +474,10 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         onSelect={() => handleOpenRecent(r.filePath)}
                         className="dk-menu-item block text-ink-soft"
                       >
-                        <span className="block w-0 min-w-full truncate" title={r.filePath}>
+                        <span className="block w-0 min-w-full whitespace-normal [overflow-wrap:anywhere]">
                           {fileNameWithoutExt(r.filePath)}
                         </span>
-                        <span className="block w-0 min-w-full truncate text-xs text-ink-muted">
+                        <span className="block w-0 min-w-full whitespace-normal text-xs text-ink-muted [overflow-wrap:anywhere]">
                           {r.filePath}
                         </span>
                       </DropdownMenu.Item>
@@ -745,6 +745,8 @@ function SortableTab({
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
+        // Truncated: the persistent tab strip has no room for long names.
+        // Activating the tab shows the whole name in the window title.
         <span className="max-w-32 truncate">
           {tab.isUnifiedView ? t("tabs.unified") : tab.displayName}
         </span>

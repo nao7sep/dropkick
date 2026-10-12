@@ -17,7 +17,7 @@ export function SelectedTaskTitleList({
       className={`list-inside list-disc space-y-1 text-sm text-ink-muted ${className}`.trim()}
     >
       {tasks.map((task) => (
-        <li key={taskSelectionKey(task)} className="truncate">
+        <li key={taskSelectionKey(task)} className="[overflow-wrap:anywhere]">
           {task.title || t("common.untitled")}
         </li>
       ))}

@@ -460,6 +460,8 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
             <span className="tabular-nums">{timeFormat.format(new Date(record.time))}</span>
             <LevelPill level={record.level} />
           </div>
+          {/* Clamped in the list; selecting the record shows the whole message
+              in the detail pane. */}
           <div className="line-clamp-2 text-sm text-ink [overflow-wrap:anywhere]">{record.message}</div>
         </div>
       );

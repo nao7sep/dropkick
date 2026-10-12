@@ -262,7 +262,7 @@ function Section({
                   : "text-ink-soft hover:bg-control-hover"
               }`}
             >
-              <span className="mr-2 min-w-0 truncate" title={path}>
+              <span className="mr-2 min-w-0 [overflow-wrap:anywhere]">
                 {path}
               </span>
               {selected === path && (

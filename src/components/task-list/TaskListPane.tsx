@@ -458,7 +458,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         className="flex w-full shrink-0 items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium text-primary transition-colors duration-[var(--motion)] hover:bg-primary-surface active:bg-primary-surface-strong focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring"
       >
         <Plus size={14} className="shrink-0" />
-        <span className="min-w-0 truncate whitespace-nowrap">{t("newTask.title")}</span>
+        <span className="min-w-0 text-left [overflow-wrap:anywhere]">{t("newTask.title")}</span>
         <span className="ml-auto shrink-0 whitespace-nowrap text-primary">
           {`${primaryModifierLabel}+N`}
         </span>
@@ -573,7 +573,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                   card's tint so rows pass cleanly beneath it. */}
               <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 pb-1 pt-3.5 text-[11px] font-semibold uppercase tracking-wide">
                 <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[var(--g-accent)]" />
-                <span className="min-w-0 flex-1 truncate whitespace-nowrap">{t(label)}</span>
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(label)}</span>
                 <span className="shrink-0 rounded-full bg-[var(--g-fg)] px-1.5 text-[11px] font-semibold leading-[18px] tracking-normal text-surface tabular-nums">
                   {i18n.number(groupTasks.length)}
                 </span>
@@ -786,6 +786,8 @@ function TaskRow({
           className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-primary-ring bg-surface px-1.5 py-0 text-sm text-ink outline-none"
         />
       ) : (
+        // Truncated to one line per row; selecting the task shows the whole
+        // title in the detail pane.
         <span
           className={`min-w-0 flex-1 truncate text-sm ${
             task.status === "Dismissed" ? "line-through text-ink-muted" : ""
@@ -807,7 +809,7 @@ function TaskRow({
 
       {/* Source file label (unified view only) */}
       {isUnifiedView && (
-        <span className="shrink-0 max-w-[30%] truncate text-xs text-ink-muted">
+        <span className="shrink-0 max-w-[30%] text-xs text-ink-muted [overflow-wrap:anywhere]">
           {sourceLabel}
         </span>
       )}
@@ -843,7 +845,7 @@ function LoadErrorPane({
           {t("taskList.loadFailed")}
         </div>
         <p className="whitespace-pre-wrap text-danger-fg-strong">{text(message)}</p>
-        <p className="mt-3 truncate text-xs text-danger" title={filePath}>
+        <p className="mt-3 text-xs text-danger [overflow-wrap:anywhere]">
           {filePath}
         </p>
         <div className="mt-4 flex gap-2">

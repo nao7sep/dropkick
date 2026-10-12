@@ -77,7 +77,7 @@ describe("RecordsApp", () => {
     // The German catalogue loads first; until then the window keeps English.
     await vi.waitFor(async () => {
       await act(async () => {});
-      expect(document.body.textContent).toContain("Protokoll wird geladen …");
+      expect(document.body.textContent).toContain("Protokoll wird geladen\u00a0…");
     });
     expect(document.title).toBe("Protokoll");
     expect(nativeWindow.setTitle).toHaveBeenLastCalledWith("Protokoll");

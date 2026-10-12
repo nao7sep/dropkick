@@ -117,7 +117,7 @@ describe("TaskDetail operation results", () => {
 
   it("retains a failed title draft beside its field for retry", async () => {
     updateTitle.mockResolvedValueOnce({ status: "error", message: message("write.taskList") });
-    const title = document.querySelector('textarea[placeholder="Task title..."]')! as HTMLTextAreaElement;
+    const title = document.querySelector('textarea[placeholder="Task title"]')! as HTMLTextAreaElement;
 
     await act(async () => {
       title.focus();
@@ -256,9 +256,9 @@ async function showTask(): Promise<void> {
 
 describe("TaskDetail title and description drafts", () => {
   it("holds typed title and description text in the draft store before any blur", async () => {
-    const title = document.querySelector('textarea[placeholder="Task title..."]')! as HTMLTextAreaElement;
+    const title = document.querySelector('textarea[placeholder="Task title"]')! as HTMLTextAreaElement;
     const description = document.querySelector(
-      'textarea[placeholder="Add a description..."]',
+      'textarea[placeholder="Add a description"]',
     )! as HTMLTextAreaElement;
 
     await act(async () => {
@@ -300,7 +300,7 @@ describe("TaskDetail title and description drafts", () => {
       message: message("write.reloaded"),
     });
     const description = document.querySelector(
-      'textarea[placeholder="Add a description..."]',
+      'textarea[placeholder="Add a description"]',
     )! as HTMLTextAreaElement;
     await act(async () => {
       description.focus();
@@ -336,7 +336,7 @@ describe("TaskDetail title and description drafts", () => {
   });
 
   it("commits the title on blur and then drops its draft", async () => {
-    const title = document.querySelector('textarea[placeholder="Task title..."]')! as HTMLTextAreaElement;
+    const title = document.querySelector('textarea[placeholder="Task title"]')! as HTMLTextAreaElement;
     await act(async () => {
       title.focus();
       typeInto(title, "Blurred title");
@@ -392,8 +392,8 @@ describe("TaskDetail note composer", () => {
     expect(useNoteDraftStore.getState().drafts[copyDraft("task-a")]).toBeUndefined();
     const composer = [...document.querySelectorAll("textarea")].find(
       (textarea) =>
-        textarea.placeholder !== "Task title..." &&
-        textarea.placeholder !== "Add a description...",
+        textarea.placeholder !== "Task title" &&
+        textarea.placeholder !== "Add a description",
     )!;
     expect(composer.value).toBe("");
 
@@ -439,7 +439,7 @@ describe("held draft receipts", () => {
   it.each(["title", "description"] as const)("retains later %s input after delayed Reload", async (field) => {
     let finish!: (value: unknown) => void;
     (field === "title" ? updateTitle : updateDescription).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    const input = document.querySelector(field === "title" ? 'textarea[placeholder="Task title..."]' : 'textarea[placeholder="Add a description..."]')! as HTMLTextAreaElement;
+    const input = document.querySelector(field === "title" ? 'textarea[placeholder="Task title"]' : 'textarea[placeholder="Add a description"]')! as HTMLTextAreaElement;
     await act(async () => { input.focus(); typeInto(input, "submitted"); });
     await act(async () => { input.blur(); });
     await act(async () => { useNoteDraftStore.getState().setDraft(copyDraft(`task-a#${field}`), "later"); });

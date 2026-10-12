@@ -164,7 +164,7 @@ describe("StartupPicker — native picker failures", () => {
     );
 
     const create = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "New",
+      (button) => button.textContent?.trim() === "New…",
     );
     expect(create).toBeTruthy();
     await act(async () => create!.click());

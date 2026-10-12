@@ -138,6 +138,23 @@ describe("catalogues", () => {
     expect(literal).toEqual([]);
   });
 
+  // An ellipsis is one "…" carrying the English meaning, so its presence
+  // follows English and only its spacing follows the language: German puts a
+  // no-break space before it, every other language attaches it to the word
+  // (localization-conventions, Ellipsis).
+  it.each(LANGUAGES)("%s writes an ellipsis exactly where English does, spaced for the language", (language) => {
+    const spaceBefore = language === "de" ? /(?<! )…/ : /\s…/;
+    for (const [key, englishEntry] of Object.entries(english)) {
+      const expected = forms(englishEntry).some((text) => text.includes("…"));
+      for (const text of forms(catalogues[language][key] ?? "")) {
+        expect(text, `${key}: three periods`).not.toContain("...");
+        expect(text.includes("…"), `${key}: ${text}`).toBe(expected);
+        expect(text, `${key}: ordinary space before the ellipsis`).not.toMatch(/ …/);
+        expect(text, `${key}: ellipsis spacing`).not.toMatch(spaceBefore);
+      }
+    }
+  });
+
   // Every control that opens About reads exactly "About <App>" in the interface
   // language, matching the macOS app-menu wording, so a label can't drift into
   // a bare "About" or its own phrasing (app-chrome-conventions, App identity).

@@ -27,7 +27,7 @@ describe("SelectedTaskTitleList", () => {
     expect(list).toBeTruthy();
     expect(list?.querySelectorAll("li")).toHaveLength(2);
     expect(list?.classList.contains("list-inside")).toBe(true);
-    expect(list?.querySelector("li")?.classList.contains("truncate")).toBe(true);
+    expect(list?.querySelector("li")?.classList.contains("truncate")).toBe(false);
     expect(list?.textContent).toContain("First");
     expect(list?.textContent).toContain("Untitled");
     expect(list?.textContent).not.toContain("•");
