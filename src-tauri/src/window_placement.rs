@@ -318,21 +318,34 @@ pub(crate) fn restore(app: &AppHandle, window: &Window<Wry>, tracked: &TrackedWi
     set_state(tracked, restored);
 }
 
-pub(crate) fn capture(window: &Window<Wry>, tracked: &TrackedWindow) {
-    let closing = (|| -> tauri::Result<ClosingState> {
-        if window.is_minimized()? || window.is_fullscreen()? {
-            return Ok(ClosingState::Transient);
-        }
-        if window.is_maximized()? {
-            return Ok(ClosingState::Maximized);
-        }
-        Ok(ClosingState::Normal(current_rectangle(window)?))
-    })();
+fn current_state(window: &Window<Wry>) -> tauri::Result<ClosingState> {
+    // Hidden construction/restoration can emit geometry events too. Those
+    // frames must not replace the saved rectangle before restore reads it,
+    // including when Records reopens with a remembered in-session placement.
+    if !window.is_visible()? || window.is_minimized()? || window.is_fullscreen()? {
+        return Ok(ClosingState::Transient);
+    }
+    if window.is_maximized()? {
+        return Ok(ClosingState::Maximized);
+    }
+    Ok(ClosingState::Normal(current_rectangle(window)?))
+}
+
+fn capture_sample(
+    tracked: &TrackedWindow,
+    closing: tauri::Result<ClosingState>,
+    remember_maximized: bool,
+) {
     match closing {
-        Ok(closing) => set_state(
-            tracked,
-            placement_after_close(state_value(tracked), closing, cfg!(target_os = "windows")),
-        ),
+        Ok(closing) => match tracked.state.lock() {
+            Ok(mut current) => {
+                *current = placement_after_close(*current, closing, remember_maximized);
+            }
+            Err(error) => logging::warn(
+                "window placement lock is unavailable",
+                serde_json::json!({ "error": error.to_string() }),
+            ),
+        },
         Err(error) => logging::warn(
             "window placement could not be captured",
             serde_json::json!({ "error": error.to_string() }),
@@ -340,12 +353,30 @@ pub(crate) fn capture(window: &Window<Wry>, tracked: &TrackedWindow) {
     }
 }
 
-pub(crate) fn on_window_event(window: &Window<Wry>, event: &WindowEvent, placements: &WindowPlacements) {
-    if !matches!(event, WindowEvent::CloseRequested { .. }) {
+pub(crate) fn capture(window: &Window<Wry>, tracked: &TrackedWindow) {
+    capture_sample(tracked, current_state(window), cfg!(target_os = "windows"));
+}
+
+fn capture_event(
+    tracked: &TrackedWindow,
+    event: &WindowEvent,
+    sample: impl FnOnce() -> tauri::Result<ClosingState>,
+    remember_maximized: bool,
+) {
+    if !matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_) | WindowEvent::CloseRequested { .. }) {
         return;
     }
+    // Closing a maximized window cannot reveal the normal rectangle the user
+    // moved/resized to since launch. Keep just the latest complete native
+    // normal sample in this owner, never separate event coordinates or a
+    // history. Maximized/minimized/fullscreen samples retain that rectangle;
+    // persistence still happens only at clean app exit.
+    capture_sample(tracked, sample(), remember_maximized);
+}
+
+pub(crate) fn on_window_event(window: &Window<Wry>, event: &WindowEvent, placements: &WindowPlacements) {
     if let Some(tracked) = placements.all().into_iter().find(|t| t.label == window.label()) {
-        capture(window, tracked);
+        capture_event(tracked, event, || current_state(window), cfg!(target_os = "windows"));
     }
 }
 

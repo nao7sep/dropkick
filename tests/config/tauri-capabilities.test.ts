@@ -110,7 +110,9 @@ describe("durable window-state boundary", () => {
     expect(core).toContain("window.show()?");
     expect(core.indexOf("window_placement::restore(")).toBeLessThan(core.indexOf("window.show()?"));
     expect(core).not.toContain("tauri_plugin_window_state");
-    expect(placement).not.toMatch(/Moved|Resized|debounce|prev_[xy]/i);
+    // Geometry events refresh one complete in-memory normal rectangle; the
+    // Rust behavior tests cover retaining it through a maximized close.
+    expect(placement).not.toMatch(/debounce|prev_[xy]/i);
   });
 
   it("keeps placement out of the frontend and creates Main hidden", () => {

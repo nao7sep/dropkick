@@ -1,6 +1,7 @@
 use crate::window_placement::{
     placement_after_close, ClosingState, NormalRectangle, Placement,
 };
+use tauri::{PhysicalPosition, PhysicalSize, WindowEvent};
 
 fn rectangle(x: i32, y: i32, width: u32, height: u32) -> NormalRectangle {
     NormalRectangle {
@@ -59,6 +60,84 @@ fn transient_close_retains_the_whole_record() {
         placement_after_close(Some(previous), ClosingState::Transient, true),
         Some(previous)
     );
+}
+
+#[test]
+fn normal_geometry_events_replace_the_whole_rectangle_before_maximized_close() {
+    // Native getters are the outbound boundary. These cases exercise the
+    // actual event admission and placement owner, not an OS window manager.
+    let changed = rectangle(-700, 65, 960, 730);
+    for event in [
+        WindowEvent::Moved(PhysicalPosition::new(changed.x, changed.y)),
+        WindowEvent::Resized(PhysicalSize::new(changed.width, changed.height)),
+    ] {
+        for remember_maximized in [false, true] {
+            let tracked = super::TrackedWindow::new("test", "window.json");
+            super::set_state(&tracked, Some(Placement {
+                normal: rectangle(10, 20, 800, 600),
+                maximized: false,
+            }));
+            super::capture_event(
+                &tracked,
+                &event,
+                || Ok(ClosingState::Normal(changed)),
+                remember_maximized,
+            );
+            super::capture_sample(&tracked, Ok(ClosingState::Maximized), remember_maximized);
+
+            let expected = Placement { normal: changed, maximized: remember_maximized };
+            let captured = super::state_value(&tracked).unwrap();
+            assert_eq!(captured, expected);
+
+            let dir = tempfile::tempdir().unwrap();
+            let file = dir.path().join("window.json");
+            std::fs::write(&file, super::file_text(captured).unwrap()).unwrap();
+            assert_eq!(super::load_file_owned(&file).unwrap(), super::SavedPlacement::Found(expected));
+        }
+    }
+}
+
+#[test]
+fn geometry_events_in_other_display_modes_do_not_replace_normal_bounds() {
+    let tracked = super::TrackedWindow::new("test", "window.json");
+    let normal = rectangle(-700, 65, 960, 730);
+    super::set_state(&tracked, Some(Placement { normal, maximized: false }));
+    let event = WindowEvent::Resized(PhysicalSize::new(2560, 1440));
+
+    super::capture_event(&tracked, &event, || Ok(ClosingState::Maximized), true);
+    assert_eq!(super::state_value(&tracked), Some(Placement { normal, maximized: true }));
+    super::capture_event(&tracked, &event, || Ok(ClosingState::Transient), true);
+    assert_eq!(super::state_value(&tracked), Some(Placement { normal, maximized: true }));
+}
+
+#[test]
+fn hidden_construction_geometry_retains_absence_or_the_closed_windows_placement() {
+    let saved = Placement { normal: rectangle(-700, 65, 960, 730), maximized: true };
+    for previous in [None, Some(saved)] {
+        let tracked = super::TrackedWindow::new("test", "window.json");
+        super::set_state(&tracked, previous);
+        // current_state classifies a hidden native window as transient;
+        // construction must not seed or replace the owner used by restore.
+        super::capture_event(
+            &tracked,
+            &WindowEvent::Resized(PhysicalSize::new(1200, 760)),
+            || Ok(ClosingState::Transient),
+            true,
+        );
+        assert_eq!(super::state_value(&tracked), previous);
+    }
+}
+
+#[test]
+fn unrelated_window_events_do_not_sample_geometry() {
+    let tracked = super::TrackedWindow::new("test", "window.json");
+    super::capture_event(
+        &tracked,
+        &WindowEvent::Focused(true),
+        || panic!("focus must not sample placement"),
+        true,
+    );
+    assert_eq!(super::state_value(&tracked), None);
 }
 
 // The three-display layout this rule was checked on: two 2560x1440 displays
