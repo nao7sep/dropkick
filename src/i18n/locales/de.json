@@ -192,8 +192,8 @@
   "startup.quit": "Beenden",
   "startup.title": "Arbeitsbereiche",
   "startup.noWorkspaces": "Noch keine Arbeitsbereiche",
-  "startup.new": "Neu\u00a0…",
-  "startup.rename": "Umbenennen\u00a0…",
+  "startup.new": "Neu",
+  "startup.rename": "Umbenennen",
   "startup.workspaceName": "Name des Arbeitsbereichs",
   "startup.remove": "Entfernen",
   "startup.openWorkspaceFailed.title": "Arbeitsbereich konnte nicht geöffnet werden",
@@ -231,8 +231,8 @@
   "tabs.unifiedFailed.body": "Die Gesamtansicht konnte nicht geöffnet werden. Ihre Aufgabenlisten wurden nicht geändert; versuchen Sie es erneut.",
   "tabs.label": "Geöffnete Aufgabenlisten",
   "tabs.newOrOpen": "Aufgabenliste erstellen oder öffnen",
-  "tabs.newList": "Neue Aufgabenliste\u00a0…",
-  "tabs.openExisting": "Vorhandene Datei öffnen\u00a0…",
+  "tabs.newList": "Neue Aufgabenliste",
+  "tabs.openExisting": "Vorhandene Datei öffnen",
   "tabs.unifiedMenu": "Gesamtansicht",
   "tabs.recent": "Zuletzt verwendet",
   "tabs.unified": "Gesamtansicht",
@@ -424,8 +424,8 @@
   "records.task": "Aufgabe",
   "records.details": "Details",
 
-  "menu.documents": "Arbeitsbereich wechseln\u00a0…",
+  "menu.documents": "Arbeitsbereich wechseln",
   "startup.continue": "Arbeitsbereich öffnen",
-  "startup.addExisting": "Vorhandenen hinzufügen\u00a0…",
+  "startup.addExisting": "Vorhandenen hinzufügen",
   "startup.description": "Ein Arbeitsbereich merkt sich, welche Aufgabenlisten geöffnet sind, egal wo sie gespeichert sind. Alle Arbeitsbereiche verwenden dieselben App-Einstellungen."
 }

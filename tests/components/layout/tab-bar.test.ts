@@ -489,7 +489,7 @@ describe("TabBar hamburger menu", () => {
     );
     expect(rows).toEqual([
       "Settings",
-      "Switch workspace…",
+      "Switch workspace",
       "Records",
       "|",
       "Zoom",
@@ -500,7 +500,7 @@ describe("TabBar hamburger menu", () => {
     // Zoom is a contained control, not a command: arrow navigation skips it.
     expect([...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual([
       "Settings",
-      "Switch workspace…",
+      "Switch workspace",
       "Records",
       "Keyboard Shortcuts",
       "About Dropkick",

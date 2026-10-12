@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Use one app-wide settings collection across all workspaces. Existing last-used preferences are adopted once, preserving the original files. First launch and the main menu's **Switch workspace…** show one workspace list, where you create, add, rename, remove and open workspaces; removing one leaves its file in place. Later launches reopen the last workspace.
+- Use one app-wide settings collection across all workspaces. Existing last-used preferences are adopted once, preserving the original files. First launch and the main menu's **Switch workspace** show one workspace list, where you create, add, rename, remove and open workspaces; removing one leaves its file in place. Later launches reopen the last workspace.
 
 - An open task list re-reads its file when you return to it, instead of watching the file for changes.
 - A save that fails keeps your edit on screen with a **Not saved** notice and **Retry**, instead of reverting the list; quitting or closing the list's tab asks first.

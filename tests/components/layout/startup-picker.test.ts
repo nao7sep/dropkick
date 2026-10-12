@@ -166,7 +166,7 @@ describe("StartupPicker — native picker failures", () => {
     );
 
     const open = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "Add existing…",
+      (button) => button.textContent?.trim() === "Add existing",
     );
     expect(open).toBeTruthy();
     await act(async () => open!.click());
@@ -189,7 +189,7 @@ describe("StartupPicker — native picker failures", () => {
     );
 
     const create = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "New…",
+      (button) => button.textContent?.trim() === "New",
     );
     expect(create).toBeTruthy();
     await act(async () => create!.click());
@@ -298,7 +298,7 @@ describe("StartupPicker — the workspace list", () => {
   it("renames a workspace that is not open in its own file", async () => {
     await mountWithKnownFiles();
     repositories.renameWorkspaceFile.mockResolvedValue(loaded("/a/ws.json"));
-    await act(async () => button("Rename…").click());
+    await act(async () => button("Rename").click());
     const input = document.querySelector<HTMLInputElement>('input[aria-label="Workspace name"]')!;
     expect(input.value).toBe("Alpha");
     await act(async () => {
@@ -316,7 +316,7 @@ describe("StartupPicker — the workspace list", () => {
     useWorkspaceStore.setState({ filePath: "/a/ws.json", loaded: true, renameWorkspace });
     try {
       await mountWithKnownFiles();
-      await act(async () => button("Rename…").click());
+      await act(async () => button("Rename").click());
       const input = document.querySelector<HTMLInputElement>('input[aria-label="Workspace name"]')!;
       await act(async () => {
         const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
@@ -337,7 +337,7 @@ describe("StartupPicker — the workspace list", () => {
     useAppConfigStore.setState({ appConfig: { knownWorkspaces: ["/a/ws.json"] }, filePath: "/home/config.json", loaded: true });
     repositories.loadWorkspace.mockImplementation(async (path: string) => loaded(path));
     host = await mount(createElement(StartupPicker, { onLaunch: () => {}, onCancel }));
-    await act(async () => button("Rename…").click());
+    await act(async () => button("Rename").click());
     await act(async () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
     });
