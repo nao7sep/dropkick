@@ -452,7 +452,7 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
           // while the keyboard drives the list, is a ring inside the row.
           className={`mx-1.5 mb-0.5 flex cursor-pointer flex-col gap-0.5 rounded-[var(--radius-sm)] px-2.5 py-2 transition-colors duration-[var(--motion)] ${
             isSelected
-              ? "bg-primary-surface-strong group-focus-visible:ring-[1.5px] group-focus-visible:ring-inset group-focus-visible:ring-primary-ring"
+              ? "bg-primary-surface-strong hover:bg-selection-hover group-focus-visible:ring-[1.5px] group-focus-visible:ring-inset group-focus-visible:ring-primary-ring"
               : "hover:bg-control-hover"
           }`}
         >

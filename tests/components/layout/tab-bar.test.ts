@@ -57,6 +57,7 @@ import { useAppStateStore } from "../../../src/state/app-state-store";
 import { usePreferencesStore } from "../../../src/state/preferences-store";
 import { useTaskListStore } from "../../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
+import { openJsonFileDialog, saveJsonFileDialog } from "../../../src/repositories";
 
 let host: Mounted;
 let resizeCallback: ResizeObserverCallback;
@@ -535,5 +536,114 @@ describe("TabBar hamburger menu", () => {
     expect(label.textContent).toBe("Zoom");
     expect(label.classList.contains("flex-1")).toBe(true);
     expect(zoomRow.children).toHaveLength(3);
+  });
+});
+
+describe("independent menu hover and keyboard navigation", () => {
+  async function renderMenus() {
+    useWorkspaceStore.setState({
+      workspace: { ...createDefaultWorkspace("Test"), openTabs: [createTab("/fixtures/a.json", "A")] },
+      filePath: "", loaded: true,
+    });
+    usePreferencesStore.setState({ preferences: createDefaultPreferences(), filePath: "", loaded: true });
+    useAppStateStore.setState({ appState: createDefaultAppState(), filePath: "", loaded: true });
+    useTaskListStore.setState({ files: {}, fileLoadErrors: {}, fileDiskErrors: {}, unsavedFiles: {} });
+    vi.mocked(openJsonFileDialog).mockClear();
+    vi.mocked(saveJsonFileDialog).mockClear();
+    const selected = vi.fn();
+    host = await mount(createElement(TabBar, { onMenuSelect: selected, onChromeHeightChange: vi.fn() }));
+    return { triggers: [...document.querySelectorAll<HTMLElement>('button[aria-haspopup="menu"]')], selected };
+  }
+
+  async function key(key: string) {
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+      // Radix queues its roving-focus move for the next event-loop turn.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  function items() {
+    return [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  }
+
+  for (const index of [0, 1]) {
+    for (const opening of ["pointer", "keyboard"]) {
+      it(`${index === 0 ? "new-list" : "hamburger"} ${opening} entry makes the first arrow move and hover cannot retarget Enter`, async () => {
+        const { triggers, selected } = await renderMenus();
+        const trigger = triggers[index];
+        await act(async () => {
+          trigger.focus();
+          trigger.dispatchEvent(opening === "pointer"
+            ? new PointerEvent("pointerdown", { button: 0, pointerType: "mouse", bubbles: true, cancelable: true })
+            : new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+        });
+        const commands = items();
+        expect(document.activeElement).toBe(commands[0]);
+        await key("ArrowDown");
+        expect(document.activeElement).toBe(commands[1]);
+        await key("ArrowDown");
+        expect(document.activeElement).toBe(commands[2]);
+        await act(async () => {
+          commands[0].dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", clientX: 30, bubbles: true, cancelable: true }));
+        });
+        expect(document.activeElement).toBe(commands[2]);
+        await key("ArrowUp");
+        expect(document.activeElement).toBe(commands[1]);
+        await key("Enter");
+        expect(document.querySelector('[role="menu"]')).toBeNull();
+        if (index === 1) expect(selected).toHaveBeenCalledExactlyOnceWith("documents");
+        else {
+          expect(openJsonFileDialog).toHaveBeenCalledOnce();
+          expect(saveJsonFileDialog).not.toHaveBeenCalled();
+        }
+      });
+    }
+  }
+
+  it("leaving a hovered command does not reset the keyboard target", async () => {
+    const { triggers } = await renderMenus();
+    await act(async () => triggers[1].focus());
+    await key("Enter");
+    await key("ArrowDown");
+    const commands = items();
+    await act(async () => {
+      commands[0].dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", clientX: 30, bubbles: true, cancelable: true }));
+      commands[0].dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse", bubbles: true, cancelable: true }));
+    });
+    expect(document.activeElement).toBe(commands[1]);
+    await key("ArrowDown");
+    expect(document.activeElement).toBe(commands[2]);
+  });
+
+  it("ArrowUp opens at the last eligible command and the next arrow moves from it", async () => {
+    const { triggers } = await renderMenus();
+    await act(async () => triggers[1].focus());
+    await key("ArrowUp");
+    const commands = items();
+    expect(document.activeElement).toBe(commands.at(-1));
+    await key("ArrowUp");
+    expect(document.activeElement).toBe(commands.at(-2));
+    await key("Escape");
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+  });
+
+  it("click activates the clicked command independently of the keyboard target", async () => {
+    const { triggers, selected } = await renderMenus();
+    await act(async () => triggers[1].focus());
+    await key("Enter");
+    const commands = items();
+    await key("ArrowDown");
+    await key("ArrowDown");
+    await act(async () => commands[0].click());
+    expect(selected).toHaveBeenCalledExactlyOnceWith("settings");
+  });
+
+  it("Tab closes through the existing popup close path", async () => {
+    const { triggers } = await renderMenus();
+    await act(async () => triggers[1].focus());
+    await key("Enter");
+    await key("Tab");
+    expect(document.querySelector('[role="menu"]')).toBeNull();
   });
 });

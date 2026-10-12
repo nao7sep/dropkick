@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Hovering a menu command preserves the keyboard target, and opening initializes arrow navigation. Selected tabs and rows respond to hover without hiding keyboard focus.
 - Drafts belong to the exact task-list copy being edited; saving, deleting or moving another copy preserves its text. Save receipts follow successful moves without clearing newer typing.
 - Switching workspaces retires departed lists and unfinished reads, preserves unsaved work, and opens without waiting for unrelated background state saves.
 - Bulk changes save each affected list once. Records keeps contiguous new entries during paging, and date grouping updates after midnight or resume.

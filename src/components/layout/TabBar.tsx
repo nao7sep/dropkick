@@ -17,7 +17,7 @@ import {
   PointerSensor,
 } from "@dnd-kit/dom";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import * as DropdownMenu from "../shared/CommandMenu";
 import { planTabReorder } from "./tab-dnd";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -47,8 +47,8 @@ const TAB_POINTER_SENSOR = PointerSensor.configure({
   ],
 });
 
-// Menu items are inset, rounded rows (App.css `dk-menu-item`); Radix's
-// `data-highlighted` marks the active item for pointer and keyboard alike.
+// Menu items are inset, rounded rows with independent hover and keyboard
+// emphasis (App.css `dk-menu-item` and the local CommandMenu integration).
 const MENU_ITEM_CLASS = "dk-menu-item";
 const MENU_ITEM_ICON_CLASS = "dk-menu-item";
 
@@ -703,9 +703,9 @@ function SortableTab({
       }
       // A tab is a rounded item in the strip: the chosen one takes the accent
       // wash, the rest a hover step. No dividers or folder shapes.
-      className={`group flex h-8 shrink-0 cursor-grab items-center gap-1.5 rounded-[var(--radius-control)] pl-3 pr-1.5 text-sm transition-colors duration-[var(--motion)] focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring ${
+      className={`group flex h-8 shrink-0 cursor-grab items-center gap-1.5 rounded-[var(--radius-control)] pl-3 pr-1.5 text-sm transition-colors duration-[var(--motion)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring ${
         isActive
-          ? "bg-primary-surface font-medium text-primary-hover"
+          ? "bg-primary-surface hover:bg-primary-surface-strong font-medium text-primary-hover"
           : "text-ink-soft hover:bg-control-hover hover:text-ink"
       }`}
     >

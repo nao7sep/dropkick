@@ -73,6 +73,7 @@ body.divider-dragging * {
   --primary-ring: var(--color-sky-600); /* focus border — 3:1 on surface */
   --primary-surface: var(--color-sky-50); /* subtle hover bg */
   --primary-surface-strong: var(--color-sky-100); /* selected row */
+  --selection-hover: color-mix(in srgb, var(--primary-surface-strong), var(--primary-ring) 10%);
   --primary-accent: var(--color-sky-300); /* divider hover */
   --primary-accent-strong: var(--color-sky-400); /* divider active */
   --primary-solid-pressed: var(--color-sky-900); /* one step past hover */
@@ -285,6 +286,7 @@ body.divider-dragging * {
   --color-primary-ring: var(--primary-ring);
   --color-primary-surface: var(--primary-surface);
   --color-primary-surface-strong: var(--primary-surface-strong);
+  --color-selection-hover: var(--selection-hover);
   --color-primary-accent: var(--primary-accent);
   --color-primary-accent-strong: var(--primary-accent-strong);
   --color-primary-solid-pressed: var(--primary-solid-pressed);
@@ -824,8 +826,13 @@ input[type="radio"] {
     outline: none;
     transition: background-color var(--motion);
   }
-  .dk-menu-item[data-highlighted] {
+  .dk-menu-item:hover:not([data-disabled]) {
     background-color: var(--control-hover);
+  }
+  .dk-menu-item:focus-visible {
+    background-color: var(--control-pressed);
+    outline: 2px solid var(--primary-ring);
+    outline-offset: -2px;
   }
   .dk-menu-item:active {
     background-color: var(--control-pressed);

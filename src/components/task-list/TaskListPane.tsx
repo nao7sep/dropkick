@@ -743,7 +743,7 @@ function TaskRow({
       // (composite-control-conventions).
       className={`mx-1.5 mb-[5px] flex cursor-pointer last:mb-0 flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
         isSelected
-          ? "bg-primary-surface-strong"
+          ? "bg-primary-surface-strong hover:bg-selection-hover"
           : "bg-transparent hover:bg-[color-mix(in_srgb,var(--g-tint),var(--g-accent)_18%)]"
       } ${
         asOption && isActive
