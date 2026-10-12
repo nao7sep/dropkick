@@ -325,10 +325,29 @@ fn current_state(window: &Window<Wry>) -> tauri::Result<ClosingState> {
     if !window.is_visible()? || window.is_minimized()? || window.is_fullscreen()? {
         return Ok(ClosingState::Transient);
     }
-    if window.is_maximized()? {
+    if is_maximized(window)? {
         return Ok(ClosingState::Maximized);
     }
     Ok(ClosingState::Normal(current_rectangle(window)?))
+}
+
+// Tao on Windows emits `Moved` before its cached maximized flag updates, so the
+// cached flag would let a maximize transition's frame replace the normal
+// rectangle. The live Win32 state is current at every event.
+#[cfg(windows)]
+fn is_maximized(window: &Window<Wry>) -> tauri::Result<bool> {
+    #[link(name = "user32")]
+    extern "system" {
+        fn IsZoomed(hwnd: *mut std::ffi::c_void) -> i32;
+    }
+    let hwnd = window.hwnd()?;
+    // SAFETY: the handle is the live window's; IsZoomed only reads its state.
+    Ok(unsafe { IsZoomed(hwnd.0) } != 0)
+}
+
+#[cfg(not(windows))]
+fn is_maximized(window: &Window<Wry>) -> tauri::Result<bool> {
+    window.is_maximized()
 }
 
 fn capture_sample(

@@ -761,6 +761,9 @@ input[type="radio"] {
     appearance: none;
     -webkit-appearance: none;
     padding-right: 28px;
+    /* Chromium clips a closed select narrower than its option with no marker;
+       opening the select shows every option whole. */
+    text-overflow: ellipsis;
     background-image:
       linear-gradient(45deg, transparent 50%, currentColor 50%),
       linear-gradient(135deg, currentColor 50%, transparent 50%);
@@ -819,7 +822,6 @@ input[type="radio"] {
     border-radius: var(--radius-sm);
     font-size: 13px;
     color: var(--ink);
-    white-space: nowrap;
   }
   .dk-menu-item {
     cursor: pointer;

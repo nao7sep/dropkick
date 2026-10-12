@@ -102,8 +102,10 @@ describe("menus", () => {
       expect(className).toMatch(/max-w-\[var\(--radix-dropdown-menu-content-available-width\)\]/);
       expect(className).not.toMatch(/(^|\s)w-(?!max)[\w[]/);
     }
-    // Items never wrap: the shared item role keeps its label on one line.
-    expect(css).toMatch(/\.dk-menu-item,\s*\.dk-menu-control\s*\{[^}]*white-space:\s*nowrap/);
+    // `w-max` keeps every label on one line while the menu fits; a label wider
+    // than the available width wraps rather than being clipped, since a menu
+    // label has nowhere else to show whole (composite-control-conventions).
+    expect(css).not.toMatch(/\.dk-menu-item,\s*\.dk-menu-control\s*\{[^}]*white-space:\s*nowrap/);
   });
 
   it("give a contained control row the item row's anatomy", () => {

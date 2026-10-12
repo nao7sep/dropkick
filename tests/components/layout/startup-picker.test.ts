@@ -94,6 +94,19 @@ describe("StartupPicker — the file lists are real listboxes", () => {
     expect(selectedOptionText()).toContain("/a/ws.json");
   });
 
+  it("keeps the keyboard target when an earlier option is hovered", async () => {
+    await mountWithKnownFiles();
+    await pressOn(workspaceListbox(), "ArrowDown");
+    const first = workspaceListbox().querySelector<HTMLElement>('[role="option"]')!;
+    await act(async () => {
+      first.dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", bubbles: true }));
+      first.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+    expect(selectedOptionText()).toContain("/b/ws.json");
+    await pressOn(workspaceListbox(), "ArrowUp");
+    expect(selectedOptionText()).toContain("/a/ws.json");
+  });
+
   it("jumps to the ends with Home and End", async () => {
     await mountWithKnownFiles();
     await pressOn(workspaceListbox(), "End");

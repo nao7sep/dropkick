@@ -474,10 +474,10 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         onSelect={() => handleOpenRecent(r.filePath)}
                         className="dk-menu-item block text-ink-soft"
                       >
-                        <span className="block w-0 min-w-full whitespace-normal [overflow-wrap:anywhere]">
+                        <span className="block w-0 min-w-full [overflow-wrap:anywhere]">
                           {fileNameWithoutExt(r.filePath)}
                         </span>
-                        <span className="block w-0 min-w-full whitespace-normal text-xs text-ink-muted [overflow-wrap:anywhere]">
+                        <span className="block w-0 min-w-full text-xs text-ink-muted [overflow-wrap:anywhere]">
                           {r.filePath}
                         </span>
                       </DropdownMenu.Item>

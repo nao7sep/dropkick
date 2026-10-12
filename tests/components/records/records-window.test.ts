@@ -235,6 +235,19 @@ describe("RecordsWindow", () => {
     expect(options()[1]!.getAttribute("aria-selected")).toBe("true");
   });
 
+  it("keeps the keyboard target when an earlier row is hovered", async () => {
+    await render();
+    await press("ArrowDown");
+    await press("ArrowDown");
+    await act(async () => {
+      options()[0]!.dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", bubbles: true }));
+      options()[0]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+    expect(options()[1]!.getAttribute("aria-selected")).toBe("true");
+    await press("ArrowUp");
+    expect(options()[0]!.getAttribute("aria-selected")).toBe("true");
+  });
+
   it("reads again with each filter, and searches once typing pauses", async () => {
     await render();
     const [launch, level] = Array.from(document.querySelectorAll("select"));
