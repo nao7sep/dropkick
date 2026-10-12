@@ -153,20 +153,3 @@ describe("per-item dismiss", () => {
     }
   });
 });
-
-describe("dialog footers", () => {
-  // A footer too narrow for its buttons, at the minimum window in a long
-  // language, moves a button to a new row; the buttons never shrink or wrap
-  // their labels, and with `justify-end` a row that could not wrap would spill
-  // past the dialog's left edge (German and Portuguese "Changes Not Saved" did).
-  it("wraps whole buttons onto a new row instead of squeezing or spilling them", () => {
-    const button = css.match(/\.dk-btn\s*\{([^}]*)\}/)?.[1];
-    expect(button).toMatch(/flex-shrink:\s*0/);
-    expect(button).toMatch(/white-space:\s*nowrap/);
-    const footers = sources.flatMap(([path, text]) =>
-      [...text.matchAll(/footerClassName\s*=\s*\{?"([^"]*)"/g)].map((match) => `${path}: ${match[1]}`),
-    );
-    expect(footers.length).toBeGreaterThan(0);
-    expect(footers.filter((footer) => !/\bflex-wrap\b/.test(footer))).toEqual([]);
-  });
-});

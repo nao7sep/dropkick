@@ -822,6 +822,7 @@ input[type="radio"] {
     border-radius: var(--radius-sm);
     font-size: 13px;
     color: var(--ink);
+    white-space: nowrap;
   }
   .dk-menu-item {
     cursor: pointer;
