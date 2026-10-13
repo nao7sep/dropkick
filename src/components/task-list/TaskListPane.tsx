@@ -65,12 +65,12 @@ const GROUP_CARDS: Record<TaskGroup, string> = {
 // its ends by the same amount, so every pair of adjacent groups — the handled
 // archive and whatever comes last included — sits the same distance apart,
 // scrolled or not.
-// Inside, the card is one even frame judged by the text, since rows have no
-// fill: border to title, title to first task and last task to border are
-// the same (about 16px). The bottom padding (6px) matches the rows' side inset,
-// so a hovered or selected last row's fill sits the same distance from the
-// card's edge on every side.
-const CARD_CLASS = "rounded-[var(--radius-card)] border pb-1.5";
+// Inside, the title band has equal padding above and below, so its text sits
+// centred in the band both in place and when it sticks over the rows. The
+// bottom padding (6px) matches the rows' side inset, so a hovered or selected
+// last row's fill sits the same distance from the card's edge on every side.
+const CARD_FRAME = "rounded-[var(--radius-card)] border";
+const CARD_CLASS = `${CARD_FRAME} pb-1.5`;
 
 // Rows moved per PageUp/PageDown press. A fixed step rather than a measured
 // viewport — predictable, and the list rarely needs pixel-accurate paging.
@@ -571,7 +571,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
             <div key={group} data-group={group} className={`${CARD_CLASS} ${GROUP_CARDS[group]}`}>
               {/* Sticks to the top of the scroll area within its own card, in the
                   card's tint so rows pass cleanly beneath it. */}
-              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 pb-1 pt-3.5 text-[11px] font-semibold uppercase tracking-wide">
+              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-3.5 text-[11px] font-semibold uppercase tracking-wide">
                 <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[var(--g-accent)]" />
                 <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(label)}</span>
                 <span className="shrink-0 rounded-full bg-[var(--g-fg)] px-1.5 text-[11px] font-semibold leading-[18px] tracking-normal text-surface tabular-nums">
@@ -610,10 +610,12 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               (mouse toggles/loads; keyboard reaches Handled by arrowing in), so the
               listbox stays a single tab stop. */}
           {grouped.handledTotal > 0 && (
-            <div className={`mt-auto ${CARD_CLASS} ${GROUP_CARDS.Default} ${handledExpanded ? "" : "pb-0"}`}>
+            // Folded, the disclosure is the whole card: no bottom padding, and
+            // its fill takes the card's inner radius so it reaches the border.
+            <div className={`mt-auto ${handledExpanded ? CARD_CLASS : CARD_FRAME} ${GROUP_CARDS.Default}`}>
               <div
                 onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
-                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[var(--radius-card)] px-3 py-2 text-xs font-medium text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
+                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--radius-card)-1px)] px-3 py-2 text-xs font-medium text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
               >
                 <span className="flex items-center">
                   {handledExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
