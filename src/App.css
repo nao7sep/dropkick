@@ -840,6 +840,16 @@ input[type="radio"] {
   .dk-menu-item:active {
     background-color: var(--control-pressed);
   }
+  /* Menu text stays on one line and ends in "…" only past the window's
+     width (composite-control-conventions): commands, the workspace name and
+     Recent names and paths. Names differ early, so the start identifies them;
+     the Workspaces screen and an opened list show the whole text. */
+  .dk-menu-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .dk-menu-separator {
     margin: 4px 6px;
     border-top: 1px solid var(--border-subtle);

@@ -13,6 +13,7 @@ const css = readFileSync(join(src, "App.css"), "utf8").replace(/\/\*[\s\S]*?\*\/
 // Each reviewed site, with the path to its whole value.
 const CSS_ELLIPSIS = [
   "select.dk-field", // opening the select shows every option whole
+  ".dk-menu-text", // menu text: names differ early; Workspaces and an opened list show it whole
 ];
 const CLASS_TRUNCATION: Record<string, number> = {
   "components/layout/TabBar.tsx": 1, // tab name: activating the tab titles the window with it

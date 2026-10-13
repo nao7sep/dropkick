@@ -446,20 +446,20 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                   onSelect={handleNewTaskList}
                   className={MENU_ITEM_CLASS}
                 >
-                  {t("tabs.newList")}
+                  <span className="dk-menu-text">{t("tabs.newList")}</span>
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={handleOpenExisting}
                   className={MENU_ITEM_CLASS}
                 >
-                  {t("tabs.openExisting")}
+                  <span className="dk-menu-text">{t("tabs.openExisting")}</span>
                 </DropdownMenu.Item>
                 {!workspace.openTabs.some((t) => t.isUnifiedView) && (
                   <DropdownMenu.Item
                     onSelect={handleUnifiedView}
                     className={MENU_ITEM_CLASS}
                   >
-                    {t("tabs.unifiedMenu")}
+                    <span className="dk-menu-text">{t("tabs.unifiedMenu")}</span>
                   </DropdownMenu.Item>
                 )}
 
@@ -475,10 +475,10 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         onSelect={() => handleOpenRecent(r.filePath)}
                         className="dk-menu-item block text-ink-soft"
                       >
-                        <span className="block w-0 min-w-full whitespace-normal [overflow-wrap:anywhere]">
+                        <span className="dk-menu-text block">
                           {fileNameWithoutExt(r.filePath)}
                         </span>
-                        <span className="block w-0 min-w-full whitespace-normal text-xs text-ink-muted [overflow-wrap:anywhere]">
+                        <span className="dk-menu-text block text-xs text-ink-muted">
                           {r.filePath}
                         </span>
                       </DropdownMenu.Item>
@@ -510,29 +510,29 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 sideOffset={4}
                 className="dk-menu z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-52 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto"
               >
-                {/* The open workspace's name heads the menu, read-only. It wraps
-                    only past the window's width; Workspaces shows it whole too. */}
-                <DropdownMenu.Label className="max-w-full whitespace-normal px-2.5 pb-1 pt-1.5 text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">
+                {/* The open workspace's name heads the menu, read-only.
+                    Workspaces shows it whole. */}
+                <DropdownMenu.Label className="dk-menu-text px-2.5 pb-1 pt-1.5 text-xs font-medium text-ink-muted">
                   {workspace.name || fileNameWithoutExt(workspaceFilePath)}
                 </DropdownMenu.Label>
                 <DropdownMenu.Separator className="dk-menu-separator" />
                 <DropdownMenu.Item onSelect={() => onMenuSelect("workspaces")} className={MENU_ITEM_ICON_CLASS}>
                   <FileText size={14} className="text-ink-muted" />
-                  {t("menu.workspaces")}
+                  <span className="dk-menu-text">{t("menu.workspaces")}</span>
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("settings")}
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Settings size={14} className="text-ink-muted" />
-                  {t("menu.settings")}
+                  <span className="dk-menu-text">{t("menu.settings")}</span>
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("records")}
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <ScrollText size={14} className="text-ink-muted" />
-                  {t("menu.records")}
+                  <span className="dk-menu-text">{t("menu.records")}</span>
                 </DropdownMenu.Item>
                 {/* Zoom — a non-menuitem control embedded in the menu: arrow
                     navigation skips it, and it is driven by pointer and by the
@@ -541,7 +541,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 <DropdownMenu.Separator className="dk-menu-separator" />
                 <div className="dk-menu-control">
                   <ZoomIn size={14} className="text-ink-muted" />
-                  <span className="flex-1">{t("menu.zoom")}</span>
+                  <span className="dk-menu-text flex-1">{t("menu.zoom")}</span>
                   <div className="flex items-center overflow-hidden rounded-[var(--radius-sm)] border border-control-edge bg-control">
                     <button
                       onClick={() => {
@@ -587,14 +587,14 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Keyboard size={14} className="text-ink-muted" />
-                  {t("menu.shortcuts")}
+                  <span className="dk-menu-text">{t("menu.shortcuts")}</span>
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("about")}
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Info size={14} className="text-ink-muted" />
-                  {t("menu.about")}
+                  <span className="dk-menu-text">{t("menu.about")}</span>
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
