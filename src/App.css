@@ -801,7 +801,11 @@ input[type="radio"] {
   }
 
   /* Menus: a rounded popover whose items highlight as inset, rounded rows. */
+  /* A menu stays narrow: it is as wide as its longest item up to this cap,
+     and longer text ends in "…" (.dk-menu-text). Commands fit within it in
+     every language; only long names and paths reach it. */
   .dk-menu {
+    --menu-max-width: 20rem;
     padding: 4px;
     border: 1px solid var(--border);
     border-radius: var(--radius-card);

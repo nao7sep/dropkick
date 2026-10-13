@@ -93,15 +93,18 @@ describe("About", () => {
 });
 
 describe("menus", () => {
-  it("size to their longest item: content width, a floor at most, never a fixed width", () => {
+  it("size to their longest item up to a narrow cap: content width, a floor at most, never a fixed width", () => {
     const tabBar = readFileSync(join(ROOT, "src/components/layout/TabBar.tsx"), "utf8");
     const contents = [...tabBar.matchAll(/<DropdownMenu\.Content[\s\S]*?className="([^"]*)"/g)].map((m) => m[1]!);
     expect(contents.length).toBeGreaterThan(0);
     for (const className of contents) {
       expect(className).toContain("w-max");
-      expect(className).toMatch(/max-w-\[var\(--radix-dropdown-menu-content-available-width\)\]/);
+      // Narrow even in a wide window: long names and paths end in "…" at the
+      // cap rather than stretching the menu toward the window's edge.
+      expect(className).toContain("max-w-[min(var(--menu-max-width),var(--radix-dropdown-menu-content-available-width))]");
       expect(className).not.toMatch(/(^|\s)w-(?!max)[\w[]/);
     }
+    expect(css).toMatch(/\.dk-menu \{[^}]*--menu-max-width: 20rem;/);
     // Items never wrap: the shared item role keeps its label on one line.
     expect(css).toMatch(/\.dk-menu-item,\s*\.dk-menu-control\s*\{[^}]*white-space:\s*nowrap/);
   });

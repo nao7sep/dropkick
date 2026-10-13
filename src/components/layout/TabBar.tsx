@@ -440,7 +440,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 data-dropkick-interactive-layer=""
                 align="start"
                 sideOffset={4}
-                className="dk-menu z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-64 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto"
+                className="dk-menu z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-64 max-w-[min(var(--menu-max-width),var(--radix-dropdown-menu-content-available-width))] overflow-y-auto"
               >
                 <DropdownMenu.Item
                   onSelect={handleNewTaskList}
@@ -508,7 +508,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 data-dropkick-interactive-layer=""
                 align="end"
                 sideOffset={4}
-                className="dk-menu z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-52 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto"
+                className="dk-menu z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-52 max-w-[min(var(--menu-max-width),var(--radix-dropdown-menu-content-available-width))] overflow-y-auto"
               >
                 {/* The open workspace's name heads the menu, read-only.
                     Workspaces shows it whole. */}
