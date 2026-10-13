@@ -536,10 +536,12 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         </div>
       )}
 
-      {/* Scrollable region holding the one composite listbox. Group headers and
-          the Handled disclosure stick to the top of this area as the list scrolls,
-          just below the fixed New Task button. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[36px]">
+      {/* Scrollable region holding the one composite listbox. Group headers
+          stick to the top of this area as the list scrolls, just below the fixed
+          New Task button; the scroll padding is a stuck header's height (14px
+          padding each side of a 15px line), so a row scrolled into view by the
+          keyboard lands below it rather than under it. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[52px]">
         {/* The composite listbox: one tab stop spanning the active tasks and the
             Handled archive. Navigation is handled here and fires only while the
             list has focus. The Handled disclosure and "show more" are inside it as
@@ -570,8 +572,13 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
             <div key={group} data-group={group} className={`${CARD_CLASS} ${GROUP_CARDS[group]}`}>
               {/* Sticks to the top of the scroll area within its own card, in the
-                  card's tint so rows pass cleanly beneath it. */}
-              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-3.5 text-[11px] font-semibold uppercase tracking-wide">
+                  card's tint so rows pass cleanly beneath it. It sticks 1px
+                  above the scroll area's edge: the area can sit at a fractional
+                  offset, and WebKit then paints the stuck caption and the
+                  area's clip on different device pixels, leaving a one-pixel
+                  row of the task underneath showing above it. A heading a
+                  step above the rows' 14px, in sentence case at that size. */}
+              <div className="sticky -top-px z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-3.5 text-[15px] font-semibold">
                 <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[var(--g-accent)]" />
                 <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(label)}</span>
                 <span className="shrink-0 rounded-full bg-[var(--g-fg)] px-1.5 text-[11px] font-semibold leading-[18px] tracking-normal text-surface tabular-nums">
@@ -615,10 +622,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
             <div className={`mt-auto ${handledExpanded ? CARD_CLASS : CARD_FRAME} ${GROUP_CARDS.Default}`}>
               <div
                 onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
-                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--radius-card)-1px)] px-3 py-2 text-xs font-medium text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
+                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--radius-card)-1px)] px-3 py-3.5 text-[15px] font-semibold text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
               >
                 <span className="flex items-center">
-                  {handledExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  {handledExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </span>
                 <span>{t("taskList.handled", { count: grouped.handledTotal })}</span>
               </div>
