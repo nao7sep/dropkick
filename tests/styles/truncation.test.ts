@@ -75,4 +75,22 @@ describe("truncation", () => {
     );
     expect(clipped).toEqual([]);
   });
+
+  // A flex or grid container clips its text but draws no "…": the text runs
+  // become anonymous items that text-overflow does not reach. The marker
+  // belongs on a block or inline-block box holding the text.
+  it("never declares an ellipsis on a flex or grid box", () => {
+    const layoutBox = /(?<![\w-])(inline-)?(flex|grid)(?![\w-])/;
+    const cssBoxes = rules
+      .filter((rule) => /text-overflow\s*:\s*ellipsis/.test(rule.body) && /display\s*:\s*(inline-)?(flex|grid)\b/.test(rule.body))
+      .map((rule) => rule.selector);
+    const ellipsisClasses = ["truncate", ...CSS_ELLIPSIS.filter((s) => s.startsWith(".")).map((s) => s.slice(1))];
+    const componentBoxes = components.flatMap(({ name, text }) =>
+      [...text.matchAll(/className=(["`])([^"`]*)\1/g)]
+        .map((match) => match[2])
+        .filter((value) => ellipsisClasses.some((cls) => new RegExp(`(?<![\\w-])${cls}(?![\\w-])`).test(value)) && layoutBox.test(value))
+        .map((value) => `${name}: ${value}`),
+    );
+    expect([...cssBoxes, ...componentBoxes]).toEqual([]);
+  });
 });
