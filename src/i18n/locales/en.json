@@ -14,7 +14,7 @@
   "settings.font": "Font family",
   "settings.fontPlaceholder": "System default",
   "settings.fontHint": "Leave empty for the system font. A name that isn't installed falls back to it.",
-  "settings.kickDistances": "Kick distances (in tasks)",
+  "settings.kickDistances": "Kick distances (number of tasks)",
   "settings.kickDistancesHint": "Each number adds a +N button that moves the selected tasks down past N other tasks in their group. Comma-separated numbers (e.g. 5, 25). “{kick}” is always available.",
   "settings.dueSoon": "Due soon window",
   "settings.dueSoonHint": "Tasks due within this many days from tomorrow appear in the {group} group.",

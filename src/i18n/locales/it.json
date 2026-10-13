@@ -14,7 +14,7 @@
   "settings.font": "Font",
   "settings.fontPlaceholder": "Predefinito di sistema",
   "settings.fontHint": "Lascia vuoto per usare il font di sistema. Se il font indicato non è installato, viene usato quello di sistema.",
-  "settings.kickDistances": "Distanze di rinvio (in attività)",
+  "settings.kickDistances": "Distanze di rinvio (numero di attività)",
   "settings.kickDistancesHint": "Ogni numero aggiunge un pulsante +N che sposta le attività selezionate N attività più in basso nel loro gruppo. Numeri separati da virgole (ad es. 5, 25). «{kick}» è sempre disponibile.",
   "settings.dueSoon": "Intervallo di scadenza a breve",
   "settings.dueSoonHint": "Le attività in scadenza entro questo numero di giorni a partire da domani compaiono nel gruppo «{group}».",

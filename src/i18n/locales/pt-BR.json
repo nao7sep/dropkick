@@ -14,7 +14,7 @@
   "settings.font": "Fonte",
   "settings.fontPlaceholder": "Padrão do sistema",
   "settings.fontHint": "Deixe em branco para usar a fonte do sistema. Se a fonte informada não estiver instalada, a do sistema será usada.",
-  "settings.kickDistances": "Distâncias de chute (em tarefas)",
+  "settings.kickDistances": "Distâncias de chute (número de tarefas)",
   "settings.kickDistancesHint": "Cada número adiciona um botão +N que move as tarefas selecionadas N tarefas para baixo no grupo. Números separados por vírgula (ex.: 5, 25). “{kick}” está sempre disponível.",
   "settings.dueSoon": "Período de vencimento próximo",
   "settings.dueSoonHint": "Tarefas que vencem dentro desse número de dias a partir de amanhã aparecem no grupo “{group}”.",

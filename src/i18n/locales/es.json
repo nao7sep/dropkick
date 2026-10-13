@@ -14,7 +14,7 @@
   "settings.font": "Fuente",
   "settings.fontPlaceholder": "Predeterminada del sistema",
   "settings.fontHint": "Déjalo vacío para usar la fuente del sistema. Si el nombre no corresponde a una fuente instalada, se usa la del sistema.",
-  "settings.kickDistances": "Distancias de patada (en tareas)",
+  "settings.kickDistances": "Distancias de patada (número de tareas)",
   "settings.kickDistancesHint": "Cada número añade un botón +N que baja las tareas seleccionadas N tareas dentro de su grupo. Números separados por comas (p. ej., 5, 25). «{kick}» siempre está disponible.",
   "settings.dueSoon": "Margen de vencimiento próximo",
   "settings.dueSoonHint": "Las tareas que vencen dentro de esa cantidad de días a partir de mañana aparecen en el grupo «{group}».",

@@ -14,7 +14,7 @@
   "settings.font": "Schriftart",
   "settings.fontPlaceholder": "Systemstandard",
   "settings.fontHint": "Leer lassen, um die Systemschrift zu verwenden. Auch für eine nicht installierte Schrift wird die Systemschrift verwendet.",
-  "settings.kickDistances": "Schritte nach unten (in Aufgaben)",
+  "settings.kickDistances": "Zurückstell-Abstände (Anzahl der Aufgaben)",
   "settings.kickDistancesHint": "Jede Zahl fügt eine Schaltfläche +N hinzu, die die ausgewählten Aufgaben innerhalb ihrer Gruppe an N anderen Aufgaben vorbei nach unten verschiebt. Durch Kommas getrennte Zahlen (z. B. 5, 25). „{kick}“ ist immer verfügbar.",
   "settings.dueSoon": "Zeitraum für „Bald fällig“",
   "settings.dueSoonHint": "Aufgaben, die innerhalb dieser Anzahl von Tagen ab morgen fällig sind, erscheinen in der Gruppe „{group}“.",

@@ -14,7 +14,7 @@
   "settings.font": "Police",
   "settings.fontPlaceholder": "Police du système",
   "settings.fontHint": "Laissez vide pour utiliser la police du système, qui remplace aussi toute police non installée.",
-  "settings.kickDistances": "Décalages vers le bas (en tâches)",
+  "settings.kickDistances": "Distances de report (nombre de tâches)",
   "settings.kickDistancesHint": "Chaque nombre ajoute un bouton +N qui fait descendre les tâches sélectionnées de N tâches dans leur groupe. Nombres séparés par des virgules (par exemple 5, 25). «\u00a0{kick}\u00a0» est toujours disponible.",
   "settings.dueSoon": "Période d’échéance proche",
   "settings.dueSoonHint": "Les tâches dont l’échéance tombe dans ce nombre de jours à compter de demain apparaissent dans le groupe «\u00a0{group}\u00a0».",

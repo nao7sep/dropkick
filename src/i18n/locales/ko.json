@@ -14,7 +14,7 @@
   "settings.font": "글꼴",
   "settings.fontPlaceholder": "시스템 기본값",
   "settings.fontHint": "비워 두면 시스템 글꼴을 사용합니다. 설치되지 않은 글꼴 이름을 입력해도 시스템 글꼴로 표시됩니다.",
-  "settings.kickDistances": "아래로 이동할 작업 수",
+  "settings.kickDistances": "내리기 거리(작업 수)",
   "settings.kickDistancesHint": "숫자마다 +N 버튼이 추가되며, 선택한 작업을 그룹 안에서 다른 작업 N개만큼 아래로 옮깁니다. 쉼표로 구분한 숫자를 입력하십시오(예: 5, 25). “{kick}” 버튼은 항상 사용할 수 있습니다.",
   "settings.dueSoon": "마감 임박 기간",
   "settings.dueSoonHint": "내일부터 이 일수 이내에 마감되는 할 일은 “{group}” 그룹에 표시됩니다.",
