@@ -57,8 +57,6 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
   const [renameValue, setRenameValue] = useState("");
   const renamingRef = useRef<string | null>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
-  const newButtonRef = useRef<HTMLButtonElement>(null);
-  const launchRef = useRef<HTMLButtonElement>(null);
 
   // Each workspace shows the name stored in its file. A file that cannot be
   // read shows its file name; opening it reports why.
@@ -82,14 +80,17 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
 
   const nameOf = (path: string) => names[path] || fileNameWithoutExt(path);
 
-  // The next actionable control: New in an empty list, otherwise Open.
-  // Shared by the effect below (the list changes after mount) and AppModal's
-  // onOpenAutoFocus (the first focus) — Radix's focus scope activates around
-  // that callback, so focusing reactively there instead raced it and lost.
-  const focusNextActionable = () => {
-    (selected === "" ? newButtonRef.current : launchRef.current)?.focus();
+  // Nothing here is a default action: a user may create a workspace, add one
+  // they already have or open a listed one. With workspaces listed, focus
+  // starts on the list, where arrows choose and Enter opens; with none, it
+  // stays on the dialog surface so no button looks preselected. Done in
+  // AppModal's onOpenAutoFocus because Radix's focus scope activates around
+  // that callback, and focusing from an effect instead raced it and lost.
+  const focusInitial = (e: Event) => {
+    if (items.length === 0) return;
+    e.preventDefault();
+    listboxRef.current?.focus();
   };
-  useEffect(focusNextActionable, [selected]);
 
   // Native pickers, document writes and saved-location writes report failures here.
   const guarded = async (
@@ -209,43 +210,23 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
         dimmed={false}
         maxWidth={520}
         footerClassName="flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4"
-        // Radix's default would focus the dialog surface and override the
-        // effect that advances focus to the next actionable control.
-        contentProps={{
-          onOpenAutoFocus: (e) => {
-            e.preventDefault();
-            focusNextActionable();
-          },
-        }}
+        contentProps={{ onOpenAutoFocus: focusInitial }}
         footer={
           <>
             {onQuit && <Button onClick={onQuit}>{t("startup.quit")}</Button>}
             {onCancel && <Button disabled={opening} onClick={onCancel}>{t("common.cancel")}</Button>}
-            <Button ref={launchRef} variant="primary" onClick={() => void launch()} disabled={opening || selected === "" || renaming !== null}>
+            <Button variant="primary" onClick={() => void launch()} disabled={opening || selected === "" || renaming !== null}>
               {t("startup.continue")}
             </Button>
           </>
         }
       >
         <fieldset disabled={opening} className="flex min-w-0 w-full flex-col gap-4">
-          <p className="text-sm text-ink-soft">{t("startup.description")}</p>
-          <WorkspaceList
-            label={t("startup.title")}
-            emptyText={t("startup.noWorkspaces")}
-            items={items}
-            nameOf={nameOf}
-            selected={selected}
-            onSelect={setSelected}
-            onLaunch={(path) => void launch(path)}
-            renaming={renaming}
-            renameValue={renameValue}
-            onRenameChange={setRenameValue}
-            onRenameSubmit={() => void submitRename()}
-            onRenameCancel={endRename}
-            listboxRef={listboxRef}
-          />
+          {/* The commands that add a workspace sit in a toolbar band above the
+              list, and those for the selected row under it, so the footer holds
+              only the dismiss and the commit. */}
           <div className="flex flex-wrap gap-2">
-            <Button ref={newButtonRef} size="sm" onClick={() => void handleNew()}>
+            <Button size="sm" onClick={() => void handleNew()}>
               <Plus size={14} />
               {t("startup.new")}
             </Button>
@@ -253,19 +234,35 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
               <FolderOpen size={14} />
               {t("startup.addExisting")}
             </Button>
-            {selected && (
-              <>
-                <Button size="sm" disabled={renaming !== null} onClick={startRename}>
-                  <Pencil size={14} />
-                  {t("startup.rename")}
-                </Button>
-                {/* Forgets the entry; the file itself is untouched, so it is not red. */}
-                <Button size="sm" onClick={() => void handleRemove(selected)}>
-                  <X size={14} />
-                  {t("startup.remove")}
-                </Button>
-              </>
-            )}
+          </div>
+          <p className="text-sm text-ink-soft">{t("startup.description")}</p>
+          <div className="flex flex-col gap-2">
+            <WorkspaceList
+              label={t("startup.title")}
+              emptyText={t("startup.noWorkspaces")}
+              items={items}
+              nameOf={nameOf}
+              selected={selected}
+              onSelect={setSelected}
+              onLaunch={(path) => void launch(path)}
+              renaming={renaming}
+              renameValue={renameValue}
+              onRenameChange={setRenameValue}
+              onRenameSubmit={() => void submitRename()}
+              onRenameCancel={endRename}
+              listboxRef={listboxRef}
+            />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button size="sm" disabled={!selected || renaming !== null} onClick={startRename}>
+                <Pencil size={14} />
+                {t("startup.rename")}
+              </Button>
+              {/* Forgets the entry; the file itself is untouched, so it is not red. */}
+              <Button size="sm" disabled={!selected} onClick={() => selected && void handleRemove(selected)}>
+                <X size={14} />
+                {t("startup.remove")}
+              </Button>
+            </div>
           </div>
         </fieldset>
       </AppModal>

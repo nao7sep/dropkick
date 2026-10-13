@@ -243,14 +243,31 @@ describe("StartupPicker — the shared dialog shell", () => {
 });
 
 describe("StartupPicker — keyboard behaviour", () => {
-  it("focuses the primary Open action once a workspace is selected, so Enter opens the selection", async () => {
+  it("starts on the list when workspaces are listed, so arrows choose and Enter opens", async () => {
     await mountWithKnownFiles();
-    const buttons = Array.from(document.querySelectorAll("button"));
-    const primaryOpen = buttons.find((button) => button.className.includes("dk-btn-primary"));
-    // A real <button>, so the browser's own Enter-activates-the-focused-button
-    // behaviour opens the selection; nothing here needs to reimplement that.
-    expect(document.activeElement).toBe(primaryOpen);
-    expect(primaryOpen?.disabled).toBe(false);
+    expect(document.activeElement).toBe(workspaceListbox());
+  });
+
+  it("preselects no button when nothing is listed: New is not a default action", async () => {
+    useAppConfigStore.setState({ appConfig: { knownWorkspaces: [] }, filePath: "/home/config.json", loaded: true });
+    useAppStateStore.setState({ appState: createDefaultAppState(), filePath: "/home/state.json", loaded: true });
+    host = await mount(createElement(StartupPicker, { onLaunch: () => {} }));
+    expect(document.activeElement?.tagName).not.toBe("BUTTON");
+    expect(document.activeElement?.getAttribute("role")).toBe("dialog");
+  });
+
+  it("puts New and Add existing above the list and the row actions under it, disabled without a selection", async () => {
+    useAppConfigStore.setState({ appConfig: { knownWorkspaces: [] }, filePath: "/home/config.json", loaded: true });
+    useAppStateStore.setState({ appState: createDefaultAppState(), filePath: "/home/state.json", loaded: true });
+    host = await mount(createElement(StartupPicker, { onLaunch: () => {} }));
+    const list = workspaceListbox();
+    const before = (b: HTMLElement) => Boolean(b.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(button("New"))).toBe(true);
+    expect(before(button("Add existing"))).toBe(true);
+    expect(before(button("Rename"))).toBe(false);
+    expect(before(button("Remove"))).toBe(false);
+    expect(button("Rename").disabled).toBe(true);
+    expect(button("Remove").disabled).toBe(true);
   });
 
   it("does nothing harmful on Escape — there is no close path to trigger", async () => {
