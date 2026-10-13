@@ -807,9 +807,11 @@ function TaskRow({
         </span>
       )}
 
-      {/* Source file label (unified view only) */}
+      {/* Source file label (unified view only). Truncated like the title, so
+          a long list name cannot stretch every row it labels; the same name
+          heads that list's tab, which titles the window with it whole. */}
       {isUnifiedView && (
-        <span className="shrink-0 max-w-[30%] text-xs text-ink-muted [overflow-wrap:anywhere]">
+        <span className="shrink-0 max-w-[30%] truncate text-xs text-ink-muted">
           {sourceLabel}
         </span>
       )}
