@@ -65,6 +65,9 @@ export function AboutModal({ onClose }: AboutModalProps) {
       // control and the title stays the dialog's spoken name.
       titleVisuallyHidden
       bodyClassName="overflow-y-auto px-6 pb-5 pt-0"
+      // No footer line: with the title band hidden, a lone rule above Close
+      // would be the card's only band edge.
+      footerClassName="flex items-center justify-end gap-2 px-6 pb-4"
       footer={
         <Button onClick={onClose}>{t("common.close")}</Button>
       }

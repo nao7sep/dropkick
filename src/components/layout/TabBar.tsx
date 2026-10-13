@@ -35,7 +35,7 @@ import { useI18n } from "../../i18n/I18nContext";
 import type { MessageKey } from "../../i18n/catalogues";
 import { message } from "../../i18n/translate";
 
-type MenuItemId = "documents" | "settings" | "records" | "shortcuts" | "about";
+type MenuItemId = "workspaces" | "settings" | "records" | "shortcuts" | "about";
 
 const TAB_DRAG_TYPE = "workspace-tab";
 
@@ -65,6 +65,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   const updateViewState = useAppStateStore((s) => s.updateViewState);
   const workspace = useWorkspaceStore((s) => s.workspace);
+  const workspaceFilePath = useWorkspaceStore((s) => s.filePath);
   const activeTabIndex = workspace.activeTabIndex;
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const closeTab = useWorkspaceStore((s) => s.closeTab);
@@ -509,16 +510,22 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                 sideOffset={4}
                 className="dk-menu z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] w-max min-w-52 max-w-[var(--radix-dropdown-menu-content-available-width)] overflow-y-auto"
               >
+                {/* The open workspace's name heads the menu, read-only. It wraps
+                    only past the window's width; Workspaces shows it whole too. */}
+                <DropdownMenu.Label className="max-w-full whitespace-normal px-2.5 pb-1 pt-1.5 text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">
+                  {workspace.name || fileNameWithoutExt(workspaceFilePath)}
+                </DropdownMenu.Label>
+                <DropdownMenu.Separator className="dk-menu-separator" />
+                <DropdownMenu.Item onSelect={() => onMenuSelect("workspaces")} className={MENU_ITEM_ICON_CLASS}>
+                  <FileText size={14} className="text-ink-muted" />
+                  {t("menu.workspaces")}
+                </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("settings")}
                   className={MENU_ITEM_ICON_CLASS}
                 >
                   <Settings size={14} className="text-ink-muted" />
                   {t("menu.settings")}
-                </DropdownMenu.Item>
-                <DropdownMenu.Item onSelect={() => onMenuSelect("documents")} className={MENU_ITEM_ICON_CLASS}>
-                  <FileText size={14} className="text-ink-muted" />
-                  {t("menu.documents")}
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => onMenuSelect("records")}

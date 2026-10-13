@@ -477,19 +477,21 @@ describe("TabBar hamburger menu", () => {
     return menu;
   }
 
-  it("lists Settings, Records, Zoom, then Keyboard Shortcuts and About, with no doubled or dangling separator", async () => {
+  it("heads with the workspace name, then lists Workspaces, Settings, Records, Zoom, Keyboard Shortcuts and About, with no doubled or dangling separator", async () => {
     const menu = await openMenu();
     // A separator reads "|"; the zoom row by its label, not its stepper's value.
     const rows = [...menu.children].map((row) =>
       row.getAttribute("role") === "separator"
         ? "|"
-        : row.getAttribute("role") === "menuitem"
-          ? row.textContent
-          : row.querySelector("span")?.textContent,
+        : row.classList.contains("dk-menu-control")
+          ? row.querySelector("span")?.textContent
+          : row.textContent,
     );
     expect(rows).toEqual([
+      useWorkspaceStore.getState().workspace.name,
+      "|",
+      "Workspaces",
       "Settings",
-      "Switch workspace",
       "Records",
       "|",
       "Zoom",
@@ -499,8 +501,8 @@ describe("TabBar hamburger menu", () => {
     ]);
     // Zoom is a contained control, not a command: arrow navigation skips it.
     expect([...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual([
+      "Workspaces",
       "Settings",
-      "Switch workspace",
       "Records",
       "Keyboard Shortcuts",
       "About Dropkick",
@@ -592,7 +594,7 @@ describe("independent menu hover and keyboard navigation", () => {
         expect(document.activeElement).toBe(commands[1]);
         await key("Enter");
         expect(document.querySelector('[role="menu"]')).toBeNull();
-        if (index === 1) expect(selected).toHaveBeenCalledExactlyOnceWith("documents");
+        if (index === 1) expect(selected).toHaveBeenCalledExactlyOnceWith("settings");
         else {
           expect(openJsonFileDialog).toHaveBeenCalledOnce();
           expect(saveJsonFileDialog).not.toHaveBeenCalled();
@@ -636,7 +638,7 @@ describe("independent menu hover and keyboard navigation", () => {
     await key("ArrowDown");
     await key("ArrowDown");
     await act(async () => commands[0].click());
-    expect(selected).toHaveBeenCalledExactlyOnceWith("settings");
+    expect(selected).toHaveBeenCalledExactlyOnceWith("workspaces");
   });
 
   it("Tab closes through the existing popup close path", async () => {

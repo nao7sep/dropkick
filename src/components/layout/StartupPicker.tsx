@@ -1,5 +1,5 @@
 // The workspace list: shown at first launch, when the last workspace cannot
-// open, and from the main menu's Switch workspace. A workspace is a file the
+// open, and from the main menu's Workspaces. A workspace is a file the
 // user saves anywhere; it remembers which task lists are open, wherever those
 // are. New creates an empty one, Add existing lists one already on disk,
 // Rename edits the name stored in its file, and Remove only takes it off this

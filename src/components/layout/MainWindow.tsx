@@ -409,7 +409,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
         <TabBar
         onChromeHeightChange={onChromeHeightChange}
         onMenuSelect={(item) => {
-          if (item === "documents") onSwitchWorkspace?.();
+          if (item === "workspaces") onSwitchWorkspace?.();
           else if (item === "settings") setShowSettings(true);
           else if (item === "records") void openRecords();
           else if (item === "shortcuts") setShowShortcuts(true);
