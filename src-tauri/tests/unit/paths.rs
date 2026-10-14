@@ -124,58 +124,67 @@ fn native_window_state_has_its_own_file_name() {
 // that way, and tightened to 0700 at each launch when an existing root is
 // broader. Both cases are exercised here against a throwaway home directory,
 // driving the same `secure_root` step `data_root` runs on every launch.
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "Unix only: the storage root is owner-only through POSIX mode bits")]
 fn new_root_is_created_owner_only() {
-    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
 
-    let base = tempfile::tempdir().unwrap();
-    let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_DATA_DIR
-    std::fs::create_dir_all(&root).unwrap();
+        let base = tempfile::tempdir().unwrap();
+        let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_DATA_DIR
+        std::fs::create_dir_all(&root).unwrap();
 
-    secure_root(&root).unwrap();
+        secure_root(&root).unwrap();
 
-    let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o700);
+        let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+    }
 }
 
 // A freshly created root must be born owner-only, not merely tightened
 // afterward — otherwise a broad umask (e.g. 022) leaves it briefly
 // world-readable between creation and the `secure_root` tightening step.
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "Unix only: the storage root is owner-only through POSIX mode bits")]
 fn create_storage_root_creates_a_fresh_root_owner_only() {
-    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
 
-    let base = tempfile::tempdir().unwrap();
-    let root = base.path().join("dropkick-home").join(".dropkick");
+        let base = tempfile::tempdir().unwrap();
+        let root = base.path().join("dropkick-home").join(".dropkick");
 
-    create_storage_root(&root).unwrap();
+        create_storage_root(&root).unwrap();
 
-    let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
-    assert_eq!(
-        mode, 0o700,
-        "the storage root must be created owner-only, not just tightened after the fact"
-    );
+        let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o700,
+            "the storage root must be created owner-only, not just tightened after the fact"
+        );
+    }
 }
 
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "Unix only: the storage root is owner-only through POSIX mode bits")]
 fn existing_broader_root_is_tightened_on_launch() {
-    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
 
-    let base = tempfile::tempdir().unwrap();
-    let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_DATA_DIR
-    std::fs::create_dir_all(&root).unwrap();
-    // Simulate a pre-existing root that is broader than owner-only, e.g. left
-    // over from before this rule, or created with a permissive umask.
-    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o755)).unwrap();
-    assert_eq!(std::fs::metadata(&root).unwrap().permissions().mode() & 0o777, 0o755);
+        let base = tempfile::tempdir().unwrap();
+        let root = base.path().join("dropkick-home"); // acts as a throwaway DROPKICK_DATA_DIR
+        std::fs::create_dir_all(&root).unwrap();
+        // Simulate a pre-existing root that is broader than owner-only, e.g. left
+        // over from before this rule, or created with a permissive umask.
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(std::fs::metadata(&root).unwrap().permissions().mode() & 0o777, 0o755);
 
-    secure_root(&root).unwrap();
+        secure_root(&root).unwrap();
 
-    let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o700);
+        let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+    }
 }
 
 #[test]

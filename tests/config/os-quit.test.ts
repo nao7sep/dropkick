@@ -30,19 +30,22 @@ describe("OS quit routes", () => {
 
   it("send Dock > Quit through the menu's Quit and keep the app running for it", () => {
     expect(osQuit).toMatch(/sel!\(applicationShouldTerminate:\)/);
-    expect(osQuit).toMatch(/menu::request_quit\(app\);\s*TERMINATE_CANCEL/);
+    expect(osQuit).toMatch(/TerminateReply::Cancel => \{[\s\S]*?menu::request_quit\(app\);\s*TERMINATE_CANCEL/);
   });
 
+  // Which reply each quit gets is decided apart from AppKit and tested in
+  // src-tauri/tests/unit/os_quit.rs; this pins that AppKit acts on it.
   it("let the end of a macOS session wait for the window, within the bound", () => {
+    expect(osQuit).toMatch(/terminate_reply\(has_main_window, has_main_window && session_is_ending\(\), \|\| begin_session_end\(app\)\)/);
     expect(osQuit).toMatch(
-      /if session_is_ending\(\) \{[\s\S]*?begin_session_end\(app\)[\s\S]*?sleep\(SESSION_END_WAIT\)[\s\S]*?TERMINATE_LATER/,
+      /TerminateReply::Later \{ start_bound \} => \{[\s\S]*?sleep\(SESSION_END_WAIT\)[\s\S]*?TERMINATE_LATER/,
     );
     expect(osQuit).toMatch(/replyToApplicationShouldTerminate: Bool::YES/);
   });
 
-  it("ask the window at a Windows session's end before tao ends the loop", () => {
+  it("ask the window at a Windows session's end before tao ends the loop, once", () => {
     expect(osQuit).toMatch(
-      /msg == WM_QUERYENDSESSION[\s\S]*?begin_session_end\(app\)[\s\S]*?wait_for_window\(\)/,
+      /msg == WM_QUERYENDSESSION[\s\S]*?begin_session_end\(app\) == SessionEndStart::Started[\s\S]*?wait_for_window\(\)/,
     );
   });
 

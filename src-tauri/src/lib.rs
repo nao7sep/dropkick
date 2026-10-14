@@ -592,21 +592,20 @@ mod windows_replace {
 }
 
 pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
-    write_atomic_impl(path, contents, true, false)
+    write_atomic_impl(path, contents, true)
 }
 
 // The same atomic write, minus the backup-history record: for volatile state
 // that is state and nothing else (view state and window placement), which the data-backup
 // convention excludes from backups.sqlite3.
 pub fn write_atomic_unrecorded(path: &str, contents: &str) -> Result<String, String> {
-    write_atomic_impl(path, contents, false, false)
+    write_atomic_impl(path, contents, false)
 }
 
-fn write_atomic_impl(path: &str, contents: &str, record: bool, create_only: bool) -> Result<String, String> {
+fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String, String> {
     use std::io::Write;
-    // Creation must reject even an existing symlink, never follow it and replace
-    // somebody else's file. Ordinary saves retain their write-through behavior.
-    let resolved = if create_only { std::path::PathBuf::from(path) } else { resolve_symlink(std::path::Path::new(path))? };
+    // Saves write through a link to the file it names.
+    let resolved = resolve_symlink(std::path::Path::new(path))?;
     let target = resolved.as_path();
     let parent = target
         .parent()
@@ -616,11 +615,11 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool, create_only: bool
         .and_then(|n| n.to_str())
         .ok_or_else(|| "path has no file name".to_string())?;
 
-    if !create_only { refuse_newer_json(target, contents.as_bytes())?; }
+    refuse_newer_json(target, contents.as_bytes())?;
 
     // A write that changes nothing is skipped (content-lifecycle-conventions,
     // Files). A target that is missing or cannot be read takes the write below.
-    if !create_only && std::fs::read(target).is_ok_and(|existing| existing == contents.as_bytes()) {
+    if std::fs::read(target).is_ok_and(|existing| existing == contents.as_bytes()) {
         return Ok(sha256_hex(contents.as_bytes()));
     }
 
@@ -646,7 +645,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool, create_only: bool
         options.write(true).create_new(true);
         let mut file = options.open(&tmp)?;
         file.write_all(contents.as_bytes())?;
-        if !create_only { carry_replaced_permissions(target, &file)?; }
+        carry_replaced_permissions(target, &file)?;
         file.sync_all()?;
         Ok(())
     })();
@@ -654,14 +653,9 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool, create_only: bool
         return Err(e.to_string());
     }
 
-    let publication = if create_only {
-        publish_new(&tmp, target).map_err(|e| e.to_string())
-    } else {
-        refuse_newer_json(target, contents.as_bytes())
-            .and_then(|()| replace_target(&tmp, target).map_err(|e| e.to_string()))
-    };
-    if let Err(e) = publication
-    {
+    let publication = refuse_newer_json(target, contents.as_bytes())
+        .and_then(|()| replace_target(&tmp, target).map_err(|e| e.to_string()));
+    if let Err(e) = publication {
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
@@ -742,8 +736,9 @@ pub fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
     path.with_file_name(format!("{stem}-{}.invalid", logging::filename_stamp_seconds_now()))
 }
 
-// These OS primitives fail when the target exists, including a dangling link.
-// No check-then-overwriting-rename window, and no partial public document.
+// Moves a store aside to a name nothing occupies. These OS primitives fail
+// when the target exists, including a dangling link, with no check-then-
+// overwriting-rename window and nothing left behind on failure.
 #[cfg(target_os = "macos")]
 fn publish_new(staged: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
     use std::ffi::CString;

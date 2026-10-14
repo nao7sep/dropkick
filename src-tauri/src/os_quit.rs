@@ -67,33 +67,93 @@ pub fn session_end_settled() {
     release_session("settled");
 }
 
+/// How asking the main window to settle for the end of the session went.
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SessionEndStart {
+    /// This request asked the window; its bound starts now.
+    Started,
+    /// An earlier request is still waiting, and its bound still holds. A second
+    /// request (a nested WM_QUERYENDSESSION, say) must not start another wait,
+    /// or the session would wait past the bound.
+    AlreadyPending,
+    /// There is no window to ask, so the session goes on at once.
+    NoWindow,
+}
+
 // Asks the main window to settle its writes for the end of the session.
-// Returns false when there is no window to ask, so the session goes on at once.
 #[cfg(any(target_os = "macos", windows))]
-fn begin_session_end(app: &AppHandle) -> bool {
+fn begin_session_end(app: &AppHandle) -> SessionEndStart {
+    begin_with(|| app.emit_to("main", SESSION_ENDING_EVENT, ()).map_err(|error| error.to_string()))
+}
+
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+fn begin_with(ask_window: impl FnOnce() -> Result<(), String>) -> SessionEndStart {
     SESSION_ENDED.store(true, Ordering::SeqCst);
     if SESSION_END_PENDING.swap(true, Ordering::SeqCst) {
-        return true;
+        return SessionEndStart::AlreadyPending;
     }
     logging::info("session ending", json!({}));
-    if let Err(error) = app.emit_to("main", SESSION_ENDING_EVENT, ()) {
-        logging::warn("session end event failed", json!({ "error": error.to_string() }));
+    if let Err(error) = ask_window() {
+        logging::warn("session end event failed", json!({ "error": error }));
         SESSION_END_PENDING.store(false, Ordering::SeqCst);
-        return false;
+        return SessionEndStart::NoWindow;
     }
-    true
+    SessionEndStart::Started
 }
 
 // Lets the session go on, once, whichever of the window's report and the
 // bound comes first.
 fn release_session(reason: &str) {
+    if take_pending(reason) {
+        platform::release();
+    }
+}
+
+// True for the one caller that ends the wait; every later caller finds it over.
+fn take_pending(reason: &str) -> bool {
     if !SESSION_END_PENDING.swap(false, Ordering::SeqCst) {
-        return;
+        return false;
     }
     if reason != "settled" {
         logging::warn("session end went on without the window", json!({ "reason": reason }));
     }
-    platform::release();
+    true
+}
+
+/// AppKit's answer to `applicationShouldTerminate:`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[derive(Debug, PartialEq, Eq)]
+enum TerminateReply {
+    /// Nothing to save: terminate at once.
+    Now,
+    /// The end of the session waits for the window; `start_bound` is true for
+    /// the request that must start the bound's timer.
+    Later { start_bound: bool },
+    /// A quit the user started goes through the window's close path instead,
+    /// which quits once its questions are answered.
+    Cancel,
+}
+
+// The macOS decision, apart from AppKit: the quit's kind and the window's
+// presence come in, the reply goes out. The end of a session never cancels.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn terminate_reply(
+    has_main_window: bool,
+    session_ending: bool,
+    begin: impl FnOnce() -> SessionEndStart,
+) -> TerminateReply {
+    if !has_main_window {
+        return TerminateReply::Now;
+    }
+    if !session_ending {
+        return TerminateReply::Cancel;
+    }
+    match begin() {
+        SessionEndStart::Started => TerminateReply::Later { start_bound: true },
+        SessionEndStart::AlreadyPending => TerminateReply::Later { start_bound: false },
+        SessionEndStart::NoWindow => TerminateReply::Now,
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -105,7 +165,7 @@ mod platform {
     use serde_json::json;
     use tauri::{AppHandle, Manager};
 
-    use super::{begin_session_end, release_session, APP, SESSION_END_WAIT};
+    use super::{begin_session_end, release_session, terminate_reply, TerminateReply, APP, SESSION_END_WAIT};
     use crate::{logging, menu};
 
     // NSApplicationTerminateReply.
@@ -165,22 +225,24 @@ mod platform {
         let Some(app) = APP.get() else {
             return TERMINATE_NOW;
         };
-        if app.get_webview_window("main").is_none() {
-            return TERMINATE_NOW;
-        }
-        if session_is_ending() {
-            if !begin_session_end(app) {
-                return TERMINATE_NOW;
+        let has_main_window = app.get_webview_window("main").is_some();
+        match terminate_reply(has_main_window, has_main_window && session_is_ending(), || begin_session_end(app)) {
+            TerminateReply::Now => TERMINATE_NOW,
+            TerminateReply::Later { start_bound } => {
+                if start_bound {
+                    std::thread::spawn(|| {
+                        std::thread::sleep(SESSION_END_WAIT);
+                        release_session("timed out");
+                    });
+                }
+                TERMINATE_LATER
             }
-            std::thread::spawn(|| {
-                std::thread::sleep(SESSION_END_WAIT);
-                release_session("timed out");
-            });
-            return TERMINATE_LATER;
+            TerminateReply::Cancel => {
+                logging::info("quit requested by the system", json!({}));
+                menu::request_quit(app);
+                TERMINATE_CANCEL
+            }
         }
-        logging::info("quit requested by the system", json!({}));
-        menu::request_quit(app);
-        TERMINATE_CANCEL
     }
 
     fn session_is_ending() -> bool {
@@ -226,7 +288,7 @@ mod platform {
     use tauri::{AppHandle, Manager};
 
     use super::session_wait::{wait_for_settlement, Message, Outcome};
-    use super::{begin_session_end, release_session, APP, SESSION_END_PENDING, SESSION_END_WAIT};
+    use super::{begin_session_end, release_session, SessionEndStart, APP, SESSION_END_PENDING, SESSION_END_WAIT};
     use crate::logging;
 
     type Hwnd = *mut c_void;
@@ -307,7 +369,9 @@ mod platform {
     ) -> isize {
         if msg == WM_QUERYENDSESSION {
             if let Some(app) = APP.get() {
-                if begin_session_end(app) {
+                // Only the request that asked the window waits; a nested one
+                // returns at once, inside the first wait's bound.
+                if begin_session_end(app) == SessionEndStart::Started {
                     wait_for_window();
                 }
             }
@@ -377,3 +441,7 @@ mod platform {
 
     pub fn release() {}
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/os_quit.rs"]
+mod tests;

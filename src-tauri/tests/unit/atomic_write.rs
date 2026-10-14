@@ -218,18 +218,21 @@ fn a_v010_task_list_is_read_and_given_an_identity_when_it_has_none() {
     }
 }
 
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "Unix only: checks POSIX create mode")]
 fn a_new_published_document_uses_the_ordinary_create_mode() {
-    use std::os::unix::fs::PermissionsExt;
-    let dir = tempfile::tempdir().unwrap();
-    let ordinary = dir.path().join("ordinary.json");
-    std::fs::write(&ordinary, "ordinary").unwrap();
-    let target = dir.path().join("published.json");
-    write_atomic_unrecorded(target.to_str().unwrap(), "published").unwrap();
-    assert_eq!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
-        std::fs::metadata(&ordinary).unwrap().permissions().mode() & 0o777);
-    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let ordinary = dir.path().join("ordinary.json");
+        std::fs::write(&ordinary, "ordinary").unwrap();
+        let target = dir.path().join("published.json");
+        write_atomic_unrecorded(target.to_str().unwrap(), "published").unwrap();
+        assert_eq!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+            std::fs::metadata(&ordinary).unwrap().permissions().mode() & 0o777);
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
 }
 
 fn classify_tasks(tasks: Vec<serde_json::Value>) -> JsonFileWithHashResult {
@@ -404,23 +407,26 @@ fn write_atomic_errors_when_parent_missing() {
     assert!(write_atomic(path.to_str().unwrap(), "x").is_err());
 }
 
-#[cfg(windows)]
 #[test]
+#[cfg_attr(not(windows), ignore = "Windows only: holds the target open without FILE_SHARE_DELETE")]
 fn write_atomic_preserves_a_target_open_without_delete_sharing() {
-    use std::os::windows::fs::OpenOptionsExt;
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
 
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("tasks.json");
-    let original = r#"{"formatVersion":1,"id":"list","tasks":[]}"#;
-    std::fs::write(&path, original).unwrap();
-    // FILE_SHARE_READ | FILE_SHARE_WRITE, deliberately no FILE_SHARE_DELETE:
-    // another program can read the list but prevents its atomic replacement.
-    let held = std::fs::OpenOptions::new().read(true).share_mode(0x00000003)
-        .open(&path).unwrap();
-    assert!(write_atomic(path.to_str().unwrap(), r#"{"formatVersion":1,"id":"changed","tasks":[]}"#).is_err());
-    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
-    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "staging must be cleaned up");
-    drop(held);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tasks.json");
+        let original = r#"{"formatVersion":1,"id":"list","tasks":[]}"#;
+        std::fs::write(&path, original).unwrap();
+        // FILE_SHARE_READ | FILE_SHARE_WRITE, deliberately no FILE_SHARE_DELETE:
+        // another program can read the list but prevents its atomic replacement.
+        let held = std::fs::OpenOptions::new().read(true).share_mode(0x00000003)
+            .open(&path).unwrap();
+        assert!(write_atomic(path.to_str().unwrap(), r#"{"formatVersion":1,"id":"changed","tasks":[]}"#).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "staging must be cleaned up");
+        drop(held);
+    }
 }
 
 
@@ -496,23 +502,26 @@ fn write_atomic_refuses_a_link_loop_without_replacing_it() {
 }
 
 #[test]
-#[cfg(unix)]
+#[cfg_attr(not(unix), ignore = "Unix only: checks carried POSIX mode bits")]
 fn write_atomic_keeps_the_target_permissions() {
-    // File::create gives the temp file 0666 & ~umask, and the rename makes that
-    // the surviving mode — so without carrying the old one over, a file the user
-    // had restricted to 0600 came back readable by every local account.
-    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    {
+        // File::create gives the temp file 0666 & ~umask, and the rename makes that
+        // the surviving mode — so without carrying the old one over, a file the user
+        // had restricted to 0600 came back readable by every local account.
+        use std::os::unix::fs::PermissionsExt;
 
-    let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path();
-    let path = dir.join("private.json");
-    std::fs::write(&path, "before").unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let path = dir.join("private.json");
+        std::fs::write(&path, "before").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
 
-    write_atomic(path.to_str().unwrap(), "after").unwrap();
+        write_atomic(path.to_str().unwrap(), "after").unwrap();
 
-    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o600, "permissions must survive the save");
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "permissions must survive the save");
+    }
 }
 
 #[test]
