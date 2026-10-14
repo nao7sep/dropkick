@@ -38,6 +38,14 @@ describe("the Records window", () => {
     expect(openBody).toMatch(/\.min_inner_size\(context\.min_width, context\.min_height\)/);
   });
 
+  // window-conventions: a window the user opens takes focus above the window
+  // it was opened from. Dropkick keeps no window always on top.
+  it("takes focus above the main window whenever it is shown", () => {
+    const show = openBody.lastIndexOf("window.show()");
+    expect(openBody.slice(show)).toMatch(/^window\.show\(\)[^;]*;\s*window\.set_focus\(\)/);
+    expect(recordsWindow).not.toMatch(/always_on_top/);
+  });
+
   it("keeps its own placement, through the app's one placement owner", () => {
     expect(placement).toMatch(/records: TrackedWindow::new\(crate::records_window::LABEL, paths::RECORDS_WINDOW_FILE_NAME\)/);
     expect(openBody).toContain("&placements.records");
