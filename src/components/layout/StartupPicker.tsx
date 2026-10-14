@@ -23,7 +23,7 @@ import { useAppConfigStore } from "../../state/app-config-store";
 import { useAppStateStore } from "../../state/app-state-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
-import { pageStepIndex, rowDomId, singleLine, stepIndex } from "../../utils";
+import { pageStepIndex, rowDomId, shortenPath, singleLine, stepIndex } from "../../utils";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import { useI18n } from "../../i18n/I18nContext";
 import { AppModal } from "../shared/AppModal";
@@ -32,6 +32,8 @@ import type { MessageKey } from "../../i18n/catalogues";
 import { message } from "../../i18n/translate";
 
 const STARTUP_LIST_PAGE = 4;
+// Columns of 12px text a row's path keeps at the dialog's narrowest width.
+const PATH_COLUMNS = 56;
 const LIST_ID = "workspace";
 
 interface StartupPickerProps {
@@ -252,6 +254,9 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
               onRenameCancel={endRename}
               listboxRef={listboxRef}
             />
+            {selected && (
+              <p className="text-xs text-ink-muted [overflow-wrap:anywhere]">{selected}</p>
+            )}
             <div className="flex flex-wrap justify-end gap-2">
               <Button size="sm" disabled={!selected || renaming !== null} onClick={startRename}>
                 <Pencil size={14} />
@@ -396,11 +401,14 @@ function WorkspaceList({
                 className="dk-field dk-field-sm w-full"
               />
             ) : (
-              <span className={`block text-sm font-medium [overflow-wrap:anywhere] ${selected === path ? "text-primary-hover" : "text-ink"}`}>
+              // Identifying text, one line each: the name keeps its beginning
+              // and the path its root and file. The selected workspace's whole
+              // path shows under the list, and Rename shows its whole name.
+              <span className={`block truncate text-sm font-medium ${selected === path ? "text-primary-hover" : "text-ink"}`}>
                 {nameOf(path)}
               </span>
             )}
-            <span className="block text-xs text-ink-muted [overflow-wrap:anywhere]">{path}</span>
+            <span className="block truncate text-xs text-ink-muted">{shortenPath(path, PATH_COLUMNS)}</span>
           </div>
         ))
       )}

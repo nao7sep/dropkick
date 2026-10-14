@@ -17,6 +17,9 @@ const CSS_ELLIPSIS = [
 ];
 const CLASS_TRUNCATION: Record<string, number> = {
   "components/layout/TabBar.tsx": 1, // tab name: activating the tab titles the window with it
+  // Workspace name and path: Rename shows the name whole, and the selected
+  // workspace's whole path shows under the list.
+  "components/layout/StartupPicker.tsx": 2,
   // Task row: selecting it shows the title in the detail pane. Unified-view
   // list label: that list's tab titles the window with the whole name.
   "components/task-list/TaskListPane.tsx": 2,

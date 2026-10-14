@@ -77,6 +77,11 @@ const CARD_FRAME = "rounded-[var(--radius-card)] border";
 // whole, long paths included, and past a few lines scrolls inside the banner
 // rather than pushing the list down (interface-styling-conventions, Labels).
 const BANNER_TEXT = "min-w-0 flex-1 max-h-24 overflow-y-auto [overflow-wrap:anywhere]";
+// A banner with an action: the button floats at the top right and the text
+// flows around it and on under it, so a narrow sidebar keeps the text's full
+// width below the button instead of a thin column beside it.
+const BANNER_FLOW = "max-h-24 overflow-y-auto [overflow-wrap:anywhere] after:block after:clear-both after:content-['']";
+const BANNER_ACTION = "float-right mb-1 ml-3";
 const CARD_CLASS = `${CARD_FRAME} pb-1.5`;
 
 // Rows moved per PageUp/PageDown press. A fixed step rather than a measured
@@ -471,9 +476,14 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
         className="flex w-full shrink-0 items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium text-primary transition-colors duration-[var(--motion)] hover:bg-primary-surface active:bg-primary-surface-strong focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring"
       >
         <Plus size={14} className="shrink-0" />
-        <span className="min-w-0 text-left [overflow-wrap:anywhere]">{t("newTask.title")}</span>
-        <span className="ml-auto shrink-0 whitespace-nowrap text-primary">
-          {`${primaryModifierLabel}+N`}
+        {/* A control caption stays whole on one line (interface-styling-
+            conventions, Labels). In a narrow sidebar the shortcut hint gives
+            way instead: past the zero-width spacer it wraps onto a second
+            line the 16px row hides, so it shows whole or not at all. */}
+        <span className="shrink-0 whitespace-nowrap">{t("newTask.title")}</span>
+        <span className="ml-auto flex h-4 min-w-0 flex-wrap justify-end overflow-hidden text-primary">
+          <span aria-hidden="true" className="h-4 w-0" />
+          <span className="whitespace-nowrap">{`${primaryModifierLabel}+N`}</span>
         </span>
       </button>
 
@@ -494,30 +504,32 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
       {!isUnifiedView && unsavedFiles[filePath] && (
         <div
           role="alert"
-          className="flex shrink-0 items-start gap-3 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
+          className="shrink-0 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
         >
-          <span className={`${BANNER_TEXT} whitespace-pre-wrap`}>{i18n.text(unsavedFiles[filePath])}</span>
-          <Button size="sm" onClick={() => retryUnsaved([filePath])}>
-            {t("taskList.retry")}
-          </Button>
+          <div className={BANNER_FLOW}>
+            <Button size="sm" className={BANNER_ACTION} onClick={() => retryUnsaved([filePath])}>
+              {t("taskList.retry")}
+            </Button>
+            <span className="whitespace-pre-wrap">{i18n.text(unsavedFiles[filePath])}</span>
+          </div>
         </div>
       )}
       {isUnifiedView && unsavedNames.length > 0 && (
         <div
           role="alert"
-          className="flex shrink-0 items-start gap-3 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
+          className="shrink-0 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
         >
-          <span className={BANNER_TEXT}>
+          <div className={BANNER_FLOW}>
+            <Button size="sm" className={BANNER_ACTION} onClick={() => retryUnsaved()}>
+              {t("taskList.retry")}
+            </Button>
             {unsavedNames.length === 1
               ? t("unified.oneNotSaved", { name: shortenName(unsavedNames[0]) })
               : t("unified.manyNotSaved", {
                   count: unsavedNames.length,
                   names: nameFew(unsavedNames, namesFormat),
                 })}
-          </span>
-          <Button size="sm" onClick={() => retryUnsaved()}>
-            {t("taskList.retry")}
-          </Button>
+          </div>
         </div>
       )}
 
@@ -593,7 +605,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                 <span aria-hidden="true" className="flex h-4 w-4 shrink-0 items-center justify-center">
                   <span className="h-2 w-2 rounded-full bg-[var(--g-accent)]" />
                 </span>
-                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(label)}</span>
+                {/* A fixed group name may wrap in a narrow sidebar, but only
+                    where the language allows: a word too long for the line is
+                    hyphenated ("Auf-gaben"), never split at an arbitrary letter. */}
+                <span className="min-w-0 flex-1 hyphens-auto [overflow-wrap:break-word]">{t(label)}</span>
                 <span className="shrink-0 rounded-full bg-[var(--g-fg)] px-1.5 text-[11px] font-semibold leading-[18px] tracking-normal text-surface tabular-nums">
                   {i18n.number(groupTasks.length)}
                 </span>
