@@ -572,14 +572,14 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
             <div key={group} data-group={group} className={`${CARD_CLASS} ${GROUP_CARDS[group]}`}>
               {/* Sticks to the top of the scroll area within its own card, in the
-                  card's tint so rows pass cleanly beneath it. It sticks 1px
-                  above the scroll area's edge: the area can sit at a fractional
-                  offset, and WebKit then paints the stuck caption and the
-                  area's clip on different device pixels, leaving a one-pixel
-                  row of the task underneath showing above it. A heading a
-                  step above the rows' 14px, in sentence case at that size. */}
-              <div className="sticky -top-px z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-3.5 text-[15px] font-semibold">
-                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[var(--g-accent)]" />
+                  card's tint so rows pass cleanly beneath it. A heading a step
+                  above the rows' 14px, in sentence case at that size. */}
+              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-3.5 text-[15px] font-semibold">
+                {/* The dot sits centred in the Handled chevron's 16px box, so
+                    both line up at the same inset from the card's edge. */}
+                <span aria-hidden="true" className="flex h-4 w-4 shrink-0 items-center justify-center">
+                  <span className="h-2 w-2 rounded-full bg-[var(--g-accent)]" />
+                </span>
                 <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(label)}</span>
                 <span className="shrink-0 rounded-full bg-[var(--g-fg)] px-1.5 text-[11px] font-semibold leading-[18px] tracking-normal text-surface tabular-nums">
                   {i18n.number(groupTasks.length)}
