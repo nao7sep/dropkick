@@ -538,10 +538,10 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
 
       {/* Scrollable region holding the one composite listbox. Group headers
           stick to the top of this area as the list scrolls, just below the fixed
-          New Task button; the scroll padding is a stuck header's height (14px
-          padding each side of a 15px line), so a row scrolled into view by the
+          New Task button; the scroll padding is a stuck header's height (6px
+          padding each side of a 20px line), so a row scrolled into view by the
           keyboard lands below it rather than under it. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[52px]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[32px]">
         {/* The composite listbox: one tab stop spanning the active tasks and the
             Handled archive. Navigation is handled here and fires only while the
             list has focus. The Handled disclosure and "show more" are inside it as
@@ -559,7 +559,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           aria-activedescendant={activeDescendantId}
           tabIndex={0}
           onKeyDown={handleListKeyDown}
-          className="group flex flex-1 flex-col gap-2 p-2 focus:outline-none"
+          className="group flex flex-1 flex-col gap-1.5 p-1.5 focus:outline-none"
         >
           {/* Hidden handled rows do not fill the mandatory list body. Keep its
               folded archive available below while saying the active list is empty. */}
@@ -574,7 +574,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
               {/* Sticks to the top of the scroll area within its own card, in the
                   card's tint so rows pass cleanly beneath it. A heading a step
                   above the rows' 14px, in sentence case at that size. */}
-              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-3.5 text-[15px] font-semibold">
+              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-1.5 text-[15px] font-semibold leading-5">
                 {/* The dot sits centred in the Handled chevron's 16px box, so
                     both line up at the same inset from the card's edge. */}
                 <span aria-hidden="true" className="flex h-4 w-4 shrink-0 items-center justify-center">
@@ -622,7 +622,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
             <div className={`mt-auto ${handledExpanded ? CARD_CLASS : CARD_FRAME} ${GROUP_CARDS.Default}`}>
               <div
                 onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
-                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--radius-card)-1px)] px-3 py-3.5 text-[15px] font-semibold text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
+                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--radius-card)-1px)] px-3 py-1.5 text-[15px] font-semibold leading-5 text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
               >
                 <span className="flex items-center">
                   {handledExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -750,7 +750,7 @@ function TaskRow({
       // the group colour; selection is the accent fill; the keyboard cursor,
       // while the keyboard drives the list, is a ring on the active row
       // (composite-control-conventions).
-      className={`mx-1.5 mb-[5px] flex cursor-pointer last:mb-0 flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-2 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
+      className={`mx-1.5 mb-0.5 flex cursor-pointer last:mb-0 flex-wrap items-center gap-2 rounded-[var(--radius-sm)] py-1 pl-2 pr-3 text-ink transition-colors duration-[var(--motion)] ${
         isSelected
           ? "bg-primary-surface-strong hover:bg-selection-hover"
           : "bg-transparent hover:bg-[color-mix(in_srgb,var(--g-tint),var(--g-accent)_18%)]"
