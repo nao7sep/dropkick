@@ -35,6 +35,15 @@ export function onWindowFocused(listener: () => void): () => void {
   };
 }
 
+// Closes this window through the same path as its close button, so the main
+// window runs its own close flow.
+export function closeCurrentWindow(): void {
+  if (!isTauri()) return;
+  void getCurrentWindow()
+    .close()
+    .catch((error) => log.warn("window close failed", toErrorFields(error)));
+}
+
 export function installWindowActivity(root: Element = document.documentElement): void {
   if (!isTauri()) return;
   void getCurrentWindow()

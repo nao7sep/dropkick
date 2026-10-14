@@ -428,3 +428,16 @@ describe("noteEditorAction — platform text bindings", () => {
     ).toBe("save-actionable");
   });
 });
+
+describe("isCloseShortcut", () => {
+  it("matches Cmd+W and Ctrl+W, whatever the letter's case", async () => {
+    const { isCloseShortcut } = await import("../../src/utils/shortcuts");
+    const chord = (key: string, flags: Partial<{ metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }>) =>
+      ({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...flags });
+    expect(isCloseShortcut(chord("w", { metaKey: true }))).toBe(true);
+    expect(isCloseShortcut(chord("W", { ctrlKey: true }))).toBe(true);
+    expect(isCloseShortcut(chord("w", {}))).toBe(false);
+    expect(isCloseShortcut(chord("w", { metaKey: true, shiftKey: true }))).toBe(false);
+    expect(isCloseShortcut(chord("w", { ctrlKey: true, altKey: true }))).toBe(false);
+  });
+});

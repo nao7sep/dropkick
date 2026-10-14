@@ -10,6 +10,9 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve()) 
 const nativeWindow = vi.hoisted(() => ({ setTitle: vi.fn((_title: string) => Promise.resolve()) }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => nativeWindow }));
 
+const closeCurrentWindow = vi.hoisted(() => vi.fn());
+vi.mock("../../../src/repositories/window-activity", () => ({ closeCurrentWindow }));
+
 const records = vi.hoisted(() => ({
   readRecordsPage: vi.fn<(query: RecordsQuery) => Promise<RecordsPage>>(),
   readRecordDetail: vi.fn<(id: number) => Promise<RecordDetail | null>>(),
@@ -180,6 +183,23 @@ describe("RecordsWindow", () => {
     await act(async () => initial.resolve({ records: [error, warn], more: false }));
     expect(records.readRecordsPage).toHaveBeenCalledTimes(2);
     expect(messages()).toEqual(["view state updated", "command error", "window placement could not be loaded"]);
+  });
+
+  it("closes on Cmd/Ctrl+W as its close button would, and not on other W chords", async () => {
+    await render();
+    closeCurrentWindow.mockClear();
+    for (const chord of [{ metaKey: true }, { ctrlKey: true }]) {
+      await act(async () => {
+        document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true, cancelable: true, ...chord }));
+      });
+    }
+    expect(closeCurrentWindow).toHaveBeenCalledTimes(2);
+    for (const chord of [{}, { metaKey: true, shiftKey: true }, { ctrlKey: true, altKey: true }]) {
+      await act(async () => {
+        document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true, cancelable: true, ...chord }));
+      });
+    }
+    expect(closeCurrentWindow).toHaveBeenCalledTimes(2);
   });
 
   it("lists the records newest first, with nothing selected and every filter off", async () => {

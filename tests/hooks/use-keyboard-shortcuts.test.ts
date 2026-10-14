@@ -16,6 +16,9 @@ import { makeTask } from "../helpers/task";
 import { mount } from "../helpers/react-dom";
 import type { Mounted } from "../helpers/react-dom";
 
+const closeCurrentWindow = vi.hoisted(() => vi.fn());
+vi.mock("../../src/repositories/window-activity", () => ({ closeCurrentWindow, onWindowFocused: () => () => {} }));
+
 const FILE = "/tasks.json";
 const removeTasks = vi.fn();
 const setStatus = vi.fn();
@@ -152,5 +155,27 @@ describe("task deletion dispatch", () => {
     await press("Delete", { repeat: true });
 
     expect(removeTasks).not.toHaveBeenCalled();
+  });
+});
+
+// Cmd/Ctrl+W closes what is in front, the way its close button would
+// (keyboard-shortcut-conventions, Closing a window).
+describe("close shortcut", () => {
+  it("closes the current tab while one is open", async () => {
+    const closeTab = vi.fn(async () => {});
+    await act(async () => useWorkspaceStore.setState({ closeTab }));
+    closeCurrentWindow.mockClear();
+    await press("w", { metaKey: true, cancelable: true });
+    expect(closeTab).toHaveBeenCalledWith(0);
+    expect(closeCurrentWindow).not.toHaveBeenCalled();
+  });
+
+  it("closes the window itself when no tab is open", async () => {
+    await act(async () => useWorkspaceStore.setState({
+      workspace: { ...useWorkspaceStore.getState().workspace, openTabs: [], activeTabIndex: -1 },
+    }));
+    closeCurrentWindow.mockClear();
+    await press("w", { ctrlKey: true, cancelable: true });
+    expect(closeCurrentWindow).toHaveBeenCalledOnce();
   });
 });

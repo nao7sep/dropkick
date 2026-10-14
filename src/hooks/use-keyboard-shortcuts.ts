@@ -29,7 +29,9 @@ import {
   isOpenShortcutsHelpShortcut,
   tabCycleDirection,
   isTaskDeletionShortcut,
+  isCloseShortcut,
 } from "../utils";
+import { closeCurrentWindow } from "../repositories";
 import { isComposingEvent } from "./useComposing";
 import { useViewTasks } from "./useViewTasks";
 import { useTaskDeletion } from "./useTaskDeletion";
@@ -409,12 +411,15 @@ export function useKeyboardShortcuts(
       // still handled above as a global command. Ctrl+Tab tab cycling is
       // matched at the top of the handler, before the macOS Ctrl stand-down.
 
-      // --- Primary modifier + W: Close current tab ---
-      if (mod && matchesShortcutKey(e, "w")) {
+      // --- Primary modifier + W: Close the current tab, or with none the
+      // window itself, as its close button would ---
+      if (isCloseShortcut(e)) {
         e.preventDefault();
         const idx = workspace.activeTabIndex;
         if (idx >= 0 && idx < workspace.openTabs.length) {
           await closeTab(idx);
+        } else {
+          closeCurrentWindow();
         }
         return;
       }

@@ -18,6 +18,7 @@ export { computeGroup, toTask, toDto } from "./domain-mapping";
 export { singleLine, multiline } from "./textCleanup";
 export {
   hasPrimaryShortcutModifier,
+  isCloseShortcut,
   hasPointerCommandModifier,
   shadowsMacTextBinding,
   noteEditorAction,

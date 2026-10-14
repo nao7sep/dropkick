@@ -122,6 +122,14 @@ export function matchesShortcutKey(
   return eventKey === expected;
 }
 
+// Cmd/Ctrl+W closes what is in front, the way its close button would
+// (keyboard-shortcut-conventions, Closing a window): the main window's current
+// tab, or the key window itself. Bound in the page on both platforms, because
+// on Windows the framework's Close item binds only Alt+F4.
+export function isCloseShortcut(event: KeyChord): boolean {
+  return hasPrimaryShortcutModifier(event) && !event.shiftKey && matchesShortcutKey(event, "w");
+}
+
 // Cmd/Ctrl+, opens Settings — the platform-conventional settings shortcut.
 // The predicate already excludes Alt, so no per-chord altKey check remains.
 export function isOpenSettingsShortcut(event: KeyChord): boolean {

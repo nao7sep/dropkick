@@ -17,6 +17,8 @@ import {
   readRecordsPage,
 } from "../../repositories/records";
 import { log, toErrorFields } from "../../repositories/logging";
+import { closeCurrentWindow } from "../../repositories/window-activity";
+import { isCloseShortcut } from "../../utils/shortcuts";
 import {
   LEVEL_FILTER_LABELS,
   LEVEL_LABELS,
@@ -136,6 +138,19 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     () => new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium", timeZone: timeZone ?? undefined }),
     [locale, timeZone],
   );
+
+  // Cmd/Ctrl+W closes Records as its close button would, on both platforms
+  // (keyboard-shortcut-conventions, Closing a window); on Windows the
+  // framework's Close item binds only Alt+F4.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || !isCloseShortcut(event)) return;
+      event.preventDefault();
+      closeCurrentWindow();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // The window names itself in the interface language, and follows it.
   useEffect(() => {
