@@ -50,6 +50,7 @@
   "common.cancel": "취소",
   "common.untitled": "제목 없음",
   "common.andMore": "외 {count}개",
+  "common.andMoreLine": "외 {count}개",
   "common.lines": "{first}\n{rest}",
   "common.dismiss": "닫기",
   "common.dismissNamed": "“{title}” 닫기",

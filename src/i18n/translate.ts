@@ -38,6 +38,9 @@ export type Translator = {
   calendarDate: (year: number, month: number, day: number) => string;
   // Names run together the way the language lists them ("a, b, c").
   list: (items: readonly string[]) => string;
+  // The same with the language's "and" before the last ("a, b, and 2 more"),
+  // for a few named values followed by a count of the rest.
+  andList: (items: readonly string[]) => string;
 };
 
 // The language's catalogue must already be loaded (loadCatalogue).
@@ -53,6 +56,7 @@ export function createTranslator(language: Language, locale: string = language):
   const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();
   const calendarDateFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
   const listFormat = new Intl.ListFormat(locale, { type: "conjunction", style: "narrow" });
+  const andListFormat = new Intl.ListFormat(locale, { type: "conjunction", style: "long" });
   const pluralRules = new Intl.PluralRules(language);
 
   function template(key: MessageKey, values: MessageValues | undefined): string {
@@ -119,5 +123,6 @@ export function createTranslator(language: Language, locale: string = language):
     },
     calendarDate: (year, month, day) => calendarDateFormat.format(new Date(Date.UTC(year, month - 1, day))),
     list: (items) => listFormat.format(items),
+    andList: (items) => andListFormat.format(items),
   };
 }

@@ -9,6 +9,7 @@ import { useWorkspaceStore } from "../../state/workspace-store";
 import { usePreferencesStore } from "../../state/preferences-store";
 import { notSaved, type ActionResult } from "../../state";
 import {
+  passiveScrollRegionProps,
   statusAdvancesSelection,
   taskSelectionKey,
 } from "../../utils";
@@ -208,7 +209,15 @@ export function BulkActions({
         {t("bulk.selected", { count: selectedTasks.length })}
       </h3>
 
-      <SelectedTaskTitleList tasks={selectedTasks} />
+      {/* The titles are read whole, so they wrap; past a few they scroll in
+          their own area, as in the Move dialog, and the actions below stay
+          in place however many tasks are selected. */}
+      <div
+        {...passiveScrollRegionProps(t("moveTasks.selected"))}
+        className="max-h-48 overflow-y-auto"
+      >
+        <SelectedTaskTitleList tasks={selectedTasks} />
+      </div>
 
       {/* Status */}
       <div className="mt-6">

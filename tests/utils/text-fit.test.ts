@@ -3,7 +3,7 @@
 // message about several items names a few and counts the rest.
 import { describe, expect, it } from "vitest";
 import { createTranslator } from "../../src/i18n/translate";
-import { nameFew, shortenName, shortenPath } from "../../src/utils";
+import { nameFew, parentFolder, shortenName, shortenPath, textColumns } from "../../src/utils";
 
 describe("shortenName", () => {
   it("keeps a name that fits", () => {
@@ -15,7 +15,26 @@ describe("shortenName", () => {
   });
 
   it("never splits a character outside the basic plane", () => {
-    expect(shortenName("😀😀😀😀😀", 3)).toBe("😀😀…");
+    expect(shortenName("😀😀😀😀😀", 5)).toBe("😀😀…");
+  });
+});
+
+describe("textColumns", () => {
+  it("counts wide characters as two columns", () => {
+    expect(textColumns("abc")).toBe(3);
+    expect(textColumns("タスク")).toBe(6);
+  });
+
+  it("shortens Japanese at half the characters English keeps", () => {
+    expect(shortenName("あいうえおかきくけこ", 9)).toBe("あいうえ…");
+  });
+});
+
+describe("parentFolder", () => {
+  it("drops the file name", () => {
+    expect(parentFolder("/Users/me/tasks/work.json")).toBe("/Users/me/tasks");
+    expect(parentFolder("C:\\Users\\me\\work.json")).toBe("C:\\Users\\me");
+    expect(parentFolder("/work.json")).toBe("/");
   });
 });
 
@@ -47,21 +66,31 @@ describe("shortenPath", () => {
 describe("nameFew", () => {
   const en = createTranslator("en");
   const format = {
-    list: (items: readonly string[]) => en.list(items),
+    list: (items: readonly string[]) => en.andList(items),
     more: (count: number) => en.t("common.andMore", { count }),
   };
 
   it("names every value when there are only a few", () => {
-    expect(nameFew(["Work", "Home"], format)).toBe("Work, Home");
+    expect(nameFew(["Work", "Home"], format)).toBe("Work and Home");
   });
 
   it("names three and counts the rest", () => {
     expect(nameFew(["A", "B", "C", "D", "E"], format)).toBe("A, B, C, and 2 more");
   });
 
+  it("puts the language's own word before the count", async () => {
+    const { loadCatalogue } = await import("../../src/i18n/catalogues");
+    await loadCatalogue("de");
+    const de = createTranslator("de");
+    expect(nameFew(["A", "B", "C", "D", "E"], {
+      list: (items) => de.andList(items),
+      more: (count) => de.t("common.andMore", { count }),
+    })).toBe("A, B, C und 2 weitere");
+  });
+
   it("shortens each named value", () => {
     expect(nameFew(["A list whose name goes on and on without end", "B"], format))
-      .toBe("A list whose name goes on and o…, B");
+      .toBe("A list whose name goes on and o… and B");
   });
 });
 

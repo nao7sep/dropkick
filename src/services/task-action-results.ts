@@ -38,6 +38,6 @@ export function describeTaskActionFailures(
     message("task.failureLine", { title: shortenName(task.title) || message("common.untitled"), reason }),
   );
   const rest = failures.length - lines.length;
-  if (rest > 0) lines.push(message("common.andMore", { count: rest }));
+  if (rest > 0) lines.push(message("common.andMoreLine", { count: rest }));
   return lines.reduceRight((rest, first) => message("common.lines", { first, rest }));
 }

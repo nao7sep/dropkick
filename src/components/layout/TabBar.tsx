@@ -4,7 +4,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle, ScrollText, ZoomIn } from "lucide-react";
-import { shortenPath, singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
+import { parentFolder, shortenPath, singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { useCalendarDay } from "../../hooks/useCalendarDay";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
@@ -50,6 +50,8 @@ const TAB_POINTER_SENSOR = PointerSensor.configure({
 // Menu items are inset, rounded rows with independent hover and keyboard
 // emphasis (App.css `dk-menu-item` and the local CommandMenu integration).
 const MENU_ITEM_CLASS = "dk-menu-item";
+// Columns of 12px text that fit a Recent entry inside the menu's 20rem cap.
+const RECENT_FOLDER_COLUMNS = 44;
 const MENU_ITEM_ICON_CLASS = "dk-menu-item";
 
 interface TabBarProps {
@@ -478,10 +480,12 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         <span className="dk-menu-text block">
                           {fileNameWithoutExt(r.filePath)}
                         </span>
-                        {/* The path keeps its root and file and loses its
-                            middle; the name above identifies the list. */}
+                        {/* The name above identifies the list; this line says
+                            where it is: its folder, keeping the folder's own
+                            name and losing the middle, sized to the menu's
+                            width cap. */}
                         <span className="dk-menu-text block text-xs text-ink-muted">
-                          {shortenPath(r.filePath)}
+                          {shortenPath(parentFolder(r.filePath), RECENT_FOLDER_COLUMNS)}
                         </span>
                       </DropdownMenu.Item>
                     ))}

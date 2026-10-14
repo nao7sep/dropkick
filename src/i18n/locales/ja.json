@@ -50,6 +50,7 @@
   "common.cancel": "キャンセル",
   "common.untitled": "無題",
   "common.andMore": "ほか{count}件",
+  "common.andMoreLine": "ほか{count}件",
   "common.lines": "{first}\n{rest}",
   "common.dismiss": "閉じる",
   "common.dismissNamed": "「{title}」を閉じる",

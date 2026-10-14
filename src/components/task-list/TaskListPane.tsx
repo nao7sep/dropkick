@@ -90,7 +90,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   // Banners about several lists name a few and count the rest; each named
   // list's own tab carries its alert, so the whole set stays reachable.
   const namesFormat = {
-    list: (items: readonly string[]) => i18n.list(items),
+    list: (items: readonly string[]) => i18n.andList(items),
     more: (count: number) => t("common.andMore", { count }),
   };
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
@@ -863,8 +863,10 @@ function LoadErrorPane({
 }) {
   const { t, text } = useI18n();
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-[var(--radius-card)] border border-danger-border bg-danger-surface p-5 text-sm">
+    // The card centres with auto margins inside a scrolling pane, so a long
+    // message or path scrolls whole instead of being cut at the top.
+    <div className="flex min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="m-auto w-full max-w-sm rounded-[var(--radius-card)] border border-danger-border bg-danger-surface p-5 text-sm">
         <div className="mb-3 font-semibold text-danger-fg-strong">
           {t("taskList.loadFailed")}
         </div>
@@ -872,7 +874,9 @@ function LoadErrorPane({
         <p className="mt-3 text-xs text-danger [overflow-wrap:anywhere]">
           {filePath}
         </p>
-        <div className="mt-4 flex gap-2">
+        {/* Wraps in a narrow sidebar or a long language, each button whole,
+            rather than pushing the second button past the card's edge. */}
+        <div className="mt-4 flex flex-wrap gap-2">
           {/* Retrying and closing the tab destroy nothing, so neither is red:
               the card says what went wrong, the buttons are ordinary roles. */}
           <Button variant="primary" onClick={onRetry}>

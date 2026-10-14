@@ -71,4 +71,4 @@ export {
 } from "./windowSizing";
 
 export { groupMoveBySource } from "./bulk-status";
-export { NAMED_FEW, shortenName, shortenPath, nameFew } from "./textFit";
+export { NAMED_FEW, shortenName, shortenPath, nameFew, parentFolder, textColumns } from "./textFit";
