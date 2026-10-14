@@ -4,7 +4,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Layout, FileText, Menu, Settings, Keyboard, Info, Minus, AlertCircle, ScrollText, ZoomIn } from "lucide-react";
-import { singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
+import { shortenPath, singleLine, stepZoomIn, stepZoomOut, ZOOM_DEFAULT } from "../../utils";
 import { useCalendarDay } from "../../hooks/useCalendarDay";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
@@ -478,8 +478,10 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                         <span className="dk-menu-text block">
                           {fileNameWithoutExt(r.filePath)}
                         </span>
+                        {/* The path keeps its root and file and loses its
+                            middle; the name above identifies the list. */}
                         <span className="dk-menu-text block text-xs text-ink-muted">
-                          {r.filePath}
+                          {shortenPath(r.filePath)}
                         </span>
                       </DropdownMenu.Item>
                     ))}

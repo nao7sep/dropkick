@@ -1,6 +1,7 @@
 import type { Task } from "../models";
 import type { ActionResult } from "../state";
 import { message, type Message } from "../i18n/translate";
+import { NAMED_FEW, shortenName } from "../utils";
 
 export interface TaskActionFailure {
   task: Task;
@@ -27,12 +28,16 @@ export function collectTaskActionFailures(
   return failures;
 }
 
-// One line per failed task, "title: reason".
+// One line per failed task, "title: reason", for the first few; the rest are
+// counted (interface-styling-conventions, Labels). The failed tasks stay
+// selected, so the whole set is reachable in the list.
 export function describeTaskActionFailures(
   failures: readonly TaskActionFailure[],
 ): Message {
-  const lines = failures.map(({ task, reason }) =>
-    message("task.failureLine", { title: task.title || message("common.untitled"), reason }),
+  const lines = failures.slice(0, NAMED_FEW).map(({ task, reason }) =>
+    message("task.failureLine", { title: shortenName(task.title) || message("common.untitled"), reason }),
   );
+  const rest = failures.length - lines.length;
+  if (rest > 0) lines.push(message("common.andMore", { count: rest }));
   return lines.reduceRight((rest, first) => message("common.lines", { first, rest }));
 }

@@ -49,6 +49,7 @@
   "common.ok": "确定",
   "common.cancel": "取消",
   "common.untitled": "无标题",
+  "common.andMore": "以及另外 {count} 个",
   "common.lines": "{first}\n{rest}",
   "common.dismiss": "关闭",
   "common.dismissNamed": "关闭“{title}”",

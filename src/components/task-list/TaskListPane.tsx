@@ -13,6 +13,8 @@ import {
   primaryModifierLabel,
   taskSelectionKey,
   rowDomId,
+  nameFew,
+  shortenName,
   stepIndex,
   pageStepIndex,
   rangeKeysBetween,
@@ -70,6 +72,11 @@ const GROUP_CARDS: Record<TaskGroup, string> = {
 // bottom padding (6px) matches the rows' side inset, so a hovered or selected
 // last row's fill sits the same distance from the card's edge on every side.
 const CARD_FRAME = "rounded-[var(--radius-card)] border";
+
+// A banner's message is text to be read, so it is never shortened: it wraps
+// whole, long paths included, and past a few lines scrolls inside the banner
+// rather than pushing the list down (interface-styling-conventions, Labels).
+const BANNER_TEXT = "min-w-0 flex-1 max-h-24 overflow-y-auto [overflow-wrap:anywhere]";
 const CARD_CLASS = `${CARD_FRAME} pb-1.5`;
 
 // Rows moved per PageUp/PageDown press. A fixed step rather than a measured
@@ -80,6 +87,12 @@ const LIST_PAGE = 10;
 export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPaneProps) {
   const i18n = useI18n();
   const { t } = i18n;
+  // Banners about several lists name a few and count the rest; each named
+  // list's own tab carries its alert, so the whole set stays reachable.
+  const namesFormat = {
+    list: (items: readonly string[]) => i18n.list(items),
+    more: (count: number) => t("common.andMore", { count }),
+  };
   const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
@@ -471,7 +484,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           role="alert"
           className="flex shrink-0 items-start border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
         >
-          <span>{i18n.text(describeDiskFailure(fileDiskError))}</span>
+          <span className={BANNER_TEXT}>{i18n.text(describeDiskFailure(fileDiskError))}</span>
         </div>
       )}
 
@@ -483,7 +496,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           role="alert"
           className="flex shrink-0 items-start gap-3 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
         >
-          <span className="min-w-0 flex-1 whitespace-pre-wrap">{i18n.text(unsavedFiles[filePath])}</span>
+          <span className={`${BANNER_TEXT} whitespace-pre-wrap`}>{i18n.text(unsavedFiles[filePath])}</span>
           <Button size="sm" onClick={() => retryUnsaved([filePath])}>
             {t("taskList.retry")}
           </Button>
@@ -494,12 +507,12 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           role="alert"
           className="flex shrink-0 items-start gap-3 border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong"
         >
-          <span className="min-w-0 flex-1">
+          <span className={BANNER_TEXT}>
             {unsavedNames.length === 1
-              ? t("unified.oneNotSaved", { name: unsavedNames[0] })
+              ? t("unified.oneNotSaved", { name: shortenName(unsavedNames[0]) })
               : t("unified.manyNotSaved", {
                   count: unsavedNames.length,
-                  names: i18n.list(unsavedNames),
+                  names: nameFew(unsavedNames, namesFormat),
                 })}
           </span>
           <Button size="sm" onClick={() => retryUnsaved()}>
@@ -514,12 +527,12 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           retry pane when opened. */}
       {isUnifiedView && unifiedLoad.failedNames.length > 0 && (
         <div className="flex shrink-0 items-start border-b border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-fg-strong">
-          <span>
+          <span className={BANNER_TEXT}>
             {unifiedLoad.failedNames.length === 1
-              ? t("unified.oneFailed", { name: unifiedLoad.failedNames[0] })
+              ? t("unified.oneFailed", { name: shortenName(unifiedLoad.failedNames[0]) })
               : t("unified.manyFailed", {
                   count: unifiedLoad.failedNames.length,
-                  names: i18n.list(unifiedLoad.failedNames),
+                  names: nameFew(unifiedLoad.failedNames, namesFormat),
                 })}
           </span>
         </div>

@@ -49,6 +49,7 @@
   "common.ok": "OK",
   "common.cancel": "Abbrechen",
   "common.untitled": "Ohne Titel",
+  "common.andMore": "und {count} weitere",
   "common.lines": "{first}\n{rest}",
   "common.dismiss": "Schließen",
   "common.dismissNamed": "„{title}“ schließen",

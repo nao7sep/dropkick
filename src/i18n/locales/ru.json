@@ -49,6 +49,7 @@
   "common.ok": "ОК",
   "common.cancel": "Отменить",
   "common.untitled": "Без названия",
+  "common.andMore": "и ещё {count}",
   "common.lines": "{first}\n{rest}",
   "common.dismiss": "Закрыть",
   "common.dismissNamed": "Закрыть «{title}»",

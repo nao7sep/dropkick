@@ -49,6 +49,7 @@
   "common.ok": "OK",
   "common.cancel": "Annuler",
   "common.untitled": "Sans titre",
+  "common.andMore": "et {count} autres",
   "common.lines": "{first}\n{rest}",
   "common.dismiss": "Fermer",
   "common.dismissNamed": "Fermer «\u00a0{title}\u00a0»",

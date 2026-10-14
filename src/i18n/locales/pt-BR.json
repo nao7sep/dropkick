@@ -49,6 +49,7 @@
   "common.ok": "OK",
   "common.cancel": "Cancelar",
   "common.untitled": "Sem título",
+  "common.andMore": "e mais {count}",
   "common.lines": "{first}\n{rest}",
   "common.dismiss": "Dispensar",
   "common.dismissNamed": "Dispensar “{title}”",
