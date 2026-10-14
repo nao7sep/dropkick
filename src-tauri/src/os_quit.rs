@@ -15,7 +15,13 @@
 //! so the app exited without the webview ever hearing of it; this module adds
 //! that method to tao's application delegate. On Windows tao answers
 //! WM_ENDSESSION by ending the event loop, so the window is asked earlier, at
-//! WM_QUERYENDSESSION, while the session can still wait.
+//! WM_QUERYENDSESSION, while the session can still wait. tao's hidden
+//! event-target window calls process::exit on WM_ENDSESSION, but Windows sends
+//! WM_ENDSESSION only after every window has answered WM_QUERYENDSESSION, and
+//! the main window answers only once its writes settle or the bound passes, so
+//! that exit cannot overtake the save whichever window hears first. The same
+//! exit runs the app's exit tail first (tao's loop_destroyed), which saves
+//! window placement.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;

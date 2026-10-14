@@ -1059,6 +1059,12 @@ fn reopen_main(app: &AppHandle) {
     }
 }
 
+// The app's generated context, built in one place: macOS embeds its
+// Info.plist once per binary, so a second expansion (a test app) conflicts.
+fn context() -> tauri::Context<tauri::Wry> {
+    tauri::generate_context!()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Developer-only `debug` logging: on for a dev build, or when explicitly
@@ -1203,7 +1209,7 @@ pub fn run() {
             read_record_detail,
             session_end_settled
         ])
-        .build(tauri::generate_context!())
+        .build(context())
         .expect("error while building tauri application");
 
     app.run(move |app_handle, event| {

@@ -176,3 +176,54 @@ fn the_grab_area_scales_with_the_display() {
     assert!(super::grabbable(rectangle(3024 - 192, 100, 1600, 1000), &retina));
     assert!(!super::grabbable(rectangle(3024 - 100, 100, 1600, 1000), &retina));
 }
+
+// Whether tao reports a move or resize while maximizing before its maximized
+// flag reads true, so a maximized frame would be sampled as the normal
+// rectangle and Restore after relaunch would reopen at the maximized size.
+// Only a real window answers it, and only Windows keeps the maximized flag for
+// relaunch; the body compiles on the Mac so it stays type-checked there.
+#[test]
+#[cfg_attr(not(windows), ignore = "Windows only: maximizes a real window through tao")]
+fn maximizing_keeps_the_latest_normal_rectangle() {
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        use super::{on_window_event, state_value, WindowPlacements};
+        use std::sync::mpsc;
+        use std::time::Duration;
+        use tauri::Manager;
+
+        let builder = tauri::Builder::default()
+            .manage(WindowPlacements::new())
+            .on_window_event(|window, event| {
+                on_window_event(window, event, &window.state::<WindowPlacements>());
+            });
+        #[cfg(windows)]
+        let builder = builder.any_thread();
+        let app = builder.build(crate::context()).expect("test app builds");
+        let handle = app.handle().clone();
+        let (report, outcome) = mpsc::channel();
+        std::thread::spawn(move || {
+            let pause = || std::thread::sleep(Duration::from_millis(800));
+            pause();
+            let window = handle.get_webview_window("main").expect("the configured main window");
+            window.show().unwrap();
+            window.set_position(PhysicalPosition::new(120, 140)).unwrap();
+            window.set_size(PhysicalSize::new(820u32, 610u32)).unwrap();
+            pause();
+            let placements = handle.state::<WindowPlacements>();
+            let before = state_value(&placements.main);
+            window.maximize().unwrap();
+            pause();
+            let after = state_value(&placements.main);
+            let _ = report.send((before, after, window.is_maximized().unwrap_or(false)));
+            handle.exit(0);
+        });
+        app.run_return(|_, _| {});
+        let (before, after, maximized) = outcome.recv().expect("the window reported its placements");
+        let before = before.expect("a normal sample before maximizing");
+        let after = after.expect("a sample after maximizing");
+        assert!(maximized, "the window maximized");
+        assert_eq!(after.normal, before.normal, "maximizing replaced the normal rectangle");
+        assert!(after.maximized, "Windows remembers the maximized state");
+    }
+}
