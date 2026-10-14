@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { isComposingEvent } from "../../hooks/useComposing";
 import { passiveScrollRegionProps } from "../../utils";
@@ -91,7 +91,18 @@ export function AppModal({
 }: AppModalProps) {
   const { t } = useI18n();
   const contentRef = useRef<HTMLDivElement>(null);
-  const { onOpenAutoFocus, ...restContentProps } = contentProps ?? {};
+  const { onOpenAutoFocus, onCloseAutoFocus, ...restContentProps } = contentProps ?? {};
+  // What held focus when the modal opened, read during the first render,
+  // before Radix moves focus inside. Every surface here opens from code, never
+  // from a Dialog.Trigger, and Radix returns focus on close only to a trigger,
+  // so without this focus fell to the page and the invoker lost the keyboard:
+  // a task list that asked to delete a task stopped answering arrows until
+  // clicked (modal-dialog-conventions: restore focus on close).
+  const [invoker] = useState(() =>
+    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null,
+  );
 
   // When a close guard is active, Escape and outside-click are intercepted and
   // routed through onRequestClose instead of triggering the default dismiss.
@@ -189,6 +200,15 @@ export function AppModal({
             // who opened this with the mouse never asked for one. It stays
             // reachable, and rings correctly, on a deliberate Tab.
             contentRef.current?.focus();
+          }}
+          onCloseAutoFocus={(e) => {
+            onCloseAutoFocus?.(e);
+            if (e.defaultPrevented) return;
+            // A removed invoker (a menu item, a row that left) falls back to
+            // Radix's default.
+            if (!invoker?.isConnected) return;
+            e.preventDefault();
+            invoker.focus({ preventScroll: true });
           }}
           {...escapeAndOutsideHandlers}
           {...restContentProps}

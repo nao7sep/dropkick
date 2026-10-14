@@ -283,3 +283,24 @@ describe("the surface's own bands", () => {
     expect(bands[2].className).toContain("shrink-0");
   });
 });
+
+// Every dialog here opens from code, with no Radix trigger to return to, so the
+// modal itself must hand focus back: a task list that asked to delete a task
+// keeps answering arrows once the confirmation closes.
+describe("focus on close", () => {
+  it("returns focus to what held it when the dialog opened", async () => {
+    const list = document.createElement("div");
+    list.tabIndex = 0;
+    document.body.appendChild(list);
+    list.focus();
+    let answer!: Promise<boolean>;
+    await open(() => { answer = showAppConfirm(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"), { confirmLabel: message("dialog.delete") }); });
+    expect(document.activeElement).not.toBe(list);
+    await answerCurrent("confirm");
+    await expect(answer).resolves.toBe(true);
+    // Radix settles close focus on a timer after unmount.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(document.activeElement).toBe(list);
+    list.remove();
+  });
+});
