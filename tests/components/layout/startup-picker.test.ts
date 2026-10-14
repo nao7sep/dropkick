@@ -302,7 +302,7 @@ describe("StartupPicker — the workspace list", () => {
     expect(options.map((o) => o.textContent)).toEqual(["Alpha/a/ws.json", "gone/c/gone.json"]);
   });
 
-  it("keeps long paths to one line and shows the selected workspace's whole path", async () => {
+  it("keeps long paths to one line, keeping their root and file", async () => {
     const deep = "/Users/me/Documents/Clients and Projects/Long Term Planning 2026/Research and Development/Workspaces/ws.json";
     useAppConfigStore.setState({ appConfig: { knownWorkspaces: [] }, filePath: "/home/config.json", loaded: true });
     await mountWithKnownFiles();
@@ -310,9 +310,8 @@ describe("StartupPicker — the workspace list", () => {
     await act(async () => {});
     const option = workspaceListbox().querySelector('[role="option"]')!;
     expect(option.textContent).toContain("/Users/…/");
-    expect(option.textContent).not.toContain("Research and Development/Workspaces/ws.json/");
-    await act(async () => (option as HTMLElement).click());
-    expect([...document.querySelectorAll("p")].some((p) => p.textContent === deep)).toBe(true);
+    expect(option.textContent).toContain("/ws.json");
+    expect(option.textContent).not.toContain("Clients and Projects");
   });
 
   it("opens the selected workspace with Enter on the list or a double-click", async () => {

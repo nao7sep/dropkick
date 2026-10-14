@@ -605,10 +605,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
                 <span aria-hidden="true" className="flex h-4 w-4 shrink-0 items-center justify-center">
                   <span className="h-2 w-2 rounded-full bg-[var(--g-accent)]" />
                 </span>
-                {/* A fixed group name may wrap in a narrow sidebar, but only
-                    where the language allows: a word too long for the line is
-                    hyphenated ("Auf-gaben"), never split at an arbitrary letter. */}
-                <span className="min-w-0 flex-1 hyphens-auto [overflow-wrap:break-word]">{t(label)}</span>
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(label)}</span>
                 <span className="shrink-0 rounded-full bg-[var(--g-fg)] px-1.5 text-[11px] font-semibold leading-[18px] tracking-normal text-surface tabular-nums">
                   {i18n.number(groupTasks.length)}
                 </span>

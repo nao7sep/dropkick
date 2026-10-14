@@ -254,9 +254,6 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
               onRenameCancel={endRename}
               listboxRef={listboxRef}
             />
-            {selected && (
-              <p className="text-xs text-ink-muted [overflow-wrap:anywhere]">{selected}</p>
-            )}
             <div className="flex flex-wrap justify-end gap-2">
               <Button size="sm" disabled={!selected || renaming !== null} onClick={startRename}>
                 <Pencil size={14} />
@@ -402,8 +399,8 @@ function WorkspaceList({
               />
             ) : (
               // Identifying text, one line each: the name keeps its beginning
-              // and the path its root and file. The selected workspace's whole
-              // path shows under the list, and Rename shows its whole name.
+              // and the path its root and file, which tell workspaces apart;
+              // Rename shows the whole name.
               <span className={`block truncate text-sm font-medium ${selected === path ? "text-primary-hover" : "text-ink"}`}>
                 {nameOf(path)}
               </span>
