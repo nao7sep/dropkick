@@ -8,6 +8,7 @@
   "settings.saveFailed": "Die Einstellungen konnten nicht gespeichert werden. Ihre Änderungen sind noch vorhanden; versuchen Sie es erneut.",
   "settings.theme": "Design",
   "settings.themeSystem": "System",
+  "settings.themeSystemNow": "System ({theme})",
   "settings.themeLight": "Hell",
   "settings.themeDark": "Dunkel",
   "settings.themeHint": "„System“ folgt dem Erscheinungsbild des Betriebssystems.",

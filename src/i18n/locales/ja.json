@@ -8,6 +8,7 @@
   "settings.saveFailed": "設定を保存できませんでした。変更内容はそのまま残っています。もう一度お試しください。",
   "settings.theme": "テーマ",
   "settings.themeSystem": "システム",
+  "settings.themeSystemNow": "システム（{theme}）",
   "settings.themeLight": "ライト",
   "settings.themeDark": "ダーク",
   "settings.themeHint": "「システム」は OS の外観設定に従います。",

@@ -8,6 +8,7 @@
   "settings.saveFailed": "Impossible d’enregistrer les réglages. Vos modifications sont toujours là\u00a0; réessayez.",
   "settings.theme": "Thème",
   "settings.themeSystem": "Système",
+  "settings.themeSystemNow": "Système ({theme})",
   "settings.themeLight": "Clair",
   "settings.themeDark": "Sombre",
   "settings.themeHint": "«\u00a0Système\u00a0» suit l’apparence du système d’exploitation.",

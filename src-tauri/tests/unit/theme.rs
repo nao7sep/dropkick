@@ -132,3 +132,11 @@ fn an_unmarked_or_newer_selected_file_is_not_previewed() {
     assert_eq!(read_saved_window_theme(&state), None);
     assert_eq!(fs::read_to_string(&state).expect("read state"), newer_state);
 }
+
+// The OS appearance is read from the OS setting itself, so it answers on both
+// supported platforms whatever theme a window is held to.
+#[test]
+#[cfg_attr(not(any(target_os = "macos", windows)), ignore = "macOS and Windows only: reads the OS appearance setting")]
+fn system_theme_reads_the_os_appearance() {
+    assert!(matches!(super::system_theme(), Some("light") | Some("dark")));
+}

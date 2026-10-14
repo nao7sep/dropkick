@@ -8,6 +8,7 @@
   "settings.saveFailed": "Settings could not be saved. Your changes are still here; try again.",
   "settings.theme": "Theme",
   "settings.themeSystem": "System",
+  "settings.themeSystemNow": "System ({theme})",
   "settings.themeLight": "Light",
   "settings.themeDark": "Dark",
   "settings.themeHint": "System follows the OS appearance.",

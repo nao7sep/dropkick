@@ -96,3 +96,71 @@ pub fn apply(window: &WebviewWindow, theme: Option<Theme>) -> Result<(), String>
 #[cfg(test)]
 #[path = "../tests/unit/theme.rs"]
 mod tests;
+
+/// The OS appearance right now, whatever theme this window is held to: the
+/// Settings "System" entry names what it would resolve to (app-chrome
+/// conventions, Theme). The window's own theme cannot say, because a Light or
+/// Dark choice overrides it, so this asks the OS setting itself. `None` where
+/// the platform has no such setting to read.
+pub fn system_theme() -> Option<&'static str> {
+    platform_system_theme()
+}
+
+// macOS keeps the current appearance in the global AppleInterfaceStyle
+// default: "Dark" while dark (also when switching automatically), absent while
+// light.
+#[cfg(target_os = "macos")]
+fn platform_system_theme() -> Option<&'static str> {
+    use objc2_foundation::{NSString, NSUserDefaults};
+    let style = NSUserDefaults::standardUserDefaults().stringForKey(&NSString::from_str("AppleInterfaceStyle"));
+    Some(match style {
+        Some(style) if style.to_string() == "Dark" => "dark",
+        _ => "light",
+    })
+}
+
+// Windows keeps it as the AppsUseLightTheme DWORD under the current user's
+// Personalize key: 0 for dark, 1 (or absent) for light.
+#[cfg(windows)]
+fn platform_system_theme() -> Option<&'static str> {
+    use std::ffi::c_void;
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn RegGetValueW(
+            key: isize,
+            sub_key: *const u16,
+            value: *const u16,
+            flags: u32,
+            kind: *mut u32,
+            data: *mut c_void,
+            data_len: *mut u32,
+        ) -> i32;
+    }
+    // HKEY_CURRENT_USER is ((HKEY)(ULONG_PTR)((LONG)0x80000001)), sign-extended.
+    const HKEY_CURRENT_USER: isize = 0x8000_0001_u32 as i32 as isize;
+    const RRF_RT_REG_DWORD: u32 = 0x0000_0010;
+    let wide = |text: &str| text.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+    let sub_key = wide("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+    let value = wide("AppsUseLightTheme");
+    let mut data: u32 = 1;
+    let mut len = std::mem::size_of::<u32>() as u32;
+    // SAFETY: both names are NUL-terminated and outlive the call; the buffer is
+    // a DWORD and its size is passed.
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            sub_key.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_DWORD,
+            std::ptr::null_mut(),
+            (&mut data as *mut u32).cast(),
+            &mut len,
+        )
+    };
+    Some(if status == 0 && data == 0 { "dark" } else { "light" })
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+fn platform_system_theme() -> Option<&'static str> {
+    None
+}

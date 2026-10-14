@@ -8,6 +8,7 @@
   "settings.saveFailed": "No se pudo guardar la configuración. Tus cambios siguen aquí; inténtalo de nuevo.",
   "settings.theme": "Tema",
   "settings.themeSystem": "Sistema",
+  "settings.themeSystemNow": "Sistema ({theme})",
   "settings.themeLight": "Claro",
   "settings.themeDark": "Oscuro",
   "settings.themeHint": "«Sistema» sigue la apariencia del sistema operativo.",

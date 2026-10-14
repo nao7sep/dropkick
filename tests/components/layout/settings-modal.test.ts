@@ -10,6 +10,12 @@ import { usePreferencesStore } from "../../../src/state/preferences-store";
 import { mount } from "../../helpers/react-dom";
 import type { Mounted } from "../../helpers/react-dom";
 
+const osTheme = vi.hoisted(() => ({ current: null as "light" | "dark" | null }));
+vi.mock("../../../src/repositories/window-theme", () => ({
+  applyWindowTheme: vi.fn(async () => {}),
+  readSystemTheme: vi.fn(async () => osTheme.current),
+}));
+
 const update = vi.fn();
 const onClose = vi.fn();
 let host: Mounted;
@@ -45,6 +51,20 @@ describe("SettingsModal theme", () => {
     ]);
     expect(new Set(radios.map((radio) => radio.name))).toEqual(new Set(["theme"]));
     expect(radios.find((radio) => radio.checked)?.value).toBe("system");
+  });
+
+  it("names what System resolves to now, as the time zone's System does", async () => {
+    await host.unmount();
+    osTheme.current = "dark";
+    host = await mount(createElement(SettingsModal, { onClose }));
+    await act(async () => {});
+    const radios = [...document.querySelectorAll<HTMLInputElement>('input[name="theme"]')];
+    expect(radios.map((radio) => radio.parentElement?.textContent?.trim())).toEqual([
+      "System (Dark)",
+      "Light",
+      "Dark",
+    ]);
+    osTheme.current = null;
   });
 
   it("stages the theme until Save, like every other field", async () => {

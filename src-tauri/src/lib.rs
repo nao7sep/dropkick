@@ -912,6 +912,12 @@ pub struct LanguageEnvironment {
     system_locale: Option<String>,
 }
 
+// What the System theme resolves to right now, for the Settings label.
+#[tauri::command]
+fn system_theme() -> Option<&'static str> {
+    theme::system_theme()
+}
+
 #[tauri::command]
 fn language_environment(language: State<i18n::LanguageState>) -> LanguageEnvironment {
     LanguageEnvironment {
@@ -1193,6 +1199,7 @@ pub fn run() {
             apply_language,
             apply_theme,
             language_environment,
+            system_theme,
             hash_file,
             read_json_file_with_hash,
             read_text_file,

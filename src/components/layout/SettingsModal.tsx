@@ -1,7 +1,8 @@
 // Settings modal — edits preferences (font, timezone, kick distances, etc.).
 // Opens from the hamburger menu in the tab bar. Changes are staged locally and saved only on "Save".
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { readSystemTheme } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import {
   DUE_SOON_DAYS_DEFAULT,
@@ -48,6 +49,18 @@ interface SettingsModalProps {
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
+  // System names what it resolves to now, as the time zone's System does
+  // (app-chrome-conventions, Theme).
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark" | null>(null);
+  useEffect(() => {
+    let current = true;
+    void readSystemTheme().then((theme) => {
+      if (current) setSystemTheme(theme);
+    });
+    return () => {
+      current = false;
+    };
+  }, []);
   const update = usePreferencesStore((s) => s.update);
   const composing = useComposing();
   const { t, text } = useI18n();
@@ -188,7 +201,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 checked={draft.theme === value}
                 onChange={() => setField("theme", value)}
               />
-              {t(label)}
+              {value === "system" && systemTheme
+                ? t("settings.themeSystemNow", {
+                    theme: t(systemTheme === "dark" ? "settings.themeDark" : "settings.themeLight"),
+                  })
+                : t(label)}
             </label>
           ))}
         </div>
