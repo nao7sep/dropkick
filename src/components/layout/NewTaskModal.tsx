@@ -58,6 +58,7 @@ export function NewTaskModal({
   const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [targetError, setTargetError] = useState(false);
+  const [titleError, setTitleError] = useState(false);
   const { t, text } = useI18n();
   const [actionError, setActionError] = useState<Message | null>(null);
 
@@ -68,7 +69,10 @@ export function NewTaskModal({
   const autoGrowTitle = useAutoGrow(titleRef);
   const autoGrowDesc = useAutoGrow(descRef);
 
-  const canCreate = targetFile !== "" && fileTabs.length > 0;
+  // A task needs a title: one created without it could not be told apart
+  // from its neighbours in the list.
+  const cleanTitle = singleLine(title, { minify: true });
+  const canCreate = targetFile !== "" && fileTabs.length > 0 && cleanTitle !== "";
 
   const isDirty = useMemo(
     () =>
@@ -90,6 +94,9 @@ export function NewTaskModal({
       if (fileTabs.length > 0 && targetFile === "") {
         setTargetError(true);
         targetSelectRef.current?.focus();
+      } else if (cleanTitle === "") {
+        setTitleError(true);
+        titleRef.current?.focus();
       }
       return;
     }
@@ -99,7 +106,7 @@ export function NewTaskModal({
     setActionError(null);
     try {
       const result = await addNewTask(targetFile, {
-        title: singleLine(title, { minify: true }),
+        title: cleanTitle,
         description: multiline(description),
         priority,
         dueDate,
@@ -259,9 +266,12 @@ export function NewTaskModal({
         <textarea
           disabled={submitting}
           ref={titleRef}
+          aria-invalid={titleError}
+          aria-describedby={titleError ? "new-task-title-error" : undefined}
           value={title}
           onChange={(e) => {
             setTitle(e.target.value);
+            setTitleError(false);
             autoGrowTitle();
           }}
           onKeyDown={(e) => {
@@ -274,8 +284,13 @@ export function NewTaskModal({
           {...composing.handlers}
           placeholder={t("newTask.titlePlaceholder")}
           rows={1}
-          className="dk-field dk-field-multi block w-full resize-none"
+          className={`dk-field dk-field-multi block w-full resize-none ${titleError ? "bg-danger-surface" : ""}`}
         />
+        {titleError ? (
+          <p id="new-task-title-error" role="alert" className="mt-1 text-xs text-danger">
+            {t("newTask.titleRequired")}
+          </p>
+        ) : null}
       </div>
 
       {/* Description */}

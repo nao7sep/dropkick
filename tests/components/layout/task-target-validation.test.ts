@@ -109,6 +109,7 @@ it("holds the submitted New Task fields and close paths until settlement", async
   const addNewTask = vi.fn(() => new Promise<{ status: "success" }>((resolve) => { finish = resolve; }));
   const onClose = vi.fn(); useTaskListStore.setState({ addNewTask });
   host = await mount(createElement(NewTaskModal, { currentFilePath: "/one.json", isUnifiedView: false, onClose }));
+  await act(async () => typeInto(titleField(), "Pay invoice"));
   const create = [...document.querySelectorAll("button")].find((button) => button.textContent === "Create")!;
   await act(async () => { create.click(); create.click(); });
   expect(addNewTask).toHaveBeenCalledOnce();
@@ -118,3 +119,35 @@ it("holds the submitted New Task fields and close paths until settlement", async
   await act(async () => finish({ status: "success" }));
   expect(onClose).toHaveBeenCalledOnce();
 });
+
+// A task needs a title. Create stays unavailable without one, and the keyboard
+// submit names the missing field instead of adding an untitled task.
+it("refuses a New Task without a title and says so at the title field", async () => {
+  useWorkspaceStore.setState({ workspace: { ...createDefaultWorkspace("Test"), openTabs: [createTab("/one.json", "One")] } });
+  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+  const addNewTask = vi.fn(async () => ({ status: "success" as const }));
+  useTaskListStore.setState({ addNewTask });
+  host = await mount(createElement(NewTaskModal, { currentFilePath: "/one.json", isUnifiedView: false, onClose: () => undefined }));
+  const create = [...document.querySelectorAll("button")].find((button) => button.textContent === "Create")!;
+  await act(async () => typeInto(titleField(), "   "));
+  expect(create.disabled).toBe(true);
+  await act(async () => {
+    titleField().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  });
+  expect(addNewTask).not.toHaveBeenCalled();
+  const field = titleField();
+  expect(field.getAttribute("aria-invalid")).toBe("true");
+  expect(document.getElementById(field.getAttribute("aria-describedby")!)?.textContent).toBe("Enter a title for this task.");
+  await act(async () => typeInto(field, "Pay invoice"));
+  expect(field.getAttribute("aria-invalid")).toBe("false");
+  expect(create.disabled).toBe(false);
+});
+
+function titleField(): HTMLTextAreaElement {
+  return document.querySelector<HTMLTextAreaElement>('textarea[placeholder="Task title"]')!;
+}
+
+function typeInto(field: HTMLTextAreaElement, value: string): void {
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, value);
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}
