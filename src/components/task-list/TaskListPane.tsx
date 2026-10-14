@@ -572,9 +572,9 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
           {grouped.groups.map(({ group, label, tasks: groupTasks }) => (
             <div key={group} data-group={group} className={`${CARD_CLASS} ${GROUP_CARDS[group]}`}>
               {/* Sticks to the top of the scroll area within its own card, in the
-                  card's tint so rows pass cleanly beneath it. A heading a step
-                  above the rows' 14px, in sentence case at that size. */}
-              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-1.5 text-[15px] font-semibold leading-5">
+                  card's tint so rows pass cleanly beneath it. A heading at the
+                  rows' 14px, set apart by weight, in sentence case. */}
+              <div className="sticky top-0 z-10 flex items-center gap-2 rounded-t-[var(--radius-card)] bg-inherit px-3 py-1.5 text-sm font-semibold">
                 {/* The dot sits centred in the Handled chevron's 16px box, so
                     both line up at the same inset from the card's edge. */}
                 <span aria-hidden="true" className="flex h-4 w-4 shrink-0 items-center justify-center">
@@ -622,7 +622,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
             <div className={`mt-auto ${handledExpanded ? CARD_CLASS : CARD_FRAME} ${GROUP_CARDS.Default}`}>
               <div
                 onClick={() => setHandledExpanded(viewKey, !handledExpanded)}
-                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--radius-card)-1px)] px-3 py-1.5 text-[15px] font-semibold leading-5 text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
+                className="flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--radius-card)-1px)] px-3 py-1.5 text-sm font-semibold text-ink-muted transition-colors duration-[var(--motion)] hover:bg-control-hover hover:text-ink active:bg-control-pressed"
               >
                 <span className="flex items-center">
                   {handledExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
