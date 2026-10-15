@@ -23,8 +23,8 @@ const READ_ATTRIBUTES = new Set([
 const LITERAL_TEXT = new Set([
   "Dropkick",
   "GitHub",
-  // The author's name in the copyright line.
-  "© 2026 Yoshinao Inoguchi",
+  // The author's name in the copyright line, before the translated licence.
+  "© 2026 Yoshinao Inoguchi ·",
   // A shortcut hint; key names stay English (keyboard-shortcut-conventions).
   "+N",
 ]);

@@ -123,10 +123,10 @@ export function AboutModal({ onClose }: AboutModalProps) {
           })}
         />
       ) : null}
+      {/* The fleet's one-line copyright form; the licence name is translated. */}
       <p className="mt-4 text-xs text-ink-muted">
-        &copy; 2026 Yoshinao Inoguchi
+        &copy; 2026 Yoshinao Inoguchi · {t("about.license")}
       </p>
-      <p className="mt-1 text-xs text-ink-muted">{t("about.license")}</p>
     </AppModal>
   );
 }
