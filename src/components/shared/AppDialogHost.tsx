@@ -4,6 +4,8 @@ import { AppModal } from "./AppModal";
 import { Button } from "./Button";
 import type { DialogRequest } from "../../state/dialog-store";
 import { useI18n } from "../../i18n/I18nContext";
+import { askStandalone } from "../../repositories/dialogs";
+import { isWindowShowing } from "../../repositories/window-activity";
 
 // Which control a request wants focused. A confirmation never focuses the
 // destructive action; where BOTH choices destroy something, none of them does
@@ -87,6 +89,43 @@ export function AppDialogHost() {
     }
   }, [current, contentEl]);
 
+  // With the window minimized or hidden, a question or error goes to a
+  // standalone dialog instead, so it neither waits unseen in that window nor
+  // brings it back (window-conventions, Background visibility): Dock › Quit
+  // with the window minimized still asks about unsaved work. The safe choice
+  // is its first, default button. An answer that comes after the request has
+  // been answered or withdrawn here is ignored.
+  useEffect(() => {
+    if (!current) return;
+    const request = current;
+    let live = true;
+    void (async () => {
+      if ((await isWindowShowing()) || !live) return;
+      const answer = await askStandalone(
+        text(request.title),
+        text(request.body),
+        standaloneButtons(request, text),
+        request.tone !== "default",
+      );
+      const store = useDialogStore.getState();
+      if (store.current !== request) return;
+      switch (standaloneChoice(request, answer, text)) {
+        case "confirm":
+          store.confirmCurrent();
+          break;
+        case "retry":
+          store.retryCurrent();
+          break;
+        case "cancel":
+          store.cancelCurrent();
+          break;
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [current, text]);
+
   if (!current) return null;
 
   return (
@@ -133,4 +172,31 @@ export function AppDialogHost() {
       </p>
     </AppModal>
   );
+}
+
+type Text = (message: DialogRequest["title"]) => string;
+
+// A standalone dialog's buttons, safe choice first so it is the default.
+export function standaloneButtons(request: DialogRequest, text: Text): string[] {
+  switch (request.kind) {
+    case "message":
+      return [text(request.confirmLabel)];
+    case "confirm":
+      return [text(request.cancelLabel), text(request.confirmLabel)];
+    case "quit-save":
+      return [text(request.cancelLabel), text(request.retryLabel), text(request.confirmLabel)];
+  }
+}
+
+// Which of the request's own answers a standalone dialog's label stands for;
+// closing it without a button is the safe answer.
+export function standaloneChoice(
+  request: DialogRequest,
+  answer: string | null,
+  text: Text,
+): "confirm" | "retry" | "cancel" {
+  if (request.kind === "message") return "confirm";
+  if (answer === text(request.confirmLabel)) return "confirm";
+  if (request.kind === "quit-save" && answer === text(request.retryLabel)) return "retry";
+  return "cancel";
 }

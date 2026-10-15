@@ -912,6 +912,45 @@ pub struct LanguageEnvironment {
     system_locale: Option<String>,
 }
 
+// A question or error asked while no window is showing (window-conventions,
+// Background visibility): a standalone dialog with no parent, so it neither
+// attaches to a minimized or hidden window nor brings one back. The first
+// button is the default. Answers the label chosen, or None when the dialog
+// closed without one.
+#[tauri::command]
+async fn standalone_dialog(
+    app: AppHandle,
+    title: String,
+    body: String,
+    warning: bool,
+    buttons: Vec<String>,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult};
+    let choices = match buttons.as_slice() {
+        [only] => MessageDialogButtons::OkCustom(only.clone()),
+        [first, second] => MessageDialogButtons::OkCancelCustom(first.clone(), second.clone()),
+        [first, second, third] => {
+            MessageDialogButtons::YesNoCancelCustom(first.clone(), second.clone(), third.clone())
+        }
+        _ => return Err("a standalone dialog takes one to three buttons".to_string()),
+    };
+    let dialog = app
+        .dialog()
+        .message(body)
+        .title(title)
+        .kind(if warning { MessageDialogKind::Warning } else { MessageDialogKind::Info })
+        .buttons(choices);
+    // The user may take any time to answer, so the wait runs on a blocking
+    // worker, never on the thread that drives the webview.
+    let result = tauri::async_runtime::spawn_blocking(move || dialog.blocking_show_with_result())
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(match result {
+        MessageDialogResult::Custom(label) => Some(label),
+        _ => None,
+    })
+}
+
 // What the System theme resolves to right now, for the Settings label.
 #[tauri::command]
 fn system_theme() -> Option<&'static str> {
@@ -1200,6 +1239,7 @@ pub fn run() {
             apply_theme,
             language_environment,
             system_theme,
+            standalone_dialog,
             hash_file,
             read_json_file_with_hash,
             read_text_file,

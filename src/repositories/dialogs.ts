@@ -1,6 +1,7 @@
 // Dialog helpers.
 // File pickers remain native via Tauri; message/confirm dialogs are rendered in-app.
 
+import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { showAppConfirm, showAppMessage } from "../state/dialog-store";
 import { message, type Message } from "../i18n/translate";
@@ -159,4 +160,20 @@ export async function showFileDeletedDialog(
     },
   );
   return save ? "save" : "cancel";
+}
+
+// A question or error shown as a standalone dialog, for when no window is on
+// screen. Buttons are labels, the first the default; answers the label chosen,
+// or null when the dialog closed without one or could not be shown.
+export async function askStandalone(
+  title: string,
+  body: string,
+  buttons: readonly string[],
+  warning: boolean,
+): Promise<string | null> {
+  try {
+    return (await invoke<string | null>("standalone_dialog", { title, body, warning, buttons })) ?? null;
+  } catch {
+    return null;
+  }
 }

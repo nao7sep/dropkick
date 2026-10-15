@@ -15,7 +15,7 @@
 
 import { message } from "../../../src/i18n/translate";
 import { inEnglish } from "../../helpers/i18n";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createElement, act } from "react";
 import { mount } from "../../helpers/react-dom";
 import type { Mounted } from "../../helpers/react-dom";
@@ -25,6 +25,15 @@ import {
   showAppConfirm,
   showAppMessage,
 } from "../../../src/state/dialog-store";
+
+const shown = vi.hoisted(() => ({ showing: true, answer: null as string | null, asked: [] as string[][] }));
+vi.mock("../../../src/repositories/window-activity", () => ({ isWindowShowing: async () => shown.showing }));
+vi.mock("../../../src/repositories/dialogs", () => ({
+  askStandalone: async (_title: string, _body: string, buttons: readonly string[]) => {
+    shown.asked.push([...buttons]);
+    return shown.answer;
+  },
+}));
 
 let host: Mounted;
 
@@ -302,5 +311,43 @@ describe("focus on close", () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(document.activeElement).toBe(list);
     list.remove();
+  });
+});
+
+// With the window minimized or hidden, a question goes to a standalone dialog
+// instead of waiting unseen in that window (window-conventions, Background
+// visibility): Dock › Quit with the window minimized still asks.
+describe("a question asked while the window is not showing", () => {
+  afterEach(() => {
+    shown.showing = true;
+    shown.answer = null;
+    shown.asked = [];
+  });
+
+  it("asks through a standalone dialog, safe choice first, and takes its answer", async () => {
+    shown.showing = false;
+    shown.answer = "Quit Anyway";
+    let choice!: Promise<"quit" | "retry" | "cancel">;
+    await open(() => { choice = useDialogStore.getState().enqueueQuitSave(["tasks.json"]); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(shown.asked).toEqual([["Cancel", "Retry", "Quit Anyway"]]);
+    await expect(choice).resolves.toBe("quit");
+  });
+
+  it("treats a standalone dialog closed without a choice as the safe answer", async () => {
+    shown.showing = false;
+    shown.answer = null;
+    let answer!: Promise<boolean>;
+    await open(() => { answer = showAppConfirm(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"), { confirmLabel: message("dialog.delete") }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(shown.asked[0]).toEqual(["Cancel", "Delete"]);
+    await expect(answer).resolves.toBe(false);
+  });
+
+  it("stays in the window while it is showing", async () => {
+    await open(() => void showAppMessage(message("dialog.deleteTask.title"), message("dialog.deleteNote.body")));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(shown.asked).toEqual([]);
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
   });
 });

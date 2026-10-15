@@ -35,6 +35,19 @@ export function onWindowFocused(listener: () => void): () => void {
   };
 }
 
+// Whether this window is on screen: shown and not minimized. A question asked
+// while it is not goes to a standalone dialog instead (AppDialogHost).
+export async function isWindowShowing(): Promise<boolean> {
+  if (!isTauri()) return true;
+  try {
+    const window = getCurrentWindow();
+    return (await window.isVisible()) && !(await window.isMinimized());
+  } catch (error) {
+    log.warn("window visibility unavailable", toErrorFields(error));
+    return true;
+  }
+}
+
 // Closes this window through the same path as its close button, so the main
 // window runs its own close flow.
 export function closeCurrentWindow(): void {

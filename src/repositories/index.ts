@@ -42,7 +42,7 @@ export {
 } from "./app-state-repository";
 
 export { applyWindowTheme, readSystemTheme } from "./window-theme";
-export { closeCurrentWindow, onWindowFocused } from "./window-activity";
+export { closeCurrentWindow, isWindowShowing, onWindowFocused } from "./window-activity";
 export { onSessionEnding, reportSessionEndSettled } from "./session-end";
 export { applyLanguage, loadLanguageEnvironment } from "./language";
 export type { LanguageEnvironment } from "./language";
