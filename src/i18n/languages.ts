@@ -35,6 +35,16 @@ export function normalizeLanguagePreference(value: unknown): LanguagePreference 
   return isLanguage(value) ? value : "system";
 }
 
+// A language's name in another language, for a System entry that names what
+// it resolves to: "Japanese" in English, "日本語" in Japanese.
+export function languageName(language: Language, inLanguage: Language): string {
+  try {
+    return new Intl.DisplayNames([inLanguage], { type: "language" }).of(language) ?? LANGUAGE_NAMES[language];
+  } catch {
+    return LANGUAGE_NAMES[language];
+  }
+}
+
 export function effectiveLanguage(preference: LanguagePreference, systemLanguage: Language): Language {
   return preference === "system" ? systemLanguage : preference;
 }

@@ -1,6 +1,7 @@
 {
   "settings.language": "Language",
   "settings.languageSystem": "System",
+  "settings.languageSystemNow": "System ({language})",
   "settings.timezone": "Time zone",
   "settings.timezoneSystem": "System ({zone})",
   "settings.title": "Settings",

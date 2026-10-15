@@ -1,6 +1,7 @@
 {
   "settings.language": "语言",
   "settings.languageSystem": "跟随系统",
+  "settings.languageSystemNow": "跟随系统（{language}）",
   "settings.timezone": "时区",
   "settings.timezoneSystem": "跟随系统（{zone}）",
   "settings.title": "设置",

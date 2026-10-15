@@ -39,6 +39,18 @@ afterEach(async () => {
   await host.unmount();
 });
 
+describe("SettingsModal language", () => {
+  it("names the language System resolves to, in the interface language", async () => {
+    const { useLanguageStore } = await import("../../../src/state/language-store");
+    await host.unmount();
+    useLanguageStore.setState({ systemLanguage: "ja" });
+    host = await mount(createElement(SettingsModal, { onClose }));
+    const system = document.querySelector('option[value="system"]');
+    expect(system?.textContent?.trim()).toBe("System (Japanese)");
+    useLanguageStore.setState({ systemLanguage: "en" });
+  });
+});
+
 describe("SettingsModal theme", () => {
   it("offers System, Light, and Dark as one radio group, System by default", () => {
     const group = document.querySelector("fieldset") as HTMLFieldSetElement;
@@ -131,7 +143,7 @@ describe("SettingsModal language", () => {
   it("lists System first, then every language by its own name in its own script", () => {
     const options = [...languageSelect().options].map((option) => [option.value, option.textContent, option.lang]);
     expect(options).toEqual([
-      ["system", "System", ""],
+      ["system", "System (English)", ""],
       ...LANGUAGES.map((language) => [language, LANGUAGE_NAMES[language], language]),
     ]);
     expect(languageSelect().value).toBe("system");

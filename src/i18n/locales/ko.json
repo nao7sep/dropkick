@@ -1,6 +1,7 @@
 {
   "settings.language": "언어",
   "settings.languageSystem": "시스템",
+  "settings.languageSystemNow": "시스템({language})",
   "settings.timezone": "시간대",
   "settings.timezoneSystem": "시스템({zone})",
   "settings.title": "설정",

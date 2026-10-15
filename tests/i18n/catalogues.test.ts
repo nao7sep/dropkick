@@ -27,6 +27,7 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
     "common.ok",
     "menu.zoom",
     "settings.languageSystem",
+    "settings.languageSystemNow",
     "settings.themeSystem",
     "settings.themeSystemNow",
     "settings.timezoneSystem",

@@ -1,6 +1,7 @@
 {
   "settings.language": "Язык",
   "settings.languageSystem": "Как в системе",
+  "settings.languageSystemNow": "Как в системе ({language})",
   "settings.timezone": "Часовой пояс",
   "settings.timezoneSystem": "Как в системе ({zone})",
   "settings.title": "Настройки",

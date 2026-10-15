@@ -21,7 +21,8 @@ import { SYSTEM_TIME_ZONE, systemTimeZone, timeZoneOptions } from "../../utils/t
 import { useI18n } from "../../i18n/I18nContext";
 import type { MessageKey } from "../../i18n/catalogues";
 import { message, type Message } from "../../i18n/translate";
-import { LANGUAGE_NAMES, LANGUAGES, normalizeLanguagePreference } from "../../i18n/languages";
+import { LANGUAGE_NAMES, LANGUAGES, languageName, normalizeLanguagePreference } from "../../i18n/languages";
+import { useLanguageStore } from "../../state/language-store";
 import { AppModal } from "../shared/AppModal";
 import { Button } from "../shared/Button";
 import {
@@ -49,6 +50,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const preferences = usePreferencesStore((s) => s.preferences);
+  const systemLanguage = useLanguageStore((s) => s.systemLanguage);
   // System names what it resolves to now, as the time zone's System does
   // (app-chrome-conventions, Theme).
   const [systemTheme, setSystemTheme] = useState<"light" | "dark" | null>(null);
@@ -63,7 +65,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }, []);
   const update = usePreferencesStore((s) => s.update);
   const composing = useComposing();
-  const { t, text } = useI18n();
+  const i18n = useI18n();
+  const { t, text } = i18n;
 
   // Local draft state — everything is edited locally, saved on "Save".
   const [draft, setDraft] = useState<StagedPreferences>(() =>
@@ -174,7 +177,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           onChange={(e) => setField("language", normalizeLanguagePreference(e.target.value))}
           className="dk-field w-full"
         >
-          <option value="system">{t("settings.languageSystem")}</option>
+          {/* System names the language it resolves to now, in the
+              interface language (localization-conventions, Translation). */}
+          <option value="system">
+            {t("settings.languageSystemNow", { language: languageName(systemLanguage, i18n.language) })}
+          </option>
           {LANGUAGES.map((language) => (
             <option key={language} value={language} lang={language}>
               {LANGUAGE_NAMES[language]}

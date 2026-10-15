@@ -51,3 +51,12 @@ describe("formattingLocale", () => {
     expect(formattingLocale("en", "not a locale")).toBe("en");
   });
 });
+
+describe("languageName", () => {
+  it("names a language in the interface language", async () => {
+    const { languageName } = await import("../../src/i18n/languages");
+    expect(languageName("ja", "en")).toBe("Japanese");
+    expect(languageName("ja", "ja")).toBe("日本語");
+    expect(languageName("pt-BR", "en")).toBe("Brazilian Portuguese");
+  });
+});
