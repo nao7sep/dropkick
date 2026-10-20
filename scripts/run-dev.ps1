@@ -63,7 +63,7 @@ try {
 
     Write-Step "Replacing any existing Dropkick runtime"
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop", "tauri", "Dropkick", "dropkick")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-endpoint", $devHost, "29327")
     if ($env:TAURI_DEV_HOST) {
         Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-endpoint", $devHost, "22853")
@@ -90,7 +90,7 @@ catch {
 finally {
     & node $runtimeHelper is-owner $runtimeToken *> $null
     if ($LASTEXITCODE -eq 0) {
-        & node $runtimeHelper stop-if-owner $runtimeToken tauri "Dropkick" "dropkick" *> $null
+        & node $runtimeHelper stop-if-owner $runtimeToken *> $null
         Read-Host "Press Enter to close" | Out-Null
     }
 }

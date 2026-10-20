@@ -15,3 +15,19 @@ describe("macOS bundle localizations", () => {
     expect(declared).toEqual([...LANGUAGES]);
   });
 });
+
+// The Windows installer speaks the interface languages too; NSIS names each by
+// its own language name, so this maps the app's tags to them and checks the
+// installer list against the app's.
+describe("Windows installer languages", () => {
+  it("are the interface languages, in the same order", () => {
+    const config = JSON.parse(readFileSync(join(process.cwd(), "src-tauri/tauri.conf.json"), "utf8")) as {
+      bundle: { windows: { nsis: { languages: string[] } } };
+    };
+    const nsisName: Record<string, string> = {
+      en: "English", de: "German", es: "Spanish", fr: "French", it: "Italian",
+      "pt-BR": "PortugueseBR", ru: "Russian", ja: "Japanese", ko: "Korean", "zh-Hans": "SimpChinese",
+    };
+    expect(config.bundle.windows.nsis.languages).toEqual(LANGUAGES.map((language) => nsisName[language]));
+  });
+});
