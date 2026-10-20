@@ -17,34 +17,6 @@ use serde_json::json;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::i18n;
 
-/// Every catalogue key the native menu reads; the tests check each one exists
-/// in every language.
-#[cfg(test)]
-pub const KEYS: [&str; 22] = [
-    "nativeMenu.about",
-    "nativeMenu.services",
-    "nativeMenu.hide",
-    "nativeMenu.hideOthers",
-    "nativeMenu.quit",
-    "nativeMenu.exit",
-    "nativeMenu.file",
-    "nativeMenu.closeWindow",
-    "nativeMenu.edit",
-    "nativeMenu.undo",
-    "nativeMenu.redo",
-    "nativeMenu.cut",
-    "nativeMenu.copy",
-    "nativeMenu.paste",
-    "nativeMenu.selectAll",
-    "nativeMenu.view",
-    "nativeMenu.fullscreen",
-    "nativeMenu.window",
-    "nativeMenu.minimize",
-    "nativeMenu.zoom",
-    "nativeMenu.maximize",
-    "nativeMenu.help",
-];
-
 /// The id of the app-owned Quit item.
 ///
 /// The predefined Quit maps to `terminate:` on macOS, and nothing in tao, wry
@@ -186,4 +158,4 @@ pub fn build(app: &AppHandle, language: &str) -> tauri::Result<Menu<Wry>> {
 
 #[cfg(test)]
 #[path = "../tests/unit/menu.rs"]
-mod tests;
+pub(crate) mod tests;

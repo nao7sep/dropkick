@@ -10,7 +10,7 @@ use crate::i18n::{
     catalogue, normalize_preference, read_saved_preference, saved_preference, system_language,
     LANGUAGES,
 };
-use crate::menu::KEYS;
+use crate::menu::tests::menu_keys;
 use serde_json::json;
 
 #[test]
@@ -104,8 +104,8 @@ fn embeds_exactly_the_catalogues_in_the_locales_folder() {
 fn every_menu_key_is_in_every_language() {
     for language in LANGUAGES {
         let text = catalogue(language);
-        for key in KEYS {
-            assert!(text.has(key), "{language} lacks {key}");
+        for key in menu_keys() {
+            assert!(text.has(&key), "{language} lacks {key}");
         }
     }
 }
