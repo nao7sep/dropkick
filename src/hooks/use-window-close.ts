@@ -8,8 +8,8 @@
 //
 // Every quit comes here (unsaved-edits-conventions, Quitting): the red button,
 // `performClose:`, Alt+F4, the app's own Quit item (Cmd+Q and the app menu,
-// src-tauri/src/menu.rs), and Dock > Quit (src-tauri/src/os_quit.rs) arrive as
-// the close request; the end of an OS session arrives as its own event and
+// which the Rust core's native menu turns into a close request), and Dock >
+// Quit (the Rust core's os_quit module) arrive as the close request; the end of an OS session arrives as its own event and
 // settles the same writes without asking anything. Force-quit, a crash and
 // power loss reach nothing.
 //

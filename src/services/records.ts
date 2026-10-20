@@ -108,7 +108,7 @@ function usableLocale(locale: string | null): locale is string {
 }
 
 // What the Records window starts from, as the Rust core wrote it into the
-// page's address (src-tauri/src/records_window.rs, page_url). Anything missing
+// page's address (`page_url` in the Rust core). Anything missing
 // or unusable falls back: the default list width, English, the language's own
 // formats, the computer's time zone.
 export function initialRecordsWindow(search: string): { listWidth: number; context: RecordsContext } {

@@ -1,6 +1,6 @@
 // The end of an OS session (logout, restart, shutdown): the Rust core asks the
 // main window to settle its writes without asking anything, and is told when
-// it has (src-tauri/src/os_quit.rs).
+// it has (the session_end_settled command).
 
 import { invoke } from "@tauri-apps/api/core";
 import { subscribe } from "./events";

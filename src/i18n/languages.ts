@@ -1,8 +1,8 @@
 // The interface languages Dropkick ships, in the order the Settings picker
 // lists them after System: Latin-script languages alphabetically by their own
 // names, then Cyrillic, then CJK. Each tag names a catalogue in ./locales, and
-// the Rust core embeds the same catalogues (src-tauri/src/i18n.rs), which
-// resolves the computer's language to one of these tags.
+// the Rust core embeds the same catalogues and resolves the computer's
+// language to one of these tags.
 export const LANGUAGES = ["en", "de", "es", "fr", "it", "pt-BR", "ru", "ja", "ko", "zh-Hans"] as const;
 
 export type Language = (typeof LANGUAGES)[number];

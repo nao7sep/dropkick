@@ -8,7 +8,7 @@
 //! directory — never the current working directory — so the location the app
 //! reads and writes can never depend on how the process was launched.
 //!
-//! Both the log-file resolver (`run()` in `lib.rs`) and the `app_paths`
+//! Both the log-file resolver (`run()`) and the `app_paths`
 //! command the frontend calls route through `data_root` here, so there is one
 //! source of truth and the frontend never reconstructs `~/.dropkick` itself.
 

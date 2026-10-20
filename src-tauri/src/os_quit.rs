@@ -1,7 +1,7 @@
 //! The quits the OS starts rather than the app's own menu: Dock > Quit (or any
 //! other quit Apple event) on macOS, and the end of the session (logout,
 //! restart, shutdown) on both platforms. Each reaches the main window's close
-//! path (src/hooks/use-window-close.ts), the one place pending work is saved
+//! path (`useWindowClose`), the one place pending work is saved
 //! (unsaved-edits-conventions, Quitting).
 //!
 //! - A quit the user started asks the main window to close, exactly as the
@@ -38,11 +38,11 @@ use crate::logging;
 #[path = "session_wait.rs"]
 mod session_wait;
 
-/// Tells the main window that the session is ending (src/repositories/session-end.ts).
+/// Tells the main window that the session is ending (the frontend's session-end subscription).
 pub const SESSION_ENDING_EVENT: &str = "session-ending";
 
 /// The longest the end of a session waits for the main window. It exceeds the
-/// window's own bound (CLOSE_WAIT_MS in src/hooks/use-window-close.ts), so the
+/// window's own bound (`CLOSE_WAIT_MS` in the frontend's window-close hook), so the
 /// window can log what it could not save before the session goes on, and stays
 /// under the five seconds Windows gives an app to answer the end of a session.
 pub const SESSION_END_WAIT: Duration = Duration::from_millis(4000);

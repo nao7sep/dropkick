@@ -1,8 +1,8 @@
 // Frontend logging. The sandboxed webview never writes a record itself; it
 // builds the envelope and forwards each structured event to the Rust core (the
 // `log_event` command), which owns the records database and writes each entry
-// as it arrives (see src-tauri/src/logging.rs). If forwarding fails, this
-// degrades to the console and never throws — logging must never break the app.
+// as it arrives. If forwarding fails, this degrades to the console and never
+// throws — logging must never break the app.
 //
 // Levels: error / warn / info / debug. `debug` is developer-only — emitted only
 // in a Vite dev build or when the core reports DROPKICK_DEBUG=1 — so the

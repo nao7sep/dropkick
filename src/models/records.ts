@@ -1,4 +1,4 @@
-// What the Records window reads from records.sqlite3 (src-tauri/src/records.rs):
+// What the Records window reads from records.sqlite3:
 // a filtered page of summaries, newest first, and one record whole. A record's
 // other fields arrive as the JSON text the database holds; the window decides
 // how to show them.

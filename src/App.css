@@ -356,7 +356,7 @@ body.divider-dragging * {
 }
 
 :root {
-  /* The user's UI font, set on <html> by App.tsx. Applying it here rather than
+  /* The user's UI font, set on <html> by the App component. Applying it here rather than
      inside the main window's subtree is what lets it reach the modals, menus,
      popovers and toasts, all of which portal to <body> and would otherwise
      inherit only this rule's fallback. The fallback IS the default: the stored

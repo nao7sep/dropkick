@@ -4,8 +4,8 @@
 //
 // That is not a sandbox: these commands pass an absolute path to the core,
 // which does not scope or canonicalize it, so code running in the renderer can
-// reach any file the user can. See the note above read_text_file in
-// src-tauri/src/lib.rs for the exposure this does and does not cover.
+// reach any file the user can. See the note above the Rust core's
+// read_text_file command for the exposure this does and does not cover.
 
 import { invoke } from "@tauri-apps/api/core";
 import { checkFormatVersion, FORMAT_VERSIONS, withFormatVersion, type StoreFormat } from "../models/store-format";

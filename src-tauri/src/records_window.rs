@@ -53,7 +53,7 @@ pub fn page_url(context: &RecordsWindowContext) -> String {
 }
 
 // One open at a time, so two quick requests cannot both find no window and
-// both build one (PLAYBOOK, Own the work in flight).
+// both build one.
 static OPENING: Mutex<()> = Mutex::new(());
 
 pub fn open(app: &AppHandle, context: &RecordsWindowContext) -> Result<(), String> {

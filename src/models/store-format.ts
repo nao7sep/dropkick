@@ -1,6 +1,6 @@
 // Every store's format version (store-recovery-conventions): one integer per
 // format, independent of the app's version and of the other formats. The table
-// is JSON so the Rust core reads the same numbers (src-tauri/src/format_version.rs).
+// is JSON so the Rust core reads the same numbers (its format_version module).
 import FORMAT_VERSION_TABLE from "./format-versions.json";
 
 export type StoreFormat = keyof typeof FORMAT_VERSION_TABLE;
@@ -11,7 +11,7 @@ export const FORMAT_VERSIONS: Readonly<Record<StoreFormat, number>> = FORMAT_VER
 // into every JSON document it saved (developer decision: the next version
 // opens those files). Its formats are this build's version 1: the bodies are
 // the same shape, and each loader converts what changed meaning. Mirrored in
-// src-tauri/src/format_version.rs.
+// the Rust core's format_version module.
 export const V010_LABEL = "1.0.0";
 
 // Whether a parsed document is one v0.1.0 wrote: its label and no marker.

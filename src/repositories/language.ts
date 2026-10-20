@@ -1,4 +1,4 @@
-// The interface language's native half (src-tauri/src/i18n.rs). The Rust core
+// The interface language's native half, the Rust core's i18n module. The core
 // reads the computer's languages once at launch and resolves them to a
 // supported tag; the frontend resolves System against that reading, and asks
 // the core to rebuild the native menu when the language changes.

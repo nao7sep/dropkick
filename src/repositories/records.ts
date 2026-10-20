@@ -1,7 +1,7 @@
 // The Records window's half of the native side. The Rust core opens the window
-// (src-tauri/src/records_window.rs) and reads records.sqlite3 off the UI thread
-// (src-tauri/src/records.rs); the main window, which owns the interface
-// settings and state.json, and the Records window talk through events.
+// and reads records.sqlite3 off the UI thread; the main window, which owns the
+// interface settings and state.json, and the Records window talk through
+// events.
 
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
@@ -26,7 +26,7 @@ const RECORDS_CONTEXT = "records-context";
 // A list-pane drag ended at this width.
 const RECORDS_LIST_WIDTH = "records-list-width";
 
-// What the main window opens the Records window with (records_window.rs,
+// What the main window opens the Records window with (the Rust core's
 // RecordsWindowContext).
 export interface RecordsWindowOpening extends RecordsContext {
   minWidth: number;

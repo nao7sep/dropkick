@@ -3,7 +3,7 @@
 //! (`DROPKICK_DATA_DIR` or `~/.dropkick`, resolved in one place by
 //! `paths::data_root` — never a hardcoded path). Every managed text save hands
 //! the exact bytes it just published to `record`, strictly AFTER its atomic
-//! rename lands (see `write_atomic` in lib.rs). There is no startup scan, no
+//! rename lands (see `write_atomic`). There is no startup scan, no
 //! periodic pass, no restore path.
 //!
 //! Protected: task lists, preferences, workspaces and the saved locations in
@@ -64,7 +64,7 @@ ALTER TABLE backups ADD COLUMN session_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_backups_path_session ON backups (path, session_id);
 ";
 
-/// How long an ordinary quit waits for queued records (lib.rs, at exit).
+/// How long an ordinary quit waits at exit for queued records.
 pub const QUIT_DRAIN: Duration = Duration::from_secs(1);
 
 enum Job {

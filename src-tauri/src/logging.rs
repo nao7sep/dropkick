@@ -1,8 +1,7 @@
 // The logger: each log line is a row in `records.sqlite3` (logging-conventions,
 // data-lifecycle-conventions' Records). The privileged Rust core is the
 // database's only writer; the sandboxed webview frontend forwards structured
-// log objects to it (see `emit_forwarded` and the `log_event` command in
-// lib.rs).
+// log objects to it (see `emit_forwarded` and the `log_event` command).
 //
 // A row holds the event `time`, its `session` (this launch's start time), the
 // `level`, the `message`, the `task_id` when the entry names a `taskId`, and
@@ -507,7 +506,7 @@ impl Logger {
     }
 }
 
-// --- Free functions over the process-global logger (used by lib.rs) ---
+// --- Free functions over the process-global logger ---
 
 fn emit(level: Level, message: &str, fields: Value) {
     if let Some(logger) = global() {

@@ -1,5 +1,4 @@
-// The Records window's page (records.html), opened by the Rust core
-// (src-tauri/src/records_window.rs).
+// The Records window's page (records.html), opened by the Rust core.
 
 import React from "react";
 import ReactDOM from "react-dom/client";

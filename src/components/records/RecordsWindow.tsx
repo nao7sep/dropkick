@@ -1,7 +1,7 @@
 // The Records window (records.html): records.sqlite3, newest first, beside the
-// selected record whole. The Rust core reads the database
-// (src-tauri/src/records.rs) and signals after each record it stores; the
-// window pages itself as it scrolls and takes new records in as they arrive.
+// selected record whole. The Rust core reads the database and signals after
+// each record it stores; the window pages itself as it scrolls and takes new
+// records in as they arrive.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
@@ -108,7 +108,8 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   currentList.current = list;
   const fetchingNewest = useRef<number | null>(null);
   const firstPagePending = useRef<number | null>(null);
-  // The busy claim for the next page (PLAYBOOK, Own the work in flight).
+  // Set from the moment a next-page read starts until it settles, so a second
+  // scroll cannot start another read for the same page.
   const fetchingMore = useRef(false);
   // The filters the current list was read for, for the live reads below.
   const filtersRef = useRef(filters);
