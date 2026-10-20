@@ -5,34 +5,67 @@
 // later pass cannot drift a size, re-colour a non-destructive action red, or
 // leave a role's press unstated.
 
-import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buttonClass } from "../../src/components/shared/Button";
+import {
+  appCss,
+  declarationValue,
+  isUnconditioned,
+  rulesFor,
+  rulesOf,
+  rulesWithSelectors,
+  selectorsOf,
+} from "../helpers/css-tree";
+import {
+  attributeString,
+  declarationNamed,
+  elementText,
+  jsxElements,
+  parseSource,
+  readSource,
+  resolvedClasses,
+  stringsIn,
+  stringTokens,
+  translationKeys,
+  tsxSources,
+  utilityOf,
+  walk,
+  type Ast,
+  type JsxElement,
+  type Source,
+} from "../helpers/tsx-classes";
 
-const ROOT = join(__dirname, "..", "..");
-const css = readFileSync(join(ROOT, "src/App.css"), "utf8");
+const css = appCss();
+const sources = tsxSources();
+const allSelectors = rulesOf(css).flatMap(selectorsOf);
 
-function tsxFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return tsxFiles(path);
-    return entry.name.endsWith(".tsx") ? [path] : [];
-  });
+// A custom property's value on the unconditioned :root.
+function rootToken(token: string): string | undefined {
+  return rulesFor(css, ":root")
+    .filter(isUnconditioned)
+    .map((rule) => declarationValue(rule, token))
+    .find((value) => value !== undefined);
 }
-const sources = tsxFiles(join(ROOT, "src")).map(
-  (path) => [relative(ROOT, path), readFileSync(path, "utf8")] as const,
-);
+
+// The strings a Button's attributes can hold, e.g. its variant and className,
+// through both arms of a condition and any constant they name.
+function buttonAttributes(program: Ast, element: JsxElement): string {
+  return [...element.attributes.values()].flatMap((value) => resolvedClasses(program, value)).join(" ");
+}
+
+function buttons(program: Ast, test: (element: JsxElement) => boolean): JsxElement[] {
+  return jsxElements(program).filter((element) => element.name === "Button" && test(element));
+}
 
 describe("control anatomy values", () => {
   it("keeps Dropkick's two control heights and its corner scale", () => {
-    expect(css).toMatch(/--control-h:\s*32px;/);
-    expect(css).toMatch(/--control-h-sm:\s*28px;/);
-    expect(css).toMatch(/--radius-sm:\s*6px;/);
-    expect(css).toMatch(/--radius-control:\s*8px;/);
-    expect(css).toMatch(/--radius-card:\s*10px;/);
-    expect(css).toMatch(/--radius-dialog:\s*14px;/);
-    expect(css).toMatch(/--motion:\s*120ms;/);
+    expect(rootToken("--control-h")).toBe("32px");
+    expect(rootToken("--control-h-sm")).toBe("28px");
+    expect(rootToken("--radius-sm")).toBe("6px");
+    expect(rootToken("--radius-control")).toBe("8px");
+    expect(rootToken("--radius-card")).toBe("10px");
+    expect(rootToken("--radius-dialog")).toBe("14px");
+    expect(rootToken("--motion")).toBe("120ms");
   });
 
   it("names a role and a size through one class vocabulary", () => {
@@ -42,115 +75,155 @@ describe("control anatomy values", () => {
 
   it("states a hover and a press for every button role", () => {
     for (const role of ["primary", "secondary", "quiet", "danger", "danger-confirm", "warning-confirm", "tint"]) {
-      expect(css, role).toContain(`.dk-btn-${role}:hover:not(:disabled)`);
-      expect(css, role).toContain(`.dk-btn-${role}:active:not(:disabled)`);
+      expect(allSelectors, role).toContain(`.dk-btn-${role}:hover:not(:disabled)`);
+      expect(allSelectors, role).toContain(`.dk-btn-${role}:active:not(:disabled)`);
     }
   });
 });
 
+// Files whose strings put the red fill on something: the filled utility, the
+// confirming role's class, or the role's name.
+function redFills(files: readonly Source[]): string[] {
+  return files
+    .filter(({ ast }) =>
+      stringsIn(ast).some(
+        ({ value }) =>
+          value === "danger-confirm" ||
+          value.split(/\s+/).some((token) => token.includes("bg-danger-solid") || token.includes("dk-btn-danger-confirm")),
+      ),
+    )
+    .map(({ file }) => file)
+    .sort();
+}
+
 describe("destructive roles", () => {
   it("keeps the red fill for the confirming button alone", () => {
-    const filled = sources.filter(([, source]) => /bg-danger-solid|dk-btn-danger-confirm|"danger-confirm"/.test(source));
-    expect(filled.map(([name]) => name).sort()).toEqual(
-      ["src/components/shared/AppDialogHost.tsx", "src/components/shared/Button.tsx"],
-    );
+    expect(redFills(sources)).toEqual(["src/components/shared/AppDialogHost.tsx", "src/components/shared/Button.tsx"]);
+  });
+
+  it("finds a planted red fill", () => {
+    const planted: Source[] = [
+      { file: "a.tsx", ast: parseSource('const A = () => <Button variant="danger-confirm">Retry</Button>;', "a.tsx") },
+      { file: "b.tsx", ast: parseSource('const B = () => <button className="hover:bg-danger-solid-hover">x</button>;', "b.tsx") },
+      { file: "c.tsx", ast: parseSource('const C = () => <Button variant="danger">x</Button>; // danger-confirm', "c.tsx") },
+    ];
+    expect(redFills(planted)).toEqual(["a.tsx", "b.tsx"]);
   });
 
   it("styles no reorder, retry or reload red", () => {
-    const detail = readFileSync(join(ROOT, "src/components/task-detail/TaskDetail.tsx"), "utf8");
-    const bulk = readFileSync(join(ROOT, "src/components/task-detail/BulkActions.tsx"), "utf8");
-    const list = readFileSync(join(ROOT, "src/components/task-list/TaskListPane.tsx"), "utf8");
-    for (const source of [detail, bulk]) {
-      const dropkick = source.slice(source.lastIndexOf("<Button", source.indexOf("Dropkick\n")), source.indexOf("Dropkick\n"));
-      expect(dropkick).not.toMatch(/danger/);
+    for (const file of ["src/components/task-detail/TaskDetail.tsx", "src/components/task-detail/BulkActions.tsx"]) {
+      const { ast } = readSource(file);
+      const dropkick = buttons(ast, (element) => elementText(element) === "Dropkick");
+      expect(dropkick.length, file).toBeGreaterThan(0);
+      for (const button of dropkick) expect(buttonAttributes(ast, button), file).not.toMatch(/danger/);
     }
     // Every Retry in the list pane: the load-error card's leads, and none is red.
-    const retries = [...list.matchAll(/t\("taskList\.retry"\)/g)].map(({ index }) =>
-      list.slice(list.lastIndexOf("<Button", index), index),
-    );
+    const list = readSource("src/components/task-list/TaskListPane.tsx").ast;
+    const isRetry = (element: JsxElement) => translationKeys(element).includes("taskList.retry");
+    const retries = buttons(list, isRetry);
     expect(retries.length).toBeGreaterThan(1);
-    for (const retry of retries) expect(retry).not.toMatch(/danger/);
-    const loadError = list.slice(list.indexOf("function LoadErrorPane("));
-    const cardRetry = loadError.slice(loadError.lastIndexOf("<Button", loadError.indexOf('t("taskList.retry")')), loadError.indexOf('t("taskList.retry")'));
-    expect(cardRetry).toContain('variant="primary"');
+    for (const retry of retries) expect(buttonAttributes(list, retry)).not.toMatch(/danger/);
+    const loadError = declarationNamed(list, "LoadErrorPane");
+    expect(loadError).toBeDefined();
+    const cardRetries = buttons(loadError!, isRetry);
+    expect(cardRetries).toHaveLength(1);
+    expect(attributeString(cardRetries[0]!.attributes.get("variant"))).toBe("primary");
   });
 
   it("opens deletion with the outlined trigger", () => {
     for (const file of ["src/components/task-detail/TaskDetail.tsx", "src/components/task-detail/BulkActions.tsx"]) {
-      const source = readFileSync(join(ROOT, file), "utf8");
-      const at = source.indexOf('t("detail.delete")');
-      expect(source.slice(source.lastIndexOf("<Button", at), at), file).toContain('variant="danger"');
+      const deletes = buttons(readSource(file).ast, (element) => translationKeys(element).includes("detail.delete"));
+      expect(deletes.length, file).toBeGreaterThan(0);
+      for (const button of deletes) expect(attributeString(button.attributes.get("variant")), file).toBe("danger");
     }
   });
 });
 
 describe("About", () => {
   it("drops its drawn title and leads with the app's name", () => {
-    const about = readFileSync(join(ROOT, "src/components/layout/AboutModal.tsx"), "utf8");
-    expect(about).toContain("titleVisuallyHidden");
-    expect(about).toMatch(/text-2xl[^"]*">Dropkick</);
+    const about = readSource("src/components/layout/AboutModal.tsx").ast;
+    const elements = jsxElements(about);
+    expect(elements.some(({ attributes }) => attributes.has("titleVisuallyHidden"))).toBe(true);
+    expect(
+      elements.some((element) => element.classes.includes("text-2xl") && elementText(element) === "Dropkick"),
+    ).toBe(true);
   });
 });
 
 describe("menus", () => {
   it("size to their longest item up to a narrow cap: content width, a floor at most, never a fixed width", () => {
-    const tabBar = readFileSync(join(ROOT, "src/components/layout/TabBar.tsx"), "utf8");
-    const contents = [...tabBar.matchAll(/<DropdownMenu\.Content[\s\S]*?className="([^"]*)"/g)].map((m) => m[1]!);
+    const tabBar = readSource("src/components/layout/TabBar.tsx").ast;
+    const contents = jsxElements(tabBar).filter(({ name }) => name === "DropdownMenu.Content");
     expect(contents.length).toBeGreaterThan(0);
-    for (const className of contents) {
-      expect(className).toContain("w-max");
+    for (const { classes } of contents) {
+      expect(classes).toContain("w-max");
       // Narrow even in a wide window: long names and paths end in "…" at the
       // cap rather than stretching the menu toward the window's edge.
-      expect(className).toContain("max-w-[min(var(--menu-max-width),var(--radix-dropdown-menu-content-available-width))]");
-      expect(className).not.toMatch(/(^|\s)w-(?!max)[\w[]/);
+      expect(classes).toContain("max-w-[min(var(--menu-max-width),var(--radix-dropdown-menu-content-available-width))]");
+      expect(classes.filter((token) => /^w-/.test(utilityOf(token)) && utilityOf(token) !== "w-max")).toEqual([]);
     }
-    expect(css).toMatch(/\.dk-menu \{[^}]*--menu-max-width: 20rem;/);
+    expect(rulesFor(css, ".dk-menu").map((rule) => declarationValue(rule, "--menu-max-width"))).toContain("20rem");
     // Items never wrap: the shared item role keeps its label on one line.
-    expect(css).toMatch(/\.dk-menu-item,\s*\.dk-menu-control\s*\{[^}]*white-space:\s*nowrap/);
+    const shared = rulesWithSelectors(css, [".dk-menu-item", ".dk-menu-control"]);
+    expect(shared.map((rule) => declarationValue(rule, "white-space"))).toEqual(["nowrap"]);
   });
 
   it("give a contained control row the item row's anatomy", () => {
     // One rule owns padding, height, gap and text for both, so a control row's
     // icon and label line up with the items' and its control keeps their inset.
-    const shared = css.match(/\.dk-menu-item,\s*\.dk-menu-control\s*\{([^}]*)\}/)?.[1];
-    expect(shared).toBeDefined();
-    for (const declaration of [
-      /display:\s*flex/,
-      /gap:\s*8px/,
-      /min-height:\s*30px/,
-      /padding:\s*5px 10px/,
-      /font-size:\s*13px/,
-    ]) {
-      expect(shared).toMatch(declaration);
+    const shared = rulesWithSelectors(css, [".dk-menu-item", ".dk-menu-control"]);
+    expect(shared).toHaveLength(1);
+    for (const [property, value] of [
+      ["display", "flex"],
+      ["gap", "8px"],
+      ["min-height", "30px"],
+      ["padding", "5px 10px"],
+      ["font-size", "13px"],
+    ] as const) {
+      expect(declarationValue(shared[0]!, property), property).toBe(value);
     }
     // The control row takes no item state: no pointer cursor, no highlight.
-    const controlRules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]*)\{/g)]
-      .map((m) => m[1]!.trim())
-      .filter((selector) => selector.includes("dk-menu-control"));
-    expect(controlRules).toHaveLength(1);
-    expect(controlRules[0]).toMatch(/^\.dk-menu-item,\s*\.dk-menu-control$/);
+    const controlRules = rulesOf(css).filter((rule) => selectorsOf(rule).some((s) => s.includes("dk-menu-control")));
+    expect(controlRules).toEqual(shared);
   });
 });
 
 describe("task list", () => {
   it("draws groups as cards with no stripe for the rounding to bend", () => {
-    const list = readFileSync(join(ROOT, "src/components/task-list/TaskListPane.tsx"), "utf8");
-    expect(list).toContain("GROUP_CARDS");
-    expect(list).not.toMatch(/border-l-4|border-l-group-/);
+    const list = readSource("src/components/task-list/TaskListPane.tsx").ast;
+    // The cards take their tint and edge from GROUP_CARDS, through a className.
+    let fromGroupCards = false;
+    walk(list, (node, ancestors) => {
+      if (
+        node.type === "Identifier" &&
+        node.name === "GROUP_CARDS" &&
+        ancestors.some((ancestor) => ancestor.type === "JSXAttribute" && ancestor.name.name === "className")
+      )
+        fromGroupCards = true;
+    });
+    expect(fromGroupCards).toBe(true);
+    const stripes = stringTokens(list).filter(({ token }) => /border-l-4|border-l-group-/.test(token));
+    expect(stripes).toEqual([]);
   });
 });
 
 describe("per-item dismiss", () => {
   it("centres on the item's first line through one shared class", () => {
-    expect(css).toMatch(/\.dk-line-dismiss\s*\{[^}]*margin-block:\s*calc\(\(1lh - var\(--dk-dismiss-size\)\) \/ 2\)/);
+    expect(rulesFor(css, ".dk-line-dismiss").map((rule) => declarationValue(rule, "margin-block"))).toEqual([
+      "calc((1lh - var(--dk-dismiss-size)) / 2)",
+    ]);
     for (const file of [
       "src/components/shared/InlineResult.tsx",
       "src/components/shared/ToastHost.tsx",
       "src/components/layout/TabBar.tsx",
     ]) {
-      const source = readFileSync(join(ROOT, file), "utf8");
-      expect(source, file).toContain("dk-line-dismiss");
-      expect(source, file).not.toMatch(/dk-icon-btn-on-danger[^"]*-my-/);
+      const elements = jsxElements(readSource(file).ast);
+      expect(elements.some(({ classes }) => classes.includes("dk-line-dismiss")), file).toBe(true);
+      const nudged = elements.filter(
+        ({ classes }) =>
+          classes.includes("dk-icon-btn-on-danger") && classes.some((token) => /^-my-/.test(utilityOf(token))),
+      );
+      expect(nudged, file).toEqual([]);
     }
   });
 });
