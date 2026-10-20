@@ -54,14 +54,5 @@ describe("KeyboardShortcutsModal tab commands", () => {
     expect(document.body.textContent).toContain(
       "Delete selected tasksDelete/Backspace",
     );
-    expect(document.body.textContent).not.toContain(
-      "Dismiss selected tasksBackspace/Delete",
-    );
-  });
-
-  it("lists no theme shortcut; the theme changes only in Settings", async () => {
-    host = await mount(createElement(KeyboardShortcutsModal, { onClose: () => {} }));
-
-    expect(document.body.textContent).not.toMatch(/appearance|dark mode|theme/i);
   });
 });

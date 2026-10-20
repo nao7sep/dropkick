@@ -87,4 +87,7 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 # features (async runtime + logging) are unused here; only the synchronous
 # `#[serial]` attribute is needed.
 serial_test = { version = "4.0.1", default-features = false }
+# Parses lib.rs in the command-dispatch test, which checks every Tauri command
+# that reaches the disk against its syntax tree rather than its text.
+syn = { version = "3.0.9", features = ["full", "visit"] }
 tempfile = "3.27"

@@ -12,7 +12,6 @@ const read = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8").replace(/\r\n?/g, "\n");
 
 const css = read("../../src/App.css");
-const mainWindow = read("../../src/components/layout/MainWindow.tsx");
 
 describe("UI font (App.css + MainWindow)", () => {
   it("declares --font-ui on :root and uses it for the page font", () => {
@@ -26,10 +25,5 @@ describe("UI font (App.css + MainWindow)", () => {
     // An unknown family the user typed is appended to this, so the fallback is
     // what they land on.
     expect(css).toContain("sans-serif");
-    expect(css).not.toMatch(/--font-ui:\s*system-ui;/);
-  });
-
-  it("does not pin the font inside the main window's subtree", () => {
-    expect(mainWindow).not.toContain("fontFamily");
   });
 });

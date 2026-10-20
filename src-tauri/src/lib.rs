@@ -6,9 +6,9 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State};
 
-// The crate's only consumer is `main.rs`, which calls `run`; every module is
-// private. Tests are unit tests with private access, kept in `tests/unit/` and
-// included beside their subject (tests-folder-conventions).
+// The crate's only consumer is the binary's `main`, which calls `run`; every
+// module is private. Tests are unit tests with private access, included beside
+// their subject (tests-folder-conventions).
 mod backup_store;
 mod format_version;
 mod i18n;
@@ -98,7 +98,7 @@ fn install_panic_hook() {
     }));
 }
 
-// The stored state values, as src/models/task-list.ts names them. Decoding them
+// The stored state values, as the frontend's TaskStatus and NoteActionability types name them. Decoding them
 // as enums makes a file carrying any other value unreadable rather than loaded
 // with a task or note the app cannot place (store-recovery-conventions).
 #[derive(Deserialize, Serialize)]
@@ -130,7 +130,7 @@ pub struct NoteDto {
     pub content: String,
     pub actionability: NoteActionability,
     pub created_at_utc: String,
-    // Absent until the note's content is first edited (task-list.ts), so it
+    // Absent until the note's content is first edited (the frontend's `editedAtUtc`), so it
     // stays absent on the way back to the webview rather than arriving as null.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edited_at_utc: Option<String>,
@@ -367,9 +367,7 @@ fn validate_task_list_identities(data: &TaskListDto) -> Result<(), String> {
 // the fs plugin's `$HOME/**` would have been. Nothing in the app can execute
 // attacker code in the renderer — no eval, no dangerouslySetInnerHTML, no shell
 // — so the exposure is a supply-chain one: a compromised npm dependency runs as
-// `'self'` script and can read or write any file the user can. Scoping these
-// commands (a runtime allow-list grown from the paths the user actually picks
-// in a dialog) is open work, tracked in the fleet app-review plan.
+// `'self'` script and can read or write any file the user can.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum TextReadResult {
@@ -464,9 +462,10 @@ async fn write_text_file_atomic(
 // extension), holding the new file under the target's own name until it is
 // renamed into place. The nanoid discriminator is generated fresh per call, so
 // distinct calls — even concurrent ones to the same path — get distinct
-// staging directories, and creating one fails rather than reuse another's. That said, the frontend still serializes writes per
-// path (withSerial in file-system.ts) for the unrelated reason of keeping
-// hash-checked reads and writes from interleaving.
+// staging directories, and creating one fails rather than reuse another's. That said, the
+// frontend still serializes writes per path (withSerial in its file-system
+// module) for the unrelated reason of keeping hash-checked reads and writes from
+// interleaving.
 pub fn atomic_temp_name(file_name: &str) -> String {
     let stem = std::path::Path::new(file_name)
         .file_stem()
@@ -681,7 +680,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     // preferences/workspaces/task-lists — internal and external) is recorded;
     // the history keeps one row per path per session. Not
     // recorded: volatile state saved through write_atomic_unrecorded (state.json, window.json, records-window.json),
-    // records (records.sqlite3 and its fallback logs, written by logging.rs, never
+    // records (records.sqlite3 and its fallback logs, written by the logging module, never
     // atomically) and the backup_store's own SQLite file (written by the backup
     // layer, not here).
     if record {
@@ -1015,7 +1014,7 @@ async fn open_records_window(
     result
 }
 
-// The records reads log only their failures (see records.rs): each stored
+// The records reads log only their failures (see the records module): each stored
 // record signals the Records window, so a logged success would start the next
 // read. A failure is recorded once, and the window reads no further on
 // signals until a read succeeds.
@@ -1068,8 +1067,8 @@ fn logging_debug_enabled() -> bool {
     logging::debug_enabled()
 }
 
-// The main window's writes are settled for the end of the session
-// (src-tauri/src/os_quit.rs).
+// The main window reports that its writes are settled for the end of the
+// session (`os_quit::session_end_settled`).
 #[tauri::command]
 fn session_end_settled() {
     os_quit::session_end_settled();
@@ -1298,3 +1297,7 @@ mod tests;
 #[cfg(test)]
 #[path = "../tests/unit/atomic_write.rs"]
 mod atomic_write_tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/command_dispatch.rs"]
+mod command_dispatch_tests;

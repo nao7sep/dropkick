@@ -35,7 +35,7 @@ describe("installer configuration", () => {
       "utf8",
     );
     expect(packageScript).toContain(
-      'Compress-Archive -Path "src-tauri/target/release/dropkick.exe", "LICENSE"',
+      'Compress-Archive -Path "src-tauri/target/release/$Crate.exe", "LICENSE"',
     );
   });
 });

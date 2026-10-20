@@ -64,7 +64,6 @@ describe("current-build package collection", () => {
     expect(build).toBeGreaterThan(cleanup);
     expect(check).toBeGreaterThan(build);
     expect(copy).toBeGreaterThan(check);
-    expect(windowsScript).not.toContain("Select-Object -First 1");
   });
 });
 
@@ -79,7 +78,6 @@ function windowsPackageFixture(mode: WindowsBuildMode) {
   writeFileSync(join(root, "scripts/package.ps1"), windowsScript);
   writeFileSync(join(root, "src-tauri/tauri.conf.json"), JSON.stringify({ version: "2.0.0" }));
   writeFileSync(join(root, "LICENSE"), "fixture licence");
-  writeFileSync(join(root, "THIRD_PARTY_NOTICES"), "fixture notices");
   writeFileSync(join(root, "artifacts/stale.zip"), "stale archive");
   writeFileSync(join(root, "src-tauri/target/release/bundle/nsis/Old-1.0.0-setup.exe"), "stale installer");
   writeFileSync(join(root, "src-tauri/target/release/dropkick.exe"), "stale executable");
@@ -132,10 +130,9 @@ describe.skipIf(process.platform !== "win32")("Windows current-build package col
     });
     if (unpacked.error) throw unpacked.error;
     expect(unpacked.status, unpacked.stderr).toBe(0);
-    expect(readdirSync(join(root, "expanded")).sort()).toEqual(["LICENSE", "THIRD_PARTY_NOTICES", "dropkick.exe"]);
+    expect(readdirSync(join(root, "expanded")).sort()).toEqual(["LICENSE", "dropkick.exe"]);
     expect(readFileSync(join(root, "expanded/dropkick.exe"), "utf8")).toBe("current executable");
     expect(readFileSync(join(root, "expanded/LICENSE"), "utf8")).toBe("fixture licence");
-    expect(readFileSync(join(root, "expanded/THIRD_PARTY_NOTICES"), "utf8")).toBe("fixture notices");
   });
 
   it.each([

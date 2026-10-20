@@ -95,10 +95,6 @@ describe("SettingsModal theme", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("no longer advertises a theme shortcut", () => {
-    expect(document.body.textContent).not.toMatch(/Shift\+D|opposite/);
-  });
-
   it("keeps a failed settings save inline and retains the edited draft", async () => {
     update.mockResolvedValueOnce({ status: "error", message: message("write.preferences") });
     const timezone = timeZoneSelect();

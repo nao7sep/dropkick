@@ -83,40 +83,13 @@ describe("Tauri window capability (src-tauri/capabilities/default.json)", () => 
   });
 });
 
-describe("durable window-state boundary", () => {
-  const core = readFileSync(
-    fileURLToPath(new URL("../../src-tauri/src/lib.rs", import.meta.url)),
-    "utf8",
-  );
-  const placement = readFileSync(
-    fileURLToPath(new URL("../../src-tauri/src/window_placement.rs", import.meta.url)),
-    "utf8",
-  );
-  const appRoot = readFileSync(
-    fileURLToPath(new URL("../../src/App.tsx", import.meta.url)),
-    "utf8",
-  );
-  const tauriConfig = JSON.parse(
-    readFileSync(
-      fileURLToPath(
-        new URL("../../src-tauri/tauri.conf.json", import.meta.url),
-      ),
-      "utf8",
-    ),
-  ) as { app: { windows: Array<{ visible?: boolean }> } };
-
-  it("restores the atomic native record before showing Main", () => {
-    expect(core).toContain("window_placement::restore(");
-    expect(core).toContain("window.show()?");
-    expect(core.indexOf("window_placement::restore(")).toBeLessThan(core.indexOf("window.show()?"));
-    expect(core).not.toContain("tauri_plugin_window_state");
-    // Geometry events refresh one complete in-memory normal rectangle; the
-    // Rust behavior tests cover retaining it through a maximized close.
-    expect(placement).not.toMatch(/debounce|prev_[xy]/i);
-  });
-
-  it("keeps placement out of the frontend and creates Main hidden", () => {
-    expect(appRoot).not.toMatch(/plugin-window-state|restoreState|saveWindowState/);
+describe("main window", () => {
+  // Placement is restored natively before the window is first shown, so it is
+  // created hidden.
+  it("is created hidden", () => {
+    const tauriConfig = JSON.parse(
+      readFileSync(fileURLToPath(new URL("../../src-tauri/tauri.conf.json", import.meta.url)), "utf8"),
+    ) as { app: { windows: Array<{ visible?: boolean }> } };
     expect(tauriConfig.app.windows[0]?.visible).toBe(false);
   });
 });

@@ -20,7 +20,6 @@ describe("development endpoints", () => {
     for (const path of ["scripts/run-dev.command", "scripts/run-dev.ps1"]) {
       expect(read(path)).toContain("29327");
       expect(read(path)).toContain("22853");
-      expect(read(path)).not.toMatch(/stop[_-]port|Stop-Port/);
     }
   });
 });

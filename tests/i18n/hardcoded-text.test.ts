@@ -39,8 +39,16 @@ function tsxFiles(dir: string): string[] {
   });
 }
 
+// Allowed literals met while scanning, so an entry nothing uses any more fails.
+const literalsSeen = new Set<string>();
+
 function hasWords(text: string): boolean {
-  return /\p{L}/u.test(text) && !LITERAL_TEXT.has(text.trim());
+  if (!/\p{L}/u.test(text)) return false;
+  if (LITERAL_TEXT.has(text.trim())) {
+    literalsSeen.add(text.trim());
+    return false;
+  }
+  return true;
 }
 
 function literalText(node: Node | undefined): string | null {
@@ -53,10 +61,14 @@ function literalText(node: Node | undefined): string | null {
 }
 
 function findings(file: string): string[] {
-  const ast = parse(readFileSync(file, "utf8"), { sourceType: "module", plugins: ["jsx", "typescript"] });
+  return findingsIn(readFileSync(file, "utf8"), relative(process.cwd(), file));
+}
+
+function findingsIn(source: string, label: string): string[] {
+  const ast = parse(source, { sourceType: "module", plugins: ["jsx", "typescript"] });
   const found: string[] = [];
   const report = (node: Node, text: string) =>
-    found.push(`${relative(process.cwd(), file)}:${node.loc?.start.line}: ${JSON.stringify(text.trim())}`);
+    found.push(`${label}:${node.loc?.start.line}: ${JSON.stringify(text.trim())}`);
 
   const visit = (node: unknown): void => {
     if (Array.isArray(node)) {
@@ -98,8 +110,14 @@ function findings(file: string): string[] {
 }
 
 describe("interface text", () => {
+  it("finds a planted literal in text, an expression and a read attribute", () => {
+    const planted = 'export const A = () => <div title="Hello there">Plain words{"More words"}</div>;';
+    expect(findingsIn(planted, "planted").length).toBe(3);
+  });
+
   it("comes from the catalogues, not from JSX literals", () => {
     const all = tsxFiles(SOURCE).flatMap(findings);
     expect(all).toEqual([]);
+    expect([...LITERAL_TEXT].filter((text) => !literalsSeen.has(text)), "allowed but no longer used").toEqual([]);
   });
 });
