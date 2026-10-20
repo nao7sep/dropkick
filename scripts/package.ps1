@@ -8,11 +8,12 @@ $Repo = Split-Path -Parent $PSScriptRoot
 Set-Location $Repo
 
 $AppName = "Dropkick"
+$Crate = "dropkick"
 $Version = (node -p "require('./src-tauri/tauri.conf.json').version")
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($Version)) { throw "Could not read the application version" }
 $TauriCli = Join-Path $Repo "node_modules/.bin/tauri.cmd"
 $NsisDirectory = Join-Path $Repo "src-tauri/target/release/bundle/nsis"
-$PortableExecutable = Join-Path $Repo "src-tauri/target/release/dropkick.exe"
+$PortableExecutable = Join-Path $Repo "src-tauri/target/release/$Crate.exe"
 
 if (-not (Test-Path -PathType Leaf $TauriCli)) {
     throw "Missing local Tauri CLI. Run npm install before packaging."
@@ -36,6 +37,6 @@ Copy-Item $setups[0].FullName "artifacts/$AppName-$Version-setup.exe"
 # Portable: the release exe plus the application licence and third-party notices. Tauri embeds the
 # frontend into the binary; WebView2 is a system runtime present on Windows
 # 10/11. The exe is named after the Cargo crate (dropkick), not the productName.
-Compress-Archive -Path "src-tauri/target/release/dropkick.exe", "LICENSE", "THIRD_PARTY_NOTICES" -DestinationPath "artifacts/$AppName-$Version-win.zip" -Force
+Compress-Archive -Path "src-tauri/target/release/$Crate.exe", "LICENSE" -DestinationPath "artifacts/$AppName-$Version-win.zip" -Force
 
 Get-ChildItem artifacts
