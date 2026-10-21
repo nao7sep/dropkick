@@ -4,11 +4,12 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // The save panel and the file-existence check are the two side effects here.
 const save = vi.fn();
+const open = vi.fn();
 const fileExists = vi.fn();
 const showAppConfirm = vi.fn();
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: vi.fn(),
+  open: (opts: unknown) => open(opts),
   save: (opts: unknown) => save(opts),
 }));
 vi.mock("../../src/repositories/file-system", () => ({
@@ -19,7 +20,17 @@ vi.mock("../../src/state/dialog-store", () => ({
   showAppMessage: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/api/path", async () => {
+  const { posix, win32 } = await import("node:path");
+  const paths = (path: string) => path.includes("\\") ? win32 : posix;
+  return {
+    dirname: async (path: string) => paths(path).dirname(path),
+    join: async (directory: string, name: string) => paths(directory).join(directory, name),
+  };
+});
+
 import {
+  openJsonFileDialog,
   saveJsonFileDialog,
   showNoteDeletionConfirm,
   showTaskDeletionConfirm,
@@ -27,8 +38,42 @@ import {
 
 beforeEach(() => {
   save.mockReset();
+  open.mockReset();
   fileExists.mockReset();
   showAppConfirm.mockReset();
+});
+
+describe("contextual JSON picker locations", () => {
+  it.each([
+    ["/projects/$CLIENT/workspace.json", "/projects/$CLIENT", "/projects/$CLIENT/tasks.json"],
+    ["/workspace.json", "/", "/tasks.json"],
+    ["C:\\workspace.json", "C:\\", "C:\\tasks.json"],
+    ["\\\\server\\share\\workspace.json", "\\\\server\\share\\", "\\\\server\\share\\tasks.json"],
+  ])("uses the contextual file's directory for %s", async (context, directory, suggestion) => {
+    open.mockResolvedValue("/picked/ $VALUE%.JSON ");
+    save.mockResolvedValue(null);
+    expect(await openJsonFileDialog(context)).toBe("/picked/ $VALUE%.JSON ");
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: directory }));
+    expect(await saveJsonFileDialog("tasks.json", context)).toBeNull();
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: suggestion }));
+  });
+
+  it("leaves the platform in charge without a contextual document", async () => {
+    open.mockResolvedValue(null);
+    save.mockResolvedValue(null);
+    expect(await openJsonFileDialog()).toBeNull();
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: undefined }));
+    await saveJsonFileDialog("workspace.json");
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: "workspace.json" }));
+  });
+
+  it("retains final-target overwrite protection with a contextual suggestion", async () => {
+    save.mockResolvedValue("/elsewhere/Existing");
+    fileExists.mockResolvedValue(true);
+    showAppConfirm.mockResolvedValue(false);
+    expect(await saveJsonFileDialog("tasks.json", "/project/workspace.json")).toBeNull();
+    expect(fileExists).toHaveBeenCalledWith("/elsewhere/Existing.json");
+  });
 });
 
 describe("saveJsonFileDialog", () => {

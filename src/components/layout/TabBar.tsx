@@ -171,9 +171,13 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
 
   // --- Tab actions ---
 
+  const activeTab = workspace.openTabs[activeTabIndex];
+  const pickerContext = (!activeTab?.isUnifiedView && activeTab?.filePath)
+    || workspaceFilePath || undefined;
+
   const handleNewTaskList = async () => {
     try {
-      const normalizedPath = await saveJsonFileDialog("tasks.json");
+      const normalizedPath = await saveJsonFileDialog("tasks.json", pickerContext);
       if (!normalizedPath) return;
       log.info("create task list", { path: normalizedPath });
       await createFile(normalizedPath);
@@ -188,7 +192,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
 
   const handleOpenExisting = async () => {
     try {
-      const path = await openJsonFileDialog();
+      const path = await openJsonFileDialog(pickerContext);
       if (!path) return;
       log.info("open task list", { path });
       const loaded = await loadFile(path);

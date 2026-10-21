@@ -84,6 +84,31 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
+describe("TabBar contextual native locations", () => {
+  it.each(["active", "unified", "empty", "first-use"])("uses current context for %s tabs without choosing a recent root", async (kind) => {
+    const openTabs = kind === "empty" || kind === "first-use" ? [] : [
+      createTab("/other/first.json", "First"),
+      kind === "unified" ? { ...createTab("", "All"), isUnifiedView: true } : createTab("/active/list.json", "Active"),
+    ];
+    const workspace = { ...createDefaultWorkspace("Test"), openTabs, activeTabIndex: openTabs.length - 1, recentFiles: [{ filePath: "/history/unrelated.json", lastOpenedAtUtc: "2026-01-01T00:00:00Z" }] };
+    useWorkspaceStore.setState({ workspace, filePath: kind === "first-use" ? "" : "/workspace/current.json", loaded: true });
+    vi.mocked(openJsonFileDialog).mockReset().mockResolvedValue(null);
+    vi.mocked(saveJsonFileDialog).mockReset().mockResolvedValue(null);
+    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn(), onChromeHeightChange: vi.fn() }));
+    for (const command of ["New task list", "Open existing file"]) {
+      const trigger = document.querySelector<HTMLElement>('button[aria-haspopup="menu"]')!;
+      await act(async () => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.trim() === command)!;
+      expect(item).toBeTruthy();
+      await act(async () => item.click());
+    }
+    const context = kind === "active" ? "/active/list.json" : kind === "first-use" ? undefined : "/workspace/current.json";
+    expect(openJsonFileDialog).toHaveBeenCalledExactlyOnceWith(context);
+    expect(saveJsonFileDialog).toHaveBeenCalledExactlyOnceWith("tasks.json", context);
+    expect(useWorkspaceStore.getState().workspace).toBe(workspace);
+  });
+});
+
 describe("TabBar wrapped visibility", () => {
   it("renders every open tab in the tablist when there are many tabs", async () => {
     const openTabs = Array.from({ length: 16 }, (_, index) =>

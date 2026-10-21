@@ -43,9 +43,11 @@ import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { createDefaultAppState } from "../../../src/models";
 
 let host: Mounted;
+const initialWorkspaceState = useWorkspaceStore.getState();
 
 afterEach(async () => {
   await host?.unmount();
+  useWorkspaceStore.setState(initialWorkspaceState, true);
   vi.clearAllMocks();
 });
 
@@ -155,6 +157,37 @@ describe("StartupPicker — the file lists are real listboxes", () => {
     await pressOn(workspaceListbox(), "ArrowDown");
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+  });
+});
+
+describe("StartupPicker — contextual native locations", () => {
+  it("uses the selected row and follows later selection without changing it on Cancel", async () => {
+    repositories.openJsonFileDialog.mockResolvedValue(null);
+    repositories.saveJsonFileDialog.mockResolvedValue(null);
+    await mountWithKnownFiles();
+    await pressOn(workspaceListbox(), "End");
+    await act(async () => button("New").click());
+    await act(async () => button("Add existing").click());
+    expect(repositories.saveJsonFileDialog).toHaveBeenLastCalledWith("workspace.json", "/b/ws.json");
+    expect(repositories.openJsonFileDialog).toHaveBeenLastCalledWith("/b/ws.json");
+    expect(selectedOptionText()).toContain("/b/ws.json");
+    await pressOn(workspaceListbox(), "Home");
+    await act(async () => button("Add existing").click());
+    expect(repositories.openJsonFileDialog).toHaveBeenLastCalledWith("/a/ws.json");
+  });
+
+  it.each([true, false])("uses only a loaded current workspace when no row exists (loaded=%s)", async (loaded) => {
+    repositories.openJsonFileDialog.mockResolvedValue(null);
+    repositories.saveJsonFileDialog.mockResolvedValue(null);
+    useAppConfigStore.setState({ appConfig: { knownWorkspaces: [] } });
+    useAppStateStore.setState({ appState: createDefaultAppState() });
+    useWorkspaceStore.setState({ loaded, filePath: "/current/workspace.json" });
+    host = await mount(createElement(StartupPicker, { onLaunch: vi.fn() }));
+    await act(async () => button("New").click());
+    await act(async () => button("Add existing").click());
+    const context = loaded ? "/current/workspace.json" : undefined;
+    expect(repositories.saveJsonFileDialog).toHaveBeenLastCalledWith("workspace.json", context);
+    expect(repositories.openJsonFileDialog).toHaveBeenLastCalledWith(context);
   });
 });
 

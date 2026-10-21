@@ -49,6 +49,7 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
   const register = useAppConfigStore((s) => s.register);
   const unregister = useAppConfigStore((s) => s.unregister);
   const items = appConfig.knownWorkspaces;
+  const currentWorkspacePath = useWorkspaceStore((s) => s.loaded ? s.filePath : "");
 
   const [selected, setSelected] = useState(
     items.includes(appState.lastWorkspacePath) ? appState.lastWorkspacePath : (items[0] ?? ""),
@@ -112,7 +113,7 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
 
   const handleAddExisting = async () => {
     await guarded("openWorkspace", async () => {
-      const path = await openJsonFileDialog();
+      const path = await openJsonFileDialog(selected || currentWorkspacePath || undefined);
       if (!path) return;
       const loaded = await loadWorkspace(path);
       if (loaded.status !== "success") {
@@ -129,7 +130,7 @@ export function StartupPicker({ onLaunch, onCancel, onQuit }: StartupPickerProps
 
   const handleNew = async () => {
     await guarded("createWorkspace", async () => {
-      const path = await saveJsonFileDialog("workspace.json");
+      const path = await saveJsonFileDialog("workspace.json", selected || currentWorkspacePath || undefined);
       if (!path) return;
       const created = await createWorkspaceFile(path, fileNameWithoutExt(path));
       setNames((current) => ({ ...current, [path]: created.name }));

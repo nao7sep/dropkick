@@ -2,16 +2,18 @@
 // File pickers remain native via Tauri; message/confirm dialogs are rendered in-app.
 
 import { invoke } from "@tauri-apps/api/core";
+import { dirname, join } from "@tauri-apps/api/path";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { showAppConfirm, showAppMessage } from "../state/dialog-store";
 import { message, type Message } from "../i18n/translate";
 import { fileExists } from "./file-system";
 
-// Opens a native file dialog for selecting an existing JSON file.
+// Opens a native file dialog beside the contextual document, when available.
 // Returns the selected file path, or null if cancelled.
-export async function openJsonFileDialog(): Promise<string | null> {
+export async function openJsonFileDialog(contextFilePath?: string): Promise<string | null> {
   const result = await open({
     multiple: false,
+    defaultPath: contextFilePath ? await dirname(contextFilePath) : undefined,
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   // open() returns string | string[] | null depending on `multiple`.
@@ -37,9 +39,15 @@ export async function openJsonFileDialog(): Promise<string | null> {
 // (storage-path-conventions).
 export async function saveJsonFileDialog(
   defaultName?: string,
+  contextFilePath?: string,
 ): Promise<string | null> {
+  let defaultPath = defaultName;
+  if (contextFilePath) {
+    const directory = await dirname(contextFilePath);
+    defaultPath = defaultName ? await join(directory, defaultName) : directory;
+  }
   const picked = await save({
-    defaultPath: defaultName,
+    defaultPath,
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (picked === null) return null;
