@@ -1,6 +1,6 @@
 export { loadAppConfig, flushAppConfig } from "./app-config-repository";
 
-export { log, toErrorFields, loadFailureFields, initLogging } from "./logging";
+export { log, toErrorFields, loadFailureFields, initLogging, flushForwarded } from "./logging";
 export type { LogFields } from "./logging";
 
 export {
@@ -42,7 +42,7 @@ export {
 
 export { applyWindowTheme, readSystemTheme } from "./window-theme";
 export { closeCurrentWindow, isWindowShowing, onWindowFocused } from "./window-activity";
-export { onSessionEnding, reportSessionEndSettled } from "./session-end";
+export { onSessionEnding, reportSessionEndSettled, closeWindow } from "./session-end";
 export { applyLanguage, loadLanguageEnvironment } from "./language";
 export type { LanguageEnvironment } from "./language";
 

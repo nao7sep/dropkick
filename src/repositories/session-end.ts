@@ -15,3 +15,9 @@ export function onSessionEnding(listener: () => void): () => void {
 export async function reportSessionEndSettled(): Promise<void> {
   await invoke("session_end_settled");
 }
+
+// Native admission of the final close fact and destruction share one command;
+// the renderer cannot disappear between forwarding the fact and closing.
+export async function closeWindow(forwardingComplete: boolean): Promise<void> {
+  await invoke("close_window", { forwardingComplete });
+}

@@ -1112,10 +1112,21 @@ fn logging_debug_enabled() -> bool {
     logging::debug_enabled()
 }
 
+// The privileged owner receives the final decision before it destroys the
+// renderer. Admission is nonblocking; diagnostic durability remains best effort.
+#[tauri::command]
+fn close_window(window: tauri::WebviewWindow, forwarding_complete: bool) -> Result<(), String> {
+    logging::info("window close authorized", json!({
+        "window": window.label(), "forwardingComplete": forwarding_complete
+    }));
+    window.destroy().map_err(|error| error.to_string())
+}
+
 // The main window reports that its writes are settled for the end of the
 // session (`os_quit::session_end_settled`).
 #[tauri::command]
 fn session_end_settled() {
+    logging::info("session end settlement acknowledged", json!({}));
     os_quit::session_end_settled();
 }
 
@@ -1304,7 +1315,8 @@ pub fn run() {
             read_records_page,
             read_record_sources,
             read_record_detail,
-            session_end_settled
+            session_end_settled,
+            close_window
         ])
         .build(context())
         .expect("error while building tauri application");

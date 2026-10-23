@@ -26,6 +26,8 @@ import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   drainRequiredSerial,
+  closeWindow,
+  flushForwarded,
   log,
   onSessionEnding,
   pendingSerialKeys,
@@ -217,12 +219,18 @@ export function useWindowClose(): void {
         if (closing || sessionEnding) return;
         log.info("window close requested", {});
         try {
-          closing = prepareWindowClose();
-          // At the end of a session the OS ends the window, and destroying it
-          // here would race that.
-          if ((await closing) && !sessionEnding) {
-            await appWindow.destroy();
-          }
+          const deadline = performance.now() + CLOSE_WAIT_MS;
+          let forwarded = false;
+          closing = (async () => {
+            if (!(await prepareWindowClose())) return false;
+            // Saving and forwarding share the existing allowance. Time spent
+            // waiting or answering a question never buys another logging delay.
+            forwarded = await flushForwarded(Math.max(0, deadline - performance.now()));
+            // The OS owns destruction during session end; joining this promise
+            // cannot extend its bound with a second forwarding allowance.
+            return true;
+          })();
+          if ((await closing) && !sessionEnding) await closeWindow(forwarded);
         } catch (e) {
           // A rejection from destroy() leaves the window open. Better that
           // than an unhandled rejection with preventDefault already called —

@@ -128,7 +128,9 @@ beforeEach(async () => {
   useDialogStore.setState({ current: null, queue: [] });
 
   invokeMock.mockReset();
-  invokeMock.mockResolvedValue(undefined);
+  invokeMock.mockImplementation(async (command) => {
+    if (command === "close_window") windowStub.events.push("destroy");
+  });
 });
 
 afterEach(() => {
@@ -632,4 +634,93 @@ it("does not let a failed workspace save prompt or hold OS session end", async (
   expect(reported()).toBe(1);
   expect(windowStub.events).not.toContain("destroy");
   expect(useWorkspaceStore.getState().workspace.openTabs[0].filePath).toBe("/tasks.json");
+});
+
+describe("close diagnostic acknowledgement", () => {
+  it.each([false, true])("waits for forwarding only within the existing close allowance (release=%s)", async (finish) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    await mountHarness();
+    let release!: () => void;
+    let held = false;
+    invokeMock.mockImplementation((command) => {
+      if (command === "log_event" && !held) {
+        held = true;
+        return new Promise<void>(resolve => { release = resolve; });
+      }
+      if (command === "close_window") windowStub.events.push("destroy");
+      return Promise.resolve();
+    });
+    const closing = windowStub.handlers.at(-1)!({ preventDefault() {} });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(windowStub.events).toEqual([]);
+    if (finish) release();
+    else {
+      await vi.advanceTimersByTimeAsync(CLOSE_WAIT_MS - 1);
+      expect(windowStub.events).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+    }
+    await closing;
+    expect(invokeMock).toHaveBeenCalledWith("close_window", { forwardingComplete: finish });
+    expect(windowStub.events).toEqual(["destroy"]);
+    if (!finish) release();
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it("does not request native destruction when Keep Editing cancels close", async () => {
+    await mountHarness();
+    useNoteDraftStore.getState().setDraft(copyDraft("t1"), "keep this text");
+    const closing = windowStub.handlers.at(-1)!({ preventDefault() {} });
+    await waitForDialog();
+    useDialogStore.getState().cancelCurrent();
+    await closing;
+    expect(invokeMock.mock.calls.some(([command]) => command === "close_window")).toBe(false);
+  });
+
+  it("does not add another logging allowance after Quit Anyway", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    await mountHarness();
+    const releaseWrite = stuckWrite(LIST);
+    let releaseLog!: () => void;
+    let held = false;
+    invokeMock.mockImplementation(command => {
+      if (command === "log_event" && !held) {
+        held = true;
+        return new Promise<void>(resolve => { releaseLog = resolve; });
+      }
+      if (command === "close_window") windowStub.events.push("destroy");
+      return Promise.resolve();
+    });
+    const closing = windowStub.handlers.at(-1)!({ preventDefault() {} });
+    await vi.advanceTimersByTimeAsync(CLOSE_WAIT_MS);
+    expect(useDialogStore.getState().current?.title.key).toBe("dialog.stillSaving.title");
+    useDialogStore.getState().confirmCurrent();
+    await vi.advanceTimersByTimeAsync(1);
+    await closing;
+    expect(invokeMock).toHaveBeenCalledWith("close_window", { forwardingComplete: false });
+    releaseLog(); releaseWrite();
+    await vi.advanceTimersByTimeAsync(0);
+  });
+});
+
+it("OS session end joins held forwarding without destroying or adding another deadline", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+  await mountHarness();
+  let release!: () => void;
+  let held = false;
+  invokeMock.mockImplementation(command => {
+    if (command === "log_event" && !held) {
+      held = true;
+      return new Promise<void>(resolve => { release = resolve; });
+    }
+    return Promise.resolve();
+  });
+  const closing = windowStub.handlers.at(-1)!({ preventDefault() {} });
+  await vi.advanceTimersByTimeAsync(1000);
+  await endSession();
+  await vi.advanceTimersByTimeAsync(CLOSE_WAIT_MS - 1000);
+  await closing;
+  expect(reported()).toBe(1);
+  expect(invokeMock.mock.calls.some(([command]) => command === "close_window")).toBe(false);
+  release();
+  await vi.advanceTimersByTimeAsync(0);
 });
