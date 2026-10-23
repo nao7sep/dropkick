@@ -1,6 +1,7 @@
 // Global keyboard shortcuts — registered once in MainWindow.
 // Handles task creation, task actions, navigation, reorder, tab switching, etc.
-// Shortcuts are suppressed when the user is typing in an input/textarea/select.
+// Task shortcuts stand down while typing. Command and tab chords apply their
+// own platform text-entry and IME guards.
 
 import { useEffect, useCallback, useMemo } from "react";
 import { type TaskFieldChange, useTaskListStore } from "../state/task-list-store";

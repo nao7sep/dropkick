@@ -25,7 +25,8 @@ export function stagedPreferences(
 
 // Parses the comma-separated kick-distances field into a clean, ordered list.
 // Delegates the positive-integer / clamp-to-999 / de-dup / fallback rules to the
-// model normalizer so every entry point (file load, flush, this field) agrees.
+// model normalizer for Settings input. Stored load replaces an invalid whole
+// set with its built-in value, and persistence refuses invalid sets.
 export function parseKickDistances(input: string): number[] {
   return normalizeKickDistances(
     input.split(",").map((value) => parseInt(value.trim(), 10)),

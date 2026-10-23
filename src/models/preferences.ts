@@ -29,9 +29,9 @@ export const DEFAULT_KICK_DISTANCES: readonly number[] = [5, 25];
 // Normalizes a kick-distances value into a clean, ordered list: positive
 // integers only, each truncated and clamped to 999, de-duplicated, original
 // order preserved. Non-arrays and empty results fall back to
-// DEFAULT_KICK_DISTANCES. Applied at every boundary (file load, flush, and the
-// Settings field parse) so a hand-edited or legacy file can never feed
-// duplicate or over-large values to the "+N" buttons.
+// DEFAULT_KICK_DISTANCES. Settings input uses this normalization. Stored load
+// replaces an invalid whole set with its built-in value; persistence refuses
+// invalid sets.
 export function normalizeKickDistances(values: unknown): number[] {
   const list = Array.isArray(values) ? values : [];
   const cleaned = list
@@ -66,7 +66,7 @@ export const HANDLED_TASKS_PAGE_SIZE_MIN = 10;
 export const HANDLED_TASKS_PAGE_SIZE_MAX = 500;
 export const HANDLED_TASKS_PAGE_SIZE_DEFAULT = 50;
 
-// Coerces a stored or typed value to a whole number inside [min, max], falling
+// Coerces a Settings input value to a whole number inside [min, max], falling
 // back to `fallback` for anything non-numeric. An HTML min/max attribute is a
 // hint the browser does not enforce for typed input, so the range has to be
 // applied in code or an out-of-range value reaches the field's consumers.
@@ -83,10 +83,9 @@ function boundedInteger(
   return Math.min(Math.max(Math.trunc(n), min), max);
 }
 
-// Normalizes the due-soon window. Applied at every boundary (file load, flush,
-// and the Settings field parse) like normalizeKickDistances, because this value
-// is fed to date arithmetic: an unbounded one overflows the Date range and
-// throws where the caller cannot recover.
+// Normalizes the Settings due-soon input before it reaches date arithmetic.
+// Stored load replaces an invalid whole set with its built-in value;
+// persistence refuses invalid sets.
 export function normalizeDueSoonDays(value: unknown): number {
   return boundedInteger(
     value,
@@ -96,9 +95,9 @@ export function normalizeDueSoonDays(value: unknown): number {
   );
 }
 
-// Normalizes the handled-archive page size. Applied at the same three
-// boundaries: this value is a slice length, and a negative one silently hides
-// rows from the end of the archive instead of paging into it.
+// Normalizes the Settings handled-archive page-size input before it becomes a
+// slice length. Stored load replaces an invalid whole set with its built-in
+// value; persistence refuses invalid sets.
 export function normalizeHandledTasksPageSize(value: unknown): number {
   return boundedInteger(
     value,

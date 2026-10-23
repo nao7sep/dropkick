@@ -303,10 +303,10 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   }, [activeTab?.filePath, activeTab?.isUnifiedView]);
 
   // The set of open list file paths, order-independent, as a stable key. The
-  // eager-load effect keys off this rather than `workspace.openTabs` so it only
-  // re-runs when a list is actually opened or closed — not on a rename or a
-  // drag-reorder, which rebuild the openTabs array without changing the set. NUL
-  // is the separator because it cannot occur in a file path on any OS.
+  // eager-load effect uses this key and the active tab, so renaming or
+  // drag-reordering tabs alone does not trigger it when the open file set and
+  // active tab stay the same. NUL is the separator because it cannot occur in
+  // a file path on any OS.
   const openListPathsKey = useMemo(
     () =>
       workspace.openTabs
@@ -319,8 +319,8 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
 
   // Eagerly load every open list file — not just the active tab — so each tab's
   // deadline dot reflects its own list, and so unified view has every file's
-  // tasks. The active tab is loaded by the effect above (which also shows a
-  // dialog on failure), so it's skipped here to avoid a duplicate read.
+  // tasks. The active tab is loaded by the effect above, with failures shown
+  // inline in TaskListPane, so it's skipped here to avoid a duplicate read.
   // loadFile records any failure in fileLoadErrors and never rejects, so a
   // background tab's failure surfaces inline (its alert icon and, in unified
   // view, the missing-lists notice in the task list pane).

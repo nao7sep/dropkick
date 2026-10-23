@@ -132,7 +132,7 @@ describe("flushTaskList — conflict resolution", () => {
 
   it("overwrites when the user chooses overwrite", async () => {
     showFileConflictDialog.mockResolvedValue("overwrite");
-    // writeAndRemember rehashes after the overwrite write.
+    // writeAndRemember remembers the hash returned by the overwrite writer.
     hashFile.mockResolvedValue("DIFFERENT");
     const result = await repo.flushTaskList("/f.json", () => data());
     expect(result).toEqual({ status: "success" });

@@ -865,11 +865,9 @@ async fn ensure_dir(path: String) -> Result<(), String> {
     .await
 }
 
-// Returns the absolute storage root (`~/.dropkick`, or `DROPKICK_DATA_DIR`),
-// creating it if missing. The Rust core is the only path resolver: the webview
-// calls this once at startup and derives every subpath from the returned
-// absolute root, rather than reconstructing the root from `homeDir()` itself
-// (which cannot read `DROPKICK_DATA_DIR` and is forbidden by the per-stack rule).
+// Returns the complete named path layout from the already-admitted storage
+// root (`~/.dropkick`, or `DROPKICK_DATA_DIR`). The Rust core resolves every
+// path; the webview consumes the returned layout without deriving subpaths.
 #[tauri::command]
 async fn app_paths(app: AppHandle) -> Result<paths::AppPaths, String> {
     native_wait::settle(move || {
