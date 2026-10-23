@@ -292,6 +292,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   // Admission starts before a reopening request waits on old physical work.
   // A second workspace departure must also revoke that waiting successor.
   const loadAdmissions = new Map<string, object>();
+  // Optional reads own one active admission and one latest invalidation. A
+  // successor joins the serial queue only after settlement, behind saves
+  // already accepted while the read was held.
+  const refreshes = new Map<string, { pending: boolean; promise: Promise<void> }>();
 
   // The number of writes still queued or running per file. A list with one
   // keeps its loaded copy when the disk changes (refreshFromDisk).
@@ -549,6 +553,58 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       : result;
   }
 
+  async function refreshOnce(filePath: string, isCurrent: () => boolean): Promise<void> {
+    let result: RefreshResult | FileLoadError;
+    let duplicate: FileLoadError | null = null;
+    try {
+      result = await refreshTaskList(filePath, (data) => {
+        const current = get().files[filePath];
+        if (!isCurrent() || !current || inFlightUnloads.has(filePath)) return false;
+        if (pendingWrites.has(filePath)) return false;
+        if (get().unsavedFiles[filePath]) return false;
+        if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks, filePath)) {
+          return false;
+        }
+        duplicate = duplicateOf(get().files, data, filePath);
+        if (duplicate) return false;
+        applyData(filePath, data);
+        return true;
+      });
+    } catch (e) {
+      result = { status: "error", message: e instanceof Error ? e.message : String(e) };
+    }
+    if (!isCurrent() || !get().files[filePath] || inFlightUnloads.has(filePath)) return;
+    if (duplicate) result = duplicate;
+    switch (result.status) {
+      case "notLoaded":
+        return;
+      case "unchanged":
+        clearDiskError(filePath);
+        return;
+      case "reloaded":
+        log.info("task list reloaded from disk", {
+          path: filePath,
+          tasks: get().files[filePath]?.data.tasks.length ?? 0,
+        });
+        clearDiskError(filePath);
+        return;
+      case "kept":
+        log.info("task list changed on disk; kept the copy with unsaved edits", {
+          path: filePath,
+        });
+        clearDiskError(filePath);
+        return;
+      default: {
+        const failure = result;
+        log.warn("task list changed on disk and could not be read", loadFailureFields(filePath, failure));
+        if (!get().files[filePath]) return;
+        set((state) => ({
+          fileDiskErrors: { ...state.fileDiskErrors, [filePath]: failure },
+        }));
+      }
+    }
+  }
+
   return {
     files: {},
     fileLoadErrors: {},
@@ -633,6 +689,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     },
 
     unloadFile: async (filePath: string) => {
+      refreshes.delete(filePath);
       loadAdmissions.delete(filePath);
       const existing = inFlightUnloads.get(filePath);
       if (existing) return existing;
@@ -999,57 +1056,27 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       }
     },
 
-    refreshFromDisk: async (filePath: string) => {
-      if (!get().files[filePath]) return;
-      let result: RefreshResult | FileLoadError;
-      let duplicate: FileLoadError | null = null;
-      try {
-        result = await refreshTaskList(filePath, (data) => {
-          const current = get().files[filePath];
-          if (!current || inFlightUnloads.has(filePath)) return false;
-          if (pendingWrites.has(filePath)) return false;
-          if (get().unsavedFiles[filePath]) return false;
-          if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks, filePath)) {
-            return false;
-          }
-          duplicate = duplicateOf(get().files, data, filePath);
-          if (duplicate) return false;
-          applyData(filePath, data);
-          return true;
-        });
-      } catch (e) {
-        result = { status: "error", message: e instanceof Error ? e.message : String(e) };
+    refreshFromDisk: (filePath: string) => {
+      if (!get().files[filePath] || inFlightUnloads.has(filePath)) return Promise.resolve();
+      const active = refreshes.get(filePath);
+      if (active) {
+        active.pending = true;
+        return active.promise;
       }
-      if (!get().files[filePath] || inFlightUnloads.has(filePath)) return;
-      if (duplicate) result = duplicate;
-      switch (result.status) {
-        case "notLoaded":
-          return;
-        case "unchanged":
-          clearDiskError(filePath);
-          return;
-        case "reloaded":
-          log.info("task list reloaded from disk", {
-            path: filePath,
-            tasks: get().files[filePath]?.data.tasks.length ?? 0,
-          });
-          clearDiskError(filePath);
-          return;
-        case "kept":
-          log.info("task list changed on disk; kept the copy with unsaved edits", {
-            path: filePath,
-          });
-          clearDiskError(filePath);
-          return;
-        default: {
-          const failure = result;
-          log.warn("task list changed on disk and could not be read", loadFailureFields(filePath, failure));
-          if (!get().files[filePath]) return;
-          set((state) => ({
-            fileDiskErrors: { ...state.fileDiskErrors, [filePath]: failure },
-          }));
+      const entry = { pending: true, promise: Promise.resolve() };
+      refreshes.set(filePath, entry);
+      const isCurrent = () => refreshes.get(filePath) === entry;
+      entry.promise = (async () => {
+        try {
+          do {
+            entry.pending = false;
+            await refreshOnce(filePath, isCurrent);
+          } while (entry.pending && isCurrent() && get().files[filePath] && !inFlightUnloads.has(filePath));
+        } finally {
+          if (isCurrent()) refreshes.delete(filePath);
         }
-      }
+      })();
+      return entry.promise;
     },
   };
 });

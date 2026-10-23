@@ -69,12 +69,17 @@ export async function readJsonFileResult<T>(
 }
 
 // Reads a JSON file once via the backend and returns the parsed data plus a
-// hash of the exact bytes that were read.
+// hash of the exact bytes that were read. Refreshes supply their admitted hash
+// so identical bytes return without decoding or transferring the task tree.
+export function readJsonFileWithHash<T>(path: string): Promise<JsonReadWithHashResult<T>>;
+export function readJsonFileWithHash<T>(path: string, expectedHash: string): Promise<JsonReadWithHashResult<T> | { status: "unchanged" }>;
 export async function readJsonFileWithHash<T>(
   path: string,
-): Promise<JsonReadWithHashResult<T>> {
-  return await invoke<JsonReadWithHashResult<T>>("read_json_file_with_hash", {
+  expectedHash?: string,
+): Promise<JsonReadWithHashResult<T> | { status: "unchanged" }> {
+  return await invoke<JsonReadWithHashResult<T> | { status: "unchanged" }>("read_json_file_with_hash", {
     path,
+    ...(expectedHash === undefined ? {} : { expectedHash }),
   });
 }
 

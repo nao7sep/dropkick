@@ -170,6 +170,7 @@ pub struct TaskListDto {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum JsonFileWithHashResult {
+    Unchanged,
     Success { data: TaskListDto, hash: String },
     Missing,
     Invalid { message: String },
@@ -231,10 +232,10 @@ async fn hash_file(path: String) -> Result<Option<String>, String> {
     .await
 }
 
-// Reads a JSON file once, parses it, and returns an explicit result with a
-// hash of the exact bytes that were read.
+// Reads a JSON file once. An admitted digest match avoids decoding and DTO
+// transfer; changed bytes are classified with their exact content digest.
 #[tauri::command]
-async fn read_json_file_with_hash(path: String) -> Result<JsonFileWithHashResult, String> {
+async fn read_json_file_with_hash(path: String, expected_hash: Option<String>) -> Result<JsonFileWithHashResult, String> {
     native_wait::settle(move || {
         let path = path.as_str();
         let started = log_cmd_start("read_json_file_with_hash", json!({ "path": path }));
@@ -260,8 +261,17 @@ async fn read_json_file_with_hash(path: String) -> Result<JsonFileWithHashResult
             }
         };
 
-        let result = classify_json_bytes(&bytes);
+        let hash = sha256_hex(&bytes);
+        let result = if expected_hash.as_deref() == Some(hash.as_str()) {
+            JsonFileWithHashResult::Unchanged
+        } else {
+            classify_json_bytes_with_hash(&bytes, hash)
+        };
         match &result {
+            JsonFileWithHashResult::Unchanged => log_cmd_ok(
+                "read_json_file_with_hash", started,
+                json!({ "path": path, "bytes": bytes.len(), "outcome": "unchanged" }),
+            ),
             JsonFileWithHashResult::Success { data, .. } => log_cmd_ok(
                 "read_json_file_with_hash",
                 started,
@@ -291,7 +301,12 @@ async fn read_json_file_with_hash(path: String) -> Result<JsonFileWithHashResult
 // report a newer build's file (Newer), or report the parse failure (Invalid).
 // The format version is judged first, so a newer file is never mistaken for a
 // corrupt one. No filesystem access, so it is testable against in-memory bytes.
+#[cfg(test)]
 pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
+    classify_json_bytes_with_hash(bytes, sha256_hex(bytes))
+}
+
+fn classify_json_bytes_with_hash(bytes: &[u8], hash: String) -> JsonFileWithHashResult {
     match format_version::json_bytes(bytes, format_version::Format::TaskList) {
         Ok(format_version::Marker::Readable) => {}
         Ok(format_version::Marker::Newer(format_version)) => {
@@ -307,7 +322,7 @@ pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
             match validate_task_list(&data) {
             Ok(()) => JsonFileWithHashResult::Success {
                 data,
-                hash: sha256_hex(bytes),
+                hash,
             },
                 Err(message) => JsonFileWithHashResult::Invalid { message },
             }

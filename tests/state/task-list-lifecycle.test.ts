@@ -15,6 +15,7 @@ import { makeTask } from "../helpers/task";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 let docs: Map<string, { data: unknown; hash: string }>;
 let writes: string[];
+let io: string[];
 let holdWrite: (() => Promise<void>) | undefined;
 let failWrites: boolean;
 let holdRead: ((path: string) => Promise<void>) | undefined;
@@ -29,19 +30,21 @@ beforeEach(() => {
   useTaskListStore.setState({ files: {}, fileLoadErrors: {}, fileDiskErrors: {}, unsavedFiles: {}, selectedKeys: new Set() });
   useWorkspaceStore.setState({ loaded: false, filePath: "", workspace: createDefaultWorkspace("Empty") });
   useNoteDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {}, parkedTasks: {} });
-  docs = new Map(); writes = []; holdWrite = undefined; failWrites = false; holdRead = undefined;
+  docs = new Map(); writes = []; io = []; holdWrite = undefined; failWrites = false; holdRead = undefined;
   vi.mocked(invoke).mockImplementation(async (command, args) => {
-    const { path, contents } = (args ?? {}) as { path: string; contents: string };
+    const { path, contents, expectedHash } = (args ?? {}) as { path: string; contents: string; expectedHash?: string };
     const doc = docs.get(path);
     if (command === "hash_file") return doc?.hash ?? null;
     if (command === "read_json_file_with_hash") {
+      io.push(`read:${path}`);
       await holdRead?.(path);
-      return doc ? { status: "success", ...structuredClone(doc) } : { status: "missing" };
+      return doc ? expectedHash === doc.hash ? { status: "unchanged" } : { status: "success", ...structuredClone(doc) } : { status: "missing" };
     }
     if (command === "read_text_file") return doc ? { status: "success", text: JSON.stringify({ ...doc.data as object, formatVersion: 1 }) } : { status: "missing" };
     if (command === "write_text_file_atomic") {
       await holdWrite?.();
       if (failWrites) throw new Error("disk full");
+      io.push(`write:${path}`);
       writes.push(path); docs.set(path, { data: JSON.parse(contents), hash: `saved-${writes.length}` });
       return docs.get(path)!.hash;
     }
@@ -198,4 +201,44 @@ it("path-specific tab close saves its field despite another matching copy loadin
   expect((docs.get("/source.json")!.data as TaskListDto).tasks[0].title).toBe("Original");
   expect(useWorkspaceStore.getState().workspace.openTabs.some((tab) => tab.filePath === "/copy.json")).toBe(false);
   expect(useNoteDraftStore.getState().drafts).toEqual({});
+});
+
+it("coalesces focus refreshes behind a held read without delaying an accepted save", async () => {
+  const path = "/focus-a.json";
+  put(path, list("focus-a")); put("/focus-b.json", list("focus-b"));
+  await useTaskListStore.getState().loadFile(path);
+  io = [];
+  let release!: () => void;
+  holdRead = (reading) => reading === path ? new Promise<void>((resolve) => { release = resolve; }) : Promise.resolve();
+  const first = useTaskListStore.getState().refreshFromDisk(path);
+  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  const repeats = Array.from({ length: 30 }, () => useTaskListStore.getState().refreshFromDisk(path));
+  const saving = useTaskListStore.getState().updateTitle(path, "task", "Latest edit");
+  try {
+    await useTaskListStore.getState().loadFile("/focus-b.json");
+    expect(io).toEqual([`read:${path}`, "read:/focus-b.json"]);
+  } finally { holdRead = undefined; release(); }
+  await Promise.all([first, saving, ...repeats]);
+  expect(io).toEqual([`read:${path}`, "read:/focus-b.json", `write:${path}`, `read:${path}`]);
+  expect(useTaskListStore.getState().files[path]?.data.tasks[0]?.title).toBe("Latest edit");
+  await Promise.all([useTaskListStore.getState().unloadFile(path), useTaskListStore.getState().unloadFile("/focus-b.json")]);
+});
+
+it("discards queued refresh intent on unload before admitting a reopened lifetime", async () => {
+  const path = "/focus-retired.json";
+  put(path, list("retired")); await useTaskListStore.getState().loadFile(path);
+  let release!: () => void;
+  holdRead = () => new Promise<void>((resolve) => { release = resolve; });
+  io = [];
+  const refresh = useTaskListStore.getState().refreshFromDisk(path);
+  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  const repeat = useTaskListStore.getState().refreshFromDisk(path);
+  const retiring = useTaskListStore.getState().unloadFile(path);
+  put(path, list("retired", "Reopened data"));
+  const reopening = useTaskListStore.getState().loadFile(path);
+  holdRead = undefined; release();
+  await Promise.all([refresh, repeat, retiring, reopening]);
+  expect(io).toEqual([`read:${path}`, `read:${path}`]);
+  expect(useTaskListStore.getState().files[path]?.data.tasks[0]?.title).toBe("Reopened data");
+  await useTaskListStore.getState().unloadFile(path);
 });

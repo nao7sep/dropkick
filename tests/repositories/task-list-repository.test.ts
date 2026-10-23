@@ -18,7 +18,7 @@ const showFileConflictDialog = vi.fn();
 const showFileDeletedDialog = vi.fn();
 
 vi.mock("../../src/repositories/file-system", () => ({
-  readJsonFileWithHash: (p: string) => readJsonFileWithHash(p),
+  readJsonFileWithHash: (...args: unknown[]) => readJsonFileWithHash(...args),
   writeJsonFile: (p: string, _format: string, d: unknown) => writeJsonFile(p, d),
   hashFile: (p: string) => hashFile(p),
   fileExists: (p: string) => fileExists(p),
@@ -363,10 +363,11 @@ describe("refreshTaskList", () => {
     writeJsonFile.mockResolvedValue("HOURS");
     hashFile.mockResolvedValue("H0");
     expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
-    readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: data(), hash: "HOURS" });
+    readJsonFileWithHash.mockResolvedValueOnce({ status: "unchanged" });
     const adopt = vi.fn(() => true);
     expect(await repo.refreshTaskList("/f.json", adopt)).toEqual({ status: "unchanged" });
     expect(adopt).not.toHaveBeenCalled();
+    expect(readJsonFileWithHash).toHaveBeenLastCalledWith("/f.json", "HOURS");
   });
 
   it("offers a changed copy, and an adopted one becomes the copy the next save checks against", async () => {

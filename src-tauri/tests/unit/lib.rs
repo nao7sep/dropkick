@@ -81,7 +81,7 @@ fn read_json_returns_missing_for_absent_file() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
     let path = dir.join("nope.json");
-    let result = settled(read_json_file_with_hash(path.to_str().unwrap().to_string())).unwrap();
+    let result = settled(read_json_file_with_hash(path.to_str().unwrap().to_string(), None)).unwrap();
     assert!(matches!(result, JsonFileWithHashResult::Missing));
 }
 
@@ -91,7 +91,7 @@ fn read_json_returns_invalid_for_bad_json() {
     let dir = tmp.path();
     let path = dir.join("bad.json");
     std::fs::write(&path, b"{ not json").unwrap();
-    let result = settled(read_json_file_with_hash(path.to_str().unwrap().to_string())).unwrap();
+    let result = settled(read_json_file_with_hash(path.to_str().unwrap().to_string(), None)).unwrap();
     assert!(matches!(result, JsonFileWithHashResult::Invalid { .. }));
 }
 
@@ -102,7 +102,7 @@ fn read_json_returns_success_with_hash() {
     let path = dir.join("good.json");
     let json = br#"{"formatVersion":1,"id":"L1","tasks":[]}"#;
     std::fs::write(&path, json).unwrap();
-    let result = settled(read_json_file_with_hash(path.to_str().unwrap().to_string())).unwrap();
+    let result = settled(read_json_file_with_hash(path.to_str().unwrap().to_string(), None)).unwrap();
     match result {
         JsonFileWithHashResult::Success { data, hash } => {
             assert!(data.tasks.is_empty());
@@ -186,4 +186,28 @@ fn volatile_state_uses_the_atomic_writer_without_recording_backup_history() {
     assert_eq!(rows(&state), 0);
     assert_eq!(rows(&config), 1);
     assert_eq!(rows(&preferences), 1);
+}
+
+#[test]
+fn refresh_hash_match_skips_decoding_but_changed_bytes_still_require_admission() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("refresh.json");
+    let path = path.to_str().unwrap().to_string();
+    // Deliberately malformed bytes prove the equality path never decodes.
+    // Production supplies only a digest previously admitted for this file.
+    let bytes = b"not JSON";
+    std::fs::write(&path, bytes).unwrap();
+    let expected = sha256_hex(bytes);
+    let result = settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap();
+    assert_eq!(serde_json::to_value(result).unwrap(), json!({ "status": "unchanged" }));
+    let changed = br#"{"formatVersion":1,"id":"changed","tasks":[]}"#;
+    std::fs::write(&path, changed).unwrap();
+    let result = settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap();
+    assert!(matches!(result, JsonFileWithHashResult::Success { hash, .. } if hash == sha256_hex(changed)));
+    std::fs::write(&path, br#"{"formatVersion":999}"#).unwrap();
+    assert!(matches!(settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap(), JsonFileWithHashResult::Newer { .. }));
+    std::fs::write(&path, b"different invalid bytes").unwrap();
+    assert!(matches!(settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap(), JsonFileWithHashResult::Invalid { .. }));
+    std::fs::remove_file(&path).unwrap();
+    assert!(matches!(settled(read_json_file_with_hash(path, Some(expected))).unwrap(), JsonFileWithHashResult::Missing));
 }

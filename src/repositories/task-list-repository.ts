@@ -143,14 +143,13 @@ export async function refreshTaskList(
   return withSerial(filePath, async () => {
     const known = knownHashes.get(filePath);
     if (known === undefined) return { status: "notLoaded" };
-    let loaded: JsonReadWithHashResult<TaskListDto>;
+    let loaded: JsonReadWithHashResult<TaskListDto> | { status: "unchanged" };
     try {
-      loaded = await readJsonFileWithHash<TaskListDto>(filePath);
+      loaded = await readJsonFileWithHash<TaskListDto>(filePath, known);
     } catch (e) {
       return { status: "error", message: e instanceof Error ? e.message : String(e) };
     }
     if (loaded.status !== "success") return loaded;
-    if (loaded.hash === known) return { status: "unchanged" };
     if (!adopt(loaded.data)) return { status: "kept" };
     rememberHash(filePath, loaded.hash);
     return { status: "reloaded" };
