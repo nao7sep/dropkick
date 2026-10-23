@@ -62,6 +62,7 @@ pub struct RecordsQuery {
     #[serde(default)]
     pub search: String,
     pub after: Option<RecordCursor>,
+    pub before: Option<RecordCursor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -176,6 +177,13 @@ pub fn read_page(conn: &Connection, query: &RecordsQuery) -> rusqlite::Result<Re
         params.push(SqlValue::Text(after.time.clone()));
         params.push(SqlValue::Integer(after.id));
     }
+    if let Some(before) = &query.before {
+        clauses.push("(time > ? OR (time = ? AND id > ?))");
+        params.push(SqlValue::Text(before.time.clone()));
+        params.push(SqlValue::Text(before.time.clone()));
+        params.push(SqlValue::Integer(before.id));
+    }
+    let order = if query.before.is_some() { "ASC" } else { "DESC" };
     let filter = if clauses.is_empty() {
         String::new()
     } else {
@@ -184,13 +192,14 @@ pub fn read_page(conn: &Connection, query: &RecordsQuery) -> rusqlite::Result<Re
     params.push(SqlValue::Integer(PAGE_SIZE as i64 + 1));
     let mut statement = conn.prepare(&format!(
         "SELECT id, session, time, level, message, task_id FROM logs {filter} \
-         ORDER BY time DESC, id DESC LIMIT ?"
+         ORDER BY time {order}, id {order} LIMIT ?"
     ))?;
     let mut records = statement
         .query_map(params_from_iter(params), summary)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let more = records.len() > PAGE_SIZE;
     records.truncate(PAGE_SIZE);
+    if query.before.is_some() { records.reverse(); }
     Ok(RecordsPage { records, more })
 }
 

@@ -3,7 +3,7 @@
 // each record it stores; the window pages itself as it scrolls and takes new
 // records in as they arrive.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useI18n } from "../../i18n/I18nContext";
@@ -24,8 +24,7 @@ import {
   LEVEL_LABELS,
   cursorAfter,
   hasFields,
-  mergeNewestPage,
-  readNewestRecords,
+  joinRecordsPage,
   prettyJson,
 } from "../../services/records";
 import { pageStepIndex, stepIndex } from "../../utils/selection";
@@ -39,7 +38,10 @@ import {
   clampRecordsListWidth,
 } from "../../utils/recordsWindowSizing";
 
-type Filters = Omit<RecordsQuery, "after">;
+import { VirtualRows } from "../VirtualRows";
+
+const recordKey = (record: RecordSummary) => String(record.id);
+type Filters = Omit<RecordsQuery, "after" | "before">;
 
 const NO_FILTERS: Filters = { session: null, level: null, search: "" };
 const SEARCH_DELAY_MS = 300;
@@ -51,7 +53,7 @@ const LIVE_INTERVAL_MS = 1000;
 type ListState =
   | { status: "loading" }
   | { status: "failed" }
-  | { status: "ready"; records: RecordSummary[]; more: boolean; loadingMore: boolean; moreFailed: boolean };
+  | { status: "ready"; records: RecordSummary[]; more: boolean; newer: boolean; paused: boolean; loadingMore: boolean; moreFailed: boolean };
 
 type DetailState =
   | { status: "none" }
@@ -95,6 +97,10 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   const { t, locale } = useI18n();
   const [sources, setSources] = useState<RecordSources | null>(null);
   const [sourceReads, setSourceReads] = useState(0);
+  const [sourceFailed, setSourceFailed] = useState(false);
+  const seenSessions = useRef(new Set<string>());
+  const [hasArrivals, setHasArrivals] = useState(false);
+  const anchor = useRef<{ id: number; offset: number } | null>(null);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [searchText, setSearchText] = useState("");
   const [list, setList] = useState<ListState>({ status: "loading" });
@@ -115,9 +121,11 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   const filtersRef = useRef(filters);
   // New records arrived while the list was scrolled away from the top.
   const newestPending = useRef(false);
+  const jumpRequested = useRef(false);
   // A failed read is itself logged as a record, whose signal would start the
   // next read; live reads stop after a failure and resume after a read succeeds.
   const liveSuspended = useRef(false);
+  const failedRead = useRef<"older" | "newer" | "newest">("newest");
   const shellRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -173,11 +181,13 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     let cancelled = false;
     readRecordSources().then(
       (next) => {
-        if (!cancelled) setSources(next);
+        if (!cancelled) {
+          setSources(next); setSourceFailed(false);
+          for (const session of next.sessions) seenSessions.current.add(session);
+        }
       },
       () => {
-        // The core recorded the failure.
-        liveSuspended.current = true;
+        if (!cancelled) setSourceFailed(true);
       },
     );
     return () => {
@@ -193,13 +203,17 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     firstPagePending.current = generation;
     fetchingMore.current = false;
     newestPending.current = false;
+    jumpRequested.current = false;
+    setHasArrivals(false);
+    anchor.current = null;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     setList({ status: "loading" });
     readRecordsPage({ ...filters, after: null }).then(
       (page) => {
         if (generation !== listGeneration.current) return;
         firstPagePending.current = null;
         liveSuspended.current = false;
-        setList({ status: "ready", records: page.records, more: page.more, loadingMore: false, moreFailed: false });
+        setList({ status: "ready", records: page.records, more: page.more, newer: false, paused: false, loadingMore: false, moreFailed: false });
       },
       () => {
         if (generation !== listGeneration.current) return;
@@ -211,28 +225,39 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     return () => { listGeneration.current += 1; };
   }, [filters]);
 
-  // The newest page read again for new records. It joins the rows already
-  // shown rather than replacing them, so the list never falls back to the
-  // loading note and the pages already read stay. It reads only refs, so one
-  // copy serves the live subscription below.
+  // Newest is a direct page read, never a walk through an unseen arrival gap.
   const readNewest = useCallback((): void => {
     const generation = listGeneration.current;
-    if (firstPagePending.current === generation || currentList.current.status === "loading" || fetchingNewest.current === generation) {
+    if (firstPagePending.current === generation || fetchingNewest.current === generation || fetchingMore.current) {
       newestPending.current = true;
       return;
     }
     fetchingNewest.current = generation;
     newestPending.current = false;
-    const shown = currentList.current.status === "ready" ? currentList.current.records : [];
-    readNewestRecords(shown, (after) => readRecordsPage({ ...filtersRef.current, after }), () => generation !== listGeneration.current).then(
+    readRecordsPage({ ...filtersRef.current, after: null }).then(
       (page) => {
-        if (page === null || generation !== listGeneration.current) return;
+        if (generation !== listGeneration.current) return;
         liveSuspended.current = false;
-        setList((current) => current.status === "ready"
-          ? { ...current, ...mergeNewestPage(current.records, current.more, page) }
-          : { status: "ready", records: page.records, more: page.more, loadingMore: false, moreFailed: false });
+        jumpRequested.current = false;
+        // The reader may have moved during this read. Keep that exact range
+        // and offset; the next top visit or Newest action can admit arrivals.
+        if (scrollRef.current && !atTop(scrollRef.current)) {
+          newestPending.current = true;
+          setHasArrivals(true);
+          setList(current => current.status === "ready" ? { ...current, paused: false } : current);
+          return;
+        }
+        setHasArrivals(false);
+        anchor.current = null;
+        if (scrollRef.current) scrollRef.current.scrollTop = 0;
+        setList({ status: "ready", records: page.records, more: page.more, newer: false, paused: false, loadingMore: false, moreFailed: false });
       },
-      () => { if (generation === listGeneration.current) liveSuspended.current = true; },
+      () => {
+        if (generation !== listGeneration.current) return;
+        liveSuspended.current = true;
+        failedRead.current = "newest";
+        setList(current => current.status === "ready" ? { ...current, paused: true } : { status: "failed" });
+      },
     ).finally(() => {
       if (fetchingNewest.current !== generation) return;
       fetchingNewest.current = null;
@@ -241,25 +266,28 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   }, []);
 
   // Arrivals during the first read wait for its ready render, so the first
-  // page cannot overwrite a newer read and the bridge starts from shown rows.
+  // page cannot overwrite a newer read.
   useEffect(() => {
-    if (list.status === "ready" && newestPending.current && !liveSuspended.current
+    if (list.status === "ready" && (!list.newer || jumpRequested.current) && newestPending.current && !liveSuspended.current
       && scrollRef.current && atTop(scrollRef.current)) readNewest();
-  }, [list.status, readNewest]);
+  }, [list, readNewest]);
 
   // A stored record reaches the list at once while it is scrolled to the top;
   // otherwise it waits until the list is back there, so the list never moves
   // under the reader.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = onRecordsChanged(() => {
+    const unsubscribe = onRecordsChanged((session) => {
+      if (session && !seenSessions.current.has(session)) {
+        seenSessions.current.add(session);
+        setSourceReads(count => count + 1);
+      }
       if (timer !== null || liveSuspended.current) return;
       timer = setTimeout(() => {
         timer = null;
-        setSourceReads((count) => count + 1);
         const scroll = scrollRef.current;
-        if (scroll === null || atTop(scroll)) readNewest();
-        else newestPending.current = true;
+        if ((scroll === null || atTop(scroll)) && !(currentList.current.status === "ready" && currentList.current.newer)) readNewest();
+        else { newestPending.current = true; setHasArrivals(true); }
       }, LIVE_INTERVAL_MS);
     });
     return () => {
@@ -288,50 +316,77 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     };
   }, [selected]);
 
-  // Loading more: composite-control-conventions, Integration Points. A failed
-  // page is read again when the end is reached again.
-  const loadMore = (): void => {
-    if (list.status !== "ready" || !list.more || fetchingMore.current) return;
+  const captureAnchor = () => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const top = scroll.getBoundingClientRect().top;
+    const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])
+      .find(node => node.getBoundingClientRect().bottom > top);
+    if (row) anchor.current = { id: Number(row.dataset.recordId), offset: row.getBoundingClientRect().top - top };
+  };
+  useLayoutEffect(() => {
+    const saved = anchor.current;
+    const scroll = scrollRef.current;
+    if (!saved || !scroll) return;
+    const row = document.getElementById(optionId(saved.id));
+    if (row) scroll.scrollTop += row.getBoundingClientRect().top - scroll.getBoundingClientRect().top - saved.offset;
+    anchor.current = null;
+  }, [list]);
+
+  const loadMore = (direction: "older" | "newer" = "older"): void => {
+    const state = currentList.current;
+    if (state.status !== "ready" || fetchingMore.current || fetchingNewest.current === listGeneration.current
+      || !(direction === "older" ? state.more : state.newer)) return;
     fetchingMore.current = true;
     const generation = listGeneration.current;
-    setList((current) => (current.status === "ready" ? { ...current, loadingMore: true, moreFailed: false } : current));
-    readRecordsPage({ ...filters, after: cursorAfter(list.records) }).then(
-      (page) => {
-        if (generation !== listGeneration.current) return;
-        fetchingMore.current = false;
-        liveSuspended.current = false;
-        setList((current) =>
-          current.status === "ready"
-            ? { ...current, records: mergeNewestPage(current.records, current.more, page).records, more: page.more, loadingMore: false }
-            : current,
-        );
-      },
-      () => {
-        if (generation !== listGeneration.current) return;
-        fetchingMore.current = false;
-        liveSuspended.current = true;
-        setList((current) => (current.status === "ready" ? { ...current, loadingMore: false, moreFailed: true } : current));
-      },
-    );
+    setList(current => current.status === "ready" ? { ...current, loadingMore: true, moreFailed: false } : current);
+    const cursor = direction === "older" ? cursorAfter(state.records) : cursorAfter(state.records.slice(0, 1));
+    readRecordsPage({ ...filtersRef.current, after: direction === "older" ? cursor : null,
+      ...(direction === "newer" ? { before: cursor } : {}) }).then(page => {
+      if (generation !== listGeneration.current) return;
+      fetchingMore.current = false;
+      liveSuspended.current = false;
+      captureAnchor();
+      setList(current => {
+        if (current.status !== "ready") return current;
+        const joined = joinRecordsPage(current.records, page, direction);
+        // A late read must not evict the range the reader moved back into.
+        if (anchor.current && !joined.records.some(row => row.id === anchor.current!.id)) {
+          anchor.current = null;
+          return { ...current, loadingMore: false, moreFailed: false, paused: false };
+        }
+        return { ...current, records: joined.records,
+          more: direction === "older" ? page.more : current.more || joined.evicted,
+          newer: direction === "newer" ? page.more : current.newer || joined.evicted,
+          loadingMore: false, moreFailed: false, paused: false };
+      });
+    }, () => {
+      if (generation !== listGeneration.current) return;
+      fetchingMore.current = false;
+      liveSuspended.current = true;
+      failedRead.current = direction;
+      setList(current => current.status === "ready" ? { ...current, loadingMore: false, moreFailed: true, paused: true } : current);
+    });
   };
 
-  // A page that leaves the list short of the end reads the next one; a failed
-  // page waits for the reader instead.
+  // Fill a short viewport, but do not retry a failing store on arrival events.
   useEffect(() => {
     const scroll = scrollRef.current;
-    if (list.status !== "ready" || list.loadingMore || list.moreFailed || scroll === null) return;
-    if (nearEnd(scroll)) loadMore();
-    // Only a new list state can change what is loaded.
+    if (list.status !== "ready" || list.loadingMore || list.paused || scroll === null) return;
+    if (scroll.scrollHeight <= scroll.clientHeight) loadMore();
   }, [list]);
 
   const onListScroll = (): void => {
     const scroll = scrollRef.current;
-    if (scroll === null) return;
-    if (newestPending.current && atTop(scroll)) {
-      newestPending.current = false;
-      readNewest();
-    }
-    if (nearEnd(scroll)) loadMore();
+    if (scroll === null || list.status !== "ready" || list.paused) return;
+    if (scroll.scrollTop < scroll.clientHeight && list.newer) loadMore("newer");
+    else if (newestPending.current && atTop(scroll)) readNewest();
+    else if (nearEnd(scroll)) loadMore();
+  };
+
+  const retry = () => {
+    if (list.status !== "ready" || failedRead.current === "newest") readNewest();
+    else loadMore(failedRead.current);
   };
 
   const records = list.status === "ready" ? list.records : [];
@@ -383,6 +438,7 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     setSelected(record.id);
     const forward = event.key === "ArrowDown" || event.key === "PageDown" || event.key === "End";
     if (forward && target === length - 1) loadMore();
+    if (!forward && target === 0) loadMore("newer");
   };
 
   // Drag intent: window-conventions, Content-based minimum size. Only the end
@@ -455,10 +511,14 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   } else if (records.length === 0) {
     listBody = <p className={NOTE_CLASS}>{t("records.empty")}</p>;
   } else {
-    listBody = records.map((record) => {
+    listBody = <VirtualRows items={records} itemKey={recordKey} estimatedHeight={78} scrollRef={scrollRef}
+      pinnedKeys={[selected === null ? null : String(selected), anchor.current ? String(anchor.current.id) : null]}
+      renderRow={(record, ref) => {
       const isSelected = record.id === selected;
       return (
         <div
+          ref={ref}
+          data-record-id={record.id}
           key={record.id}
           id={optionId(record.id)}
           role="option"
@@ -481,7 +541,7 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
           <div className="line-clamp-2 text-sm text-ink [overflow-wrap:anywhere]">{record.message}</div>
         </div>
       );
-    });
+    }} />;
   }
 
   return (
@@ -521,6 +581,13 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
             />
           </div>
         </div>
+        {sourceFailed && <div className={FAILED_NOTE_CLASS} role="alert">
+          {t("records.sourcesFailed")} <button className="dk-button" onClick={() => setSourceReads(count => count + 1)}>{t("taskList.retry")}</button>
+        </div>}
+        {(hasArrivals || (list.status === "ready" && list.newer)) && <button className="dk-button" onClick={() => { jumpRequested.current = true; if (scrollRef.current) scrollRef.current.scrollTop = 0; readNewest(); }}>{t("records.newest")}</button>}
+        {(list.status === "failed" || (list.status === "ready" && list.paused)) && <div className={FAILED_NOTE_CLASS} role="alert">
+          {t("records.paused")} <button className="dk-button" onClick={retry}>{t("taskList.retry")}</button>
+        </div>}
         <div
           ref={scrollRef}
           className="relative min-h-0 flex-1 overflow-y-auto py-1.5"

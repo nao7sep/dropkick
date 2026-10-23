@@ -100,7 +100,7 @@ pub fn notify_changed(app: &AppHandle) {
     if app.get_webview_window(LABEL).is_none() {
         return;
     }
-    if let Err(error) = app.emit_to(LABEL, CHANGED_EVENT, ()) {
+    if let Err(error) = app.emit_to(LABEL, CHANGED_EVENT, crate::logging::session()) {
         eprintln!("[dropkick:records] records window signal failed: {error}");
     }
 }

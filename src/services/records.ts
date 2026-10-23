@@ -60,42 +60,15 @@ function newestFirst(a: RecordSummary, b: RecordSummary): number {
   return b.id - a.id;
 }
 
-// The newest page read again, joined with the rows already shown: a row in
-// both takes the page's copy, and the rows shown beyond the page stay, so the
-// pages already read are kept and a page read out of order loses nothing.
-export function mergeNewestPage(
-  shown: readonly RecordSummary[],
-  shownMore: boolean,
-  page: RecordsPage,
-): { records: RecordSummary[]; more: boolean } {
-  const byId = new Map(shown.map((record) => [record.id, record]));
+// Three database pages cover the visible range and navigation in either
+// direction. Eviction discards only cache entries; cursors can read them again.
+export const RECORD_CACHE_SIZE = 300;
+export function joinRecordsPage(shown: readonly RecordSummary[], page: RecordsPage, direction: "older" | "newer") {
+  const byId = new Map(shown.map(record => [record.id, record]));
   for (const record of page.records) byId.set(record.id, record);
-  const records = [...byId.values()].sort(newestFirst);
-  const last = page.records[page.records.length - 1];
-  const beyond = last !== undefined && shown.some((record) => newestFirst(record, last) > 0);
-  return { records, more: beyond ? shownMore : page.more };
-}
-
-// A live read must connect to the already shown range, even if several pages
-// arrived while the reader was scrolled away. Stop stale generations between
-// reads; the caller owns admission and application.
-export async function readNewestRecords(
-  shown: readonly RecordSummary[],
-  readPage: (after: RecordCursor | null) => Promise<RecordsPage>,
-  cancelled: () => boolean,
-): Promise<RecordsPage | null> {
-  const ids = new Set(shown.map((record) => record.id));
-  const records: RecordSummary[] = [];
-  let after: RecordCursor | null = null;
-  for (;;) {
-    const page = await readPage(after);
-    if (cancelled()) return null;
-    records.push(...page.records);
-    if (!shown.length || !page.more || !page.records.length || page.records.some((record) => ids.has(record.id))) {
-      return { records, more: page.more };
-    }
-    after = cursorAfter(page.records);
-  }
+  const all = [...byId.values()].sort(newestFirst);
+  const evicted = all.length > RECORD_CACHE_SIZE;
+  return { records: direction === "older" ? all.slice(-RECORD_CACHE_SIZE) : all.slice(0, RECORD_CACHE_SIZE), evicted };
 }
 
 function usableLocale(locale: string | null): locale is string {

@@ -27,6 +27,7 @@ export interface RecordsQuery {
   level: RecordLevelFilter | null;
   search: string;
   after: RecordCursor | null;
+  before?: RecordCursor | null;
 }
 
 export interface RecordSummary {

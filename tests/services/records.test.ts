@@ -4,7 +4,7 @@ import {
   cursorAfter,
   hasFields,
   initialRecordsWindow,
-  mergeNewestPage,
+  joinRecordsPage,
   prettyJson,
 } from "../../src/services/records";
 import { RECORDS_LIST_WIDTH } from "../../src/utils/recordsWindowSizing";
@@ -15,10 +15,8 @@ function record(id: number, time: string): RecordSummary {
   return { id, session: SESSION, time, level: "info", message: `m${id}`, taskId: null };
 }
 
-const a = record(1, "2026-10-02T08:00:01.000Z");
 const b = record(2, "2026-10-02T08:00:02.000Z");
 const c = record(3, "2026-10-02T08:00:03.000Z");
-const d = record(4, "2026-10-02T08:00:04.000Z");
 
 describe("prettyJson", () => {
   it("indents stored JSON and leaves other text as it is", () => {
@@ -43,30 +41,18 @@ describe("cursorAfter", () => {
   });
 });
 
-describe("mergeNewestPage", () => {
-  it("puts new records above the rows shown and keeps every page already read", () => {
-    const merged = mergeNewestPage([c, b, a], true, { records: [d, c], more: true });
-    expect(merged.records.map((r) => r.id)).toEqual([4, 3, 2, 1]);
-    // The rows beyond the newest page still lead to the pages after them.
-    expect(merged.more).toBe(true);
-  });
-
-  it("takes the page's word on more when it reaches past every row shown", () => {
-    const merged = mergeNewestPage([b], true, { records: [d, c, b, a], more: false });
-    expect(merged.records.map((r) => r.id)).toEqual([4, 3, 2, 1]);
-    expect(merged.more).toBe(false);
-  });
-
-  it("orders records at the same instant by id, newest first", () => {
-    const same = "2026-10-02T08:00:00.000Z";
-    const merged = mergeNewestPage([record(5, same)], false, { records: [record(6, same)], more: false });
-    expect(merged.records.map((r) => r.id)).toEqual([6, 5]);
-  });
-
-  it("takes the page's copy of a row it shares with the rows shown", () => {
-    const updated = { ...c, message: "updated" };
-    const merged = mergeNewestPage([c, b], false, { records: [updated], more: false });
-    expect(merged.records[0]!.message).toBe("updated");
+describe("joinRecordsPage", () => {
+  it("keeps only three pages next to navigation and replaces overlapping summaries", () => {
+    const shown = Array.from({ length: 300 }, (_, i) => record(600-i, SESSION));
+    const older = Array.from({ length: 100 }, (_, i) => record(300-i, SESSION));
+    const next = joinRecordsPage(shown, { records: older, more: true }, "older");
+    expect(next.evicted).toBe(true);
+    expect(next.records).toHaveLength(300);
+    expect(next.records[0].id).toBe(500);
+    expect(next.records.at(-1)?.id).toBe(201);
+    const back = joinRecordsPage(next.records, { records: shown.slice(0, 100), more: false }, "newer");
+    expect(back.records.map(r => r.id)).toEqual(shown.map(r => r.id));
+    expect(joinRecordsPage([c, b], { records: [{ ...c, message: "changed" }], more: false }, "newer").records[0].message).toBe("changed");
   });
 });
 

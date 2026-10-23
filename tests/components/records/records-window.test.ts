@@ -18,7 +18,7 @@ const records = vi.hoisted(() => ({
   readRecordDetail: vi.fn<(id: number) => Promise<RecordDetail | null>>(),
   readRecordSources: vi.fn<() => Promise<RecordSources>>(),
   commitRecordsListWidth: vi.fn<(width: number) => Promise<void>>(),
-  changed: null as (() => void) | null,
+  changed: null as ((session: string | null) => void) | null,
 }));
 
 vi.mock("../../../src/repositories/records", () => ({
@@ -26,7 +26,7 @@ vi.mock("../../../src/repositories/records", () => ({
   readRecordDetail: records.readRecordDetail,
   readRecordSources: records.readRecordSources,
   commitRecordsListWidth: records.commitRecordsListWidth,
-  onRecordsChanged: (listener: () => void) => {
+  onRecordsChanged: (listener: (session: string | null) => void) => {
     records.changed = listener;
     return () => {
       records.changed = null;
@@ -136,12 +136,14 @@ async function render(): Promise<void> {
   mounted = await mount(createElement(RecordsWindow, { initialListWidth: RECORDS_LIST_WIDTH.default, timeZone: "UTC" }));
 }
 
-function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void } {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
     resolve = res;
+    reject = rej;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 const listbox = () => document.querySelector<HTMLElement>('[role="listbox"]')!;
@@ -161,7 +163,7 @@ const press = async (key: string) => {
   });
 };
 const signal = async () => {
-  await act(async () => records.changed!());
+  await act(async () => records.changed!(SESSION));
 };
 const choose = async (select: HTMLSelectElement, value: string) => {
   await act(async () => {
@@ -171,7 +173,7 @@ const choose = async (select: HTMLSelectElement, value: string) => {
 };
 
 describe("RecordsWindow", () => {
-  it("queues live arrivals behind a held first page, then merges them after it settles", async () => {
+  it("queues live arrivals behind a held first page, then refreshes after it settles", async () => {
     const initial = deferred<RecordsPage>();
     records.readRecordsPage.mockReturnValueOnce(initial.promise)
       .mockResolvedValueOnce({ records: [newer, error, warn], more: false });
@@ -390,7 +392,7 @@ describe("RecordsWindow", () => {
     expect(messages()).toEqual(["command error", "window placement could not be loaded"]);
   });
 
-  it("keeps a failed page's note at the end, and reads it again when the end is reached again", async () => {
+  it("retains a failed page and retries explicitly without an arrival feedback loop", async () => {
     records.readRecordsPage.mockResolvedValueOnce({ records: [error], more: true });
     records.readRecordsPage.mockRejectedValueOnce("busy");
     records.readRecordsPage.mockResolvedValueOnce({ records: [warn], more: false });
@@ -402,6 +404,8 @@ describe("RecordsWindow", () => {
     expect(records.readRecordsPage).toHaveBeenCalledTimes(2);
 
     await scrollTo(750);
+    expect(records.readRecordsPage).toHaveBeenCalledTimes(2);
+    await act(async () => Array.from(document.querySelectorAll("button")).find(button => button.textContent === "Retry")!.click());
     expect(records.readRecordsPage).toHaveBeenCalledTimes(3);
     expect(lastQuery().after).toEqual({ time: error.time, id: error.id });
     expect(messages()).toEqual(["command error", "window placement could not be loaded"]);
@@ -423,7 +427,7 @@ describe("RecordsWindow", () => {
 
     expect(records.readRecordsPage).toHaveBeenCalledTimes(2);
     expect(lastQuery()).toEqual({ session: null, level: null, search: "", after: null });
-    expect(records.readRecordSources).toHaveBeenCalledTimes(2);
+    expect(records.readRecordSources).toHaveBeenCalledTimes(1);
     expect(options()).toHaveLength(2);
     expect(document.body.textContent).not.toContain("Loading records…");
 
@@ -562,23 +566,20 @@ describe("RecordsWindow", () => {
   });
 });
 
-it("bridges every page of records accumulated while scrolled away, even after the old end", async () => {
+it("jumps directly over an arrival gap, mounts only the viewport, and retains selected detail", async () => {
   await render(); await act(async () => options()[1]!.click()); await scrollTo(100);
-  const arriving = Array.from({ length: 205 }, (_, index) => summary(1000 - index, `2026-10-03T08:${String(Math.floor((204 - index) / 60)).padStart(2, "0")}:${String((204 - index) % 60).padStart(2, "0")}.000Z`, "info", `arrived-${index}`));
-  records.readRecordsPage.mockResolvedValueOnce({ records: arriving.slice(0, 100), more: true })
-    .mockResolvedValueOnce({ records: arriving.slice(100, 200), more: true })
-    .mockResolvedValueOnce({ records: [...arriving.slice(200), error, warn], more: false });
+  const arriving = Array.from({ length: 100 }, (_, index) => summary(1000-index, newer.time, "info", `arrived-${index}`));
+  records.readRecordsPage.mockResolvedValueOnce({ records: arriving, more: true });
   vi.useFakeTimers(); await signal(); await act(async () => vi.advanceTimersByTime(1000));
   expect(options()).toHaveLength(2);
-  await scrollTo(0);
-  expect(options()).toHaveLength(207);
-  expect(records.readRecordsPage.mock.calls.slice(1).map(([query]) => query.after)).toEqual([
-    null, { time: arriving[99].time, id: arriving[99].id }, { time: arriving[199].time, id: arriving[199].id },
-  ]);
-  expect(options().at(-1)?.getAttribute("aria-selected")).toBe("true");
+  await act(async () => Array.from(document.querySelectorAll("button")).find(button => button.textContent === "Newest")!.click());
+  expect(options().length).toBeLessThan(20);
+  expect(records.readRecordsPage.mock.calls.slice(1).map(([query]) => query.after)).toEqual([null]);
+  expect(records.readRecordDetail).toHaveBeenCalledOnce();
+  expect(document.body.textContent).toContain('denied');
 });
 
-it("a filter change cancels a held bridge before it can read another page or replace the new filter", async () => {
+it("a filter change cancels a held newest read before it can read another page or replace the new filter", async () => {
   await render(); vi.useFakeTimers();
   const bridge = deferred<RecordsPage>();
   records.readRecordsPage.mockReturnValueOnce(bridge.promise)
@@ -601,4 +602,98 @@ it("repeated signals during a held live read queue one refresh after settlement"
   await act(async () => live.resolve({ records: [error, warn], more: false }));
   expect(records.readRecordsPage).toHaveBeenCalledTimes(3);
   expect(messages()).toEqual(["view state updated", "command error", "window placement could not be loaded"]);
+});
+
+it("refreshes launch choices only for the first stored session and keeps source failure independent", async () => {
+  records.readRecordSources.mockResolvedValueOnce({ currentSession: SESSION, sessions: [] });
+  await render(); vi.useFakeTimers();
+  records.readRecordSources.mockRejectedValueOnce("busy");
+  await signal(); await act(async () => vi.advanceTimersByTime(1000));
+  expect(records.readRecordSources).toHaveBeenCalledTimes(2);
+  expect(document.body.textContent).toContain("Launch choices could not be refreshed.");
+  expect(document.body.textContent).not.toContain("Live updates are paused.");
+  for (let index = 0; index < 3; index++) { await signal(); await act(async () => vi.advanceTimersByTime(1000)); }
+  expect(records.readRecordSources).toHaveBeenCalledTimes(2);
+  expect(records.readRecordsPage).toHaveBeenCalledTimes(5);
+  await act(async () => Array.from(document.querySelectorAll("button")).find(button => button.textContent === "Retry")!.click());
+  expect(records.readRecordSources).toHaveBeenCalledTimes(3);
+  expect(document.body.textContent).not.toContain("Launch choices could not be refreshed.");
+});
+
+it("recovers a paused live page with Retry and rejects an old generation's failure", async () => {
+  await render(); vi.useFakeTimers();
+  records.readRecordsPage.mockRejectedValueOnce("busy");
+  await signal(); await act(async () => vi.advanceTimersByTime(1000));
+  expect(document.body.textContent).toContain("Live updates are paused.");
+  expect(options()).toHaveLength(2);
+  await act(async () => Array.from(document.querySelectorAll("button")).find(button => button.textContent === "Retry")!.click());
+  expect(document.body.textContent).not.toContain("Live updates are paused.");
+  const old = deferred<RecordsPage>();
+  records.readRecordsPage.mockReturnValueOnce(old.promise);
+  await signal(); await act(async () => vi.advanceTimersByTime(1000));
+  await choose(document.querySelectorAll("select")[1]!, "error");
+  await act(async () => old.reject("late failure"));
+  expect(document.body.textContent).not.toContain("Live updates are paused.");
+});
+
+it("does not move the reader when a live read settles after scrolling away", async () => {
+  await render(); vi.useFakeTimers();
+  const live = deferred<RecordsPage>();
+  records.readRecordsPage.mockReturnValueOnce(live.promise);
+  await signal(); await act(async () => vi.advanceTimersByTime(1000));
+  await scrollTo(100);
+  await act(async () => live.resolve({ records: [newer, error, warn], more: false }));
+  expect(box.scrollTop).toBe(100);
+  expect(messages()).toEqual([error.message, warn.message]);
+  expect(document.body.textContent).toContain("Newest");
+});
+
+it("evicts distant pages, refetches them backwards, and keeps a record/offset anchor", async () => {
+  const all = Array.from({ length: 1000 }, (_, i) => summary(1000-i, SESSION, "info", `row-${1000-i}`));
+  records.readRecordsPage.mockImplementation(async query => {
+    if (query.before) {
+      const available = all.filter(row => row.id > query.before!.id);
+      return { records: available.slice(-100), more: available.length > 100 };
+    }
+    const start = query.after ? all.findIndex(row => row.id === query.after!.id) + 1 : 0;
+    return { records: all.slice(start, start + 100), more: start + 100 < all.length };
+  });
+  // The fixture models the virtual body's spacer/row geometry. This makes
+  // eviction exercise the real component's record-and-offset restoration.
+  const geometry = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function(this: HTMLElement) {
+    let top = 0, height = 0;
+    if (this.getAttribute("role") === "option") {
+      let sibling = this.previousElementSibling as HTMLElement | null;
+      while (sibling) { top += sibling.getAttribute("role") === "option" ? 78 : Number.parseFloat(sibling.style.height) || 0; sibling = sibling.previousElementSibling as HTMLElement | null; }
+      top -= box.scrollTop; height = 78;
+    } else if (this.parentElement?.getAttribute("role") === "listbox") top = -box.scrollTop;
+    return { top, bottom: top + height, left: 0, right: 400, width: 400, height, x: 0, y: top, toJSON() {} } as DOMRect;
+  });
+  try {
+    await render();
+    const scroll = listbox().parentElement!;
+    Object.defineProperty(scroll, "scrollHeight", { configurable: true, get: () =>
+      Array.from(listbox().firstElementChild?.children ?? []).reduce((height, node) => height +
+        (node.getAttribute("role") === "option" ? 78 : Number.parseFloat((node as HTMLElement).style.height) || 0), 0) });
+    for (let page = 1; page <= 6; page++) {
+      await scrollTo(scroll.scrollHeight - 300);
+      expect(options().length).toBeLessThan(25);
+    }
+    expect(lastQuery().after?.id).toBe(401);
+    // The cache now contains 600..301. Its first visible record survives the
+    // preceding append despite eviction of the oldest cached page at the top.
+    const first = options().find(row => row.getBoundingClientRect().bottom > 0)!;
+    const id = first.dataset.recordId;
+    const offset = first.getBoundingClientRect().top;
+    await signal();
+    expect(first.dataset.recordId).toBe(id);
+    expect(first.getBoundingClientRect().top).toBe(offset);
+    await scrollTo(20);
+    expect(lastQuery().before?.id).toBe(600);
+    expect(box.scrollTop).toBeGreaterThan(20);
+    expect(options().length).toBeLessThan(25);
+    await press("Home");
+    expect(listbox().getAttribute("aria-activedescendant")).toBeTruthy();
+    expect(document.getElementById(listbox().getAttribute("aria-activedescendant")!)).not.toBeNull();
+  } finally { geometry.mockRestore(); }
 });
