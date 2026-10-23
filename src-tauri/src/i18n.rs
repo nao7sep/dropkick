@@ -7,7 +7,6 @@
 //! The computer's language is read once, at launch, before anything can
 //! override it; System resolves against that reading for the whole session.
 
-use std::path::Path;
 use std::sync::Mutex;
 
 use serde_json::{Map, Value as JsonValue};
@@ -58,13 +57,6 @@ pub fn saved_preference(preferences: &JsonValue) -> Option<&'static str> {
     normalize_preference(preferences.get("language")?.as_str())
 }
 
-/// The choice saved in the preferences document the startup picker will
-/// preview — the same document the native theme is read from
-/// (theme::previewed_preferences). Without one, System.
-pub fn read_saved_preference(state_file: &Path) -> Option<&'static str> {
-    saved_preference(&crate::theme::previewed_preferences(state_file)?)
-}
-
 /// The language the computer and the saved choice settle on at launch, and the
 /// language the native menu currently speaks.
 pub struct LanguageState {
@@ -79,10 +71,9 @@ impl LanguageState {
     /// Reads the computer's languages and the saved choice. Must run before
     /// the macOS override in `align_appkit`, which would otherwise be read back
     /// as the computer's language.
-    pub fn detect(state_file: Option<&Path>) -> Self {
+    pub fn detect(preference: Option<&'static str>) -> Self {
         let locales: Vec<String> = sys_locale::get_locales().collect();
         let system_language = system_language(locales.iter().map(String::as_str));
-        let preference = state_file.and_then(read_saved_preference);
         LanguageState {
             system_language,
             system_locale: locales.into_iter().next(),

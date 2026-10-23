@@ -1165,11 +1165,10 @@ pub fn run() {
 
     // The interface language is settled before Tauri builds the app: macOS fixes
     // AppKit's language when the application object is created.
-    let language = i18n::LanguageState::detect(
-        paths::data_root_before_launch()
-            .map(|root| std::path::PathBuf::from(paths::app_paths(&root).state_file))
-            .as_deref(),
-    );
+    let appearance = paths::data_root_before_launch()
+        .map(|root| theme::read_appearance(std::path::Path::new(&paths::app_paths(&root).state_file)))
+        .unwrap_or_default();
+    let language = i18n::LanguageState::detect(appearance.language);
     #[cfg(target_os = "macos")]
     i18n::align_appkit(language.current());
     let app = tauri::Builder::default()
@@ -1258,22 +1257,29 @@ pub fn run() {
                 app.set_menu(menu)?;
             }
             if let Some(window) = app.get_webview_window("main") {
-                // The admitted root is a cached lookup; the saved theme reader
-                // bounds its own storage work before the window is shown.
-                let saved_theme = paths::data_root(app.handle()).ok().and_then(|root| {
-                    theme::read_saved_window_theme(std::path::Path::new(
-                        &paths::app_paths(&root).state_file,
-                    ))
-                });
-                if let Err(error) = theme::apply(&window, saved_theme) {
+                if let Err(error) = theme::apply(&window, appearance.theme) {
                     logging::warn("apply saved window theme failed", json!({ "error": error }));
                 }
-                window_placement::restore(
-                    app.handle(),
-                    &window.as_ref().window(),
-                    &app.state::<window_placement::WindowPlacements>().main,
-                );
-                window.show()?;
+                // Storage preparation runs off the event loop. Only applying
+                // native geometry and showing the already themed window returns
+                // to the main thread.
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let reader = handle.clone();
+                    let saved = native_wait::settle(move || {
+                        window_placement::prepare(&reader, &reader.state::<window_placement::WindowPlacements>().main)
+                    }).await;
+                    let ui = handle.clone();
+                    if let Err(error) = handle.run_on_main_thread(move || {
+                        window_placement::restore_prepared(&window.as_ref().window(),
+                            &ui.state::<window_placement::WindowPlacements>().main, saved);
+                        if let Err(error) = window.show() {
+                            logging::error("main window could not be shown", json!({ "error": error.to_string() }));
+                        }
+                    }) {
+                        logging::error("main window setup dispatch failed", json!({ "error": error.to_string() }));
+                    }
+                });
             }
             os_quit::install(app.handle());
             Ok(())

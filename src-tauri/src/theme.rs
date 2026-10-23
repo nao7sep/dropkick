@@ -30,11 +30,23 @@ pub fn preferences_window_theme(preferences: &Value) -> Option<Theme> {
 
 /// App-wide settings, or the legacy source that the first upgraded launch will
 /// adopt. Read-only bootstrap shares the frontend's source precedence.
-pub fn previewed_preferences(state_file: &Path) -> Option<Value> {
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Appearance {
+    pub language: Option<&'static str>,
+    pub theme: Option<Theme>,
+}
+
+// One immutable preview supplies both first-paint choices. The frontend still
+// owns full validation and legacy adoption; this read never rewrites a source.
+pub fn read_appearance(state_file: &Path) -> Appearance {
     let state_file = state_file.to_path_buf();
     crate::native_wait::run(state_file.to_string_lossy().into_owned(), move || {
-        Ok(previewed_preferences_owned(&state_file))
-    }).ok().flatten()
+        let preferences = previewed_preferences_owned(&state_file);
+        Ok(Appearance {
+            language: preferences.as_ref().and_then(crate::i18n::saved_preference),
+            theme: preferences.as_ref().and_then(preferences_window_theme),
+        })
+    }).unwrap_or_default()
 }
 
 fn previewed_preferences_owned(state_file: &Path) -> Option<Value> {
@@ -64,11 +76,6 @@ fn previewed_preferences_owned(state_file: &Path) -> Option<Value> {
 fn readable_document(path: &Path, format: Format) -> Option<Value> {
     let document: Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
     matches!(format_version::json_value(&document, format), Ok(Marker::Readable)).then_some(document)
-}
-
-/// The saved choice; without one the window follows the OS.
-pub fn read_saved_window_theme(state_file: &Path) -> Option<Theme> {
-    preferences_window_theme(&previewed_preferences(state_file)?)
 }
 
 /// The window background behind the page — App.css's --background in each

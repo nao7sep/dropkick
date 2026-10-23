@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::i18n::{
-    catalogue, normalize_preference, read_saved_preference, saved_preference, system_language,
+    catalogue, normalize_preference, saved_preference, system_language,
     LANGUAGES,
 };
 use crate::menu::tests::menu_keys;
@@ -72,13 +72,13 @@ fn the_saved_choice_comes_from_the_previewed_document_without_touching_it() {
     fs::write(&preferences, &preferences_text).unwrap();
     fs::write(&state, &state_text).unwrap();
 
-    assert_eq!(read_saved_preference(&state), Some("ko"));
+    assert_eq!(crate::theme::read_appearance(&state).language, Some("ko"));
     assert_eq!(fs::read_to_string(&preferences).unwrap(), preferences_text);
     assert_eq!(fs::read_to_string(&state).unwrap(), state_text);
 
     fs::remove_file(&preferences).unwrap();
-    assert_eq!(read_saved_preference(&state), None);
-    assert_eq!(read_saved_preference(&dir.join("missing.json")), None);
+    assert_eq!(crate::theme::read_appearance(&state).language, None);
+    assert_eq!(crate::theme::read_appearance(&dir.join("missing.json")).language, None);
 }
 
 #[test]
