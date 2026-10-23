@@ -1,4 +1,5 @@
 {
+  "moveTasks.moving": "Moving tasks…",
   "startup.openingWorkspace": "Opening workspace…",
   "startup.chooseAnotherWorkspace": "Choose another workspace",
   "settings.language": "Language",

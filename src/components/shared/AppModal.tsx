@@ -45,6 +45,8 @@ interface AppModalProps {
   // only a surface with neither does nothing, since there is no path to
   // reach for at all.
   closable?: boolean;
+  // Modal-owned work keeps every dismissal route inert through settlement.
+  closeDisabled?: boolean;
   // False when this surface has no page behind it to dim — the startup
   // picker's card sits directly on the app's own canvas, not over other
   // content. The overlay still occupies its layer (Dialog.Content's centring
@@ -83,6 +85,7 @@ export function AppModal({
   passiveBodyLabel,
   titleVisuallyHidden = false,
   closable = true,
+  closeDisabled = false,
   dimmed = true,
   zIndexBase = 50,
   dismissOnOutsideClick = true,
@@ -120,7 +123,7 @@ export function AppModal({
       // conversion in the New Task title or a Settings field instead read the
       // preedit text as unsaved changes, opened the confirmation dialog, and
       // tore the composition down mid-word (text-input-ime-conventions).
-      if (isComposingEvent(e as KeyboardEvent)) {
+      if (closeDisabled || isComposingEvent(e as KeyboardEvent)) {
         e.preventDefault();
         return;
       }
@@ -139,7 +142,7 @@ export function AppModal({
       }
       // No close guard: let Radix's own dismiss run.
     },
-    ...(!dismissOnOutsideClick
+    ...(closeDisabled || !dismissOnOutsideClick
       ? {
           // Always inert regardless of onRequestClose: a surface that forces
           // an explicit footer choice never treats a stray outside click as
@@ -170,7 +173,7 @@ export function AppModal({
   };
 
   return (
-    <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
+    <Dialog.Root open onOpenChange={(open) => !open && !closeDisabled && onClose()}>
       <Dialog.Portal>
         {/* Tailwind's z-* utilities need a literal class in source to be
             generated, so a caller-supplied base goes through style instead —
@@ -230,6 +233,7 @@ export function AppModal({
             {!closable ? null : onRequestClose ? (
               <button
                 type="button"
+                disabled={closeDisabled}
                 aria-label={t("common.closeNamed", { title })}
                 onClick={onRequestClose}
                 className="dk-icon-btn -mr-2 ml-auto"
@@ -240,6 +244,7 @@ export function AppModal({
               <Dialog.Close asChild>
                 <button
                   type="button"
+                  disabled={closeDisabled}
                   aria-label={t("common.closeNamed", { title })}
                   className="dk-icon-btn -mr-2 ml-auto"
                 >

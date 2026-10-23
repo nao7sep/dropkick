@@ -1,4 +1,5 @@
 {
+  "moveTasks.moving": "Déplacement des tâches…",
   "startup.openingWorkspace": "Ouverture de l’espace de travail…",
   "startup.chooseAnotherWorkspace": "Choisir un autre espace de travail",
   "settings.language": "Langue",

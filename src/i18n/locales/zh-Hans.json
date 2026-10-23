@@ -1,4 +1,5 @@
 {
+  "moveTasks.moving": "正在移动任务…",
   "startup.openingWorkspace": "正在打开工作区…",
   "startup.chooseAnotherWorkspace": "选择其他工作区",
   "settings.language": "语言",

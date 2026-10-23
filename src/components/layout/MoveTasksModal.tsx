@@ -58,6 +58,8 @@ export function MoveTasksModal({
     (t) => !t.isUnifiedView && !sourceFiles.has(t.filePath),
   );
 
+  const requestClose = () => { if (!movingRef.current) onClose(); };
+
   const handleMove = async () => {
     if (movingRef.current) return;
     if (!moveTarget) {
@@ -102,17 +104,14 @@ export function MoveTasksModal({
   return (
     <AppModal
       title={t("moveTasks.title", { count: selectedTasks.length })}
-      // Pure-selection modal per the modal conventions: the only draft is the
-      // <select> destination, committed solely by the Move button. Closing
-      // discards no persisted draft, so there is no dirty state — close routes
-      // directly through onClose with no useDirtyClose/dirty prompt by design
-      // (a dirty prompt here would be a forbidden fake prompt). onRequestClose
-      // is intentionally unset so AppModal's fallback drives every close path.
-      onClose={onClose}
+      // The result remains owned here until the non-cancellable move settles.
+      onClose={requestClose}
+      onRequestClose={requestClose}
+      closeDisabled={moving}
       maxWidth={384}
       footer={
         <>
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button onClick={requestClose} disabled={moving}>{t("common.cancel")}</Button>
           <Button variant="primary" onClick={handleMove} disabled={!moveTarget || moving}>
             {t("moveTasks.move")}
           </Button>
@@ -127,6 +126,7 @@ export function MoveTasksModal({
         },
       }}
     >
+      {moving ? <p role="status" className="mb-4 text-sm text-ink-muted">{t("moveTasks.moving")}</p> : null}
       {actionError ? (
         <p role="alert" className="mb-4 text-sm text-danger">
           {text(actionError)}
@@ -151,6 +151,7 @@ export function MoveTasksModal({
           </label>
           <select
             ref={destinationRef}
+            disabled={moving}
             aria-invalid={destError}
             aria-describedby={destError ? "move-tasks-destination-error" : undefined}
             value={moveTarget}
