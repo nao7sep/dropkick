@@ -192,37 +192,61 @@ fn maximizing_keeps_the_latest_normal_rectangle() {
         use std::time::Duration;
         use tauri::Manager;
 
+        const NAME: &str = "window_placement::tests::maximizing_keeps_the_latest_normal_rectangle";
+        if std::env::var_os("DROPKICK_PLACEMENT_FIXTURE").is_none() {
+            let (status, output) = crate::process_fixture::run(NAME,
+                &[("DROPKICK_PLACEMENT_FIXTURE", "1")], Duration::from_secs(20));
+            assert!(status.success(), "{output}");
+            return;
+        }
+        let (observed, observations) = mpsc::channel();
         let builder = tauri::Builder::default()
             .manage(WindowPlacements::new())
-            .on_window_event(|window, event| {
-                on_window_event(window, event, &window.state::<WindowPlacements>());
+            .on_window_event(move |window, event| {
+                let placements = window.state::<WindowPlacements>();
+                on_window_event(window, event, &placements);
+                if let Some(placement) = state_value(&placements.main) {
+                    let _ = observed.send(placement);
+                }
             });
         #[cfg(windows)]
         let builder = builder.any_thread();
-        let app = builder.build(crate::context()).expect("test app builds");
+        // The fixture exercises only native placement, with no frontend task
+        // session and no shared webview cache.
+        let mut context = crate::context();
+        let home = std::path::PathBuf::from(std::env::var_os("DROPKICK_DATA_DIR").unwrap());
+        for window in &mut context.config_mut().app.windows {
+            window.url = tauri::WebviewUrl::External("about:blank".parse().unwrap());
+            window.data_directory = Some(home.join("webview"));
+        }
+        let app = builder.build(context).expect("test app builds");
         let handle = app.handle().clone();
-        let (report, outcome) = mpsc::channel();
-        std::thread::spawn(move || {
-            let pause = || std::thread::sleep(Duration::from_millis(800));
-            pause();
-            let window = handle.get_webview_window("main").expect("the configured main window");
-            window.show().unwrap();
-            window.set_position(PhysicalPosition::new(120, 140)).unwrap();
-            window.set_size(PhysicalSize::new(820u32, 610u32)).unwrap();
-            pause();
-            let placements = handle.state::<WindowPlacements>();
-            let before = state_value(&placements.main);
-            window.maximize().unwrap();
-            pause();
-            let after = state_value(&placements.main);
-            let _ = report.send((before, after, window.is_maximized().unwrap_or(false)));
-            handle.exit(0);
+        let worker = std::thread::spawn(move || -> Result<_, String> {
+            struct ExitOnDrop(tauri::AppHandle);
+            impl Drop for ExitOnDrop {
+                fn drop(&mut self) { self.0.exit(0); }
+            }
+            let _exit = ExitOnDrop(handle.clone());
+            let window = handle.get_webview_window("main").ok_or("configured main window is missing")?;
+            let wait_for = |matches: fn(super::Placement) -> bool| -> Result<super::Placement, String> {
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                loop {
+                    let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+                    let placement = observations.recv_timeout(remaining).map_err(|error| error.to_string())?;
+                    if matches(placement) { return Ok(placement); }
+                    if remaining.is_zero() { return Err("placement observation deadline expired".into()); }
+                }
+            };
+            window.show().map_err(|error| error.to_string())?;
+            window.set_position(PhysicalPosition::new(120, 140)).map_err(|error| error.to_string())?;
+            window.set_size(PhysicalSize::new(820u32, 610u32)).map_err(|error| error.to_string())?;
+            let before = wait_for(|placement| !placement.maximized && placement.normal == rectangle(120, 140, 820, 610))?;
+            window.maximize().map_err(|error| error.to_string())?;
+            let after = wait_for(|placement| placement.maximized)?;
+            Ok((before, after))
         });
         app.run_return(|_, _| {});
-        let (before, after, maximized) = outcome.recv().expect("the window reported its placements");
-        let before = before.expect("a normal sample before maximizing");
-        let after = after.expect("a sample after maximizing");
-        assert!(maximized, "the window maximized");
+        let (before, after) = worker.join().expect("placement helper did not panic").expect("placement observations completed");
         assert_eq!(after.normal, before.normal, "maximizing replaced the normal rectangle");
         assert!(after.maximized, "Windows remembers the maximized state");
     }
