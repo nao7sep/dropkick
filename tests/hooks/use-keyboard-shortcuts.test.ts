@@ -4,6 +4,7 @@ import { inEnglish } from "../helpers/i18n";
 import { message } from "../../src/i18n/translate";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useViewTasks } from "../../src/hooks/useViewTasks";
 import { useKeyboardShortcuts } from "../../src/hooks/use-keyboard-shortcuts";
 import { createDefaultPreferences } from "../../src/models";
 import type { TaskStatus } from "../../src/models";
@@ -30,6 +31,7 @@ function Harness() {
   useKeyboardShortcuts(
     FILE,
     false,
+    useViewTasks(FILE, false),
     () => {},
     () => {},
     () => {},

@@ -34,7 +34,7 @@ import {
 } from "../utils";
 import { closeCurrentWindow } from "../repositories";
 import { isComposingEvent } from "./useComposing";
-import { useViewTasks } from "./useViewTasks";
+import type { ViewTasks } from "./useViewTasks";
 import { useTaskDeletion } from "./useTaskDeletion";
 import { message, type Message } from "../i18n/translate";
 
@@ -63,6 +63,7 @@ function isInsideInteractiveLayer(e: KeyboardEvent): boolean {
 export function useKeyboardShortcuts(
   filePath: string,
   isUnifiedView: boolean,
+  view: ViewTasks,
   onNewTask: () => void,
   onMoveTasks: () => void,
   onFocusNewNote: () => void,
@@ -92,10 +93,7 @@ export function useKeyboardShortcuts(
 
   const timezone = preferences.timezone;
 
-  const { tasks: contextTasks, visualTasks } = useViewTasks(
-    filePath,
-    isUnifiedView,
-  );
+  const { tasks: contextTasks, visualTasks } = view;
 
   const tasksByKey = useMemo(
     () => new Map(contextTasks.map((task) => [taskSelectionKey(task), task])),

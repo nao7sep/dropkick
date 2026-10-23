@@ -208,10 +208,14 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
     [dragIntent, updateViewState],
   );
 
+  const view = useViewTasks(filePath, isUnifiedView);
+  const { tasks: viewTasks, visualTasks } = view;
+
   // Register global keyboard shortcuts.
   useKeyboardShortcuts(
     filePath,
     isUnifiedView,
+    view,
     () => setShowNewTask(true),
     () => setShowMoveTasks(true),
     () => setFocusNewNoteSignal((value) => value + 1),
@@ -374,11 +378,6 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
     prevOpenFilePathsRef.current = openFilePaths;
   }, [openFilePaths]);
 
-  const { tasks: viewTasks, visualTasks } = useViewTasks(
-    filePath,
-    isUnifiedView,
-  );
-
   // Selected tasks for the move modal, filtered from the same collection the
   // panes and the keyboard read.
   const selectedTasks = useMemo(() => {
@@ -442,6 +441,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
                 key={activePaneKey}
                 filePath={filePath}
                 isUnifiedView={isUnifiedView}
+                view={view}
                 onNewTask={() => setShowNewTask(true)}
               />
             </AppErrorBoundary>
@@ -467,6 +467,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
                 key={activePaneKey}
                 filePath={filePath}
                 isUnifiedView={isUnifiedView}
+                view={view}
                 focusNewNoteSignal={focusNewNoteSignal}
                 externalIssues={taskActionIssues}
                 onDismissExternalIssue={dismissTaskActionFailure}

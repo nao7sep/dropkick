@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useTaskListStore } from "../../state/task-list-store";
 import { pickNextActiveKey, taskSelectionKey } from "../../utils";
-import { useViewTasks } from "../../hooks/useViewTasks";
+import type { ViewTasks } from "../../hooks/useViewTasks";
 import { taskActionOwnerKey } from "../../services";
 import { TaskDetail } from "./TaskDetail";
 import { TaskSummary } from "./TaskSummary";
@@ -11,6 +11,7 @@ import { BulkActions } from "./BulkActions";
 import type { Message } from "../../i18n/translate";
 
 interface TaskDetailPaneProps {
+  view: ViewTasks;
   filePath: string;
   isUnifiedView: boolean;
   focusNewNoteSignal: number;
@@ -24,6 +25,7 @@ interface TaskDetailPaneProps {
 }
 
 export function TaskDetailPane({
+  view,
   filePath,
   isUnifiedView,
   focusNewNoteSignal,
@@ -33,7 +35,7 @@ export function TaskDetailPane({
 }: TaskDetailPaneProps) {
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
 
-  const { tasks, visualTasks } = useViewTasks(filePath, isUnifiedView);
+  const { tasks, visualTasks } = view;
 
   const selectedTasks = tasks.filter((t) => selectedKeys.has(taskSelectionKey(t)));
   const selectedTaskKeys = selectedTasks.map((t) => taskSelectionKey(t));

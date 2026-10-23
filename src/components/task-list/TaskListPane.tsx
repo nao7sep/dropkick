@@ -27,7 +27,7 @@ import {
   taskListEmptyMessage,
 } from "../../services";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
-import { useViewTasks } from "../../hooks/useViewTasks";
+import type { ViewTasks } from "../../hooks/useViewTasks";
 import { describeDiskFailure, describeLoadFailure, fieldDraftKey, fileNameWithoutExt } from "../../services";
 import { useNoteDraftStore } from "../../state/note-draft-store";
 import { Button } from "../shared/Button";
@@ -35,6 +35,7 @@ import { useI18n } from "../../i18n/I18nContext";
 import type { Message } from "../../i18n/translate";
 
 interface TaskListPaneProps {
+  view: ViewTasks;
   filePath: string;
   isUnifiedView: boolean;
   onNewTask: () => void;
@@ -89,7 +90,7 @@ const CARD_CLASS = `${CARD_FRAME} pb-1.5`;
 const LIST_PAGE = 10;
 
 
-export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPaneProps) {
+export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskListPaneProps) {
   const i18n = useI18n();
   const { t } = i18n;
   // Banners about several lists name a few and count the rest; each named
@@ -124,7 +125,7 @@ export function TaskListPane({ filePath, isUnifiedView, onNewTask }: TaskListPan
   const files = useTaskListStore((s) => s.files);
   const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
 
-  const { grouped } = useViewTasks(filePath, isUnifiedView);
+  const { grouped } = view;
 
   // In unified view, the merged list silently omits any open list whose file
   // isn't loaded — whether it failed or is still loading. Summarize both so the

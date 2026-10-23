@@ -8,6 +8,7 @@ import {
   createDefaultWorkspace,
   createTab,
 } from "../../../src/models";
+import { useViewTasks } from "../../../src/hooks/useViewTasks";
 import { TaskListPane } from "../../../src/components/task-list/TaskListPane";
 import { usePreferencesStore } from "../../../src/state/preferences-store";
 import { useNoteDraftStore } from "../../../src/state/note-draft-store";
@@ -45,13 +46,11 @@ beforeEach(async () => {
     selectedKeys: new Set(),
     updateTitle,
   });
-  host = await mount(
-    createElement(TaskListPane, {
-      filePath: "/one.json",
-      isUnifiedView: false,
-      onNewTask: () => undefined,
-    }),
-  );
+  function Pane() {
+    const view = useViewTasks("/one.json", false);
+    return createElement(TaskListPane, { view, filePath: "/one.json", isUnifiedView: false, onNewTask: () => undefined });
+  }
+  host = await mount(createElement(Pane));
 });
 
 afterEach(async () => {
