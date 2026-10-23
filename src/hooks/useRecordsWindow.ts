@@ -20,17 +20,18 @@ import {
 } from "../utils/recordsWindowSizing";
 import { useInterfaceLanguage } from "./useInterfaceLanguage";
 
-export function useRecordsWindow(): () => Promise<void> {
+export function useRecordsWindowSync(): void {
   const { language, locale } = useInterfaceLanguage();
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
+  const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
   const updateViewState = useAppStateStore((s) => s.updateViewState);
   const timeZone = conversionTimeZone(timezone) ?? null;
 
   useEffect(() => {
-    sendRecordsContext({ language, locale, timeZone }).catch((error) =>
+    sendRecordsContext({ language, locale, timeZone, fontFamily }).catch((error) =>
       log.warn("records window settings update failed", toErrorFields(error)),
     );
-  }, [language, locale, timeZone]);
+  }, [language, locale, timeZone, fontFamily]);
 
   useEffect(
     () =>
@@ -41,6 +42,12 @@ export function useRecordsWindow(): () => Promise<void> {
       }),
     [updateViewState],
   );
+}
+
+export function useRecordsWindow(): () => Promise<void> {
+  const { language, locale } = useInterfaceLanguage();
+  const timezone = usePreferencesStore((s) => s.preferences.timezone);
+  const timeZone = conversionTimeZone(timezone) ?? null;
 
   return useCallback(async () => {
     try {
@@ -53,6 +60,7 @@ export function useRecordsWindow(): () => Promise<void> {
         locale,
         timeZone,
         theme: usePreferencesStore.getState().preferences.theme,
+        fontFamily: usePreferencesStore.getState().preferences.fontFamily,
       });
     } catch (e) {
       log.error("records window open failed", toErrorFields(e));

@@ -126,6 +126,7 @@ export function initialRecordsWindow(search: string): { listWidth: number; conte
       language: resolved,
       locale: usableLocale(locale) ? locale : resolved,
       timeZone: timeZone !== null && isKnownTimeZone(timeZone) ? timeZone : null,
+      fontFamily: params.get("fontFamily") ?? "",
     },
   };
 }

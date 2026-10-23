@@ -2,6 +2,7 @@
 
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_UI_FONT_STACK } from "../../../src/models";
 import type { RecordsContext } from "../../../src/models/records";
 import { mount, type Mounted } from "../../helpers/react-dom";
 
@@ -28,6 +29,7 @@ vi.mock("../../../src/repositories/records", () => ({
   },
 }));
 
+import { loadInterfaceCatalogue } from "../../../src/i18n/I18nContext";
 import { RecordsApp } from "../../../src/components/records/RecordsApp";
 
 class TestResizeObserver {
@@ -45,6 +47,7 @@ afterEach(async () => {
   await mounted?.unmount();
   mounted = null;
   document.body.innerHTML = "";
+  document.documentElement.style.removeProperty("--font-ui");
   vi.unstubAllGlobals();
 });
 
@@ -57,10 +60,8 @@ describe("RecordsApp", () => {
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 
     mounted = await mount(createElement(RecordsApp, { search: "?listWidth=420&language=ja&locale=ja-JP" }));
-    await vi.waitFor(async () => {
-      await act(async () => {});
-      expect(document.body.textContent).toContain("ログを読み込み中…");
-    });
+    await act(async () => { await loadInterfaceCatalogue("ja"); });
+    expect(document.body.textContent).toContain("ログを読み込み中…");
     observer.disconnect();
 
     expect(document.title).toBe("ログ");
@@ -72,15 +73,29 @@ describe("RecordsApp", () => {
     mounted = await mount(createElement(RecordsApp, { search: "?language=en&locale=en-US" }));
     expect(document.body.textContent).toContain("Loading records…");
 
-    await act(async () => records.context!({ language: "de", locale: "de-DE", timeZone: "Europe/Berlin" }));
+    await act(async () => records.context!({ language: "de", locale: "de-DE", timeZone: "Europe/Berlin", fontFamily: "" }));
 
     // The German catalogue loads first; until then the window keeps English.
-    await vi.waitFor(async () => {
-      await act(async () => {});
-      expect(document.body.textContent).toContain("Protokoll wird geladen\u00a0…");
-    });
+    await act(async () => { await loadInterfaceCatalogue("de"); });
+    expect(document.body.textContent).toContain("Protokoll wird geladen\u00a0…");
     expect(document.title).toBe("Protokoll");
     expect(nativeWindow.setTitle).toHaveBeenLastCalledWith("Protokoll");
+  });
+
+  it("uses the font it opens with and follows live font changes and reset", async () => {
+    mounted = await mount(createElement(RecordsApp, { search: "?fontFamily=++Example+UI++" }));
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe(`Example UI, ${DEFAULT_UI_FONT_STACK}`);
+
+    await act(async () => records.context!({ language: "en", locale: "en", timeZone: null, fontFamily: "Live UI" }));
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe(`Live UI, ${DEFAULT_UI_FONT_STACK}`);
+
+    await act(async () => records.context!({ language: "en", locale: "en", timeZone: null, fontFamily: "  " }));
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe(DEFAULT_UI_FONT_STACK);
+  });
+
+  it("uses the default UI font for an address without a font setting", async () => {
+    mounted = await mount(createElement(RecordsApp, { search: "" }));
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe(DEFAULT_UI_FONT_STACK);
   });
 
   it("stops listening when it closes", async () => {

@@ -1,9 +1,10 @@
 // The Records window's root. It speaks the main window's interface language
-// from its first text and follows it, along with the locale and time zone,
+// from its first text and follows it, along with the locale, time zone and font,
 // when Settings changes them there.
 
 import { useEffect, useState } from "react";
 import { I18nProvider, loadInterfaceCatalogue } from "../../i18n/I18nContext";
+import { DEFAULT_UI_FONT_STACK } from "../../models";
 import type { RecordsContext } from "../../models/records";
 import { onRecordsContext } from "../../repositories/records";
 import { initialRecordsWindow } from "../../services/records";
@@ -25,6 +26,14 @@ export function RecordsApp({ search }: { search: string }) {
       unsubscribe();
     };
   }, [initial]);
+
+  useEffect(() => {
+    const chosen = context.fontFamily.trim();
+    document.documentElement.style.setProperty(
+      "--font-ui",
+      chosen ? `${chosen}, ${DEFAULT_UI_FONT_STACK}` : DEFAULT_UI_FONT_STACK,
+    );
+  }, [context.fontFamily]);
 
   // No text until the language is known, so the first words on screen are
   // already in it.

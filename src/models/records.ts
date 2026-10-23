@@ -57,9 +57,10 @@ export interface RecordSources {
 
 // The interface settings the main window holds and the Records window speaks:
 // the language, the locale dates are formatted in, and the app's time zone
-// (null for the computer's own).
+// (null for the computer's own), and the UI font family.
 export interface RecordsContext {
   language: Language;
   locale: string;
   timeZone: string | null;
+  fontFamily: string;
 }

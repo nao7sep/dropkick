@@ -73,8 +73,8 @@ describe("mergeNewestPage", () => {
 describe("initialRecordsWindow", () => {
   it("reads what the main window opened it with", () => {
     expect(
-      initialRecordsWindow("?listWidth=420&language=ja&locale=ja-JP&timeZone=Asia%2FTokyo"),
-    ).toEqual({ listWidth: 420, context: { language: "ja", locale: "ja-JP", timeZone: "Asia/Tokyo" } });
+      initialRecordsWindow("?listWidth=420&language=ja&locale=ja-JP&timeZone=Asia%2FTokyo&fontFamily=Example+UI%2C+sans-serif"),
+    ).toEqual({ listWidth: 420, context: { language: "ja", locale: "ja-JP", timeZone: "Asia/Tokyo", fontFamily: "Example UI, sans-serif" } });
   });
 
   it("keeps the list width within the pane's bounds", () => {
@@ -85,12 +85,13 @@ describe("initialRecordsWindow", () => {
   it("falls back to the defaults for anything missing or unusable", () => {
     expect(initialRecordsWindow("")).toEqual({
       listWidth: RECORDS_LIST_WIDTH.default,
-      context: { language: "en", locale: "en", timeZone: null },
+      context: { language: "en", locale: "en", timeZone: null, fontFamily: "" },
     });
     expect(initialRecordsWindow("?listWidth=wide&language=xx&locale=%5B%5D&timeZone=Mars%2FBase").context).toEqual({
       language: "en",
       locale: "en",
       timeZone: null,
+      fontFamily: "",
     });
   });
 });

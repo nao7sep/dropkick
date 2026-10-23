@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, act } from "react";
 import { mount, type Mounted } from "./helpers/react-dom";
 const mocks = vi.hoisted(() => ({ state: { lastWorkspacePath: "", zoomLevel: 1 }, config: { knownWorkspaces: [] as string[] }, preview: vi.fn<() => Promise<{ status: string; filePath?: string }>>(), open: vi.fn(), paths: vi.fn(), close: vi.fn(), init: vi.fn(async () => null) }));
+vi.mock("../src/hooks/useRecordsWindow", () => ({ useRecordsWindowSync: vi.fn() }));
 vi.mock("../src/hooks/use-window-close", () => ({ useWindowClose: vi.fn() }));
 vi.mock("../src/services/open-workspace-session", () => ({ openWorkspaceSession: mocks.open }));
 vi.mock("../src/hooks/useInterfaceLanguage", () => ({ currentInterfaceLanguage: () => "en", useInterfaceLanguage: () => ({ language: "en", locale: "en-US" }) }));

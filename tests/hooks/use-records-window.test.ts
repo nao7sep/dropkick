@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { act, createElement } from "react";
+import { act, createElement, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecordsContext } from "../../src/models/records";
 import type { RecordsWindowOpening } from "../../src/repositories/records";
@@ -34,7 +34,7 @@ vi.mock("../../src/repositories", () => ({
   toErrorFields: (e: unknown) => ({ error: { message: String(e) } }),
 }));
 
-import { useRecordsWindow } from "../../src/hooks/useRecordsWindow";
+import { useRecordsWindow, useRecordsWindowSync } from "../../src/hooks/useRecordsWindow";
 import { useAppStateStore } from "../../src/state/app-state-store";
 import { usePreferencesStore } from "../../src/state/preferences-store";
 import { useLanguageStore } from "../../src/state/language-store";
@@ -43,6 +43,7 @@ import { RECORDS_LIST_WIDTH, RECORDS_WINDOW_MIN_HEIGHT, RECORDS_WINDOW_MIN_WIDTH
 
 let open: (() => Promise<void>) | null = null;
 function Host() {
+  useRecordsWindowSync();
   open = useRecordsWindow();
   return null;
 }
@@ -63,7 +64,7 @@ beforeEach(async () => {
     loaded: true,
   });
   usePreferencesStore.setState({
-    preferences: { ...createDefaultPreferences(), language: "ja", timezone: "Asia/Tokyo", theme: "dark" },
+    preferences: { ...createDefaultPreferences(), language: "ja", timezone: "Asia/Tokyo", theme: "dark", fontFamily: "Example UI" },
   });
   useLanguageStore.setState({ systemLanguage: "en", systemLocale: "en-US" });
   mounted = await mount(createElement(Host));
@@ -86,6 +87,7 @@ describe("useRecordsWindow", () => {
       locale: "ja",
       timeZone: "Asia/Tokyo",
       theme: "dark",
+      fontFamily: "Example UI",
     });
   });
 
@@ -101,7 +103,7 @@ describe("useRecordsWindow", () => {
   });
 
   it("tells the Records window when the language or time zone changes", async () => {
-    expect(records.sendRecordsContext).toHaveBeenLastCalledWith({ language: "ja", locale: "ja", timeZone: "Asia/Tokyo" });
+    expect(records.sendRecordsContext).toHaveBeenLastCalledWith({ language: "ja", locale: "ja", timeZone: "Asia/Tokyo", fontFamily: "Example UI" });
 
     await act(async () => {
       usePreferencesStore.setState({
@@ -109,7 +111,38 @@ describe("useRecordsWindow", () => {
       });
     });
 
-    expect(records.sendRecordsContext).toHaveBeenLastCalledWith({ language: "en", locale: "en-US", timeZone: null });
+    expect(records.sendRecordsContext).toHaveBeenLastCalledWith({ language: "en", locale: "en-US", timeZone: null, fontFamily: "Example UI" });
+  });
+
+  it("sends font changes while the opening control is absent", async () => {
+    await mounted!.unmount();
+    let hideOpeningControl!: () => void;
+    function OpeningControl() {
+      useRecordsWindow();
+      return null;
+    }
+    function SyncHost() {
+      useRecordsWindowSync();
+      const [showOpeningControl, setShowOpeningControl] = useState(true);
+      hideOpeningControl = () => setShowOpeningControl(false);
+      return showOpeningControl ? createElement(OpeningControl) : null;
+    }
+    mounted = await mount(createElement(SyncHost));
+    const receiveWidth = records.width;
+    await act(async () => hideOpeningControl());
+    expect(records.width).toBe(receiveWidth);
+
+    await act(async () => {
+      usePreferencesStore.setState({
+        preferences: { ...usePreferencesStore.getState().preferences, fontFamily: "Live UI" },
+      });
+    });
+
+    expect(records.sendRecordsContext).toHaveBeenLastCalledWith({
+      language: "ja", locale: "ja", timeZone: "Asia/Tokyo", fontFamily: "Live UI",
+    });
+    await act(async () => records.width!(470));
+    expect(useAppStateStore.getState().appState.recordsListWidth).toBe(470);
   });
 
   it("persists the width the Records window hands back, within the pane's bounds", async () => {

@@ -12,14 +12,15 @@ fn context(time_zone: Option<&str>) -> RecordsWindowContext {
         locale: "pt-BR".to_string(),
         time_zone: time_zone.map(str::to_string),
         theme: "dark".to_string(),
+        font_family: "Example UI, sans-serif".to_string(),
     }
 }
 
 #[test]
-fn the_page_carries_the_list_width_language_locale_and_zone() {
+fn the_page_carries_the_list_width_language_locale_zone_and_font() {
     assert_eq!(
         page_url(&context(Some("America/Sao_Paulo"))),
-        "records.html?listWidth=413&language=pt-BR&locale=pt-BR&timeZone=America%2FSao_Paulo"
+        "records.html?listWidth=413&language=pt-BR&locale=pt-BR&fontFamily=Example+UI%2C+sans-serif&timeZone=America%2FSao_Paulo"
     );
 }
 
@@ -27,6 +28,6 @@ fn the_page_carries_the_list_width_language_locale_and_zone() {
 fn the_computers_own_zone_is_left_out() {
     assert_eq!(
         page_url(&context(None)),
-        "records.html?listWidth=413&language=pt-BR&locale=pt-BR"
+        "records.html?listWidth=413&language=pt-BR&locale=pt-BR&fontFamily=Example+UI%2C+sans-serif"
     );
 }

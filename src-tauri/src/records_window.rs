@@ -35,6 +35,7 @@ pub struct RecordsWindowContext {
     pub locale: String,
     pub time_zone: Option<String>,
     pub theme: String,
+    pub font_family: String,
 }
 
 /// The page's address, with the context it starts from.
@@ -45,6 +46,7 @@ pub fn page_url(context: &RecordsWindowContext) -> String {
         query.append_pair("listWidth", &context.list_width.round().to_string());
         query.append_pair("language", &context.language);
         query.append_pair("locale", &context.locale);
+        query.append_pair("fontFamily", &context.font_family);
         if let Some(zone) = &context.time_zone {
             query.append_pair("timeZone", zone);
         }

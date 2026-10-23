@@ -30,6 +30,7 @@ import { useLanguageStore } from "./state/language-store";
 import { currentInterfaceLanguage, useInterfaceLanguage } from "./hooks/useInterfaceLanguage";
 import { I18nProvider, loadInterfaceCatalogue } from "./i18n/I18nContext";
 import { message, type Message } from "./i18n/translate";
+import { useRecordsWindowSync } from "./hooks/useRecordsWindow";
 import { useWindowClose } from "./hooks/use-window-close";
 import { openWorkspaceSession } from "./services/open-workspace-session";
 import { StartupPicker } from "./components/layout/StartupPicker";
@@ -50,6 +51,7 @@ type AppPhase =
 
 function App() {
   useWindowClose();
+  useRecordsWindowSync();
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
   const [startupNotices, setStartupNotices] = useState<Array<{ title: Message; body: Message }>>([]);
   const [mainChromeHeight, setMainChromeHeight] = useState(TAB_BAR_MIN_HEIGHT);

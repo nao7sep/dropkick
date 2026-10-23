@@ -59,6 +59,7 @@ describe("records commands", () => {
       locale: "ja-JP",
       timeZone: null,
       theme: "dark" as const,
+      fontFamily: "Example UI",
     };
     await openRecordsWindow(opening);
 
@@ -73,11 +74,11 @@ describe("records commands", () => {
 
 describe("records events", () => {
   it("sends the settings to the Records window and the width to the main window", async () => {
-    await sendRecordsContext({ language: "de", locale: "de-DE", timeZone: "Europe/Berlin" });
+    await sendRecordsContext({ language: "de", locale: "de-DE", timeZone: "Europe/Berlin", fontFamily: "Example UI" });
     await commitRecordsListWidth(412);
 
     expect(tauri.emitTo.mock.calls).toEqual([
-      ["records", "records-context", { language: "de", locale: "de-DE", timeZone: "Europe/Berlin" }],
+      ["records", "records-context", { language: "de", locale: "de-DE", timeZone: "Europe/Berlin", fontFamily: "Example UI" }],
       ["main", "records-list-width", 412],
     ]);
   });
@@ -90,10 +91,10 @@ describe("records events", () => {
     await flush();
 
     tauri.listeners.get("records-changed")!({ payload: null });
-    tauri.listeners.get("records-context")!({ payload: { language: "fr", locale: "fr", timeZone: null } });
+    tauri.listeners.get("records-context")!({ payload: { language: "fr", locale: "fr", timeZone: null, fontFamily: "" } });
     tauri.listeners.get("records-list-width")!({ payload: 500 });
     expect(changed).toHaveBeenCalledOnce();
-    expect(context).toHaveBeenCalledWith({ language: "fr", locale: "fr", timeZone: null });
+    expect(context).toHaveBeenCalledWith({ language: "fr", locale: "fr", timeZone: null, fontFamily: "" });
     expect(width).toHaveBeenCalledWith(500);
 
     for (const stop of stops) stop();
