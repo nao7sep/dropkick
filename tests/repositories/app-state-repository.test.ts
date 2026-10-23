@@ -11,6 +11,7 @@ vi.mock("../../src/repositories/file-system", () => ({
   fileExists: (p: string) => fileExists(p),
   appPaths: async () => ({ root: ROOT, stateFile: `${ROOT}/state.json`, configFile: `${ROOT}/config.json`, preferencesFile: `${ROOT}/preferences.json`, workspaceFile: `${ROOT}/workspace.json` }),
   quarantineFile: (p: string) => quarantineFile(p),
+  createLatestSerial: () => async (_path: string, work: () => Promise<unknown>) => ({ covered: false, value: await work() }),
   withSerial: (_p: string, fn: () => unknown) => fn(),
 }));
 const warn = vi.fn();

@@ -396,6 +396,12 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       return { status: "success" };
     }
 
+    if (result.status === "covered") {
+      // The covering caller has already applied the save/reload outcome. In
+      // particular, never replay its reload over edits accepted since then.
+      endPendingWrite(filePath);
+      return { status: "success" };
+    }
     if (result.status === "success") {
       endPendingWrite(filePath);
       clearUnsaved(filePath);

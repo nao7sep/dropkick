@@ -9,7 +9,7 @@ import {
   ensureDirectory,
   fileExists,
   appPaths,
-  withSerial,
+  createLatestSerial,
 } from "./file-system";
 import { log, type LogFields } from "./logging";
 import { ZOOM_MIN, ZOOM_MAX } from "../utils/zoom";
@@ -122,11 +122,13 @@ export async function initializeAppState(): Promise<{
 // so overlapping flushes can never land out of order. `getAppState` is invoked
 // inside the serial slot so it sees the latest store state at the instant of
 // the write.
+const latestSave = createLatestSerial();
+
 export async function flushAppState(
   filePath: string,
   getAppState: () => AppStateDto,
 ): Promise<void> {
-  await withSerial(filePath, async () => {
+  await latestSave(filePath, async () => {
     await writeJsonFile(filePath, "state", getAppState(), false);
   }, "optional");
 }
