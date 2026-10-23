@@ -211,3 +211,32 @@ fn refresh_hash_match_skips_decoding_but_changed_bytes_still_require_admission()
     std::fs::remove_file(&path).unwrap();
     assert!(matches!(settled(read_json_file_with_hash(path, Some(expected))).unwrap(), JsonFileWithHashResult::Missing));
 }
+
+#[test]
+fn native_save_failure_records_one_fact_and_returns_its_marker() {
+    const NAME: &str = "tests::native_save_failure_records_one_fact_and_returns_its_marker";
+    if std::env::var_os("DROPKICK_WRITE_FAILURE_FIXTURE").is_none() {
+        let (status, output) = crate::process_fixture::run(NAME,
+            &[("DROPKICK_WRITE_FAILURE_FIXTURE", "1")], std::time::Duration::from_secs(15));
+        assert!(status.success(), "{output}");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let database = dir.path().join("records.sqlite3");
+    logging::init(&database, &dir.path().join("logs"), false);
+    let path = dir.path().join("absent-parent").join("document.json");
+    let error = settled(write_text_file_atomic(path.to_string_lossy().into_owned(), "{}".into(), Some(false))).unwrap_err();
+    let wire = serde_json::to_value(&error).unwrap();
+    assert_eq!(wire["kind"], "recordedOperation");
+    assert!(!wire["message"].as_str().unwrap().is_empty());
+    logging::flush();
+    let connection = rusqlite::Connection::open(database).unwrap();
+    let failures: Vec<(String, String)> = connection.prepare("SELECT message, fields FROM logs WHERE level = 'error'").unwrap()
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<_, _>>().unwrap();
+    assert_eq!(failures.len(), 1);
+    assert_eq!(failures[0].0, "file write failed");
+    let fields: serde_json::Value = serde_json::from_str(&failures[0].1).unwrap();
+    assert_eq!(fields["path"], path.to_string_lossy().as_ref());
+    assert_eq!(fields["error"]["message"], wire["message"]);
+    logging::shutdown();
+}

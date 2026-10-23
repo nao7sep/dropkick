@@ -86,8 +86,8 @@ export async function readJsonFileWithHash<T>(
 // Writes a store's document to disk as formatted JSON, its format's current
 // version first. This is the single write boundary for every JSON file
 // (preferences, workspace, app config, task lists), so it logs the write
-// (debug) and surfaces any failure (error) with its path before re-propagating
-// it. This is also the write path for external documents saved
+// (debug). Native operation failures are already recorded with their path;
+// only an undelivered invocation needs a frontend error record. This is also the write path for external documents saved
 // at user-picked locations (preferences/task lists outside ~/.dropkick) — the
 // Rust side stages its temp file beside `path` wherever that is, never under
 // ~/.dropkick.
@@ -114,7 +114,11 @@ export async function writeJsonFile(
     log.debug("file write", { path, chars: text.length });
     return hash;
   } catch (e) {
-    log.error("file write failed", { path, ...toErrorFields(e) });
+    if (typeof e === "object" && e !== null && "kind" in e &&
+        e.kind === "recordedOperation" && "message" in e && typeof e.message === "string") {
+      throw Object.assign(new Error(e.message), { cause: e });
+    }
+    log.error("file write invocation failed", { path, ...toErrorFields(e) });
     throw e;
   }
 }

@@ -462,35 +462,46 @@ async fn read_text_file(path: String) -> Result<TextReadResult, String> {
 // already in hand saves reading the whole file back — and removes the window in
 // which a re-read could hash a concurrent writer's content instead of this
 // call's.
+// Only this command's operation failures carry this marker. Transport failures
+// never do, so the renderer can record undelivered invocations separately.
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum WriteFailure {
+    RecordedOperation { message: String },
+}
+
 #[tauri::command]
 async fn write_text_file_atomic(
     path: String,
     contents: String,
     record_backup: Option<bool>,
-) -> Result<String, String> {
-    native_wait::settle(move || {
-        let path = path.as_str();
-        let contents = contents.as_str();
-        let started = log_cmd_start(
-            "write_text_file_atomic",
-            json!({ "path": path, "bytes": contents.len() }),
-        );
-        let result = if record_backup.unwrap_or(true) {
-            write_atomic(path, contents)
+) -> Result<String, WriteFailure> {
+    let started = log_cmd_start(
+        "write_text_file_atomic",
+        json!({ "path": path, "bytes": contents.len() }),
+    );
+    let destination = path.clone();
+    let bytes = contents.len();
+    let result = native_wait::settle(move || {
+        if record_backup.unwrap_or(true) {
+            write_atomic(&destination, &contents)
         } else {
-            write_atomic_unrecorded(path, contents)
-        };
-        match &result {
-            Ok(_) => log_cmd_ok(
-                "write_text_file_atomic",
-                started,
-                json!({ "path": path, "bytes": contents.len() }),
-            ),
-            Err(message) => log_cmd_err("write_text_file_atomic", started, message.clone()),
+            write_atomic_unrecorded(&destination, &contents)
         }
-        result
-    })
-    .await
+    }).await;
+    match result {
+        Ok(hash) => {
+            log_cmd_ok("write_text_file_atomic", started, json!({ "path": path, "bytes": bytes }));
+            Ok(hash)
+        }
+        Err(message) => {
+            logging::error("file write failed", json!({
+                "command": "write_text_file_atomic", "path": path,
+                "elapsedMs": started.elapsed().as_millis(), "error": { "message": message }
+            }));
+            Err(WriteFailure::RecordedOperation { message })
+        }
+    }
 }
 
 // The staging directory an atomic write creates beside its target:

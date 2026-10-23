@@ -5,6 +5,9 @@ import { describe, it, expect, vi } from "vitest";
 // the import pure under the node test environment.
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
+vi.mock("../../src/repositories/logging", () => ({ log: { debug: vi.fn(), error: vi.fn() }, toErrorFields: (error: unknown) => ({ error }) }));
+import { log } from "../../src/repositories/logging";
+
 import { invoke } from "@tauri-apps/api/core";
 import {
   hashFile,
@@ -178,5 +181,26 @@ describe("drainSerial", () => {
     await drain;
     expect(drained).toBe(true);
     releaseB();
+  });
+});
+
+
+describe("write failure ownership", () => {
+  it("propagates the recorded native diagnostic without recording it again", async () => {
+    vi.mocked(log.error).mockClear();
+    const native = { kind: "recordedOperation", message: "permission denied: /private/stage" };
+    vi.mocked(invoke).mockRejectedValueOnce(native);
+    const error = await writeJsonFile("/store.json", "state", {}).catch(error => error);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe(native.message);
+    expect(error.cause).toBe(native);
+    expect(log.error).not.toHaveBeenCalled();
+  });
+  it("records and propagates an invocation that never returned an operation result", async () => {
+    vi.mocked(log.error).mockClear();
+    const transport = new Error("IPC disconnected");
+    vi.mocked(invoke).mockRejectedValueOnce(transport);
+    await expect(writeJsonFile("/store.json", "state", {})).rejects.toBe(transport);
+    expect(log.error).toHaveBeenCalledExactlyOnceWith("file write invocation failed", { path: "/store.json", error: transport });
   });
 });
