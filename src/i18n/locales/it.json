@@ -129,6 +129,7 @@
   "task.cannotComplete": { "one": "Impossibile completare: resta {count} nota da risolvere", "many": "Impossibile completare: restano {count} di note da risolvere", "other": "Impossibile completare: restano {count} note da risolvere" },
   "task.failureLine": "{title}: {reason}",
 
+  "note.edit": "Modifica nota",
   "note.status": "Stato della nota",
   "note.content": "Contenuto della nota",
   "note.empty": "Il contenuto della nota non può essere vuoto",

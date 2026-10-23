@@ -87,6 +87,41 @@ describe("TaskDetail operation results", () => {
     expect(document.querySelector('textarea[aria-label="Add Note"]')).not.toBeNull();
   });
 
+  it.each(["Save", "Cancel"])("opens a saved note from its focusable action and restores focus after %s", async (action) => {
+    await host!.unmount();
+    const withNote = { ...task(), notes: [makeNote({ id: "note-a", content: "Saved note" })] };
+    host = await mount(createElement(TaskDetail, { task: withNote, filePath: "/one.json", isUnifiedView: false, nextActiveTaskKey: null, focusNewNoteSignal: 0 }));
+    const button = (name: string) => [...document.querySelectorAll("button")].find((node) => (node.getAttribute("aria-label") ?? node.textContent) === name)!;
+    const edit = button("Edit note");
+    expect(edit.type).toBe("button");
+    expect(edit.tabIndex).toBe(0);
+    await act(async () => {
+      edit.focus();
+      // Native button activation is shared by pointer, Enter and Space.
+      edit.click();
+    });
+    const field = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Note content"]')!;
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe("Saved note");
+    await act(async () => { button(action).focus(); button(action).click(); });
+    expect(document.querySelector('textarea[aria-label="Note content"]')).toBeNull();
+    expect(document.activeElement).toBe(button("Edit note"));
+  });
+
+  it("does not steal focus when a note save settles after focus leaves its card", async () => {
+    await host!.unmount();
+    let finish!: (result: ActionResult) => void;
+    useTaskListStore.setState({ updateNote: vi.fn(() => new Promise<ActionResult>((resolve) => { finish = resolve; })) });
+    const withNote = { ...task(), notes: [makeNote({ id: "note-a", content: "Saved note" })] };
+    host = await mount(createElement(TaskDetail, { task: withNote, filePath: "/one.json", isUnifiedView: false, nextActiveTaskKey: null, focusNewNoteSignal: 0 }));
+    await act(async () => useNoteDraftStore.getState().openDraft(copyDraft("task-a:note-a"), "Changed note"));
+    await act(async () => [...document.querySelectorAll("button")].find((node) => node.textContent === "Save")!.click());
+    const composer = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Add Note"]')!;
+    await act(async () => { composer.focus(); finish({ status: "success" }); });
+    expect(document.activeElement).toBe(composer);
+    expect(document.querySelector('textarea[aria-label="Note content"]')).toBeNull();
+  });
+
   it("another copy has its own composer and editor, and saving it leaves the first copy's text", async () => {
     await host!.unmount();
     const otherPath = "/two.json";

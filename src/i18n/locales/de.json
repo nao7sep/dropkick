@@ -129,6 +129,7 @@
   "task.cannotComplete": { "one": "Erledigen nicht möglich: noch {count} Notiz mit Handlungsbedarf", "other": "Erledigen nicht möglich: noch {count} Notizen mit Handlungsbedarf" },
   "task.failureLine": "{title}: {reason}",
 
+  "note.edit": "Notiz bearbeiten",
   "note.status": "Notizstatus",
   "note.content": "Notizinhalt",
   "note.empty": "Die Notiz darf nicht leer sein",

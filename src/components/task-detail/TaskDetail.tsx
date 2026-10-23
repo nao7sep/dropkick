@@ -1,11 +1,12 @@
 // Single task detail — shown in right pane when exactly 1 task is selected.
 // All fields are editable inline. Notes are listed newest first.
 
-import { useId, useState, useRef, useEffect } from "react";
+import { useId, useState, useRef, useEffect, useLayoutEffect } from "react";
 import {
   AlertCircle,
   CheckCircle,
   Info,
+  Pencil,
   Trash2,
   X,
 } from "lucide-react";
@@ -685,6 +686,22 @@ function NoteItem({
   const composing = useComposing();
   const editRef = useRef<HTMLTextAreaElement>(null);
   const autoGrowEdit = useAutoGrow(editRef);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+
+  // A settled save must not pull focus back from another task or control.
+  const closeEditor = (clear: () => void) => {
+    const ownsFocus = cardRef.current?.contains(document.activeElement) ?? false;
+    clear();
+    returnFocus.current = ownsFocus && useNoteDraftStore.getState().drafts[draftKey] === undefined;
+  };
+  useLayoutEffect(() => {
+    if (!editing && returnFocus.current) {
+      returnFocus.current = false;
+      editButtonRef.current?.focus();
+    }
+  }, [editing]);
 
   // Focus the editor the user just opened. Deliberately not `autoFocus`, which
   // fires on every mount: a parked draft keeps the editor open, and the detail
@@ -717,7 +734,7 @@ function NoteItem({
     const cleaned = multiline(draft);
     if (!cleaned) {
       // Revert — don't allow empty notes.
-      clearDraft(draftKey);
+      closeEditor(() => clearDraft(draftKey));
       return;
     }
     if (cleaned !== note.content) {
@@ -731,7 +748,7 @@ function NoteItem({
       if (result.status === "reloaded") {
         // Close onto the disk note only if no later draft generation exists.
         setNoteError(result.message);
-        clearDraftIf(draftKey, draft, version);
+        closeEditor(() => clearDraftIf(draftKey, draft, version));
         return;
       }
     }
@@ -745,7 +762,7 @@ function NoteItem({
       }
     }
     setNoteError(null);
-    clearDraftIf(draftKey, draft, version);
+    closeEditor(() => clearDraftIf(draftKey, draft, version));
   };
 
   // ESCAPE ONLY. The Cancel button below deliberately does NOT share this guard
@@ -758,7 +775,7 @@ function NoteItem({
   // does not count as a change worth interrupting the user over.
   const requestCancelViaEscape = useDirtyClose(
     editing && multiline(draft) !== note.content,
-    () => clearDraft(draftKey),
+    () => closeEditor(() => clearDraft(draftKey)),
   );
 
   const handleDeleteNote = async () => {
@@ -805,7 +822,7 @@ function NoteItem({
     );
 
   return (
-    <div className={`rounded-[var(--radius-card)] border ${borderColor} p-3`}>
+    <div ref={cardRef} className={`rounded-[var(--radius-card)] border ${borderColor} p-3`}>
       {noteError ? (
         <InlineResult
           id={`note-error-${note.id}`}
@@ -837,6 +854,18 @@ function NoteItem({
         <span className="ml-auto text-xs text-ink-muted">
           {formatTimestamp(note.createdAtUtc, preferences.timezone, i18n.dateTime)}
         </span>
+        {!editing && (
+          <button
+            ref={editButtonRef}
+            type="button"
+            className="dk-icon-btn"
+            title={t("note.edit")}
+            aria-label={t("note.edit")}
+            onClick={() => openDraft(draftKey, note.content)}
+          >
+            <Pencil size={14} />
+          </button>
+        )}
         <button
           type="button"
           onClick={handleDeleteNote}
@@ -891,7 +920,7 @@ function NoteItem({
             <Button
               size="sm"
               // Immediate, unguarded discard — see requestCancelViaEscape above.
-              onClick={() => clearDraft(draftKey)}
+              onClick={() => closeEditor(() => clearDraft(draftKey))}
             >
               {t("common.cancel")}
             </Button>
