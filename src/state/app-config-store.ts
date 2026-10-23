@@ -16,7 +16,15 @@ interface AppConfigStore {
 }
 
 export const useAppConfigStore = create<AppConfigStore>((set, get) => {
-  async function changeList(key: AppConfigSetKey, path: string, register: boolean): Promise<boolean> {
+  // Serialize mutation and rollback together: every change starts from the last
+  // settled configuration, including when consecutive writes fail.
+  let changes: Promise<unknown> = Promise.resolve();
+  function changeList(key: AppConfigSetKey, path: string, register: boolean): Promise<boolean> {
+    const result = changes.then(() => applyListChange(key, path, register));
+    changes = result.catch(() => undefined);
+    return result;
+  }
+  async function applyListChange(key: AppConfigSetKey, path: string, register: boolean): Promise<boolean> {
     const current = get().appConfig[key];
     const next = register ? registerDocument(current, path) : unregisterDocument(current, path);
     if (next === current) return true;

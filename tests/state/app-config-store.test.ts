@@ -85,8 +85,20 @@ describe("known-document list changes", () => {
     });
     const first = useAppConfigStore.getState().register("/second.json");
     const second = useAppConfigStore.getState().register("/third.json");
+    await Promise.resolve();
     release();
     await Promise.all([first, second]);
     expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual(["/workspace.json", "/second.json", "/third.json"]);
   });
+  it("rolls consecutive failed changes back to the last saved configuration", async () => {
+    flushAppConfig.mockRejectedValueOnce(new Error("first failure"))
+      .mockRejectedValueOnce(new Error("second failure"));
+    const first = useAppConfigStore.getState().register("/second.json");
+    const second = useAppConfigStore.getState().register("/third.json");
+    expect(await Promise.all([first, second])).toEqual([false, false]);
+    expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual(["/workspace.json"]);
+    expect(await useAppConfigStore.getState().register("/second.json")).toBe(true);
+    expect(flushAppConfig).toHaveBeenCalledTimes(3);
+  });
+
 });
