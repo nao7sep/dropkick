@@ -55,6 +55,66 @@ describe("loadWorkspace", () => {
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
+  it("rejects repeated file-tab paths without changing the document", async () => {
+    const data = {
+      ...stored,
+      openTabs: [
+        stored.openTabs[0],
+        { filePath: "/b.json", displayName: "B", isUnifiedView: false },
+        { filePath: "/a.json", displayName: "Another name", isUnifiedView: false },
+      ],
+    };
+    const original = structuredClone(data);
+    readJsonFileResult.mockResolvedValue({ status: "success", data });
+
+    expect(await loadWorkspace("/ws.json")).toEqual({
+      status: "invalid",
+      message: "duplicate open tab file path: /a.json",
+    });
+    expect(data).toEqual(original);
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects a second unified tab regardless of its path or name", async () => {
+    const data = {
+      ...stored,
+      openTabs: [
+        { filePath: "", displayName: "Unified View", isUnifiedView: true },
+        stored.openTabs[0],
+        { filePath: "/other.json", displayName: "Other", isUnifiedView: true },
+      ],
+    };
+    const original = structuredClone(data);
+    readJsonFileResult.mockResolvedValue({ status: "success", data });
+
+    expect(await loadWorkspace("/ws.json")).toEqual({
+      status: "invalid",
+      message: "duplicate open tab: Unified View",
+    });
+    expect(data).toEqual(original);
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
+  it("loads distinct exact file paths and one unified tab unchanged", async () => {
+    const data = {
+      ...stored,
+      openTabs: [
+        stored.openTabs[0],
+        { filePath: "/A.json", displayName: "A", isUnifiedView: false },
+        { filePath: "/dir/../a.json", displayName: "A", isUnifiedView: false },
+        { filePath: "", displayName: "Empty path", isUnifiedView: false },
+        { filePath: "", displayName: "Unified View", isUnifiedView: true },
+      ],
+    };
+    readJsonFileResult.mockResolvedValue({ status: "success", data });
+
+    expect(await loadWorkspace("/ws.json")).toEqual({
+      status: "success",
+      workspace: { ...data, activeTabIndex: -1 },
+    });
+    expect(writeJsonFile).not.toHaveBeenCalled();
+  });
+
   it("reports a present-but-wrong-shape openTabs/recentFiles as invalid instead of coercing", async () => {
     // A wrong-shape field is corruption, the same branch as unparseable JSON:
     // coercing to [] and letting the next flush write the emptied lists back

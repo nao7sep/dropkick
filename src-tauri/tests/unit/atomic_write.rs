@@ -579,3 +579,43 @@ fn an_unchanged_write_leaves_the_file_untouched_through_both_writers() {
         assert_eq!(std::os::unix::fs::MetadataExt::ino(&metadata), inode, "{name} was replaced");
     }
 }
+
+#[test]
+fn document_admission_checks_calendar_dates_and_every_timestamp_field() {
+    for invalid in ["2025-02-29", "2026-04-31", "2026-1-01", "2026-00-01", "2026-01-00"] {
+        let mut task = task_json("t1", &[]);
+        task["dueDate"] = json!(invalid);
+        assert!(matches!(classify_tasks(vec![task]), JsonFileWithHashResult::Invalid { message } if message.contains("dueDate")));
+    }
+    for field in ["createdAtUtc", "updatedAtUtc", "completedAtUtc"] {
+        for invalid in ["2026-02-30T00:00:00Z", "2026-01-01T24:00:00Z", "2026-01-01T00:60:00Z", "2026-01-01T00:00:60Z", "2026-01-01T00:00:00", "2026-01-01T00:00:00+09:00", "2026-01-01T00:00:00.Z", "2026-01-01T00:00:00.12345678Z", "日付が不正です"] {
+            let mut task = task_json("t1", &[]);
+            task[field] = json!(invalid);
+            assert!(matches!(classify_tasks(vec![task]), JsonFileWithHashResult::Invalid { message } if message.contains(field)), "{field}: {invalid}");
+        }
+    }
+    for field in ["createdAtUtc", "editedAtUtc"] {
+        let mut task = task_json("t1", &["n1"]);
+        task["notes"][0][field] = json!("ambiguous date");
+        assert!(matches!(classify_tasks(vec![task]), JsonFileWithHashResult::Invalid { message } if message.contains(field) && message.contains("n1")));
+    }
+}
+
+#[test]
+fn document_admission_preserves_supported_utc_precision_and_legacy_dates() {
+    for suffix in ["Z", "+00:00"] {
+        for fraction in ["", ".1", ".12", ".123", ".1234", ".12345", ".123456", ".1234567"] {
+            let stamp = format!("2024-02-29T23:59:59{fraction}{suffix}");
+            let mut task = task_json("t1", &["n1"]);
+            task["dueDate"] = json!("2000-02-29");
+            for field in ["createdAtUtc", "updatedAtUtc", "completedAtUtc"] { task[field] = json!(stamp); }
+            task["notes"][0]["createdAtUtc"] = json!(stamp);
+            task["notes"][0]["editedAtUtc"] = json!(stamp);
+            let legacy = json!({"version":format_version::V010_LABEL, "tasks":[task]});
+            match classify_json_bytes(legacy.to_string().as_bytes()) {
+                JsonFileWithHashResult::Success { data, .. } => assert_eq!(data.tasks[0].created_at_utc, stamp),
+                _ => panic!("rejected {stamp}"),
+            }
+        }
+    }
+}

@@ -30,6 +30,21 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
   if (!isWorkspaceDocument(data)) {
     return { status: "invalid", message: "not a workspace document" };
   }
+  const filePaths = new Set<string>();
+  let hasUnifiedView = false;
+  for (const tab of data.openTabs) {
+    if (tab.isUnifiedView) {
+      if (hasUnifiedView) {
+        return { status: "invalid", message: "duplicate open tab: Unified View" };
+      }
+      hasUnifiedView = true;
+    } else {
+      if (filePaths.has(tab.filePath)) {
+        return { status: "invalid", message: `duplicate open tab file path: ${tab.filePath}` };
+      }
+      filePaths.add(tab.filePath);
+    }
+  }
   return {
     status: "success",
     workspace: {

@@ -10,6 +10,7 @@ use tauri::{AppHandle, Manager, State};
 // module is private. Tests are unit tests with private access, included beside
 // their subject (tests-folder-conventions).
 mod backup_store;
+mod document_dates;
 mod format_version;
 mod i18n;
 mod instance_owner;
@@ -303,7 +304,7 @@ pub fn classify_json_bytes(bytes: &[u8]) -> JsonFileWithHashResult {
             if data.id.is_empty() && format_version::is_v010(bytes) {
                 data.id = nanoid::generate();
             }
-            match validate_task_list_identities(&data) {
+            match validate_task_list(&data) {
             Ok(()) => JsonFileWithHashResult::Success {
                 data,
                 hash: sha256_hex(bytes),
@@ -330,7 +331,7 @@ fn valid_identity(value: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
-fn validate_task_list_identities(data: &TaskListDto) -> Result<(), String> {
+fn validate_task_list(data: &TaskListDto) -> Result<(), String> {
     if !valid_identity(&data.id) {
         return Err("task list id is invalid".to_string());
     }
@@ -343,8 +344,28 @@ fn validate_task_list_identities(data: &TaskListDto) -> Result<(), String> {
             return Err("duplicate task id".to_string());
         }
 
+        if task.due_date.as_deref().is_some_and(|v| !document_dates::date(v)) {
+            return Err(format!("task {}: dueDate must be a real YYYY-MM-DD calendar date", task.id));
+        }
+        for (field, value) in [
+            ("createdAtUtc", Some(task.created_at_utc.as_str())),
+            ("updatedAtUtc", Some(task.updated_at_utc.as_str())),
+            ("completedAtUtc", task.completed_at_utc.as_deref()),
+        ] {
+            if value.is_some_and(|v| !document_dates::instant(v)) {
+                return Err(format!("task {}: {field} must be a valid explicit UTC timestamp", task.id));
+            }
+        }
         let mut note_ids = HashSet::new();
         for note in &task.notes {
+            for (field, value) in [
+                ("createdAtUtc", Some(note.created_at_utc.as_str())),
+                ("editedAtUtc", note.edited_at_utc.as_deref()),
+            ] {
+                if value.is_some_and(|v| !document_dates::instant(v)) {
+                    return Err(format!("task {}, note {}: {field} must be a valid explicit UTC timestamp", task.id, note.id));
+                }
+            }
             if !valid_identity(&note.id) {
                 return Err("note id is invalid".to_string());
             }
