@@ -14,7 +14,6 @@ export {
   appPaths,
   withSerial,
   withSerialTwo,
-  drainAllSerial,
   drainRequiredSerial,
   drainSerial,
   pendingSerialKeys,

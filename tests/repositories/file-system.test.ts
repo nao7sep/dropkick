@@ -11,7 +11,6 @@ import {
   writeJsonFile,
   withSerial,
   withSerialTwo,
-  drainAllSerial,
   drainRequiredSerial,
   pendingSerialKeys,
   drainSerial,
@@ -119,48 +118,6 @@ describe("withSerialTwo", () => {
     gate.resolve();
     await Promise.all([p1, p2]);
     expect(order).toEqual(["p1-start", "p1-end", "p2"]);
-  });
-});
-
-describe("drainAllSerial", () => {
-  it("resolves only after an in-flight chain settles", async () => {
-    const events: string[] = [];
-    const gate = deferred();
-
-    const p = withSerial("d1", async () => {
-      await gate.promise;
-      events.push("work");
-    });
-    const drain = drainAllSerial().then(() => events.push("drain"));
-
-    gate.resolve();
-    await Promise.all([p, drain]);
-    expect(events).toEqual(["work", "drain"]);
-  });
-
-  it("waits for callbacks enqueued behind a chain it is already draining", async () => {
-    const order: string[] = [];
-    const gate1 = deferred();
-    const gate2 = deferred();
-
-    const p1 = withSerial("d2", async () => {
-      await gate1.promise;
-      order.push("p1");
-    });
-    // Start draining while p1 is still in flight.
-    const drain = drainAllSerial().then(() => order.push("drain"));
-    // Enqueue p2 behind p1 *after* the drain loop has begun.
-    const p2 = withSerial("d2", async () => {
-      await gate2.promise;
-      order.push("p2");
-    });
-
-    gate1.resolve();
-    await p1;
-    gate2.resolve();
-    await Promise.all([p2, drain]);
-    // Drain must not resolve until the later-enqueued p2 has also run.
-    expect(order).toEqual(["p1", "p2", "drain"]);
   });
 });
 

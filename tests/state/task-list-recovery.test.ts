@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { refuseDialogs, useDialogStore } from "../../src/state/dialog-store";
-import { drainAllSerial } from "../../src/repositories/file-system";
+import { drainSerial } from "../../src/repositories/file-system";
 import { makeTask } from "../helpers/task";
 import type { TaskListDto } from "../../src/models";
 
@@ -45,7 +45,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   refuseDialogs(true);
-  await drainAllSerial();
+  await drainSerial(PATH);
   refuseDialogs(false);
 });
 
@@ -66,7 +66,7 @@ it("retains an edit after cancelled recreation and saves it on Retry", async () 
   useTaskListStore.getState().retryUnsaved();
   await question();
   useDialogStore.getState().confirmCurrent();
-  await drainAllSerial();
+  await drainSerial(PATH);
   expect(disk.tasks[0].title).toBe("Retained");
   expect(useTaskListStore.getState().unsavedPaths()).toEqual([]);
 });
@@ -83,7 +83,7 @@ it("retains the edit when chosen Reload fails, then saves after disk recovers", 
   invalid = false;
   hash = "original";
   useTaskListStore.getState().retryUnsaved();
-  await drainAllSerial();
+  await drainSerial(PATH);
   expect(disk.tasks[0].title).toBe("Retained");
   expect(useTaskListStore.getState().unsavedPaths()).toEqual([]);
 });
@@ -108,7 +108,7 @@ describe.each([false, true])("OS withdrawal, dialogs already refused: %s", (alre
     useTaskListStore.getState().retryUnsaved();
     await question();
     useDialogStore.getState().confirmCurrent();
-    await drainAllSerial();
+    await drainSerial(PATH);
     expect(disk.tasks[0].title).toBe("Retained");
     expect(useTaskListStore.getState().unsavedPaths()).toEqual([]);
   });
@@ -136,6 +136,6 @@ it("keeps the previous comparison hash when a conflict Reload is refused, includ
   useTaskListStore.getState().retryUnsaved();
   await question();
   expect(writes).toEqual([]);
-  refuseDialogs(true); await drainAllSerial();
+  refuseDialogs(true); await drainSerial(PATH);
   expect(disk.tasks[0].title).toBe("External copy");
 });

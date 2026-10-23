@@ -253,17 +253,3 @@ export async function drainRequiredSerial(key?: string): Promise<void> {
     await Promise.allSettled(tails);
   }
 }
-
-// Awaits every physical operation, including optional reads and view-state
-// writes. Required saving at navigation/quit uses drainRequiredSerial instead.
-//
-// Loops because a chain that settles during the await may have had a new
-// callback enqueued behind it — typically the blur-fired commit we're trying
-// to catch. When no callbacks are outstanding the cleanup in withSerial has
-// removed the key, so the map's size collapses to zero and the loop exits.
-export async function drainAllSerial(): Promise<void> {
-  while (serialChains.size > 0) {
-    const tails = [...serialChains.values()];
-    await Promise.allSettled(tails);
-  }
-}

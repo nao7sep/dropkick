@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { useDialogStore, refuseDialogs } from "../../src/state/dialog-store";
-import { drainAllSerial } from "../../src/repositories/file-system";
+import { drainSerial } from "../../src/repositories/file-system";
 import { commitParkedFields } from "../../src/services/commit-task-fields";
 import { deleteSelectedTasks } from "../../src/services/task-deletion";
 import { composerDraftKey, editorDraftKey, fieldDraftKey, unsavedNoteText } from "../../src/services/note-drafts";
@@ -34,7 +34,7 @@ beforeEach(async () => {
     }
   });
 });
-afterEach(async () => { refuseDialogs(true); await drainAllSerial(); refuseDialogs(false); });
+afterEach(async () => { refuseDialogs(true); await Promise.all([A, B, C].map(drainSerial)); refuseDialogs(false); });
 async function load(paths = [A, B]) { for (const path of paths) await useTaskListStore.getState().loadFile(path); }
 
 it.each([false, true])("independently parked fields commit to both copies regardless of loaded order (%s)", async (reverse) => {
@@ -43,7 +43,7 @@ it.each([false, true])("independently parked fields commit to both copies regard
     useNoteDraftStore.getState().setDraft(fieldDraftKey("same", "title", path), `edited-${path}`);
     useNoteDraftStore.getState().setDraft(fieldDraftKey("same", "description", path), `description-${path}`);
   }
-  commitParkedFields(); await drainAllSerial();
+  commitParkedFields(); await Promise.all([A, B, C].map(drainSerial));
   for (const path of [A, B]) {
     expect(docs.get(path)!.data.tasks[0].title).toBe(`edited-${path}`);
     expect(docs.get(path)!.data.tasks[0].description).toBe(`description-${path}`);
@@ -98,7 +98,7 @@ it("a failed move retains source drafts; a successful retry transfers all kinds 
   expect(useNoteDraftStore.getState().drafts[editorDraftKey("same", "note", C)]).toBe("newer A edit");
   expect(useNoteDraftStore.getState().drafts[composerDraftKey("same", C)]).toBe("A text");
   expect(useNoteDraftStore.getState().drafts[other]).toBe("B text");
-  commitParkedFields(); await drainAllSerial();
+  commitParkedFields(); await Promise.all([A, B, C].map(drainSerial));
   expect(docs.get(C)!.data.tasks[0].title).toBe("A text");
   expect(docs.get(B)!.data.tasks[0].title).toBe(B);
 });
@@ -119,7 +119,7 @@ it.each(["composer", "editor"] as const)("a %s save receipt follows its draft th
     : useTaskListStore.getState().updateNote(A, "same", "note", "submitted text"))
     .then(() => useNoteDraftStore.getState().clearDraftIf(key, "submitted text", version));
   held = undefined; release(); await moving;
-  expect(await saving).toBe(true); await drainAllSerial();
+  expect(await saving).toBe(true);
   expect(useNoteDraftStore.getState().drafts[movedKey]).toBeUndefined();
   expect(docs.get(C)!.data.tasks[0].notes.filter((note) => note.content === "submitted text")).toHaveLength(1);
 });
@@ -137,7 +137,7 @@ it("an old move/save receipt preserves newer text on the moved copy and independ
     .then(() => useNoteDraftStore.getState().clearDraftIf(key, "submitted text", version));
   useNoteDraftStore.getState().setDraft(key, "newer text");
   useNoteDraftStore.getState().setDraft(other, "submitted text");
-  held = undefined; release(); await moving; expect(await saving).toBe(false); await drainAllSerial();
+  held = undefined; release(); await moving; expect(await saving).toBe(false);
   expect(useNoteDraftStore.getState().drafts[composerDraftKey("same", C)]).toBe("newer text");
   expect(useNoteDraftStore.getState().drafts[other]).toBe("submitted text");
 });
@@ -152,7 +152,7 @@ it("a deletion during a held move retires that subject's drafts instead of trans
   await vi.waitFor(() => expect(release).toBeTypeOf("function"));
   const deleting = deleteSelectedTasks({ selectedTasks: [toTask(docs.get(A)!.data.tasks[0], A, "UTC", 7)],
     removeTasks: useTaskListStore.getState().removeTasks, clearTaskDrafts: useNoteDraftStore.getState().clearTaskDrafts });
-  held = undefined; release(); await Promise.all([moving, deleting]); await drainAllSerial();
+  held = undefined; release(); await Promise.all([moving, deleting]);
   expect(docs.get(C)!.data.tasks).toEqual([]);
   expect(useNoteDraftStore.getState().drafts).toEqual({ [other]: "B text" });
 });

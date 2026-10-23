@@ -5,7 +5,7 @@ import { useTaskListStore } from "../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../src/state/workspace-store";
 import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { useDialogStore, refuseDialogs } from "../../src/state/dialog-store";
-import { drainAllSerial } from "../../src/repositories/file-system";
+import { drainSerial } from "../../src/repositories/file-system";
 import { openWorkspaceSession } from "../../src/services/open-workspace-session";
 import { flushAppState } from "../../src/repositories/app-state-repository";
 import { fieldDraftKey } from "../../src/services/note-drafts";
@@ -66,7 +66,7 @@ it("a held outgoing refresh cannot delay adoption or publish into the next works
     await vi.waitFor(() => expect(useWorkspaceStore.getState().filePath).toBe("/b.json"));
     expect(await useTaskListStore.getState().loadFile("/copy.json")).toEqual({ status: "success" });
   } finally { holdRead = undefined; release(); await Promise.all([refresh, opening]); }
-  await drainAllSerial();
+  await Promise.all([...docs.keys()].map(drainSerial));
   expect(Object.keys(useTaskListStore.getState().files)).toEqual(["/copy.json"]);
   expect(useTaskListStore.getState().fileDiskErrors).toEqual({});
 });
@@ -84,7 +84,7 @@ it.each([false, true])("a pending outgoing initial load loses admission in eithe
     if (oldFirst) { holdRead = undefined; release(); await loading; }
     expect(await useTaskListStore.getState().loadFile("/copy.json")).toEqual({ status: "success" });
   } finally { holdRead = undefined; release(); await loading; }
-  await drainAllSerial();
+  await Promise.all([...docs.keys()].map(drainSerial));
   expect(Object.keys(useTaskListStore.getState().files)).toEqual(["/copy.json"]);
   expect(useTaskListStore.getState().fileLoadErrors).toEqual({});
 });
@@ -104,11 +104,11 @@ it("a reopening request waiting on physical retirement can be revoked by a secon
     reopening = useTaskListStore.getState().loadFile("/old.json");
     await openWorkspaceSession("/c.json");
   } finally { holdRead = undefined; release(); await Promise.all([refresh, reopening]); }
-  await drainAllSerial();
+  await Promise.all([...docs.keys()].map(drainSerial));
   expect(Object.keys(useTaskListStore.getState().files)).toEqual([]);
   expect(await useTaskListStore.getState().loadFile("/copy.json")).toEqual({ status: "success" });
 });
-afterEach(async () => { refuseDialogs(true); await drainAllSerial(); refuseDialogs(false); });
+afterEach(async () => { refuseDialogs(true); await Promise.all([...docs.keys()].map(drainSerial)); refuseDialogs(false); });
 
 it("refuses the readable duplicate state left by an interrupted move before publishing either list", async () => {
   put("/source.json", list("source")); put("/dest.json", list("destination", "Different copy"));
@@ -184,7 +184,7 @@ it("a moved field keeps its copy owner even with a third task copy loaded", asyn
   for (const path of ["/third.json", "/source.json", "/dest.json"]) await useTaskListStore.getState().loadFile(path);
   useNoteDraftStore.getState().setDraft(fieldDraftKey("task", "title", "/source.json"), "Moved draft");
   expect((await useTaskListStore.getState().moveTasks("/source.json", "/dest.json", new Set(["task"]))).status).toBe("success");
-  commitParkedFields(); await drainAllSerial();
+  commitParkedFields(); await Promise.all([...docs.keys()].map(drainSerial));
   expect(useTaskListStore.getState().files["/third.json"].data.tasks[0].title).toBe("Third copy");
   expect(useTaskListStore.getState().files["/dest.json"].data.tasks[0].title).toBe("Moved draft");
   expect(useNoteDraftStore.getState().drafts).toEqual({});
