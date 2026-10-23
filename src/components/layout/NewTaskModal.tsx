@@ -127,11 +127,11 @@ export function NewTaskModal({
     if (submittingRef.current) { e.preventDefault(); return; }
     if (e.defaultPrevented || !hasPrimaryShortcutModifier(e)) return;
 
-    // Primary modifier + Enter submits from anywhere in the modal — except that the
-    // Ctrl half is Cocoa's insertLineBreak: while the caret is in a text field, so it
-    // yields there and Cmd+Enter carries the binding (keyboard-shortcut-conventions).
+    // macOS owns Ctrl chords in text fields; Cmd still carries every command.
+    if (shadowsMacTextBinding(e) && isEditableTarget(e.target as HTMLElement | null)) return;
+
+    // Primary modifier + Enter submits from anywhere in the modal.
     if (e.key === "Enter") {
-      if (shadowsMacTextBinding(e) && isEditableTarget(e.target as HTMLElement | null)) return;
       if (isComposingKeyboardEvent(composing.composingRef, e)) return;
       e.preventDefault();
       handleCreate();
