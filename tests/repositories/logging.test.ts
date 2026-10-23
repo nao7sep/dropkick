@@ -163,3 +163,23 @@ describe("console fallback", () => {
     consoleError.mockRestore();
   });
 });
+
+describe("bounded forwarding", () => {
+  it("retains complete admitted errors, summarizes overflow, and bounds a held drain", async () => {
+    const { flushForwarded } = await import("../../src/repositories/logging");
+    let release!: () => void;
+    invokeMock.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
+    log.info("held");
+    await flush();
+    for (let i = 0; i < 300; i++) log.error("failure", { detail: i, error: { message: "complete diagnostic", stack: "full stack" } });
+    expect(await flushForwarded(10)).toBe(false);
+    expect(invokeMock).toHaveBeenCalledOnce();
+    release();
+    expect(await flushForwarded(1000)).toBe(true);
+    const entries = invokeMock.mock.calls.map(c => c[1].entry);
+    expect(entries).toHaveLength(258);
+    expect(entries.find(e => e.message === "diagnostic queue overflow")).toMatchObject({ count: 44, levels: { error: 44 }, source: "frontend" });
+    expect(entries.filter(e => e.message === "failure")).toHaveLength(256);
+    expect(entries.find(e => e.message === "failure").error).toEqual({ message: "complete diagnostic", stack: "full stack" });
+  });
+});

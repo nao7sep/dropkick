@@ -21,8 +21,8 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{self, Sender, SyncSender};
-use std::sync::{Mutex, OnceLock};
+use std::collections::VecDeque;
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread::{self, ThreadId};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -156,49 +156,102 @@ const BUSY_TIMEOUT_MS: u64 = 5_000;
 // Long enough for an entry that waits its full busy timeout to land.
 const FLUSH_BOUND: Duration = Duration::from_millis(BUSY_TIMEOUT_MS + 1_000);
 
-enum Job {
-    Write(Map<String, Value>),
-    Flush(SyncSender<()>),
-    Stop,
-}
+// A normal action burst in the writer regression contains 51 complete events.
+// Leave room for several such bursts without retaining an unlimited backlog.
+const QUEUE_CAPACITY: usize = 256;
 
+#[derive(Default)]
+struct Overflow {
+    count: u64,
+    levels: std::collections::BTreeMap<String, u64>,
+    first: String,
+    last: String,
+}
+impl Overflow {
+    fn add(&mut self, obj: &Map<String, Value>) {
+        let time = obj.get("time").and_then(Value::as_str).unwrap_or_default();
+        if self.count == 0 { self.first = time.into(); }
+        self.last = time.into();
+        self.count += 1;
+        *self.levels.entry(obj.get("level").and_then(Value::as_str).unwrap_or("info").into()).or_default() += 1;
+    }
+    fn envelope(self) -> Map<String, Value> {
+        serde_json::json!({ "time": now_iso_millis(), "level": "warn",
+            "message": "diagnostic queue overflow", "count": self.count,
+            "levels": self.levels, "first": self.first, "last": self.last,
+            "source": "native" }).as_object().unwrap().clone()
+    }
+}
+#[derive(Default)]
+struct QueueState {
+    entries: VecDeque<Map<String, Value>>,
+    overflow: Overflow,
+    active: bool,
+    stopping: bool,
+}
+#[derive(Default)]
+struct Queue {
+    state: Mutex<QueueState>,
+    changed: Condvar,
+}
 struct Writer {
-    jobs: Sender<Job>,
+    queue: Arc<Queue>,
     thread: ThreadId,
     handle: Mutex<Option<thread::JoinHandle<()>>>,
 }
-
 impl Writer {
-    fn spawn(logger: std::sync::Arc<Logger>) -> std::io::Result<Writer> {
-        let (jobs, queue) = mpsc::channel();
-        let handle = thread::Builder::new()
-            .name("dropkick-log".to_string())
-            .spawn(move || {
-                for job in queue {
-                    match job {
-                        Job::Write(obj) => logger.write_envelope(obj),
-                        Job::Flush(done) => {
-                            let _ = done.send(());
-                        }
-                        Job::Stop => break,
+    fn spawn(logger: Arc<Logger>) -> std::io::Result<Writer> {
+        let queue = Arc::new(Queue::default());
+        let owner = queue.clone();
+        let handle = thread::Builder::new().name("dropkick-log".to_string()).spawn(move || {
+            // Optional storage never holds setup or a producer thread.
+            logger.initialize_records();
+            let mut prefer_gap = false;
+            loop {
+                let entry = {
+                    let mut state = owner.state.lock().unwrap_or_else(|e| e.into_inner());
+                    while state.entries.is_empty() && state.overflow.count == 0 && !state.stopping {
+                        state = owner.changed.wait(state).unwrap_or_else(|e| e.into_inner());
                     }
-                }
-            })?;
-        Ok(Writer {
-            jobs,
-            thread: handle.thread().id(),
-            handle: Mutex::new(Some(handle)),
-        })
+                    // Under sustained overload, neither admitted entries nor
+                    // the gap summary may starve the other.
+                    let entry = if !state.entries.is_empty() && (!prefer_gap || state.overflow.count == 0) {
+                        prefer_gap = true;
+                        state.entries.pop_front()
+                    } else if state.overflow.count != 0 {
+                        prefer_gap = false;
+                        Some(std::mem::take(&mut state.overflow).envelope())
+                    } else { None };
+                    if entry.is_none() { break; }
+                    state.active = true;
+                    entry.unwrap()
+                };
+                logger.write_envelope(entry);
+                let mut state = owner.state.lock().unwrap_or_else(|e| e.into_inner());
+                state.active = false;
+                owner.changed.notify_all();
+            }
+        })?;
+        Ok(Writer { queue, thread: handle.thread().id(), handle: Mutex::new(Some(handle)) })
+    }
+    fn stop(&self) {
+        self.queue.state.lock().unwrap_or_else(|e| e.into_inner()).stopping = true;
+        self.queue.changed.notify_all();
+    }
+    fn flush(&self, bound: Duration) {
+        let state = self.queue.state.lock().unwrap_or_else(|e| e.into_inner());
+        let _ = self.queue.changed.wait_timeout_while(state, bound, |s|
+            s.active || !s.entries.is_empty() || s.overflow.count != 0);
     }
 }
 
 pub struct Logger {
-    records: Mutex<Records>,
+    records: Mutex<Option<Records>>,
     records_file: PathBuf,
     session: String,
     fallback_file: PathBuf,
     debug_enabled: bool,
-    // Unset until `init` starts the thread; entries are written inline until then.
+    // Production submissions use the writer or console if it could not start.
     writer: OnceLock<Writer>,
     // Called after each entry the database stored; an entry that went to the
     // fallback file is not in the database, so it calls nothing.
@@ -211,12 +264,7 @@ impl Logger {
     fn open(records_file: &Path, logs_dir: &Path, debug_enabled: bool) -> Logger {
         let started = now_unix_millis();
         Logger {
-            records: Mutex::new({
-                let path = records_file.to_path_buf();
-                crate::native_wait::run(path.to_string_lossy().into_owned(), move || {
-                    open_records(&path)
-                })
-            }),
+            records: Mutex::new(None),
             records_file: records_file.to_path_buf(),
             session: iso_millis(started),
             fallback_file: logs_dir.join(format!("{}.log", filename_stamp(started))),
@@ -226,7 +274,12 @@ impl Logger {
         }
     }
 
-    // Starts the writer thread. A logger without one writes inline.
+    fn initialize_records(&self) {
+        let mut records = self.records.lock().unwrap_or_else(|e| e.into_inner());
+        if records.is_none() { *records = Some(open_records(&self.records_file)); }
+    }
+
+    // Starts the sole storage owner.
     fn start_writer(self: &std::sync::Arc<Self>) {
         match Writer::spawn(self.clone()) {
             Ok(writer) => {
@@ -239,7 +292,7 @@ impl Logger {
     #[cfg(test)]
     fn stop_writer_for_test(&self) {
         if let Some(writer) = self.writer.get() {
-            let _ = writer.jobs.send(Job::Stop);
+            writer.stop();
             if let Some(handle) = writer.handle.lock().unwrap().take() {
                 handle.join().unwrap();
             }
@@ -333,7 +386,7 @@ pub fn shutdown() {
     };
     logger.flush();
     if let Some(writer) = logger.writer.get() {
-        let _ = writer.jobs.send(Job::Stop);
+        writer.stop();
         let handle = writer
             .handle
             .lock()
@@ -372,21 +425,24 @@ impl Logger {
     fn write_envelope(&self, mut obj: Map<String, Value>) {
         // Recover from a poisoned mutex: a prior panic-while-writing must not
         // wedge logging shut, least of all the panic hook trying to record it.
-        let records = self.records.lock().unwrap_or_else(|p| p.into_inner());
-        let outcome = match &*records {
+        self.initialize_records();
+        let mut records = self.records.lock().unwrap_or_else(|p| p.into_inner());
+        let outcome = match records.as_ref().unwrap() {
             Ok(conn) => insert(conn, &self.session, &obj).map_err(|e| e.to_string()),
             Err(e) => Err(e.clone()),
         };
-        drop(records);
         let error = match outcome {
             Ok(()) => {
-                if let Some(listener) = self.stored.get() {
-                    listener();
-                }
+                drop(records);
+                if let Some(listener) = self.stored.get() { listener(); }
                 return;
             }
             Err(error) => error,
         };
+        // A broken sink stays on fallback for this launch. Repeating its busy
+        // timeout for every queued envelope would turn one failure into a stall.
+        *records = Some(Err(error.clone()));
+        drop(records);
         obj.insert("recordsError".to_string(), Value::String(error));
         let mut line = Value::Object(obj).to_string();
         line.push('\n');
@@ -413,33 +469,34 @@ impl Logger {
             .write_all(line.as_bytes())
     }
 
-    // Hands an envelope to the writer thread, behind every entry handed to it
-    // before. It is written inline when there is no writer thread, when the
-    // writer has stopped, or when the writer itself is logging (its panic).
+    // Admission only moves the complete envelope under a short queue lock;
+    // producers never perform database or fallback-file I/O.
     fn submit(&self, obj: Map<String, Value>) {
         let Some(writer) = self.writer.get() else {
+            #[cfg(test)]
             return self.write_envelope(obj);
+            #[cfg(not(test))]
+            { eprintln!("{}", Value::Object(obj)); return; }
         };
         if thread::current().id() == writer.thread {
-            return self.write_envelope(obj);
+            eprintln!("{}", Value::Object(obj));
+            return;
         }
-        if let Err(mpsc::SendError(Job::Write(obj))) = writer.jobs.send(Job::Write(obj)) {
-            self.write_envelope(obj);
+        let mut state = writer.queue.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.stopping {
+            drop(state);
+            eprintln!("{}", Value::Object(obj));
+            return;
         }
+        if state.entries.len() == QUEUE_CAPACITY { state.overflow.add(&obj); }
+        else { state.entries.push_back(obj); }
+        writer.queue.changed.notify_one();
     }
 
-    // Waits, within FLUSH_BOUND, until every entry submitted before it is
-    // written. Past the bound the remaining entries' outcome is unknown.
+    // Best effort within one bound, including a pending overflow summary.
     fn flush(&self) {
-        let Some(writer) = self.writer.get() else {
-            return;
-        };
-        if thread::current().id() == writer.thread {
-            return;
-        }
-        let (done, finished) = mpsc::sync_channel(1);
-        if writer.jobs.send(Job::Flush(done)).is_ok() {
-            let _ = finished.recv_timeout(FLUSH_BOUND);
+        if let Some(writer) = self.writer.get() {
+            if thread::current().id() != writer.thread { writer.flush(FLUSH_BOUND); }
         }
     }
 

@@ -34,44 +34,62 @@ function debugEnabled(): boolean {
   return import.meta.env.DEV || runtimeDebug;
 }
 
-// The last entry forwarded; the next one is sent once it settles.
-let forwarding: Promise<void> = Promise.resolve();
+// The native writer uses the same allowance: several ordinary action bursts.
+// Keep full admitted diagnostics, with one compact gap record under pressure.
+const FORWARD_CAPACITY = 256;
+const pending: Record<string, unknown>[] = [];
+let forwarding: Promise<void> | null = null;
+let overflow: { count: number; levels: Partial<Record<Level, number>>; first: string; last: string } | null = null;
+
+function startForwarding(): void {
+  if (forwarding) return;
+  forwarding = Promise.resolve().then(async () => {
+    let preferGap = false;
+    while (pending.length || overflow) {
+      let entry: Record<string, unknown>;
+      if (overflow && (preferGap || pending.length === 0)) {
+        preferGap = false;
+        entry = { ...overflow, time: new Date().toISOString(), level: "warn",
+          message: "diagnostic queue overflow", source: "frontend" };
+        overflow = null;
+      } else { entry = pending.shift()!; preferGap = true; }
+      try {
+        await invoke<void>("log_event", { entry });
+      } catch (forwardError) {
+        const consoleFn = entry.level === "error" ? console.error : entry.level === "warn" ? console.warn : console.log;
+        consoleFn(`[dropkick:log:${entry.level}] ${entry.message}`, entry, "(forward failed)", forwardError);
+      }
+    }
+  }).finally(() => {
+    forwarding = null;
+    if (pending.length || overflow) startForwarding();
+  });
+}
 
 function emit(level: Level, message: string, fields?: LogFields): void {
   if (level === "debug" && !debugEnabled()) return;
+  const time = new Date().toISOString();
+  const entry = { ...fields, time, level, message };
+  if (pending.length === FORWARD_CAPACITY) {
+    overflow ??= { count: 0, levels: {}, first: time, last: time };
+    overflow.count += 1;
+    overflow.levels[level] = (overflow.levels[level] ?? 0) + 1;
+    overflow.last = time;
+  } else { pending.push(entry); }
+  startForwarding();
+}
 
-  // `time` is stamped at the event instant (UTC ISO 8601 ms + Z). Fields are
-  // spread first and the envelope keys last, so a field that happens to be named
-  // `time` / `level` / `message` can never clobber the envelope.
-  const entry: Record<string, unknown> = {
-    ...fields,
-    time: new Date().toISOString(),
-    level,
-    message,
-  };
-
-  // Forward to the core (the authoritative writer).
-  // Fire-and-forget so logging never blocks the UI. Each entry waits for the
-  // previous one, because the core writes off the UI thread and two entries in
-  // flight at once could be written out of order. On failure, degrade to the
-  // console — never swallow, never throw. The invoke is deferred into a promise
-  // chain so a synchronous throw (or a non-promise return) can never escape.
-  forwarding = forwarding
-    .then(() => invoke<void>("log_event", { entry }))
-    .catch((forwardError) => {
-      const consoleFn =
-        level === "error"
-          ? console.error
-          : level === "warn"
-            ? console.warn
-            : console.log;
-      consoleFn(
-        `[dropkick:log:${level}] ${message}`,
-        entry,
-        "(forward failed)",
-        forwardError,
-      );
-    });
+// A close may wait only for its remaining lifetime. Timeout does not cancel
+// the owned forwarding operation or claim that stranded events were delivered.
+export async function flushForwarded(boundMs: number): Promise<boolean> {
+  if (!forwarding) return true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      forwarding.then(() => true),
+      new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), Math.max(0, boundMs)); }),
+    ]);
+  } finally { clearTimeout(timer); }
 }
 
 export const log = {

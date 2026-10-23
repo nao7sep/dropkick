@@ -16,7 +16,8 @@ fn temp_logger(debug_enabled: bool) -> (tempfile::TempDir, Logger) {
         &dir.path().join("logs"),
         debug_enabled,
     );
-    assert!(logger.records.lock().unwrap().is_ok(), "temp records database should open");
+    logger.initialize_records();
+    assert!(logger.records.lock().unwrap().as_ref().unwrap().is_ok(), "temp records database should open");
     (dir, logger)
 }
 
@@ -187,33 +188,21 @@ fn an_unopenable_database_sends_each_entry_to_the_session_fallback_file() {
 }
 
 #[test]
-fn a_failed_insert_falls_back_for_that_entry_only() {
+fn a_failed_insert_keeps_later_entries_on_fallback_without_retrying_the_broken_sink() {
     let (dir, logger) = temp_logger(false);
     logger.emit(Level::Info, "before", json!({}));
-    logger
-        .records
-        .lock()
-        .unwrap()
-        .as_ref()
-        .unwrap()
-        .execute_batch("ALTER TABLE logs RENAME TO moved")
-        .expect("break the table");
+    let conn = Connection::open(dir.path().join("records.sqlite3")).unwrap();
+    conn.execute_batch("ALTER TABLE logs RENAME TO moved").unwrap();
     logger.emit(Level::Error, "during", json!({}));
-    logger
-        .records
-        .lock()
-        .unwrap()
-        .as_ref()
-        .unwrap()
-        .execute_batch("ALTER TABLE moved RENAME TO logs")
-        .expect("restore the table");
+    conn.execute_batch("ALTER TABLE moved RENAME TO logs").unwrap();
     logger.emit(Level::Info, "after", json!({}));
-
     let messages: Vec<String> = rows(&dir).into_iter().map(|row| row.message).collect();
-    assert_eq!(messages, ["before", "after"]);
+    assert_eq!(messages, ["before"]);
     let lines = fallback_lines(&logger);
-    assert_eq!(lines.len(), 1);
+    assert_eq!(lines.len(), 2);
     assert_eq!(lines[0]["message"], json!("during"));
+    assert_eq!(lines[1]["message"], json!("after"));
+    assert_eq!(lines[0]["recordsError"], lines[1]["recordsError"]);
 }
 
 #[test]
@@ -315,4 +304,38 @@ fn a_newer_records_database_is_left_byte_identical_and_entries_take_the_fallback
     assert_eq!(std::fs::read(&file).expect("read records"), before);
     let fallback = std::fs::read_dir(dir.join("logs")).expect("fallback dir").count();
     assert_eq!(fallback, 1);
+}
+
+#[test]
+fn blocked_optional_storage_bounds_admission_and_flush_without_holding_producers() {
+    let dir = temp_dir();
+    let logger = Arc::new(Logger::open(&dir.path().join("records.sqlite3"), &dir.path().join("logs"), false));
+    // Hold initialization itself, before a connection exists. The actual
+    // submitters must remain independent of this storage-owner lock.
+    let storage = logger.records.lock().unwrap();
+    assert!(storage.is_none());
+    logger.start_writer();
+    for n in 0..QUEUE_CAPACITY + 25 {
+        logger.emit_forwarded(json!({ "time": format!("event-{n}"), "level": "error", "message": "failure", "detail": n }));
+    }
+    let writer = logger.writer.get().unwrap();
+    {
+        let state = writer.queue.state.lock().unwrap();
+        assert_eq!(state.entries.len(), QUEUE_CAPACITY);
+        assert_eq!(state.overflow.count, 25);
+    }
+    let start = std::time::Instant::now();
+    writer.flush(Duration::from_millis(20));
+    assert!(start.elapsed() < Duration::from_secs(1));
+    drop(storage);
+    logger.flush();
+    logger.stop_writer_for_test();
+    let rows = rows(&dir);
+    assert_eq!(rows.len(), QUEUE_CAPACITY + 1);
+    let gap = rows.iter().find(|r| r.message == "diagnostic queue overflow").unwrap();
+    assert_eq!(gap.fields["count"], 25);
+    assert_eq!(gap.fields["levels"]["error"], 25);
+    assert_eq!(gap.fields["first"], format!("event-{QUEUE_CAPACITY}"));
+    assert_eq!(gap.fields["last"], format!("event-{}", QUEUE_CAPACITY + 24));
+    assert_eq!(rows.iter().filter(|r| r.message == "failure").count(), QUEUE_CAPACITY);
 }
