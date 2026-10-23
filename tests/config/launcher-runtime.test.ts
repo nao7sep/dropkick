@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -83,4 +83,23 @@ describe("launcher names", () => {
     }
   });
 
+});
+
+
+it("a retiring generation cannot unlink a concurrently published successor", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "dropkick-launcher-test-"));
+  const ownerFile = join(directory, "runtime.owner");
+  try {
+    await claimRuntime("old", ownerFile);
+    const retiring = releaseRuntime("old", ownerFile);
+    await claimRuntime("new", ownerFile);
+    await retiring;
+    expect(await isRuntimeOwner("new", ownerFile)).toBe(true);
+    // Even release of the current generation leaves a complete stale selector.
+    await releaseRuntime("new", ownerFile);
+    expect(await readFile(ownerFile, "utf8")).toBe("new\n");
+    await Promise.all(Array.from({ length: 20 }, (_, i) => claimRuntime(`parallel-${i}`, ownerFile)));
+    expect(await readFile(ownerFile, "utf8")).toMatch(/^parallel-\d+\n$/);
+    expect(await readdir(directory)).toEqual(["runtime.owner"]);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

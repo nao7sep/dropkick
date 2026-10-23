@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { readFile, unlink, writeFile } from "node:fs/promises";
+import { readFile, unlink, writeFile, rename } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -133,7 +133,15 @@ function ancestorsOf(processes, pid) {
 const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 
 export async function claimRuntime(token, ownerFile = OWNER_FILE) {
-  await writeFile(ownerFile, `${token}\n`, { encoding: "utf8", mode: 0o600 });
+  // Publish a complete generation selector. Retiring generations never unlink
+  // this shared name, so their completion cannot remove a successor's claim.
+  const stage = `${ownerFile}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(stage, `${token}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    await rename(stage, ownerFile);
+  } finally {
+    try { await unlink(stage); } catch (error) { if (error?.code !== "ENOENT") throw error; }
+  }
 }
 
 export async function isRuntimeOwner(token, ownerFile = OWNER_FILE) {
@@ -146,13 +154,9 @@ export async function isRuntimeOwner(token, ownerFile = OWNER_FILE) {
 }
 
 export async function releaseRuntime(token, ownerFile = OWNER_FILE) {
-  if (!await isRuntimeOwner(token, ownerFile)) return false;
-  try {
-    await unlink(ownerFile);
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-  }
-  return true;
+  // A stale selector is harmless. This query is for caller diagnostics only;
+  // never turn it into authority to delete the pathname after an await.
+  return isRuntimeOwner(token, ownerFile);
 }
 
 async function stopRuntime(identity) {
