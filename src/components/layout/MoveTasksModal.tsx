@@ -1,7 +1,7 @@
 // Move Tasks modal — choose a destination list for selected tasks.
 // Opened via Cmd+M shortcut. Works in both specific list and unified view.
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { Task } from "../../models";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -31,6 +31,7 @@ export function MoveTasksModal({
   nextActiveTaskKey,
   onClose,
 }: MoveTasksModalProps) {
+  const fieldId = useId();
   const workspace = useWorkspaceStore((s) => s.workspace);
   const moveTasks = useTaskListStore((s) => s.moveTasks);
   const setSelection = useTaskListStore((s) => s.setSelection);
@@ -146,10 +147,11 @@ export function MoveTasksModal({
         </p>
       ) : (
         <div>
-          <label className="dk-label">
+          <label htmlFor={fieldId} className="dk-label">
             {t("moveTasks.destination")}
           </label>
           <select
+            id={fieldId}
             ref={destinationRef}
             disabled={moving}
             aria-invalid={destError}

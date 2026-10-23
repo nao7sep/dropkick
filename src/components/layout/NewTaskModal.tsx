@@ -1,6 +1,6 @@
 // New Task modal — opened via the primary new-task shortcut.
 
-import { useState, useRef, useMemo } from "react";
+import { useId, useState, useRef, useMemo } from "react";
 import type { TaskPriority } from "../../models";
 import {
   hasPrimaryShortcutModifier,
@@ -37,6 +37,7 @@ export function NewTaskModal({
   isUnifiedView,
   onClose,
 }: NewTaskModalProps) {
+  const fieldId = useId();
   const workspace = useWorkspaceStore((s) => s.workspace);
   const addNewTask = useTaskListStore((s) => s.addNewTask);
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
@@ -218,10 +219,11 @@ export function NewTaskModal({
       {/* Target list */}
       {fileTabs.length > 0 && (
         <div>
-          <label className="dk-label">
+          <label htmlFor={`${fieldId}-list`} className="dk-label">
             {t("newTask.list")}
           </label>
           <select
+            id={`${fieldId}-list`}
             disabled={submitting}
             ref={targetSelectRef}
             aria-invalid={targetError}
@@ -260,10 +262,11 @@ export function NewTaskModal({
 
       {/* Title */}
       <div>
-        <label className="dk-label">
+        <label htmlFor={`${fieldId}-title`} className="dk-label">
           {t("newTask.titleLabel")}
         </label>
         <textarea
+          id={`${fieldId}-title`}
           disabled={submitting}
           ref={titleRef}
           aria-invalid={titleError}
@@ -295,10 +298,11 @@ export function NewTaskModal({
 
       {/* Description */}
       <div>
-        <label className="dk-label">
+        <label htmlFor={`${fieldId}-description`} className="dk-label">
           {t("newTask.description")}
         </label>
         <textarea
+          id={`${fieldId}-description`}
           disabled={submitting}
           ref={descRef}
           value={description}
@@ -315,10 +319,11 @@ export function NewTaskModal({
       {/* Priority and Due date — side by side */}
       <div className="flex items-start gap-4">
         <div className="flex-1">
-          <label className="dk-label">
+          <label htmlFor={`${fieldId}-priority`} className="dk-label">
             {t("newTask.priority")}
           </label>
           <select
+            id={`${fieldId}-priority`}
             disabled={submitting}
             value={priority}
             onChange={(e) => setPriority(e.target.value as TaskPriority)}
@@ -333,10 +338,11 @@ export function NewTaskModal({
         </div>
 
         <div>
-          <label className="dk-label">
+          <label htmlFor={`${fieldId}-due`} className="dk-label">
             {t("newTask.dueDate")}
           </label>
-          <DatePicker disabled={submitting} value={dueDate} onChange={setDueDate} popoverPosition="top" />
+          <DatePicker
+            id={`${fieldId}-due`} disabled={submitting} value={dueDate} onChange={setDueDate} popoverPosition="top" />
         </div>
       </div>
     </AppModal>

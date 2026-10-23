@@ -1,7 +1,7 @@
 // Single task detail — shown in right pane when exactly 1 task is selected.
 // All fields are editable inline. Notes are listed newest first.
 
-import { useState, useRef, useEffect } from "react";
+import { useId, useState, useRef, useEffect } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -63,6 +63,7 @@ export function TaskDetail({
   externalIssue,
   onDismissExternalIssue,
 }: TaskDetailProps) {
+  const fieldId = useId();
   const i18n = useI18n();
   const { t, text } = i18n;
   const preferences = usePreferencesStore((s) => s.preferences);
@@ -337,6 +338,7 @@ export function TaskDetail({
       ))}
       {/* Title */}
       <textarea
+        aria-label={t("newTask.titleLabel")}
         ref={titleRef}
         aria-invalid={titleError !== null}
         aria-describedby={titleError ? `task-title-error-${task.id}` : undefined}
@@ -368,8 +370,9 @@ export function TaskDetail({
       <div className="mb-4 flex flex-wrap gap-3">
         {/* Status */}
         <div>
-          <label className="dk-label">{t("detail.status")}</label>
+          <label htmlFor={`${fieldId}-status`} className="dk-label">{t("detail.status")}</label>
           <select
+            id={`${fieldId}-status`}
             aria-invalid={statusError !== null}
             aria-describedby={statusError ? `task-status-error-${task.id}` : undefined}
             value={task.status}
@@ -391,8 +394,9 @@ export function TaskDetail({
 
         {/* Priority */}
         <div>
-          <label className="dk-label">{t("detail.priority")}</label>
+          <label htmlFor={`${fieldId}-priority`} className="dk-label">{t("detail.priority")}</label>
           <select
+            id={`${fieldId}-priority`}
             value={task.priority}
             onChange={(e) => handlePriorityChange(e.target.value as TaskPriority)}
             className={`dk-field ${prioritySelectStyle(task.priority)}`}
@@ -407,8 +411,9 @@ export function TaskDetail({
 
         {/* Due Date */}
         <div>
-          <label className="dk-label">{t("detail.due")}</label>
+          <label htmlFor={`${fieldId}-due`} className="dk-label">{t("detail.due")}</label>
           <DatePicker
+            id={`${fieldId}-due`}
             value={task.dueDate}
             onChange={(v) => handleDueDateChange(v ?? "")}
             isOverdue={task.isOverdue}
@@ -496,8 +501,9 @@ export function TaskDetail({
       {/* Move to another list */}
       {moveDestinations.length > 0 && (
         <div className="mb-4 flex items-center gap-2">
-          <label className="shrink-0 text-xs font-medium text-ink-muted">{t("detail.moveTo")}</label>
+          <label htmlFor={`${fieldId}-moveTo`} className="shrink-0 text-xs font-medium text-ink-muted">{t("detail.moveTo")}</label>
           <select
+            id={`${fieldId}-moveTo`}
             value={moveTarget}
             onChange={(e) => setMoveTarget(e.target.value)}
             className="dk-field min-w-0 flex-1"
@@ -517,8 +523,9 @@ export function TaskDetail({
 
       {/* Description */}
       <div className="mb-4">
-        <label className="dk-label">{t("detail.description")}</label>
+        <label htmlFor={`${fieldId}-description`} className="dk-label">{t("detail.description")}</label>
         <textarea
+          id={`${fieldId}-description`}
           ref={descRef}
           aria-invalid={descriptionError !== null}
           aria-describedby={descriptionError ? `task-description-error-${task.id}` : undefined}
@@ -573,6 +580,7 @@ export function TaskDetail({
         {/* Add note */}
         <div className="mb-3">
           <textarea
+            aria-label={t("detail.addNote")}
             ref={newNoteRef}
             aria-invalid={noteComposerError !== null}
             aria-describedby={noteComposerError ? `new-note-error-${task.id}` : undefined}
@@ -810,6 +818,7 @@ function NoteItem({
       <div className="mb-2 flex items-center gap-2">
         {icon}
         <select
+          aria-label={t("note.status")}
           aria-invalid={noteError !== null}
           aria-describedby={noteError ? `note-error-${note.id}` : undefined}
           value={note.actionability}
@@ -842,6 +851,7 @@ function NoteItem({
       {editing ? (
         <div>
           <textarea
+            aria-label={t("note.content")}
             ref={editRef}
             aria-invalid={noteError !== null}
             aria-describedby={noteError ? `note-error-${note.id}` : undefined}

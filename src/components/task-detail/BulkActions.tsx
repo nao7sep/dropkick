@@ -1,7 +1,7 @@
 // Bulk actions — shown in right pane when 2+ tasks are selected.
 // Supports status change, priority change, kick, and move to another list.
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Trash2 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
@@ -55,6 +55,7 @@ export function BulkActions({
   onDismissExternalIssue,
   onReportExternalIssue,
 }: BulkActionsProps) {
+  const fieldId = useId();
   const { t } = useI18n();
   const kickDistances = usePreferencesStore((s) => s.preferences.kickDistances);
   const kick = useTaskListStore((s) => s.kick);
@@ -221,10 +222,10 @@ export function BulkActions({
 
       {/* Status */}
       <div className="mt-6">
-        <label className="dk-label">
+        <div id={`${fieldId}-setStatus`} className="dk-label">
           {t("bulk.setStatus")}
-        </label>
-        <div className="flex flex-wrap gap-2">
+        </div>
+        <div role="group" aria-labelledby={`${fieldId}-setStatus`} className="flex flex-wrap gap-2">
           {(["Pending", "Completed", "Dismissed"] as TaskStatus[]).map((s) => (
             <Button key={s} onClick={() => handleBulkStatus(s)}>
               {t(STATUS_LABELS[s])}
@@ -235,10 +236,10 @@ export function BulkActions({
 
       {/* Priority */}
       <div className="mt-4">
-        <label className="dk-label">
+        <div id={`${fieldId}-setPriority`} className="dk-label">
           {t("bulk.setPriority")}
-        </label>
-        <div className="flex flex-wrap gap-2">
+        </div>
+        <div role="group" aria-labelledby={`${fieldId}-setPriority`} className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => handleBulkPriority("Critical")}
@@ -269,9 +270,9 @@ export function BulkActions({
       {/* Reorder (not in unified view) */}
       {!isUnifiedView && (
         <div className="mt-4">
-          <label className="dk-label">
+          <div className="dk-label">
             {t("bulk.reorder")}
-          </label>
+          </div>
           <Toolbar label={t("bulk.reorderLabel")} className="flex flex-wrap gap-2">
             <Button
               onClick={async () => {
@@ -331,11 +332,12 @@ export function BulkActions({
       {/* Move to another list */}
       {moveDestinations.length > 0 && (
         <div className="mt-4">
-          <label className="dk-label">
+          <label htmlFor={`${fieldId}-move`} className="dk-label">
             {t("detail.moveTo")}
           </label>
           <div className="flex flex-wrap gap-2">
             <select
+              id={`${fieldId}-move`}
               value={moveTarget}
               onChange={(e) => setMoveTarget(e.target.value)}
               className="dk-field min-w-0 flex-1"

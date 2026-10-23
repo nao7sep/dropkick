@@ -33,6 +33,10 @@ export function newTaskShortcutCases(Modal: typeof NewTaskModal, platform: "mac"
       useTaskListStore.setState({ addNewTask });
       host = await mount(createElement(Modal, { currentFilePath: "/one.json", isUnifiedView: false, onClose: () => undefined }));
 
+      const labels = [...document.querySelectorAll<HTMLLabelElement>("label")];
+      expect(labels).toHaveLength(5);
+      expect(labels.map((label) => label.control?.tagName)).toEqual(["SELECT", "TEXTAREA", "TEXTAREA", "SELECT", "BUTTON"]);
+      expect(new Set(labels.map((label) => label.control)).size).toBe(5);
       const fields = document.querySelectorAll<HTMLTextAreaElement>("textarea");
       await act(async () => {
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(fields[0], "Pay invoice");

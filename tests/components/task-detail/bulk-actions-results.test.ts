@@ -57,6 +57,11 @@ afterEach(async () => {
 });
 
 describe("BulkActions results", () => {
+  it("names the status and priority action groups", () => {
+    const names = [...document.querySelectorAll('[role="group"]')].map((group) => document.getElementById(group.getAttribute("aria-labelledby")!)?.textContent?.trim());
+    expect(names).toEqual(["Set Status", "Set Priority"]);
+  });
+
   it("enumerates each affected task in the surviving bulk surface", async () => {
     const completed = [...document.querySelectorAll("button")].find(
       (button) => button.textContent === "Completed",

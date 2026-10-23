@@ -22,6 +22,7 @@ it.each(["success", "error"] as const)("owns dismissal through a held move and e
   const task: Task = { ...makeTask({ id: "one", title: "One" }), sourceFile: "/a", hasActionableNotes: false, canComplete: true, isOverdue: false, isDueToday: false, group: "Default" };
   host = await mount(createElement(MoveTasksModal, { selectedTasks: [task], sourceFilePath: "/a", isUnifiedView: false, nextActiveTaskKey: null, onClose }));
   const select = document.querySelector("select")!;
+  expect(document.querySelector<HTMLLabelElement>("label")?.control).toBe(select);
   await act(async () => { select.value = "/b"; select.dispatchEvent(new Event("change", { bubbles: true })); });
   const button = (text: string) => [...document.querySelectorAll("button")].find((node) => node.textContent === text)!;
   await act(async () => { button("Move").click(); button("Move").click(); });

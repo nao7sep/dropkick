@@ -129,6 +129,8 @@
   "task.cannotComplete": { "other": "完了できません: 要対応のメモが {count} 件残っています" },
   "task.failureLine": "{title}: {reason}",
 
+  "note.status": "メモの状態",
+  "note.content": "メモの内容",
   "note.empty": "メモの内容を入力してください",
   "note.updateFailed": "メモを更新できませんでした",
   "note.delete": "メモを削除",

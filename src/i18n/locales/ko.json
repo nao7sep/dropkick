@@ -129,6 +129,8 @@
   "task.cannotComplete": { "other": "완료할 수 없습니다: 조치가 필요한 메모가 {count}개 남아 있습니다" },
   "task.failureLine": "{title}: {reason}",
 
+  "note.status": "메모 상태",
+  "note.content": "메모 내용",
   "note.empty": "메모 내용은 비워 둘 수 없습니다",
   "note.updateFailed": "메모를 업데이트할 수 없습니다",
   "note.delete": "메모 삭제",

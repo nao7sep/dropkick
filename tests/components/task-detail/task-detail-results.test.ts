@@ -80,6 +80,13 @@ afterEach(async () => {
 });
 
 describe("TaskDetail operation results", () => {
+  it("names task fields and connects visible labels to their controls", () => {
+    const labels = [...document.querySelectorAll<HTMLLabelElement>("label")];
+    expect(labels.map((label) => label.control?.tagName)).toEqual(["SELECT", "SELECT", "BUTTON", "TEXTAREA"]);
+    expect(document.querySelector('textarea[aria-label="Title"]')).not.toBeNull();
+    expect(document.querySelector('textarea[aria-label="Add Note"]')).not.toBeNull();
+  });
+
   it("another copy has its own composer and editor, and saving it leaves the first copy's text", async () => {
     await host!.unmount();
     const otherPath = "/two.json";

@@ -14,6 +14,7 @@ import { useI18n } from "../../i18n/I18nContext";
 import { dayPickerLocale } from "../../i18n/dayPickerLocales";
 
 interface DatePickerProps {
+  id?: string;
   disabled?: boolean;
   value: string | null; // "YYYY-MM-DD" or null
   onChange: (value: string | null) => void;
@@ -36,7 +37,7 @@ function formatDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export function DatePicker({ value, onChange, isOverdue, disabled = false, popoverPosition = "bottom" }: DatePickerProps) {
+export function DatePicker({ id, value, onChange, isOverdue, disabled = false, popoverPosition = "bottom" }: DatePickerProps) {
   const i18n = useI18n();
   const [open, setOpen] = useState(false);
   // "Today" is a preference, not an OS fact. Every other date decision in the
@@ -72,6 +73,7 @@ export function DatePicker({ value, onChange, isOverdue, disabled = false, popov
       <span {...interactiveLayerProps}>
         <Popover.Trigger asChild>
           <button
+            id={id}
             disabled={disabled}
             // The date trigger is a field: one height, edge and corner with the
             // selects beside it.

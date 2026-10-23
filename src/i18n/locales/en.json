@@ -129,6 +129,8 @@
   "task.cannotComplete": { "one": "Cannot complete: {count} actionable note remaining", "other": "Cannot complete: {count} actionable notes remaining" },
   "task.failureLine": "{title}: {reason}",
 
+  "note.status": "Note status",
+  "note.content": "Note content",
   "note.empty": "Note content cannot be empty",
   "note.updateFailed": "Note could not be updated",
   "note.delete": "Delete note",

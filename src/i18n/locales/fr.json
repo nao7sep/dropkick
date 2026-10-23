@@ -129,6 +129,8 @@
   "task.cannotComplete": { "one": "Impossible de terminer\u00a0: il reste {count} note à traiter", "many": "Impossible de terminer\u00a0: il reste {count} de notes à traiter", "other": "Impossible de terminer\u00a0: il reste {count} notes à traiter" },
   "task.failureLine": "{title}\u00a0: {reason}",
 
+  "note.status": "État de la note",
+  "note.content": "Contenu de la note",
   "note.empty": "Le contenu de la note ne peut pas être vide",
   "note.updateFailed": "La note n’a pas pu être mise à jour",
   "note.delete": "Supprimer la note",

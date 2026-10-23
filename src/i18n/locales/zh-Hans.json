@@ -129,6 +129,8 @@
   "task.cannotComplete": { "other": "无法完成：还有 {count} 条待解决的备注" },
   "task.failureLine": "{title}：{reason}",
 
+  "note.status": "备注状态",
+  "note.content": "备注内容",
   "note.empty": "备注内容不能为空",
   "note.updateFailed": "无法更新备注",
   "note.delete": "删除备注",

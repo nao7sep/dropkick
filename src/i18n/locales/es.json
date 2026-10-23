@@ -129,6 +129,8 @@
   "task.cannotComplete": { "one": "No se puede completar: queda {count} nota por resolver", "many": "No se puede completar: quedan {count} de notas por resolver", "other": "No se puede completar: quedan {count} notas por resolver" },
   "task.failureLine": "{title}: {reason}",
 
+  "note.status": "Estado de la nota",
+  "note.content": "Contenido de la nota",
   "note.empty": "La nota no puede estar vacía",
   "note.updateFailed": "No se pudo actualizar la nota",
   "note.delete": "Eliminar la nota",
