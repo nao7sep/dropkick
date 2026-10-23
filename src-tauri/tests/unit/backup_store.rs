@@ -157,23 +157,117 @@ fn a_new_session_adds_a_row_only_for_content_that_changed() {
     assert_eq!(rows_for(&store.file, "/abs/e.json").len(), 1);
 }
 
+// Wait for the worker's actual ownership transition, with a watchdog only to
+// report a stuck worker. No assertion depends on how fast scheduling or I/O is.
+fn wait_until_active(shared: &Shared, generation: u64) {
+    let state = shared.lock();
+    let (state, _) = shared.changed.wait_timeout_while(
+        state,
+        Duration::from_secs(10),
+        |state| state.active != Some(generation),
+    ).unwrap_or_else(|p| p.into_inner());
+    assert_eq!(state.active, Some(generation));
+}
+
 #[test]
 #[serial(backup_store)]
-fn recording_never_waits_for_a_locked_store() {
+fn a_paused_owner_coalesces_pending_bytes_with_the_store_locked_and_drains_on_close() {
     with_store(|file| {
         assert!(flush(Duration::from_secs(10)));
-        // Another connection holds SQLite's write lock past the store's 5 s
-        // busy timeout would allow a save to wait.
+        let shared = Arc::clone(&lock().as_ref().unwrap().shared);
         let holder = Connection::open(file).unwrap();
         holder.execute_batch("BEGIN IMMEDIATE").unwrap();
-        let started = std::time::Instant::now();
-        record(Path::new("/abs/f.json"), b"saved while locked");
-        assert!(started.elapsed() < Duration::from_millis(500), "record must only queue");
-        assert!(!flush(Duration::from_millis(200)), "the owner is still waiting on the lock");
+        // Hold admission before I/O: no amount of test scheduling can outlast
+        // SQLite's busy timeout and accidentally settle the active snapshot.
+        let (release, pause) = std::sync::mpsc::channel();
+        *shared.pause_before_record.lock().unwrap() = Some(pause);
+        record(Path::new("/abs/f.json"), b"active snapshot");
+        wait_until_active(&shared, 1);
+
+        record(Path::new("/abs/f.json"), b"first pending");
+        record(Path::new("/abs/g.json"), b"other first");
+        let target = shared.lock().next_generation;
+        for _ in 0..100 {
+            record(Path::new("/abs/f.json"), b"superseded");
+            record(Path::new("/abs/g.json"), b"other superseded");
+        }
+        let newest = [0xEF, 0xBB, 0xBF, b'\r', b'\n', 0xFF];
+        record(Path::new("/abs/f.json"), &newest);
+        record(Path::new("/abs/g.json"), b"other newest");
+        {
+            let state = shared.lock();
+            assert_eq!(state.active, Some(1), "an active snapshot is never replaced");
+            assert_eq!(state.pending.len(), 2);
+            assert_eq!(state.ready.iter().map(String::as_str).collect::<Vec<_>>(),
+                ["/abs/f.json", "/abs/g.json"]);
+            assert_eq!(state.pending["/abs/f.json"].bytes, newest);
+            assert_eq!(state.pending["/abs/g.json"].bytes, b"other newest");
+            assert_eq!(state.pending["/abs/f.json"].first_generation, 2);
+            assert_eq!(state.pending["/abs/g.json"].first_generation, 3);
+            assert!(!state.settled_through(target));
+        }
+        // Verify the actual database lock independently of the admission gate.
+        let mut probe = open(file).unwrap();
+        probe.busy_timeout(Duration::ZERO).unwrap();
+        let error = try_record(&mut probe, "probe", "/abs/probe.json", b"locked")
+            .expect_err("the separate writer must hold SQLite's write lock");
+        assert_eq!(error.sqlite_error_code(), Some(rusqlite::ErrorCode::DatabaseBusy));
+        drop(probe);
+        // Repeated drains cannot report completion before the admitted write
+        // settles, and do not allocate queued barrier jobs.
+        for _ in 0..100 {
+            assert!(!flush(Duration::ZERO));
+        }
         holder.execute_batch("COMMIT").unwrap();
         drop(holder);
-        assert_eq!(rows_for(file, "/abs/f.json").len(), 1);
+        release.send(()).unwrap();
+        close_for_test();
+        assert_eq!(rows_for(file, "/abs/f.json")[0].0, newest);
+        assert_eq!(rows_for(file, "/abs/g.json")[0].0, b"other newest");
     });
+}
+
+#[test]
+fn a_coalesced_successor_owns_earlier_generations_until_it_settles() {
+    let mut state = State {
+        pending: HashMap::from([("/abs/a.json".into(), Pending {
+            bytes: b"later successor".to_vec(),
+            first_generation: 2,
+        })]),
+        ready: VecDeque::from(["/abs/a.json".into()]),
+        active: None,
+        next_generation: 100,
+        closing: false,
+    };
+    let earlier_barrier = 2;
+    assert!(!state.settled_through(earlier_barrier));
+    let path = state.ready.pop_front().unwrap();
+    state.active = Some(state.pending.remove(&path).unwrap().first_generation);
+    assert!(!state.settled_through(earlier_barrier), "dequeue is not settlement");
+    state.active = None;
+    assert!(state.settled_through(earlier_barrier));
+    // A barrier does not acquire responsibility for newly admitted paths.
+    state.active = Some(101);
+    assert!(state.settled_through(earlier_barrier));
+}
+
+#[test]
+#[serial(backup_store)]
+fn reverting_to_an_earlier_session_still_replaces_this_sessions_changed_row() {
+    let store = temp_store();
+    let path = Path::new("/abs/revert.json");
+    init(store.file.clone());
+    record(path, b"original");
+    close_for_test();
+    init(store.file.clone());
+    record(path, b"original");
+    assert_eq!(rows_for(&store.file, path.to_str().unwrap()).len(), 1);
+    record(path, b"changed this session");
+    assert!(flush(Duration::from_secs(10)));
+    record(path, b"original");
+    let rows = rows_for(&store.file, path.to_str().unwrap());
+    assert_eq!(rows.iter().map(|row| row.0.as_slice()).collect::<Vec<_>>(),
+        [b"original".as_slice(), b"original".as_slice()]);
 }
 
 #[test]
@@ -200,13 +294,8 @@ fn record_is_a_silent_no_op_when_the_store_never_opened() {
 
 #[test]
 #[serial(backup_store)]
-fn record_never_panics_on_a_broken_connection() {
-    // Best-effort under a store failure: inject a closed/failing connection by
-    // opening a store then closing the underlying DB out from under it is not
-    // portable, so instead prove the no-throw contract by pointing init at an
-    // un-creatable path — the open fails, recording is disabled, and a
-    // subsequent record is a silent no-op (never a panic, never a crash).
-    // A path whose parent is a FILE, so create_dir_all + open must fail.
+fn a_store_open_failure_disables_recording_without_panicking() {
+    // A path whose parent is a file makes the initial open fail.
     let store = temp_store();
     let file_as_parent = store.file.with_file_name("not-a-dir");
     std::fs::write(&file_as_parent, b"x").unwrap(); // a regular file
@@ -238,7 +327,7 @@ fn a_new_store_is_stamped_with_its_format_version() {
 
 #[test]
 #[serial(backup_store)]
-fn a_format_1_store_gains_sessions_and_keeps_its_rows() {
+fn a_format_1_store_is_refused_unchanged_and_records_nothing() {
     let store = temp_store();
     {
         let conn = Connection::open(&store.file).unwrap();
@@ -255,15 +344,25 @@ fn a_format_1_store_gains_sessions_and_keeps_its_rows() {
         .unwrap();
         conn.pragma_update(None, "user_version", 1).unwrap();
     }
+    let before = std::fs::read(&store.file).unwrap();
+    let error = open(&store.file).err().expect("format 1 is unsupported");
+    assert!(error.contains("unsupported backup format version 1"), "{error}");
+    assert!(error.contains("left untouched"), "{error}");
+    assert!(error.contains(store.file.to_str().unwrap()), "{error}");
     init(store.file.clone());
     record(Path::new("/abs/g.json"), b"new");
+    close_for_test();
+    assert_eq!(std::fs::read(&store.file).unwrap(), before);
     let rows = rows_for(&store.file, "/abs/g.json");
-    assert_eq!(rows.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![b"old".to_vec(), b"new".to_vec()]);
-    assert_eq!(user_version(&store.file), 2);
-    let sessions: Vec<Option<String>> = Connection::open(&store.file).unwrap()
-        .prepare("SELECT session_id FROM backups ORDER BY id").unwrap()
-        .query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
-    assert!(sessions[0].is_none() && sessions[1].is_some());
+    assert_eq!(rows, vec![(b"old".to_vec(), sha256_hex(b"old"), 3, "x".to_string())]);
+    assert_eq!(user_version(&store.file), 1);
+    let conn = Connection::open(&store.file).unwrap();
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(backups)").unwrap()
+        .query_map([], |r| r.get(1)).unwrap().map(|r| r.unwrap()).collect();
+    assert_eq!(columns, ["id", "path", "content", "content_sha256", "byte_size", "written_at_utc"]);
+    assert!(!store.file.with_extension("sqlite3-wal").exists());
+    assert!(!store.file.with_extension("sqlite3-shm").exists());
 }
 
 #[test]
@@ -297,4 +396,22 @@ fn a_newer_store_is_left_byte_identical_and_records_nothing() {
     record(Path::new("/abs/a.json"), b"one");
     close_for_test();
     assert_eq!(std::fs::read(file).unwrap(), before);
+}
+
+#[test]
+#[serial(backup_store)]
+fn a_post_open_record_failure_does_not_fail_primary_saves_or_stop_the_owner() {
+    with_store(|file| {
+        assert!(flush(Duration::from_secs(10)));
+        let fixture = Connection::open(file).unwrap();
+        fixture.execute_batch("DROP TABLE backups").unwrap();
+        let primary = file.with_file_name("authored.json");
+        let path = primary.to_str().unwrap();
+        crate::write_atomic(path, "first authored version").unwrap();
+        assert!(flush(Duration::from_secs(10)));
+        assert_eq!(std::fs::read_to_string(&primary).unwrap(), "first authored version");
+        fixture.execute_batch(SCHEMA).unwrap();
+        crate::write_atomic(path, "later authored version").unwrap();
+        assert_eq!(rows_for(file, path)[0].0, b"later authored version");
+    });
 }

@@ -15,8 +15,9 @@
 //!
 //! The history is best effort and never part of a save: `record` only queues the
 //! bytes for one background owner, the `dropkick-backup` thread, which applies
-//! them in save order, so a slow or locked store delays neither the save's reply
-//! nor quit. Each session (one launch) keeps one row per path, updated in place
+//! them serially, keeping only the newest pending bytes per path, so a slow or
+//! locked store delays neither the save's reply nor quit. Each session (one
+//! launch) keeps one row per path, updated in place
 //! by later saves; a session's first save equal to the latest earlier row writes
 //! nothing. At an ordinary quit the queue gets a short drain (`flush`); at the
 //! end of an OS session it is skipped. Any failure logs one warning and is
@@ -26,15 +27,16 @@
 //! system libsqlite3 and adds no packaging churn. A BLOB is stored and read as
 //! raw bytes, so CR/LF, a BOM and non-UTF-8 content stay byte-identical.
 
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Mutex, OnceLock};
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use rusqlite::{Connection, TransactionBehavior};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
-use crate::format_version::{self, Format, Marker};
+use crate::format_version::{self, Format};
 use crate::logging;
 
 /// The table as this build creates it (format version 2). `content` is the
@@ -57,23 +59,50 @@ CREATE INDEX IF NOT EXISTS idx_backups_path_id ON backups (path, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_backups_path_session ON backups (path, session_id);
 ";
 
-/// Format 1 recorded every distinct save without sessions. Its rows stay as
-/// earlier history, with a NULL session.
-const UPGRADE_FROM_1: &str = "
-ALTER TABLE backups ADD COLUMN session_id TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_backups_path_session ON backups (path, session_id);
-";
-
 /// How long an ordinary quit waits at exit for queued records.
 pub const QUIT_DRAIN: Duration = Duration::from_secs(1);
 
-enum Job {
-    Record { path: String, bytes: Vec<u8> },
-    Flush(mpsc::SyncSender<()>),
+struct Pending {
+    bytes: Vec<u8>,
+    // Replacing pending content also takes responsibility for its earlier saves.
+    first_generation: u64,
+}
+
+struct State {
+    pending: HashMap<String, Pending>,
+    ready: VecDeque<String>,
+    active: Option<u64>,
+    next_generation: u64,
+    closing: bool,
+}
+
+impl State {
+    fn settled_through(&self, target: u64) -> bool {
+        self.active.is_none_or(|generation| generation > target)
+            && self
+                .pending
+                .values()
+                .all(|pending| pending.first_generation > target)
+    }
+}
+
+struct Shared {
+    state: Mutex<State>,
+    changed: Condvar,
+    // Tests can hold one admitted write before database I/O without racing
+    // SQLite's busy timeout or retaining the production submission lock.
+    #[cfg(test)]
+    pause_before_record: Mutex<Option<std::sync::mpsc::Receiver<()>>>,
+}
+
+impl Shared {
+    fn lock(&self) -> std::sync::MutexGuard<'_, State> {
+        self.state.lock().unwrap_or_else(|p| p.into_inner())
+    }
 }
 
 struct Owner {
-    sender: mpsc::Sender<Job>,
+    shared: Arc<Shared>,
     // Joined only by close_for_test; the app lets process exit end the thread.
     #[cfg_attr(not(test), allow(dead_code))]
     thread: std::thread::JoinHandle<()>,
@@ -85,7 +114,7 @@ fn owner() -> &'static Mutex<Option<Owner>> {
 }
 
 fn lock() -> std::sync::MutexGuard<'static, Option<Owner>> {
-    // A poisoned lock still holds a usable sender.
+    // A poisoned lock still holds a usable owner.
     owner().lock().unwrap_or_else(|p| p.into_inner())
 }
 
@@ -97,12 +126,25 @@ pub fn init(store_file: PathBuf) {
     // The launch's records session names its rows; a store started without
     // logging (a test) gets an id of its own.
     let session = logging::session().unwrap_or_else(crate::nanoid::generate);
-    let (sender, jobs) = mpsc::channel();
+    let shared = Arc::new(Shared {
+        state: Mutex::new(State {
+            pending: HashMap::new(),
+            ready: VecDeque::new(),
+            // Opening the store belongs to the first drain, even without saves.
+            active: Some(0),
+            next_generation: 0,
+            closing: false,
+        }),
+        changed: Condvar::new(),
+        #[cfg(test)]
+        pause_before_record: Mutex::new(None),
+    });
+    let worker_shared = Arc::clone(&shared);
     match std::thread::Builder::new()
         .name("dropkick-backup".to_string())
-        .spawn(move || run(&store_file, &session, jobs))
+        .spawn(move || run(&store_file, &session, worker_shared))
     {
-        Ok(thread) => *lock() = Some(Owner { sender, thread }),
+        Ok(thread) => *lock() = Some(Owner { shared, thread }),
         Err(err) => logging::warn(
             "backup store: could not start; recording disabled for this session",
             json!({ "error": { "message": err.to_string() } }),
@@ -110,7 +152,7 @@ pub fn init(store_file: PathBuf) {
     }
 }
 
-fn run(store_file: &Path, session: &str, jobs: mpsc::Receiver<Job>) {
+fn run(store_file: &Path, session: &str, shared: Arc<Shared>) {
     let mut conn = match open(store_file) {
         Ok(conn) => Some(conn),
         Err(err) => {
@@ -121,21 +163,48 @@ fn run(store_file: &Path, session: &str, jobs: mpsc::Receiver<Job>) {
             None
         }
     };
-    for job in jobs {
-        match job {
-            Job::Record { path, bytes } => {
-                let Some(conn) = conn.as_mut() else { continue };
-                if let Err(err) = try_record(conn, session, &path, &bytes) {
-                    logging::warn(
-                        "backup store: failed to record a managed write",
-                        json!({ "file": path, "error": { "message": err.to_string() } }),
-                    );
-                }
-            }
-            Job::Flush(done) => {
-                let _ = done.send(());
+    let mut state = shared.lock();
+    state.active = None;
+    shared.changed.notify_all();
+    loop {
+        while state.ready.is_empty() && !state.closing {
+            state = shared
+                .changed
+                .wait(state)
+                .unwrap_or_else(|p| p.into_inner());
+        }
+        let Some(path) = state.ready.pop_front() else {
+            return;
+        };
+        let pending = state
+            .pending
+            .remove(&path)
+            .expect("ready path has pending bytes");
+        state.active = Some(pending.first_generation);
+        shared.changed.notify_all();
+        drop(state);
+
+        #[cfg(test)]
+        {
+            let pause = shared.pause_before_record.lock().unwrap().take();
+            if let Some(release) = pause {
+                // Disconnect also releases the worker when a test panics.
+                let _ = release.recv();
             }
         }
+
+        // Neither database waits nor diagnostic I/O hold the submission lock.
+        if let Some(conn) = conn.as_mut() {
+            if let Err(err) = try_record(conn, session, &path, &pending.bytes) {
+                logging::warn(
+                    "backup store: failed to record a managed write",
+                    json!({ "file": path, "error": { "message": err.to_string() } }),
+                );
+            }
+        }
+        state = shared.lock();
+        state.active = None;
+        shared.changed.notify_all();
     }
 }
 
@@ -144,11 +213,18 @@ fn open(store_file: &Path) -> Result<Connection, String> {
     if let Some(parent) = store_file.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let mut conn = format_version::open_sqlite(store_file, Format::Backups, SCHEMA)?;
-    // The marker is read before anything is written: a newer build's history is
-    // left exactly as it is, and recording is off for the session.
-    if let Marker::Newer(found) = format_version::sqlite(&conn, Format::Backups)? {
-        return Err(format_version::newer_message(store_file, found, Format::Backups));
+    let conn = format_version::open_sqlite(store_file, Format::Backups, SCHEMA)?;
+    // Only the current format is supported. Reject existing history before
+    // changing its journal mode, leaving it untouched with recording disabled.
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    let current = Format::Backups.current();
+    if version != i64::from(current) {
+        return Err(format!(
+            "{} has unsupported backup format version {version}; this build reads {current}; left untouched",
+            store_file.display()
+        ));
     }
     // busy_timeout lets a write wait briefly for SQLite's lock instead of
     // failing at once; the wait is the owner thread's, never a save's.
@@ -156,17 +232,6 @@ fn open(store_file: &Path) -> Result<Connection, String> {
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "busy_timeout", 5000)
         .map_err(|e| e.to_string())?;
-    let version: i64 = conn
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
-    if version == 1 {
-        let upgrade = conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(|e| e.to_string())?;
-        upgrade.execute_batch(UPGRADE_FROM_1).map_err(|e| e.to_string())?;
-        format_version::stamp_sqlite(&upgrade, Format::Backups)?;
-        upgrade.commit().map_err(|e| e.to_string())?;
-    }
     Ok(conn)
 }
 
@@ -181,26 +246,51 @@ fn sha256_hex(bytes: &[u8]) -> String {
 /// absolute path as written, `bytes` the exact bytes just published (never a
 /// re-read of the file). Returns at once; a store that never opened drops it.
 pub fn record(absolute_path: &Path, bytes: &[u8]) {
-    if let Some(owner) = lock().as_ref() {
-        let _ = owner.sender.send(Job::Record {
-            path: absolute_path.to_string_lossy().into_owned(),
-            bytes: bytes.to_vec(),
-        });
+    let shared = lock().as_ref().map(|owner| Arc::clone(&owner.shared));
+    let Some(shared) = shared else { return };
+    let path = absolute_path.to_string_lossy().into_owned();
+    let bytes = bytes.to_vec();
+    let mut state = shared.lock();
+    if state.closing {
+        return;
     }
+    state.next_generation += 1;
+    let generation = state.next_generation;
+    if let Some(pending) = state.pending.get_mut(&path) {
+        pending.bytes = bytes;
+    } else {
+        state.ready.push_back(path.clone());
+        state.pending.insert(
+            path,
+            Pending {
+                bytes,
+                first_generation: generation,
+            },
+        );
+    }
+    shared.changed.notify_all();
 }
 
-/// Waits up to `bound` for every record queued so far. True when they were
-/// applied (or there is no owner); false when the bound passed first.
+/// Waits up to `bound` for settlement of records accepted so far. A later save
+/// can replace pending bytes and settle their earlier generations only when
+/// that replacement itself settles. Settlement does not guarantee success.
 pub fn flush(bound: Duration) -> bool {
-    let (done, finished) = mpsc::sync_channel(1);
-    {
-        let guard = lock();
-        let Some(owner) = guard.as_ref() else { return true };
-        if owner.sender.send(Job::Flush(done)).is_err() {
-            return true;
-        }
+    let started = Instant::now();
+    let shared = lock().as_ref().map(|owner| Arc::clone(&owner.shared));
+    let Some(shared) = shared else { return true };
+    let mut state = shared.lock();
+    let target = state.next_generation;
+    while !state.settled_through(target) {
+        let Some(remaining) = bound.checked_sub(started.elapsed()) else {
+            return false;
+        };
+        let (next, _) = shared
+            .changed
+            .wait_timeout(state, remaining)
+            .unwrap_or_else(|p| p.into_inner());
+        state = next;
     }
-    finished.recv_timeout(bound).is_ok()
+    true
 }
 
 /// Applies one record. The latest row for the path decides: equal content
@@ -254,8 +344,12 @@ fn try_record(
 #[cfg(test)]
 pub fn close_for_test() {
     let owner = lock().take();
-    if let Some(Owner { sender, thread }) = owner {
-        drop(sender);
+    if let Some(Owner { shared, thread }) = owner {
+        {
+            let mut state = shared.lock();
+            state.closing = true;
+            shared.changed.notify_all();
+        }
         let _ = thread.join();
     }
 }
