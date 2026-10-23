@@ -31,6 +31,7 @@ import { currentInterfaceLanguage, useInterfaceLanguage } from "./hooks/useInter
 import { I18nProvider, loadInterfaceCatalogue } from "./i18n/I18nContext";
 import { message, type Message } from "./i18n/translate";
 import { useRecordsWindowSync } from "./hooks/useRecordsWindow";
+import { StartupLoadingScreen } from "./components/layout/StartupLoadingScreen";
 import { useWindowClose } from "./hooks/use-window-close";
 import { openWorkspaceSession } from "./services/open-workspace-session";
 import { StartupPicker } from "./components/layout/StartupPicker";
@@ -43,8 +44,11 @@ import {
   describeLoadFailure,
 } from "./services";
 
+type StartupNotice = { title: Message; body: Message };
+
 type AppPhase =
   | { kind: "loading" }
+  | { kind: "opening"; path: string; notices: StartupNotice[] }
   | { kind: "startup"; returnTo?: "main" }
   | { kind: "error"; message: Message }
   | { kind: "main" };
@@ -53,7 +57,7 @@ function App() {
   useWindowClose();
   useRecordsWindowSync();
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
-  const [startupNotices, setStartupNotices] = useState<Array<{ title: Message; body: Message }>>([]);
+  const [startupNotices, setStartupNotices] = useState<StartupNotice[]>([]);
   const [mainChromeHeight, setMainChromeHeight] = useState(TAB_BAR_MIN_HEIGHT);
   const initializePreferences = usePreferencesStore((s) => s.initialize);
   const initializeAppConfig = useAppConfigStore((s) => s.initialize);
@@ -67,6 +71,7 @@ function App() {
   // loads finish, so two quick clicks would otherwise both run the sequence.
   const launchingRef = useRef(false);
   const initializedRef = useRef(false);
+  const startupAttemptRef = useRef<{ active: boolean } | null>(null);
 
   // The window theme is the one theme authority: it paints the title bar, and
   // App.css's tokens follow it through prefers-color-scheme, which reaches the
@@ -223,10 +228,15 @@ function App() {
         const configRecovery = await initializeAppConfig();
         // The first text on screen is already in the interface language.
         await loadInterfaceCatalogue(currentInterfaceLanguage());
-        const notices: Array<{ title: Message; body: Message }> = [];
+        const notices: StartupNotice[] = [];
+        if (configRecovery) notices.push(describeAppConfigRecovery(configRecovery));
         const state = useAppStateStore.getState().appState;
         if (state.lastWorkspacePath) {
-          const opened = await openWorkspaceSession(state.lastWorkspacePath);
+          const attempt = { active: true };
+          startupAttemptRef.current = attempt;
+          setPhase({ kind: "opening", path: state.lastWorkspacePath, notices });
+          const opened = await openWorkspaceSession(state.lastWorkspacePath, () => attempt.active);
+          if (!attempt.active || opened.kind === "abandoned") return;
           if (opened.kind === "success") setPhase({ kind: "main" });
           else {
             setPhase({ kind: "startup" });
@@ -238,12 +248,9 @@ function App() {
         } else {
           setPhase({ kind: "startup" });
         }
-        if (configRecovery) {
-          const notice = describeAppConfigRecovery(configRecovery);
-          notices.push(notice);
-        }
-        setStartupNotices(notices);
+        if (notices.length) setStartupNotices(notices);
       } catch (e) {
+        if (startupAttemptRef.current?.active === false) return;
         log.error("app initialization failed", toErrorFields(e));
         await loadInterfaceCatalogue(currentInterfaceLanguage());
         setPhase({
@@ -261,6 +268,7 @@ function App() {
     launchingRef.current = true;
     try {
       const opened = await openWorkspaceSession(workspacePath);
+      if (opened.kind === "abandoned") return;
       if (opened.kind === "tasks") {
         setPhase({ kind: "main" });
         await showMessage(message("startup.workspaceFailed.title"), message("tabs.notSaved", { path: opened.paths.join("\n") }));
@@ -299,6 +307,14 @@ function App() {
       // No text until the language is known, so the first words on screen are
       // already in it.
       content = <div className="h-screen bg-background" />;
+      break;
+
+    case "opening":
+      content = <StartupLoadingScreen path={phase.path} onChooseAnother={() => {
+        if (startupAttemptRef.current) startupAttemptRef.current.active = false;
+        setStartupNotices(phase.notices);
+        setPhase({ kind: "startup" });
+      }} />;
       break;
 
     case "error":

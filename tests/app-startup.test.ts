@@ -49,7 +49,7 @@ describe("startup routing", () => {
   it("reopens the last workspace directly and cancelling an explicit switch keeps it", async () => {
     mocks.state.lastWorkspacePath = "old-w";
     host = await mount(createElement(App));
-    expect(mocks.open).toHaveBeenCalledWith("old-w");
+    expect(mocks.open).toHaveBeenCalledWith("old-w", expect.any(Function));
     expect(document.body.textContent).toBe("Main");
     await click("Main"); await click("Cancel");
     expect(document.body.textContent).toBe("Main");
@@ -76,4 +76,33 @@ describe("startup routing", () => {
     expect(mocks.paths).toHaveBeenCalledWith("new-w");
     expect(document.body.textContent).toBe("Main");
   });
+  it("lets a stalled startup read finish without adopting it after choosing another workspace", async () => {
+    mocks.state.lastWorkspacePath = "slow-w";
+    let finish!: (value: { kind: "success" }) => void;
+    mocks.open.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    host = await mount(createElement(App));
+    expect(document.body.textContent).toContain("Opening workspace");
+    const isCurrent = mocks.open.mock.calls[0][1] as () => boolean;
+    expect(isCurrent()).toBe(true);
+    await click("Choose another workspace");
+    expect(isCurrent()).toBe(false);
+    await click("Open");
+    expect(document.body.textContent).toBe("Main");
+    await act(async () => finish({ kind: "success" }));
+    expect(document.body.textContent).toBe("Main");
+    expect(mocks.paths).toHaveBeenCalledExactlyOnceWith("new-w");
+  });
+
+  it("ignores a late rejection after leaving the pending startup attempt", async () => {
+    mocks.state.lastWorkspacePath = "slow-w";
+    let reject!: (reason: Error) => void;
+    mocks.open.mockReturnValueOnce(new Promise((_resolve, failed) => { reject = failed; }));
+    host = await mount(createElement(App));
+    await click("Choose another workspace");
+    await click("Open");
+    await act(async () => reject(new Error("volume disconnected")));
+    expect(document.body.textContent).toBe("Main");
+    expect(mocks.paths).toHaveBeenCalledExactlyOnceWith("new-w");
+  });
+
 });

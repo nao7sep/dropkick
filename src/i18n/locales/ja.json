@@ -1,4 +1,6 @@
 {
+  "startup.openingWorkspace": "ワークスペースを開いています…",
+  "startup.chooseAnotherWorkspace": "別のワークスペースを選択",
   "settings.language": "言語",
   "settings.languageSystem": "システム",
   "settings.languageSystemNow": "システム（{language}）",

@@ -38,4 +38,16 @@ describe("switching a workspace", () => {
     expect(mocks.adoptPreferences).not.toHaveBeenCalled();
     expect(mocks.adoptWorkspace).not.toHaveBeenCalled();
   });
+  it("never adopts or retires lists from an abandoned workspace read", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.workspace.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    let current = true;
+    const opening = openWorkspaceSession("slow", () => current);
+    await vi.waitFor(() => expect(mocks.workspace).toHaveBeenCalled());
+    current = false;
+    finish({ status: "success", workspace: { id: "old", openTabs: [], recentFiles: [] } });
+    expect(await opening).toEqual({ kind: "abandoned" });
+    expect(mocks.adoptWorkspace).not.toHaveBeenCalled();
+  });
+
 });

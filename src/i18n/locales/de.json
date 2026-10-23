@@ -1,4 +1,6 @@
 {
+  "startup.openingWorkspace": "Arbeitsbereich wird geöffnet\u00a0…",
+  "startup.chooseAnotherWorkspace": "Anderen Arbeitsbereich wählen",
   "settings.language": "Sprache",
   "settings.languageSystem": "System",
   "settings.languageSystemNow": "System ({language})",

@@ -1,4 +1,6 @@
 {
+  "startup.openingWorkspace": "Abrindo o espaço de trabalho…",
+  "startup.chooseAnotherWorkspace": "Escolher outro espaço de trabalho",
   "settings.language": "Idioma",
   "settings.languageSystem": "Sistema",
   "settings.languageSystemNow": "Sistema ({language})",
