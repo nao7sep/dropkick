@@ -12,6 +12,7 @@ use tauri::{AppHandle, Manager, State};
 mod backup_store;
 mod document_dates;
 mod format_version;
+mod guarded_save;
 mod i18n;
 mod instance_owner;
 mod logging;
@@ -198,40 +199,6 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 // settle hands the work to the blocking pool and awaits its real end, with no
 // timeout, so the frontend always learns what a write actually did.
 //
-// Computes SHA-256 hash of a file's raw bytes.
-// Called from TypeScript before every write to detect external modifications.
-#[tauri::command]
-async fn hash_file(path: String) -> Result<Option<String>, String> {
-    native_wait::settle(move || {
-        let path = path.as_str();
-        let started = log_cmd_start("hash_file", json!({ "path": path }));
-        match std::fs::read(path) {
-            Ok(bytes) => {
-                let hash = sha256_hex(&bytes);
-                log_cmd_ok(
-                    "hash_file",
-                    started,
-                    json!({ "path": path, "bytes": bytes.len() }),
-                );
-                Ok(Some(hash))
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                log_cmd_ok(
-                    "hash_file",
-                    started,
-                    json!({ "path": path, "outcome": "missing" }),
-                );
-                Ok(None)
-            }
-            Err(e) => {
-                log_cmd_err("hash_file", started, e.to_string());
-                Err(e.to_string())
-            }
-        }
-    })
-    .await
-}
-
 // Reads a JSON file once. An admitted digest match avoids decoding and DTO
 // transfer; changed bytes are classified with their exact content digest.
 #[tauri::command]
@@ -504,6 +471,22 @@ async fn write_text_file_atomic(
     }
 }
 
+#[tauri::command]
+async fn save_task_file(path: String, contents: String, admission: guarded_save::Admission) -> guarded_save::Outcome {
+    let started = log_cmd_start("save_task_file", json!({ "path": path, "bytes": contents.len() }));
+    let destination = path.clone();
+    let result = native_wait::settle(move || Ok(guarded_save::save(&destination, &contents, admission))).await;
+    let outcome = result.unwrap_or_else(|message| guarded_save::Outcome::Failed {
+        message, publication: guarded_save::Publication::Unknown,
+    });
+    if let guarded_save::Outcome::Failed { message, publication } = &outcome {
+        logging::error("task file save failed", json!({ "path": path, "error": { "message": message }, "publication": publication }));
+    } else {
+        log_cmd_ok("save_task_file", started, json!({ "path": path }));
+    }
+    outcome
+}
+
 // The staging directory an atomic write creates beside its target:
 // `<stem>-<nanoid>.tmp` (stem = the target's file name without its final
 // extension), holding the new file under the target's own name until it is
@@ -612,6 +595,14 @@ mod windows_replace {
         path.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
     }
 
+    pub fn replace_file_preserving(tmp: &Path, target: &Path, backup: &Path) -> std::io::Result<()> {
+        let (replaced, replacement, backup) = (wide(target), wide(tmp), wide(backup));
+        let ok = unsafe { ReplaceFileW(replaced.as_ptr(), replacement.as_ptr(), backup.as_ptr(),
+            REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_IGNORE_ACL_ERRORS,
+            std::ptr::null_mut(), std::ptr::null_mut()) };
+        if ok != 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+    }
+
     pub fn replace_file(tmp: &Path, target: &Path) -> std::io::Result<()> {
         let (replaced, replacement) = (wide(target), wide(tmp));
         // SAFETY: both strings are NUL-terminated and outlive the call, and null
@@ -661,13 +652,22 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         .and_then(|n| n.to_str())
         .ok_or_else(|| "path has no file name".to_string())?;
 
-    refuse_newer_json(target, contents.as_bytes())?;
-
-    // A write that changes nothing is skipped (content-lifecycle-conventions,
-    // Files). A target that is missing or cannot be read takes the write below.
-    if std::fs::read(target).is_ok_and(|existing| existing == contents.as_bytes()) {
+    let writing = format_version::stamped(contents.as_bytes());
+    let existing = match std::fs::read(target) {
+        Ok(bytes) => Some(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.to_string()),
+    };
+    if let (Some(current), Some(bytes)) = (writing, existing.as_ref()) {
+        if let Some(found) = format_version::stamped(bytes) {
+            if found > current { return Err(format_version::newer_than_message(target, found, current)); }
+        }
+    }
+    // Unchanged content does not stage, publish or record another backup.
+    if existing.as_deref() == Some(contents.as_bytes()) {
         return Ok(sha256_hex(contents.as_bytes()));
     }
+    drop(existing);
 
     let stage_dir = parent.join(atomic_temp_name(file_name));
     let mut directory = std::fs::DirBuilder::new();
@@ -699,7 +699,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         return Err(e.to_string());
     }
 
-    let publication = refuse_newer_json(target, contents.as_bytes())
+    let publication = writing.map_or(Ok(()), |current| refuse_newer_than(target, current))
         .and_then(|()| replace_target(&tmp, target).map_err(|e| e.to_string()));
     if let Err(e) = publication {
         let _ = std::fs::remove_file(&tmp);
@@ -719,9 +719,9 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     // bytes (`contents.as_bytes()`), never re-reading the file (which would risk
     // capturing a concurrent writer's content, not what this call wrote).
     //
-    // This is the ONE managed-text choke point every managed write funnels through
-    // (webview -> write_text_file_atomic -> here), so the hook lives in exactly one
-    // place. record() only queues the bytes for the history's own thread and
+    // Internal stores and workspace writes use this publication owner; guarded
+    // task saves record at their own successful publication boundary. record()
+    // only queues bytes for the history's own thread and
     // returns at once: the save is complete, and a slow or locked store never
     // delays its reply. Managed durable text (config.json,
     // preferences/workspaces/task-lists — internal and external) is recorded;
@@ -742,13 +742,6 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
 // stamps with that format's current version, so each format is judged against
 // its own. Contents without a marker are not a store document and are not
 // judged; a target without one (v0.1.0's files) is never newer.
-fn refuse_newer_json(path: &std::path::Path, contents: &[u8]) -> Result<(), String> {
-    match format_version::stamped(contents) {
-        Some(writing) => refuse_newer_than(path, writing),
-        None => Ok(()),
-    }
-}
-
 fn refuse_newer_than(path: &std::path::Path, current: u64) -> Result<(), String> {
     match std::fs::read(path) {
         Ok(bytes) => match format_version::stamped(&bytes) {
@@ -1311,10 +1304,10 @@ pub fn run() {
             language_environment,
             system_theme,
             standalone_dialog,
-            hash_file,
             read_json_file_with_hash,
             read_text_file,
             write_text_file_atomic,
+            save_task_file,
             file_exists,
             quarantine_file,
             ensure_dir,

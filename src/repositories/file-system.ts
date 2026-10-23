@@ -133,11 +133,7 @@ export async function quarantineFile(path: string, format: StoreFormat): Promise
   return await invoke<string>("quarantine_file", { path, formatVersion: FORMAT_VERSIONS[format] });
 }
 
-// Computes SHA-256 hash of a file via the Rust backend.
-// Returns null if the file does not exist.
-export async function hashFile(path: string): Promise<string | null> {
-  return await invoke<string | null>("hash_file", { path });
-}
+
 
 // Checks if a file exists on disk.
 export async function fileExists(path: string): Promise<boolean> {
@@ -306,5 +302,23 @@ export async function drainRequiredSerial(key?: string): Promise<void> {
       : [...(requiredChains.get(key) ?? [])];
     if (tails.length === 0) return;
     await Promise.allSettled(tails);
+  }
+}
+
+export type TaskSaveAdmission = { kind: "compare"; hash: string } | { kind: "overwrite" } | { kind: "create" };
+export type TaskSaveOutcome =
+  | { status: "saved"; hash: string; recoveryPath: string | null }
+  | { status: "conflict" | "missing" | "unsupported" }
+  | { status: "failed"; message: string; publication: "untouched" | "unknown" };
+
+// The comparison and final publication belong to the same native operation.
+// A rejected invocation has an unknown outcome; only its typed native reply
+// can establish that a failed operation left the original untouched.
+export async function saveTaskFile(path: string, document: object, admission: TaskSaveAdmission): Promise<TaskSaveOutcome> {
+  const contents = JSON.stringify(withFormatVersion("taskList", document), null, 2);
+  try { return await invoke<TaskSaveOutcome>("save_task_file", { path, contents, admission }); }
+  catch (error) {
+    log.error("task save invocation failed", { path, ...toErrorFields(error) });
+    throw error;
   }
 }

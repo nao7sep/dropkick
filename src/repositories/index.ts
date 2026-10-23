@@ -8,7 +8,6 @@ export {
   readJsonFileWithHash,
   writeJsonFile,
   quarantineFile,
-  hashFile,
   fileExists,
   ensureDirectory,
   appPaths,

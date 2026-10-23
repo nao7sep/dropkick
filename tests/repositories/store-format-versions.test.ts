@@ -55,10 +55,14 @@ beforeEach(() => {
       }
       case "read_json_file_with_hash":
         return readTaskList(path);
-      case "hash_file":
-        return disk.get(path) ?? null;
       case "file_exists":
         return disk.has(path);
+      case "save_task_file": {
+        const admission = (args as { admission: { kind: string; hash?: string } }).admission;
+        if (admission.kind === "compare" && disk.get(path) !== admission.hash) return { status: disk.has(path) ? "conflict" : "missing" };
+        disk.set(path, contents);
+        return { status: "saved", hash: contents, recoveryPath: null };
+      }
       case "write_text_file_atomic":
         disk.set(path, contents);
         return contents;
@@ -86,7 +90,7 @@ function put(path: string, document: unknown): string {
 
 function writes(): unknown[] {
   return vi.mocked(invoke).mock.calls.filter(([command]) =>
-    command === "write_text_file_atomic" || command === "quarantine_file");
+    command === "save_task_file" || command === "write_text_file_atomic" || command === "quarantine_file");
 }
 
 function writesTo(path: string): unknown[] {

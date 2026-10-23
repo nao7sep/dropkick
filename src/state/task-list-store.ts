@@ -1028,6 +1028,9 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       if (result.status === "dest-unsaved") {
         markUnsaved(destFilePath, message("write.taskList"));
       }
+      if (result.status === "source-uncertain") {
+        markUnsaved(sourceFilePath, result.message);
+      }
 
       const failure =
         identityCollision ? message("move.identityCollision") :

@@ -15,8 +15,7 @@ import type { TaskListDto, TaskDto } from "../models";
 import { createEmptyTaskList } from "../models";
 import {
   readJsonFileWithHash,
-  writeJsonFile,
-  hashFile,
+  saveTaskFile,
   withSerial,
   createLatestSerial,
   withSerialTwo,
@@ -25,6 +24,8 @@ import type { JsonReadWithHashResult } from "./file-system";
 import {
   showFileConflictDialog,
   showFileDeletedDialog,
+  showMessage,
+  chooseSeparateTaskCopy,
 } from "./dialogs";
 import { log, toErrorFields } from "./logging";
 import { message, type Message } from "../i18n/translate";
@@ -74,6 +75,7 @@ export type MoveResult =
   | { status: "source-deleted" }
   | { status: "dest-deleted" }
   | { status: "dest-unsaved" }
+  | { status: "source-uncertain"; message: Message }
   | { status: "error"; message: Message };
 
 // Inputs the store provides to `flushMove`. Returned by a closure invoked
@@ -129,7 +131,8 @@ export async function createTaskListFile(
 ): Promise<LoadedTaskList> {
   return withSerial(filePath, async () => {
     const data = createEmptyTaskList();
-    rememberHash(filePath, await writeJsonFile(filePath, "taskList", data));
+    const result = await writeAndRemember(filePath, data);
+    if (result.status !== "success") throw new Error("Choose a new file name; the existing file was not replaced.");
     return { filePath, data };
   });
 }
@@ -161,38 +164,55 @@ export async function refreshTaskList(
 
 // --- Internal helpers (always called inside a serial slot) ---
 
-async function writeAndRemember(
-  filePath: string,
-  data: TaskListDto,
-): Promise<void> {
-  // The core hashes the bytes it wrote and hands the digest back, so there is
-  // no read-back here: it would cost a second full read of the file per save,
-  // and it could hash a concurrent writer's content rather than what this call
-  // actually wrote — which is exactly the hash this stores as "ours".
-  rememberHash(filePath, await writeJsonFile(filePath, "taskList", data));
+class SaveFailure extends Error {
+  constructor(message: string, readonly publication: "untouched" | "unknown") { super(message); }
 }
 
 type HashCheckedWrite =
   | { status: "success" }
   | { status: "conflict" }
-  | { status: "deleted" };
+  | { status: "deleted" }
+  | { status: "unsupported" };
 
-async function writeIfHashMatches(
-  filePath: string,
-  data: TaskListDto,
-): Promise<HashCheckedWrite> {
-  const expected = knownHashes.get(filePath);
-  if (expected === undefined) {
-    // Repository contract: callers register the file by loading it first.
-    throw new Error(`File not registered: ${filePath}`);
+async function writeAndRemember(filePath: string, data: TaskListDto,
+  admission: import("./file-system").TaskSaveAdmission = { kind: "overwrite" }): Promise<HashCheckedWrite> {
+  const result = await saveTaskFile(filePath, data, admission);
+  if (result.status === "failed") throw new SaveFailure(result.message, result.publication);
+  if (result.status === "missing") return { status: "deleted" };
+  if (result.status !== "saved") return { status: result.status };
+  rememberHash(filePath, result.hash);
+  if (result.recoveryPath) {
+    // Publication is already known. A notice cannot turn it into a failed save
+    // or delay a move's next required write.
+    void showMessage(message("save.collisionTitle"), message("save.collisionBody", { path: filePath, recovery: result.recoveryPath }))
+      .catch(error => log.warn("save collision notice failed", toErrorFields(error)));
   }
-  // hashFile already reports a missing file as null, so "does it exist?" is
-  // answered once rather than in two places that could disagree.
-  const current = await hashFile(filePath);
-  if (current === null) return { status: "deleted" };
-  if (current !== expected) return { status: "conflict" };
-  await writeAndRemember(filePath, data);
   return { status: "success" };
+}
+
+async function writeIfHashMatches(filePath: string, data: TaskListDto): Promise<HashCheckedWrite> {
+  const hash = knownHashes.get(filePath);
+  if (hash === undefined) throw new Error(`File not registered: ${filePath}`);
+  return writeAndRemember(filePath, data, { kind: "compare", hash });
+}
+
+async function separateCopy(filePath: string, data: TaskListDto): Promise<WriteResult> {
+  const path = await chooseSeparateTaskCopy(filePath);
+  if (path === null) return { status: "error", message: message("save.separateRequired") };
+  const result = await saveTaskFile(path, data, { kind: "create" });
+  if (result.status === "failed") throw new SaveFailure(result.message, result.publication);
+  // Creating a separate copy never changes the original's comparison authority
+  // or marks the original saved. An occupied name is refused, even if a native
+  // picker offered overwrite, so this escape cannot reintroduce replacement.
+  return { status: "error", message: result.status === "saved"
+    ? message("save.copySaved", { path }) : message("save.copyNeedsNewName") };
+}
+
+async function finishExplicitSave(filePath: string, data: TaskListDto, create: boolean): Promise<WriteResult> {
+  const result = await writeAndRemember(filePath, data, { kind: create ? "create" : "overwrite" });
+  if (result.status === "success") return result;
+  if (result.status === "unsupported") return separateCopy(filePath, data);
+  return { status: "error", message: message("save.changedAgain") };
 }
 
 async function resolveConflict(
@@ -212,8 +232,7 @@ async function resolveConflict(
     return { status: "error", message: message("write.taskList") };
   }
   if (choice === "overwrite") {
-    await writeAndRemember(filePath, data);
-    return { status: "success" };
+    return finishExplicitSave(filePath, data, false);
   }
   // A failed reload leaves the local edit and its last confirmed hash owned
   // by this open list. Retry must recheck disk and offer recovery again.
@@ -248,8 +267,7 @@ async function resolveDeleted(
 ): Promise<WriteResult> {
   const choice = await showFileDeletedDialog(filePath);
   if (choice === "save") {
-    await writeAndRemember(filePath, data);
-    return { status: "success" };
+    return finishExplicitSave(filePath, data, true);
   }
   // Cancelling recreation keeps the local edit retryable. Only unloading
   // the list releases its hash; a later retry may recreate or find a conflict.
@@ -280,6 +298,7 @@ export async function flushTaskList(
     const data = getData();
     const attempt = await writeIfHashMatches(filePath, data);
     if (attempt.status === "success") return { status: "success" };
+    if (attempt.status === "unsupported") return separateCopy(filePath, data);
     // The on-disk file drifted from what we last wrote — recoverable but
     // unexpected, so it is a warning. The user resolves it via the dialog.
     log.warn("task list modified externally", {
@@ -324,20 +343,25 @@ export async function flushMove(
     };
 
     // Step 1: write destination (addition before deletion).
+    const previousDestHash = knownHashes.get(destFilePath)!;
     const destResult = await writeIfHashMatches(destFilePath, destDataPostMove);
     if (destResult.status === "conflict") return { status: "dest-conflict" };
     if (destResult.status === "deleted") return { status: "dest-deleted" };
+    if (destResult.status === "unsupported") return { status: "error", message: message("save.separateRequired") };
 
-    // Step 2: write source. A throw here — the volume went read-only, was
-    // unplugged or filled up — is a failed step like a conflict, not an escape
-    // past the rollback: the destination already holds the moved tasks, and
-    // leaving it so would put them in both files on disk while the store keeps
-    // them only in the source. A failed atomic write leaves its target
-    // untouched, so the source still holds its pre-move content.
+    // Destination is published first. Only a native untouched result permits
+    // compensation; transport failures and partial replacement remain unknown.
     let sourceResult: HashCheckedWrite | { status: "failed" };
     try {
       sourceResult = await writeIfHashMatches(sourceFilePath, sourceDataPostMove);
     } catch (e) {
+      if (!(e instanceof SaveFailure) || e.publication !== "untouched") {
+        // Keep the destination copy. Its previous comparison hash ensures a
+        // later edit cannot silently erase this unresolved copy. The source
+        // stays on screen and is marked unsaved by the store.
+        rememberHash(destFilePath, previousDestHash);
+        return { status: "source-uncertain", message: message("save.moveUncertain") };
+      }
       log.warn("move source write failed; rolling back destination", {
         source: sourceFilePath,
         dest: destFilePath,
@@ -372,6 +396,8 @@ export async function flushMove(
         return { status: "source-conflict" };
       case "deleted":
         return { status: "source-deleted" };
+      case "unsupported":
+        return { status: "error", message: message("save.separateRequired") };
       case "failed":
         return { status: "error", message: message("move.failed") };
     }

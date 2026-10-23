@@ -185,3 +185,10 @@ export async function askStandalone(
     return null;
   }
 }
+
+export async function chooseSeparateTaskCopy(filePath: string): Promise<string | null> {
+  const accepted = await showAppConfirm(message("save.separateTitle"), message("save.separateBody", { path: filePath }), {
+    tone: "warning", confirmLabel: message("save.separateAction"),
+  });
+  return accepted ? saveJsonFileDialog("tasks-copy.json", filePath) : null;
+}

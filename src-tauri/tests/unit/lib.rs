@@ -6,24 +6,6 @@ fn settled<F: std::future::Future>(command: F) -> F::Output {
 }
 
 #[test]
-fn hash_file_hashes_actual_bytes() {
-    let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path();
-    let path = dir.join("f.txt");
-    std::fs::write(&path, b"abc").unwrap();
-    let result = settled(hash_file(path.to_str().unwrap().to_string())).unwrap();
-    assert_eq!(result, Some(sha256_hex(b"abc")));
-}
-
-#[test]
-fn hash_file_returns_missing_for_an_absent_file() {
-    let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path();
-    let path = dir.join("absent.txt");
-    assert_eq!(settled(hash_file(path.to_str().unwrap().to_string())).unwrap(), None);
-}
-
-#[test]
 fn quarantine_file_renames_and_preserves_bytes() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();

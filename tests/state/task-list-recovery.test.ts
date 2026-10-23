@@ -26,17 +26,22 @@ beforeEach(async () => {
   invalid = false;
   writes = [];
   vi.mocked(invoke).mockImplementation(async (command, args) => {
-    if (command === "hash_file") return hash;
     if (command === "read_json_file_with_hash") {
       if (hash === null) return { status: "missing" };
       if (invalid) return { status: "invalid", message: "bad JSON" };
       return { status: "success", hash, data: structuredClone(disk) };
     }
-    if (command === "write_text_file_atomic") {
+    if (command === "save_task_file") {
+      const admission = (args as { admission: { kind: string; hash?: string } }).admission;
+      if (admission.kind === "compare") {
+        if (hash === null) return { status: "missing" };
+        if (hash !== admission.hash) return { status: "conflict" };
+      }
+      if (admission.kind === "create" && hash !== null) return { status: "conflict" };
       disk = JSON.parse((args as { contents: string }).contents) as TaskListDto;
       writes.push(structuredClone(disk));
       hash = `saved-${writes.length}`;
-      return hash;
+      return { status: "saved", hash, recoveryPath: null };
     }
     return undefined;
   });

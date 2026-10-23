@@ -10,7 +10,7 @@ import { log } from "../../src/repositories/logging";
 
 import { invoke } from "@tauri-apps/api/core";
 import {
-  hashFile,
+  saveTaskFile,
   writeJsonFile,
   withSerial,
   withSerialTwo,
@@ -18,16 +18,6 @@ import {
   pendingSerialKeys,
   drainSerial,
 } from "../../src/repositories/file-system";
-
-describe("hashFile", () => {
-  it("uses the hash command's explicit missing result without an existence preflight", async () => {
-    vi.mocked(invoke).mockResolvedValueOnce(null);
-
-    await expect(hashFile("/missing.json")).resolves.toBeNull();
-    expect(invoke).toHaveBeenCalledOnce();
-    expect(invoke).toHaveBeenCalledWith("hash_file", { path: "/missing.json" });
-  });
-});
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void;
@@ -236,4 +226,17 @@ describe("latest-state serial generations", () => {
     expect(results).toEqual(Array.from({ length: 10 }, () => ({ status: "rejected", reason: error })));
     await expect(save("failed", async () => "retried")).resolves.toEqual({ covered: false, value: "retried" });
   });
+});
+
+
+it("sends task admission and exact formatted content in one invocation without duplicating native failures", async () => {
+  vi.mocked(invoke).mockClear(); vi.mocked(log.error).mockClear();
+  const outcome = { status: "failed", message: "disk unavailable", publication: "unknown" };
+  vi.mocked(invoke).mockResolvedValueOnce(outcome);
+  expect(await saveTaskFile("/task.json", { id: "L", tasks: [] }, { kind: "compare", hash: "baseline" })).toEqual(outcome);
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("save_task_file", {
+    path: "/task.json", contents: JSON.stringify({ formatVersion: 1, id: "L", tasks: [] }, null, 2),
+    admission: { kind: "compare", hash: "baseline" },
+  });
+  expect(log.error).not.toHaveBeenCalled();
 });
