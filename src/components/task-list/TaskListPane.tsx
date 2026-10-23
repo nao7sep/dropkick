@@ -30,6 +30,7 @@ import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing
 import type { ViewTasks } from "../../hooks/useViewTasks";
 import { describeDiskFailure, describeLoadFailure, fieldDraftKey, fileNameWithoutExt } from "../../services";
 import { useNoteDraftStore } from "../../state/note-draft-store";
+import { VirtualTaskRows } from "./VirtualTaskRows";
 import { Button } from "../shared/Button";
 import { useI18n } from "../../i18n/I18nContext";
 import type { Message } from "../../i18n/translate";
@@ -156,6 +157,7 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
   // Handled) never drops focus to <body>. anchorRef pins one end of a keyboard
   // range selection.
   const listRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const anchorRef = useRef<string | null>(null);
   const dominantSelectedKey = useMemo(() => {
     const keys = [...selectedKeys];
@@ -180,7 +182,8 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
     () => (handledExpanded ? [...activeKeys, ...handledKeys] : activeKeys),
     [activeKeys, handledKeys, handledExpanded],
   );
-  const activeDescendantId = dominantSelectedKey
+  const visualPositions = useMemo(() => new Map(visualKeys.map((key, index) => [key, index + 1])), [visualKeys]);
+  const activeDescendantId = dominantSelectedKey && visualKeys.includes(dominantSelectedKey)
     ? rowDomId(dominantSelectedKey)
     : undefined;
 
@@ -567,7 +570,7 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
           New Task button; the scroll padding is a stuck header's height (6px
           padding each side of a 20px line), so a row scrolled into view by the
           keyboard lands below it rather than under it. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[32px]">
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-pt-[32px]">
         {/* The composite listbox: one tab stop spanning the active tasks and the
             Handled archive. Navigation is handled here and fires only while the
             list has focus. The Handled disclosure and "show more" are inside it as
@@ -611,13 +614,15 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
                   {i18n.number(groupTasks.length)}
                 </span>
               </div>
-              {groupTasks.map((task) => {
+              <VirtualTaskRows tasks={groupTasks} scrollRef={scrollRef} pinnedKeys={[editingTaskKey, dominantSelectedKey]} renderRow={(task, measureRef) => {
                 const selectionKey = taskSelectionKey(task);
                 return (
                   <TaskRow
                     key={selectionKey}
-                    rowRef={registerRowRef(selectionKey)}
+                    rowRef={(node) => { measureRef(node); registerRowRef(selectionKey)(node); }}
                     asOption
+                    position={visualPositions.get(selectionKey)}
+                    total={visualKeys.length}
                     domId={rowDomId(selectionKey)}
                     task={task}
                     isSelected={selectedKeys.has(selectionKey)}
@@ -634,7 +639,7 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
                     onCancelRename={() => cancelRename(task)}
                   />
                 );
-              })}
+              }} />
             </div>
           ))}
 
@@ -665,6 +670,8 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
                         key={selectionKey}
                         rowRef={registerRowRef(selectionKey)}
                         asOption
+                        position={visualPositions.get(selectionKey)}
+                        total={visualKeys.length}
                         domId={rowDomId(selectionKey)}
                         task={task}
                         isSelected={selectedKeys.has(selectionKey)}
@@ -706,6 +713,8 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
 function TaskRow({
   rowRef,
   asOption = false,
+  position,
+  total,
   domId,
   task,
   isSelected,
@@ -725,6 +734,8 @@ function TaskRow({
   // aria-activedescendant points at handled rows once the cursor is inside it,
   // so they need the id/role/aria-selected this adds.
   asOption?: boolean;
+  position?: number;
+  total?: number;
   domId?: string;
   task: Task;
   isSelected: boolean;
@@ -769,6 +780,8 @@ function TaskRow({
       id={asOption ? domId : undefined}
       role={asOption ? "option" : undefined}
       aria-selected={asOption ? isSelected : undefined}
+      aria-posinset={asOption ? position : undefined}
+      aria-setsize={asOption ? total : undefined}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
       // A rounded row with no fill of its own, sitting on its group's card tint
