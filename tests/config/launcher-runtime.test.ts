@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // The launcher helper is plain ESM because both shell families execute it directly.
@@ -29,15 +32,18 @@ describe("launcher process identity", () => {
   });
 
   it("does not let a stale launcher generation clean up its replacement", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "dropkick-launcher-test-"));
+    const ownerFile = join(directory, "runtime.owner");
     const first = `first-${randomUUID()}`;
     const second = `second-${randomUUID()}`;
     try {
-      await claimRuntime(first);
-      await claimRuntime(second);
-      expect(await isRuntimeOwner(first)).toBe(false);
-      expect(await isRuntimeOwner(second)).toBe(true);
+      await claimRuntime(first, ownerFile);
+      await claimRuntime(second, ownerFile);
+      expect(await isRuntimeOwner(first, ownerFile)).toBe(false);
+      expect(await isRuntimeOwner(second, ownerFile)).toBe(true);
     } finally {
-      await releaseRuntime(second);
+      await releaseRuntime(second, ownerFile);
+      await rm(directory, { recursive: true, force: true });
     }
   });
 });
@@ -63,4 +69,18 @@ describe("launcher names", () => {
     // The check fails rather than passing on nothing if the launchers stop naming them this way.
     expect(found.length).toBeGreaterThanOrEqual(8);
   });
+  it("keeps simultaneous launcher fixtures independent", async () => {
+    const directories = await Promise.all([0, 1].map(() => mkdtemp(join(tmpdir(), "dropkick-launcher-test-"))));
+    const files = directories.map((directory) => join(directory, "runtime.owner"));
+    try {
+      await Promise.all(files.map((file, index) => claimRuntime(`fixture-${index}`, file)));
+      expect(await isRuntimeOwner("fixture-0", files[0])).toBe(true);
+      expect(await isRuntimeOwner("fixture-1", files[1])).toBe(true);
+      await releaseRuntime("fixture-0", files[0]);
+      expect(await isRuntimeOwner("fixture-1", files[1])).toBe(true);
+    } finally {
+      await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })));
+    }
+  });
+
 });
