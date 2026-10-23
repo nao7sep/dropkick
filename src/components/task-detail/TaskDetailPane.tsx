@@ -50,6 +50,8 @@ export function TaskDetailPane({
     [selectedKeys, visualTasks],
   );
 
+  if (view.status !== "ready") return null;
+
   if (selectedTasks.length === 1) {
     return (
       <TaskDetail

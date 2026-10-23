@@ -23,6 +23,7 @@ import { useWorkspaceStore } from "../state/workspace-store";
 import { usePreferencesStore } from "../state/preferences-store";
 
 export interface ViewTasks {
+  status: "loading" | "failed" | "ready";
   // Every task in the view, unordered beyond its source order.
   tasks: Task[];
   // The same tasks grouped for display, plus the handled archive.
@@ -36,6 +37,7 @@ export function useViewTasks(
   isUnifiedView: boolean,
 ): ViewTasks {
   const files = useTaskListStore((s) => s.files);
+  const loadError = useTaskListStore((s) => s.fileLoadErrors[filePath]);
   const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
   const dueSoonDays = usePreferencesStore((s) => s.preferences.dueSoonDays);
@@ -62,5 +64,8 @@ export function useViewTasks(
 
   const visualTasks = useMemo(() => visualTaskOrder(grouped), [grouped]);
 
-  return { tasks, grouped, visualTasks };
+  // A selected file has not established emptiness until admission succeeds.
+  // Unified View already presents partial-load health for its constituent files.
+  const status = isUnifiedView ? "ready" : loadError ? "failed" : files[filePath] ? "ready" : "loading";
+  return { status, tasks, grouped, visualTasks };
 }

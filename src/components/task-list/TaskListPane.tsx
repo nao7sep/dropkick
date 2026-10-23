@@ -583,6 +583,7 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
         <div
           ref={listRef}
           role="listbox"
+          aria-busy={view.status === "loading"}
           aria-multiselectable={true}
           aria-label={t("taskList.label")}
           aria-activedescendant={activeDescendantId}
@@ -592,7 +593,9 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
         >
           {/* Hidden handled rows do not fill the mandatory list body. Keep its
               folded archive available below while saying the active list is empty. */}
-          {emptyMessage && (
+          {view.status === "loading" ? (
+            <div className="p-4 text-sm text-ink-muted">{t("unified.loading", { count: 1 })}</div>
+          ) : emptyMessage && (
             <div className="flex flex-1 items-center justify-center p-8 text-sm text-ink-muted">
               {t(emptyMessage)}
             </div>
