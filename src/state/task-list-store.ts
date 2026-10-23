@@ -331,6 +331,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           ...state.files,
           [filePath]: { data },
         },
+        selectedKeys: retainSelection(state.selectedKeys, filePath, new Set(data.tasks.map((task) => task.id))),
       };
     });
   }
@@ -1013,11 +1014,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           }
           duplicate = duplicateOf(get().files, data, filePath);
           if (duplicate) return false;
-          const taskIds = new Set(data.tasks.map((task) => task.id));
-          set((state) => ({
-            files: { ...state.files, [filePath]: { data } },
-            selectedKeys: retainSelection(state.selectedKeys, filePath, taskIds),
-          }));
+          applyData(filePath, data);
           return true;
         });
       } catch (e) {
