@@ -122,3 +122,45 @@ fn startup_wait_is_bounded_and_a_late_claim_never_admits_a_writable_session() {
     drop(owner);
     assert!(matches!(claim(dir.path()).unwrap(), Claim::Primary { .. }));
 }
+
+#[test]
+fn fragmented_activation_waits_for_the_complete_frame() {
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let address = listener.local_addr().unwrap();
+    let (done, result) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        // Exercise the mode normalization even on a host that inherits it.
+        stream.set_nonblocking(true).unwrap();
+        let _ = done.send(read_activation(&mut stream, Duration::from_secs(2)));
+    });
+    let mut client = TcpStream::connect(address).unwrap();
+    client.write_all(b"act").unwrap();
+    assert!(matches!(result.recv_timeout(Duration::from_millis(20)), Err(std::sync::mpsc::RecvTimeoutError::Timeout)));
+    client.write_all(b"ivate").unwrap();
+    assert!(result.recv_timeout(Duration::from_secs(3)).unwrap().unwrap());
+    worker.join().unwrap();
+}
+
+#[test]
+fn short_and_silent_connections_do_not_prevent_a_later_activation() {
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let address = listener.local_addr().unwrap();
+    let (done, results) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        for _ in 0..3 {
+            let (mut stream, _) = listener.accept().unwrap();
+            let _ = done.send(read_activation(&mut stream, Duration::from_millis(100)).unwrap_or(false));
+        }
+    });
+    let mut short = TcpStream::connect(address).unwrap();
+    short.write_all(b"act").unwrap();
+    short.shutdown(std::net::Shutdown::Write).unwrap();
+    assert!(!results.recv_timeout(Duration::from_secs(2)).unwrap());
+    let _silent = TcpStream::connect(address).unwrap();
+    assert!(!results.recv_timeout(Duration::from_secs(2)).unwrap());
+    let mut valid = TcpStream::connect(address).unwrap();
+    valid.write_all(b"activate").unwrap();
+    assert!(results.recv_timeout(Duration::from_secs(2)).unwrap());
+    worker.join().unwrap();
+}

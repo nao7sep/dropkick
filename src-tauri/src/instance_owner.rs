@@ -67,9 +67,6 @@ fn claim(root: &Path) -> Result<Claim, String> {
                 .map_err(|e| e.to_string())?;
             let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
                 .map_err(|e| format!("could not open process activation endpoint: {e}"))?;
-            listener
-                .set_nonblocking(true)
-                .map_err(|e| format!("could not configure process activation endpoint: {e}"))?;
             let port = listener
                 .local_addr()
                 .map_err(|e| format!("could not inspect process activation endpoint: {e}"))?
@@ -107,21 +104,42 @@ fn notify_primary(endpoint_path: &Path) -> Result<(), String> {
     }
 }
 
+// Accepted-socket mode is platform-dependent; normalize it explicitly. The
+// deadline covers the complete fixed frame, including fragmented/slow input.
+fn read_activation(stream: &mut TcpStream, bound: Duration) -> std::io::Result<bool> {
+    stream.set_nonblocking(false)?;
+    let deadline = Instant::now() + bound;
+    let mut request = [0u8; 8];
+    let mut received = 0;
+    while received < request.len() {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "activation frame timed out"));
+        }
+        stream.set_read_timeout(Some(remaining))?;
+        match stream.read(&mut request[received..]) {
+            Ok(0) => return Ok(false),
+            Ok(count) => received += count,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(&request == b"activate")
+}
+
 fn listen<R: Runtime>(listener: TcpListener, app: tauri::AppHandle<R>) {
+    // This dedicated worker sleeps in accept while idle, with no timer wakeups.
     std::thread::spawn(move || loop {
         match listener.accept() {
             Ok((mut stream, _)) => {
-                let mut request = [0u8; 8];
-                if stream.read(&mut request).is_ok() && request.starts_with(b"activate") {
+                if read_activation(&mut stream, NOTIFY_TIMEOUT).unwrap_or(false) {
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window.show();
                         let _ = window.set_focus();
                     }
                 }
             }
-            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                std::thread::sleep(RETRY_DELAY);
-            }
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(_) => break,
         }
     });
