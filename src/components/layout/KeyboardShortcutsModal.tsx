@@ -93,6 +93,7 @@ const shortcutSections: { title: Message; shortcuts: ShortcutItem[] }[] = [
       { label: message("shortcuts.closeFocusedTab"), keys: "Delete/Backspace" },
       { label: message("shortcuts.closeTab"), keys: `${mod}+W` },
       { label: message("shortcuts.unified"), keys: `${mod}+U` },
+      { label: message("shortcuts.renameTab"), keys: "F2" },
       { label: message("shortcuts.renameTab"), keys: message("shortcuts.doubleClickTab") },
     ],
   },

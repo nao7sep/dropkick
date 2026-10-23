@@ -674,3 +674,40 @@ describe("independent menu hover and keyboard navigation", () => {
     expect(document.querySelector('[role="menu"]')).toBeNull();
   });
 });
+
+describe("keyboard tab renaming", () => {
+  it.each(["Enter", "Escape"])("renames the focused tab with F2 and returns focus after %s", async (key) => {
+    const openTabs = [createTab("/fixtures/a.json", "A"), createTab("/fixtures/b.json", "B"), { ...createTab("", "All"), isUnifiedView: true }];
+    useWorkspaceStore.setState({ workspace: { ...createDefaultWorkspace("Test"), openTabs, activeTabIndex: 0 }, filePath: "/fixtures/workspace.json", loaded: true });
+    usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+    useTaskListStore.setState({ files: {}, fileLoadErrors: {}, fileDiskErrors: {} });
+    flushWorkspace.mockClear();
+    host = await mount(createElement(TabBar, { onMenuSelect: vi.fn(), onChromeHeightChange: vi.fn() }));
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')];
+    await act(async () => {
+      tabs[1]!.focus();
+      tabs[1]!.dispatchEvent(new KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true }));
+    });
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Rename tab"]')!;
+    expect(input).not.toBeNull();
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("B");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Renamed");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    // Composition must not commit or cancel the inline editor.
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key, isComposing: true, bubbles: true })));
+    expect(document.activeElement).toBe(input);
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
+    expect(document.querySelector("input")).toBeNull();
+    expect(document.activeElement).toBe(tabs[1]);
+    expect(useWorkspaceStore.getState().workspace.openTabs[1]!.displayName).toBe(key === "Enter" ? "Renamed" : "B");
+    expect(flushWorkspace).toHaveBeenCalledTimes(key === "Enter" ? 1 : 0);
+    await act(async () => {
+      tabs[2]!.focus();
+      tabs[2]!.dispatchEvent(new KeyboardEvent("keydown", { key: "F2", bubbles: true }));
+    });
+    expect(document.querySelector("input")).toBeNull();
+  });
+});

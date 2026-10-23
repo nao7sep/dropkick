@@ -8,7 +8,7 @@ import { parentFolder, shortenPath, singleLine, stepZoomIn, stepZoomOut, ZOOM_DE
 import { useCalendarDay } from "../../hooks/useCalendarDay";
 import { computeTabUrgencies } from "../../services";
 import type { ListUrgency } from "../../services";
-import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
+import { useComposing, isComposingKeyboardEvent, isComposingEvent } from "../../hooks/useComposing";
 import { DragDropProvider } from "@dnd-kit/react";
 import type { DragEndEvent } from "@dnd-kit/react";
 import {
@@ -107,6 +107,8 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   const [editingPath, setEditingPath] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+  const closingRename = useRef(false);
+  const returnRenameFocus = useRef<string | null>(null);
   const tablistRef = useRef<HTMLDivElement>(null);
   const chromeRef = useRef<HTMLDivElement>(null);
 
@@ -134,6 +136,12 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
     if (editingPath !== null && editInputRef.current) {
       editInputRef.current.focus();
       editInputRef.current.select();
+    } else if (editingPath === null && returnRenameFocus.current !== null) {
+      const path = returnRenameFocus.current;
+      returnRenameFocus.current = null;
+      const tab = [...(tablistRef.current?.querySelectorAll<HTMLElement>("[data-tab-id]") ?? [])]
+        .find((node) => node.dataset.tabId === path);
+      tab?.focus();
     }
   }, [editingPath]);
 
@@ -294,6 +302,15 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       }
       return;
     }
+    if (e.key === "F2" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !isComposingEvent(e)) {
+      const path = (e.target as HTMLElement).closest<HTMLElement>("[data-tab-id]")?.dataset.tabId;
+      const index = workspace.openTabs.findIndex((tab) => !tab.isUnifiedView && tab.filePath === path);
+      if (index >= 0) {
+        e.preventDefault();
+        beginRename(index);
+      }
+      return;
+    }
     switch (e.key) {
       case "ArrowRight":
       case "ArrowLeft": {
@@ -330,26 +347,33 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
     }
   };
 
-  const handleDoubleClick = (index: number) => {
+  const beginRename = (index: number) => {
     const tab = workspace.openTabs[index];
     if (!tab || tab.isUnifiedView) return;
+    closingRename.current = false;
     setEditingPath(tab.filePath);
     setEditValue(tab.displayName);
   };
 
-  const handleRenameSubmit = async () => {
-    if (editingPath !== null) {
-      const cleaned = singleLine(editValue, { minify: true });
-      if (cleaned) {
-        log.info("rename tab", { path: editingPath, displayName: cleaned });
-        try {
-          await renameTab(editingPath, cleaned);
-        } catch (e) {
-          log.error("rename tab failed", { path: editingPath, ...toErrorFields(e) });
-        }
-      }
-    }
+  const closeRename = () => {
+    closingRename.current = true;
+    if (document.activeElement === editInputRef.current) returnRenameFocus.current = editingPath;
     setEditingPath(null);
+  };
+
+  const handleRenameSubmit = async () => {
+    if (editingPath === null || closingRename.current) return;
+    const path = editingPath;
+    const cleaned = singleLine(editValue, { minify: true });
+    // Close admission before persistence; Enter followed by blur is one rename.
+    closeRename();
+    if (!cleaned) return;
+    log.info("rename tab", { path, displayName: cleaned });
+    try {
+      await renameTab(path, cleaned);
+    } catch (e) {
+      log.error("rename tab failed", { path, ...toErrorFields(e) });
+    }
   };
 
   const recentFiles = workspace.recentFiles.filter(
@@ -421,11 +445,11 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                     : undefined
                 }
                 onActivate={() => setActiveTab(index)}
-                onDoubleClick={() => handleDoubleClick(index)}
+                onDoubleClick={() => beginRename(index)}
                 onClose={(e) => handleCloseTab(e, index)}
                 onEditChange={setEditValue}
                 onEditSubmit={handleRenameSubmit}
-                onEditCancel={() => setEditingPath(null)}
+                onEditCancel={closeRename}
               />
             );
             })}
@@ -744,16 +768,19 @@ function SortableTab({
       {isEditing ? (
         <input
           ref={editInputRef}
+          aria-label={t("shortcuts.renameTab")}
           value={editValue}
           onChange={(e) => onEditChange(e.target.value)}
           onBlur={onEditSubmit}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               if (isComposingKeyboardEvent(composing.composingRef, e)) return;
+              e.preventDefault();
               onEditSubmit();
             }
             if (e.key === "Escape") {
               if (isComposingKeyboardEvent(composing.composingRef, e)) return;
+              e.preventDefault();
               onEditCancel();
             }
           }}
