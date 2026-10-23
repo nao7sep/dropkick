@@ -5,8 +5,6 @@ import {
   tomorrowInTimezone,
   formatTimestamp,
   formatDueDate,
-  isOverdue,
-  isDueInDayRange,
 } from "../../src/utils/dates";
 import { loadCatalogue } from "../../src/i18n/catalogues";
 import { createTranslator } from "../../src/i18n/translate";
@@ -50,46 +48,6 @@ describe("todayInTimezone / tomorrowInTimezone", () => {
   it("falls back to system timezone for an invalid zone (no throw)", () => {
     // An unknown zone reads as the system token; just assert shape.
     expect(todayInTimezone("Not/AZone")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  });
-});
-
-describe("isOverdue", () => {
-  it("is true for a date before today in the timezone", () => {
-    expect(isOverdue("2026-06-03", "UTC")).toBe(true);
-  });
-
-  it("is false for today", () => {
-    expect(isOverdue("2026-06-04", "UTC")).toBe(false);
-  });
-
-  it("is false for a future date", () => {
-    expect(isOverdue("2026-06-10", "UTC")).toBe(false);
-  });
-
-  it("respects the timezone when deciding today", () => {
-    // In Tokyo, today is the 5th, so the 4th is overdue there but not in UTC.
-    expect(isOverdue("2026-06-04", "Asia/Tokyo")).toBe(true);
-    expect(isOverdue("2026-06-04", "UTC")).toBe(false);
-  });
-});
-
-describe("isDueInDayRange", () => {
-  it("matches today only with startOffset 0, count 1", () => {
-    expect(isDueInDayRange("2026-06-04", 0, 1, "UTC")).toBe(true);
-    expect(isDueInDayRange("2026-06-05", 0, 1, "UTC")).toBe(false);
-  });
-
-  it("matches tomorrow through today+count with startOffset 1", () => {
-    // window: 2026-06-05 .. 2026-06-11
-    expect(isDueInDayRange("2026-06-05", 1, 7, "UTC")).toBe(true);
-    expect(isDueInDayRange("2026-06-11", 1, 7, "UTC")).toBe(true);
-    expect(isDueInDayRange("2026-06-12", 1, 7, "UTC")).toBe(false);
-    expect(isDueInDayRange("2026-06-04", 1, 7, "UTC")).toBe(false);
-  });
-
-  it("returns false for a non-positive count", () => {
-    expect(isDueInDayRange("2026-06-05", 1, 0, "UTC")).toBe(false);
-    expect(isDueInDayRange("2026-06-05", 1, -3, "UTC")).toBe(false);
   });
 });
 

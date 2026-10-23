@@ -6,14 +6,12 @@ export {
   tomorrowInTimezone,
   formatTimestamp,
   formatDueDate,
-  isOverdue,
-  isDueInDayRange,
 } from "./dates";
 
 export { createTask, createNote } from "./factories";
 export type { CreateTaskOptions } from "./factories";
 
-export { computeGroup, toTask, toDto } from "./domain-mapping";
+export { computeGroup, toTask } from "./domain-mapping";
 
 export { singleLine, multiline } from "./textCleanup";
 export {

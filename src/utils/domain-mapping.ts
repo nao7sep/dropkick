@@ -67,20 +67,3 @@ export function toTask(
     sourceFile,
   };
 }
-
-// Strips computed properties, returning a clean DTO for serialization.
-// Preserves the original key order by explicitly constructing the object.
-export function toDto(task: Task): TaskDto {
-  return {
-    id: task.id,
-    title: task.title,
-    description: task.description,
-    status: task.status,
-    priority: task.priority,
-    dueDate: task.dueDate,
-    createdAtUtc: task.createdAtUtc,
-    updatedAtUtc: task.updatedAtUtc,
-    completedAtUtc: task.completedAtUtc,
-    notes: task.notes,
-  };
-}

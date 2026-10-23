@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { computeGroup, toTask, toDto } from "../../src/utils/domain-mapping";
+import { computeGroup, toTask } from "../../src/utils/domain-mapping";
 import { makeTask, makeNote } from "../helpers/task";
 
 // computeGroup and the date-based helpers it calls resolve "today" from the
@@ -108,30 +108,5 @@ describe("toTask", () => {
     expect(task.isOverdue).toBe(false);
     expect(task.isDueToday).toBe(true);
     expect(task.group).toBe("DueToday");
-  });
-});
-
-describe("toDto", () => {
-  it("strips computed properties and preserves DTO key order", () => {
-    const dto = makeTask({ id: "x", dueDate: "2026-06-04", notes: [makeNote()] });
-    const task = toTask(dto, "/f", TZ, DUE_SOON);
-    const roundTripped = toDto(task);
-
-    expect(roundTripped).not.toHaveProperty("group");
-    expect(roundTripped).not.toHaveProperty("sourceFile");
-    expect(roundTripped).not.toHaveProperty("canComplete");
-    expect(roundTripped).toEqual(dto);
-    expect(Object.keys(roundTripped)).toEqual([
-      "id",
-      "title",
-      "description",
-      "status",
-      "priority",
-      "dueDate",
-      "createdAtUtc",
-      "updatedAtUtc",
-      "completedAtUtc",
-      "notes",
-    ]);
   });
 });
