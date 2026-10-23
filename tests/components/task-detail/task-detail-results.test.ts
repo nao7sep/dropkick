@@ -351,6 +351,25 @@ describe("TaskDetail title and description drafts", () => {
 });
 
 describe("TaskDetail note composer", () => {
+  it("keeps a pending submission owned when selection remounts the detail pane", async () => {
+    let finish!: (value: ActionResult) => void;
+    addNewNote.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await act(async () => useNoteDraftStore.getState().setDraft(copyDraft("task-a"), "One note"));
+    const addButton = () => [...document.querySelectorAll("button")].find((button) => button.textContent === "Add Note")!;
+    await act(async () => addButton().click());
+    try {
+      await host!.unmount();
+      host = await mount(createElement(TaskDetail, { task: task(), filePath: "/one.json", isUnifiedView: false, nextActiveTaskKey: null, focusNewNoteSignal: 0 }));
+      expect(addButton().disabled).toBe(true);
+      const composer = [...document.querySelectorAll("textarea")].find((field) => field.value === "One note")!;
+      await act(async () => { composer.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", metaKey: true, bubbles: true })); });
+      expect(addNewNote).toHaveBeenCalledOnce();
+    } finally {
+      await act(async () => finish({ status: "success" }));
+    }
+    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a")]).toBeUndefined();
+  });
+
   it("adds a note once however often Add is clicked while the write runs", async () => {
     let finish!: (value: { status: "success" }) => void;
     addNewNote.mockImplementationOnce(

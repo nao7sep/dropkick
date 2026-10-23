@@ -19,10 +19,13 @@ import { create } from "zustand";
 import type { TaskListDto } from "../models";
 import { log } from "../repositories";
 import { draftTaskId, draftSourceFile, draftSubjectKey, composerDraftKey, draftKeyAtPath, reconcileDrafts, canonicalDraftText, closedTaskContexts, type ParkedTaskContext, type DraftList } from "../services/note-drafts";
+import type { ActionResult } from "./action-result";
 import { nowUtc } from "../utils/dates";
 
 interface NoteDraftState {
   drafts: Record<string, string>;
+  submittingVersions: ReadonlySet<number>;
+  submitDraft: (key: string, write: (text: string, editedAtUtc: string | undefined) => Promise<ActionResult>) => Promise<ActionResult | null>;
   // Only draft subjects need context after their list closes; never persisted.
   parkedTasks: Record<string, ParkedTaskContext>;
   rememberTasks: (list: TaskListDto, sourceFile: string) => void;
@@ -58,6 +61,7 @@ interface NoteDraftState {
 
 export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
   let nextVersion = 0;
+  const submissions = new Map<number, Promise<ActionResult | null>>();
   // Replace the draft map, unless nothing changed.
   function commit(drafts: Record<string, string>): void {
     if (drafts === get().drafts) return;
@@ -80,6 +84,27 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
 
   return {
     drafts: {},
+    submittingVersions: new Set(),
+    submitDraft: (key, write) => {
+      const state = get();
+      const text = state.drafts[key];
+      const version = state.draftVersions[key];
+      if (text === undefined || version === undefined) return Promise.resolve(null);
+      const existing = submissions.get(version);
+      if (existing) return existing;
+      // The receipt belongs to the draft generation, not its mounted editor or
+      // path. Moving a task preserves this generation; later typing replaces it.
+      const result = Promise.resolve().then(() => write(text, state.editedAtUtc[key])).then((outcome) => {
+        if (outcome.status === "success" || outcome.status === "reloaded") get().clearDraftIf(key, text, version);
+        return outcome;
+      }).finally(() => {
+        submissions.delete(version);
+        set({ submittingVersions: new Set(submissions.keys()) });
+      });
+      submissions.set(version, result);
+      set({ submittingVersions: new Set(submissions.keys()) });
+      return result;
+    },
     parkedTasks: {},
     rememberTasks: (list, sourceFile) => {
       const subjects = new Set(Object.keys(get().drafts).map(draftSubjectKey));

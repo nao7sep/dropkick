@@ -110,11 +110,10 @@ export function TaskDetail({
   const titleDraft = useNoteDraftStore((s) => s.drafts[titleKey]) ?? task.title;
   const descDraft = useNoteDraftStore((s) => s.drafts[descriptionKey]) ?? task.description;
 
-  // Adding a note awaits its write while the composer still holds the text, so
-  // a second click or Cmd+Enter in that window would add the same note again.
-  // The ref is the synchronous guard; the state drives the disabled button.
-  const addingNoteRef = useRef(false);
-  const [addingNote, setAddingNote] = useState(false);
+  const addingNote = useNoteDraftStore((s) => {
+    const version = s.draftVersions[composerDraftKey(task.id, filePath)];
+    return version !== undefined && s.submittingVersions.has(version);
+  });
   const deleteTasks = useTaskDeletion();
 
   // Available move destinations (other open task list tabs).
@@ -286,37 +285,17 @@ export function TaskDetail({
   const handleAddNote = async (
     actionability: NoteActionability = "Informational",
   ) => {
-    if (addingNoteRef.current) return;
     const composerKey = composerDraftKey(task.id, filePath);
-    const version = useNoteDraftStore.getState().draftVersions[composerKey];
-    const cleaned = multiline(newNoteContent);
-    if (!cleaned) return;
-    addingNoteRef.current = true;
-    setAddingNote(true);
-    try {
-      const result = await addNewNote(
-        filePath,
-        task.id,
-        cleaned,
-        actionability,
-        useNoteDraftStore.getState().editedAtUtc[composerKey],
-      );
-      if (result.status === "error") {
-        // Keep the typed text so the user can retry rather than retype it.
-        setNoteComposerError(result.message);
-        return;
-      }
-      if (result.status === "reloaded") {
-        // Reload discards the submitted generation, preserving later typing.
-        setNoteComposerError(result.message);
-        clearDraftIf(composerKey, newNoteContent, version);
-        return;
-      }
+    if (!multiline(newNoteContent)) return;
+    const result = await useNoteDraftStore.getState().submitDraft(composerKey, (text, editedAtUtc) =>
+      addNewNote(filePath, task.id, multiline(text), actionability, editedAtUtc),
+    );
+    if (result?.status === "error" || result?.status === "reloaded") {
+      setNoteComposerError(result.message);
+    } else if (result?.status === "validation") {
+      setNoteComposerError(result.reason);
+    } else {
       setNoteComposerError(null);
-      clearDraftIf(composerKey, newNoteContent, version);
-    } finally {
-      addingNoteRef.current = false;
-      setAddingNote(false);
     }
   };
 

@@ -181,3 +181,35 @@ describe("openDraft", () => {
     expect(useNoteDraftStore.getState().justOpenedKey).toBeNull();
   });
 });
+
+describe("composer submission ownership", () => {
+  it("joins a submitted generation across editor remount and task move", async () => {
+    const key = copyDraft("t1");
+    useNoteDraftStore.getState().setDraft(key, "one note");
+    let finish!: (value: { status: "success" }) => void;
+    const write = vi.fn(() => new Promise<{ status: "success" }>((resolve) => { finish = resolve; }));
+    const first = useNoteDraftStore.getState().submitDraft(key, write);
+    await Promise.resolve();
+    useNoteDraftStore.getState().moveTaskDrafts(new Set(["t1"]), "/list.json", "/destination.json");
+    const moved = "t1|%2Fdestination.json";
+    const second = useNoteDraftStore.getState().submitDraft(moved, write);
+    expect(second).toBe(first);
+    expect(write).toHaveBeenCalledOnce();
+    finish({ status: "success" });
+    await first;
+    expect(useNoteDraftStore.getState().drafts[moved]).toBeUndefined();
+    expect(useNoteDraftStore.getState().submittingVersions.size).toBe(0);
+  });
+
+  it("preserves later typing when an accepted note settles", async () => {
+    const key = copyDraft("t1");
+    useNoteDraftStore.getState().setDraft(key, "submitted");
+    let finish!: (value: { status: "success" }) => void;
+    const first = useNoteDraftStore.getState().submitDraft(key, () => new Promise((resolve) => { finish = resolve; }));
+    await Promise.resolve();
+    useNoteDraftStore.getState().setDraft(key, "next note");
+    finish({ status: "success" });
+    await first;
+    expect(useNoteDraftStore.getState().drafts[key]).toBe("next note");
+  });
+});
