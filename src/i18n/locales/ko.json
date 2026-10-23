@@ -169,6 +169,7 @@
 
   "taskList.empty": "아직 할 일이 없습니다.",
   "taskList.noActive": "남은 할 일이 없습니다.",
+  "taskList.resize": "할 일 목록 너비 조정",
   "taskList.label": "할 일 목록",
   "taskList.handled": "처리됨({count})",
   "taskList.showMore": { "other": "더 보기({count}개 남음)" },

@@ -169,6 +169,7 @@
 
   "taskList.empty": "还没有任务。",
   "taskList.noActive": "没有未完成的任务。",
+  "taskList.resize": "调整任务列表宽度",
   "taskList.label": "任务列表",
   "taskList.handled": "已处理（{count}）",
   "taskList.showMore": { "other": "显示更多（还剩 {count} 个）" },

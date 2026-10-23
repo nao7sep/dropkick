@@ -169,6 +169,7 @@
 
   "taskList.empty": "Задач пока нет.",
   "taskList.noActive": "Нет активных задач.",
+  "taskList.resize": "Изменить ширину списка задач",
   "taskList.label": "Список задач",
   "taskList.handled": "Завершённые ({count})",
   "taskList.showMore": { "one": "Показать ещё (осталось: {count})", "few": "Показать ещё (осталось: {count})", "many": "Показать ещё (осталось: {count})", "other": "Показать ещё (осталось: {count})" },

@@ -169,6 +169,7 @@
 
   "taskList.empty": "Aucune tâche pour le moment.",
   "taskList.noActive": "Aucune tâche active.",
+  "taskList.resize": "Redimensionner la liste des tâches",
   "taskList.label": "Liste de tâches",
   "taskList.handled": "Clôturées ({count})",
   "taskList.showMore": { "one": "Afficher plus (encore {count})", "many": "Afficher plus (encore {count})", "other": "Afficher plus (encore {count})" },

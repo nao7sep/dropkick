@@ -3,7 +3,7 @@
 export interface AppStateDto {
   lastWorkspacePath: string;
   zoomLevel: number; // 0.5–5.0 (1.0 = 100%); kept in sync with ZOOM_DEFAULT (utils/zoom)
-  sidebarWidth: number; // sidebar intent width in PIXELS — the width the user last dragged it to; the displayed width is clamp(SIDEBAR_MIN, intent, maxFit) — see DEFAULT_SIDEBAR_WIDTH / clampSidebarWidth in utils/windowSizing
+  sidebarWidth: number; // sidebar intent width in PIXELS — the width the user last adjusted it to; the displayed width is clamp(SIDEBAR_MIN, intent, maxFit) — see DEFAULT_SIDEBAR_WIDTH / clampSidebarWidth in utils/windowSizing
   recordsListWidth: number; // the Records window's list-pane intent width in PIXELS, saved when a drag ends — see RECORDS_LIST_WIDTH / clampRecordsListWidth in utils/recordsWindowSizing
 }
 

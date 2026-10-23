@@ -169,6 +169,7 @@
 
   "taskList.empty": "Noch keine Aufgaben.",
   "taskList.noActive": "Keine aktiven Aufgaben.",
+  "taskList.resize": "Breite der Aufgabenliste ändern",
   "taskList.label": "Aufgabenliste",
   "taskList.handled": "Abgeschlossen ({count})",
   "taskList.showMore": { "one": "Mehr anzeigen (noch {count})", "other": "Mehr anzeigen (noch {count})" },

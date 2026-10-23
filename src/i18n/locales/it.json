@@ -169,6 +169,7 @@
 
   "taskList.empty": "Ancora nessuna attività.",
   "taskList.noActive": "Nessuna attività aperta.",
+  "taskList.resize": "Ridimensiona la lista di attività",
   "taskList.label": "Lista di attività",
   "taskList.handled": "Chiuse ({count})",
   "taskList.showMore": { "one": "Mostra altre ({count} rimanente)", "many": "Mostra altre ({count} rimanenti)", "other": "Mostra altre ({count} rimanenti)" },

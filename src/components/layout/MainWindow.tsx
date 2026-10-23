@@ -105,12 +105,12 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
     : activeTab?.filePath ?? "__none__";
 
   // Sidebar resize state. The layout is an ADJUSTABLE sidebar (a fixed pixel width
-  // set by dragging the splitter) plus a FILL detail pane that takes the remaining
+  // set by adjusting the splitter) plus a FILL detail pane that takes the remaining
   // space. Two distinct widths govern the sidebar:
   //
-  //   - INTENT (persisted): the pixel width the user last dragged the sidebar to.
+  //   - INTENT (persisted): the pixel width the user last chose for the sidebar.
   //     Stored in state.json (AppStateDto.sidebarWidth), updated ONLY on a splitter
-  //     drag, never on a window resize. It is NOT clamped to the window — only the
+  //     adjustment, never on a window resize. It is NOT clamped to the window — only the
   //     displayed width is.
   //   - DISPLAY (derived, ephemeral): clamp(SIDEBAR_MIN, intent, maxFit), where
   //     maxFit = containerWidth - DETAIL_MIN_WIDTH - SPLITTER_WIDTH. This is what
@@ -127,6 +127,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   // otherwise. Held in state so the sidebar tracks the cursor before the persist.
   const [dragIntent, setDragIntent] = useState(intent);
   const draggingRef = useRef(false);
+  const keyedWidth = useRef<number | null>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
 
@@ -148,7 +149,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   // Sync dragIntent when the persisted intent changes externally (e.g. a
   // different preferences file loads). Skipped mid-drag so the live drag wins.
   useEffect(() => {
-    if (draggingRef.current) return;
+    if (draggingRef.current || keyedWidth.current !== null) return;
     setDragIntent(intent);
   }, [intent]);
 
@@ -159,6 +160,27 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
     () => clampSidebarWidth(dragIntent, containerWidth),
     [dragIntent, containerWidth],
   );
+
+  const sidebarMax = clampSidebarWidth(Infinity, containerWidth);
+  const handleDividerKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isComposingEvent(event)) return;
+    const from = keyedWidth.current ?? sidebarWidth;
+    const target = event.key === "ArrowLeft" ? from - 16
+      : event.key === "ArrowRight" ? from + 16
+      : event.key === "Home" ? SIDEBAR_MIN_WIDTH
+      : event.key === "End" ? sidebarMax : null;
+    if (target === null) return;
+    event.preventDefault();
+    keyedWidth.current = clampSidebarWidth(target, containerWidth);
+    setDragIntent(keyedWidth.current);
+  };
+  const commitKeyedWidth = () => {
+    if (keyedWidth.current === null) return;
+    const width = clampSidebarWidth(keyedWidth.current, containerWidth);
+    keyedWidth.current = null;
+    setDragIntent(width);
+    void updateViewState({ sidebarWidth: width });
+  };
 
   const handleDividerDown = useCallback(
     (e: React.MouseEvent) => {
@@ -449,8 +471,18 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
 
           {/* Resize divider — a fixed-width flex item. */}
           <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("taskList.resize")}
+            aria-valuemin={SIDEBAR_MIN_WIDTH}
+            aria-valuemax={sidebarMax}
+            aria-valuenow={sidebarWidth}
+            tabIndex={0}
             onMouseDown={handleDividerDown}
-            className="shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong"
+            onKeyDown={handleDividerKeyDown}
+            onKeyUp={commitKeyedWidth}
+            onBlur={commitKeyedWidth}
+            className="shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong focus-visible:bg-primary-accent focus-visible:outline-none"
             style={{ width: `${SPLITTER_WIDTH}px` }}
           />
 

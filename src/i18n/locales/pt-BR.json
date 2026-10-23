@@ -169,6 +169,7 @@
 
   "taskList.empty": "Nenhuma tarefa ainda.",
   "taskList.noActive": "Nenhuma tarefa ativa.",
+  "taskList.resize": "Redimensionar a lista de tarefas",
   "taskList.label": "Lista de tarefas",
   "taskList.handled": "Encerradas ({count})",
   "taskList.showMore": { "one": "Mostrar mais ({count} restante)", "many": "Mostrar mais ({count} restantes)", "other": "Mostrar mais ({count} restantes)" },

@@ -22,7 +22,7 @@ interface AppStateStore {
   initialize: () => Promise<void>;
   // Apply a live view adjustment (zoom / sidebar width / Records list width) and
   // persist it. The single funnel for zoom shortcuts, the hamburger-menu zoom,
-  // and the divider drags — the state-store analogue of the preferences store's
+  // and the divider adjustments — the state-store analogue of the preferences store's
   // `update`.
   updateViewState: (changes: ViewStateChanges) => Promise<void>;
   setLastWorkspace: (workspacePath: string) => Promise<void>;

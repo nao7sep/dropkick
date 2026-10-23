@@ -169,6 +169,7 @@
 
   "taskList.empty": "No tasks yet.",
   "taskList.noActive": "No active tasks.",
+  "taskList.resize": "Resize task list",
   "taskList.label": "Task list",
   "taskList.handled": "Handled ({count})",
   "taskList.showMore": { "one": "Show more ({count} remaining)", "other": "Show more ({count} remaining)" },

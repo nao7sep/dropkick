@@ -72,7 +72,7 @@ export function boundNativeMinimumToClient(
 }
 
 // Default sidebar intent width, in pixels. The persisted `sidebarWidth` is the
-// sidebar's INTENT width — the width the user last dragged it to — in pixels, not
+// sidebar's INTENT width — the width the user last adjusted it to — in pixels, not
 // a proportion. 320 is a comfortable default a touch narrower than the detail
 // pane's minimum.
 export const DEFAULT_SIDEBAR_WIDTH = 320;
@@ -92,7 +92,7 @@ export const DEFAULT_SIDEBAR_WIDTH = 320;
 //     returns to exactly its intent width.
 //
 // Pure and unit-tested. A window/container resize recomputes the displayed width
-// from the unchanged intent and persists nothing; only a splitter drag changes
+// from the unchanged intent and persists nothing; only a splitter adjustment changes
 // the intent.
 export function clampSidebarWidth(intent: number, containerWidth: number): number {
   // Container not yet measured (initial render before the ResizeObserver fires):

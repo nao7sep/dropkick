@@ -169,6 +169,7 @@
 
   "taskList.empty": "Todavía no hay tareas.",
   "taskList.noActive": "No hay tareas activas.",
+  "taskList.resize": "Cambiar el ancho de la lista de tareas",
   "taskList.label": "Lista de tareas",
   "taskList.handled": "Cerradas ({count})",
   "taskList.showMore": { "one": "Mostrar más (queda {count})", "many": "Mostrar más (quedan {count})", "other": "Mostrar más (quedan {count})" },

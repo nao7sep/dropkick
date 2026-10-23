@@ -169,6 +169,7 @@
 
   "taskList.empty": "タスクはまだありません。",
   "taskList.noActive": "未完了のタスクはありません。",
+  "taskList.resize": "タスクリストの幅を変更",
   "taskList.label": "タスクリスト",
   "taskList.handled": "処理済み（{count}）",
   "taskList.showMore": { "other": "さらに表示（残り {count} 件）" },
