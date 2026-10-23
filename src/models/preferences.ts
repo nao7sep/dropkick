@@ -58,7 +58,7 @@ export function normalizeThemePreference(
 }
 
 // Bounds for the two numeric settings. Named here, beside the fields they
-// govern, so the Settings inputs and the normalizers cannot disagree.
+// govern, so the Settings inputs and admission cannot disagree.
 export const DUE_SOON_DAYS_MIN = 1;
 export const DUE_SOON_DAYS_MAX = 365;
 export const DUE_SOON_DAYS_DEFAULT = 7;
@@ -66,45 +66,10 @@ export const HANDLED_TASKS_PAGE_SIZE_MIN = 10;
 export const HANDLED_TASKS_PAGE_SIZE_MAX = 500;
 export const HANDLED_TASKS_PAGE_SIZE_DEFAULT = 50;
 
-// Coerces a Settings input value to a whole number inside [min, max], falling
-// back to `fallback` for anything non-numeric. An HTML min/max attribute is a
-// hint the browser does not enforce for typed input, so the range has to be
-// applied in code or an out-of-range value reaches the field's consumers.
-function boundedInteger(
-  value: unknown,
-  min: number,
-  max: number,
-  fallback: number,
-): number {
-  const n = typeof value === "string" ? Number.parseInt(value, 10) : value;
-  if (typeof n !== "number" || !Number.isFinite(n)) {
-    return fallback;
-  }
-  return Math.min(Math.max(Math.trunc(n), min), max);
-}
-
-// Normalizes the Settings due-soon input before it reaches date arithmetic.
-// Stored load replaces an invalid whole set with its built-in value;
-// persistence refuses invalid sets.
-export function normalizeDueSoonDays(value: unknown): number {
-  return boundedInteger(
-    value,
-    DUE_SOON_DAYS_MIN,
-    DUE_SOON_DAYS_MAX,
-    DUE_SOON_DAYS_DEFAULT,
-  );
-}
-
-// Normalizes the Settings handled-archive page-size input before it becomes a
-// slice length. Stored load replaces an invalid whole set with its built-in
-// value; persistence refuses invalid sets.
-export function normalizeHandledTasksPageSize(value: unknown): number {
-  return boundedInteger(
-    value,
-    HANDLED_TASKS_PAGE_SIZE_MIN,
-    HANDLED_TASKS_PAGE_SIZE_MAX,
-    HANDLED_TASKS_PAGE_SIZE_DEFAULT,
-  );
+// Shared admission rule for numeric settings; raw form text is parsed before
+// this boundary and a stored value is never coerced into a different number.
+function isBoundedInteger(value: unknown, min: number, max: number): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
 }
 
 // The app-wide settings sets.
@@ -146,8 +111,8 @@ export function createDefaultPreferences(): PreferencesDto {
 }
 
 // The one check per set, applied where a document is read and where Save
-// writes (config-sets-conventions, Reading and healing): a value is valid when
-// the normalizer the Settings surface applies would leave it unchanged.
+// writes. Invalid values are refused or replaced as a whole set by the
+// storage owner; validation never changes the supplied value.
 export function isValidPreferenceSet(key: PreferenceSetKey, value: unknown): boolean {
   switch (key) {
     case "language": return value === normalizeLanguagePreference(value);
@@ -157,8 +122,8 @@ export function isValidPreferenceSet(key: PreferenceSetKey, value: unknown): boo
     case "kickDistances":
       return Array.isArray(value)
         && JSON.stringify(value) === JSON.stringify(normalizeKickDistances(value));
-    case "dueSoonDays": return value === normalizeDueSoonDays(value);
-    case "handledTasksPageSize": return value === normalizeHandledTasksPageSize(value);
+    case "dueSoonDays": return isBoundedInteger(value, DUE_SOON_DAYS_MIN, DUE_SOON_DAYS_MAX);
+    case "handledTasksPageSize": return isBoundedInteger(value, HANDLED_TASKS_PAGE_SIZE_MIN, HANDLED_TASKS_PAGE_SIZE_MAX);
     case "confirmPermanentDeletions": return typeof value === "boolean";
   }
 }

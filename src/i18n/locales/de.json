@@ -1,4 +1,5 @@
 {
+  "settings.numberRange": "Geben Sie eine ganze Zahl von {min} bis {max} ein.",
   "moveTasks.moving": "Aufgaben werden verschoben\u00a0…",
   "startup.openingWorkspace": "Arbeitsbereich wird geöffnet\u00a0…",
   "startup.chooseAnotherWorkspace": "Anderen Arbeitsbereich wählen",

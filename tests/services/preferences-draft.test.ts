@@ -5,6 +5,7 @@ import {
   parseKickDistances,
   isPreferencesDraftDirty,
   stagedPreferences,
+  type StagedPreferences,
 } from "../../src/services/preferences-draft";
 
 const committed = (): PreferencesDto => createDefaultPreferences();
@@ -61,7 +62,7 @@ describe("stagedPreferences", () => {
   it("stages every preference, theme included, as a fresh copy", () => {
     const c = committed();
     const staged = stagedPreferences(c);
-    expect(staged).toEqual(c);
+    expect(staged).toEqual({ ...c, dueSoonDays: String(c.dueSoonDays), handledTasksPageSize: String(c.handledTasksPageSize) });
     expect(staged).not.toBe(c);
   });
 });
@@ -74,7 +75,7 @@ describe("isPreferencesDraftDirty", () => {
 
   it("is dirty when a staged field changes", () => {
     const c = committed();
-    const draft = { ...c, fontFamily: "Comic Sans" };
+    const draft = { ...stagedPreferences(c), fontFamily: "Comic Sans" };
     expect(isPreferencesDraftDirty(draft, c, KICK_STRING)).toBe(true);
   });
 
@@ -98,15 +99,15 @@ describe("isPreferencesDraftDirty", () => {
 
   it("detects changes in each staged field", () => {
     const c = committed();
-    const cases: Partial<PreferencesDto>[] = [
+    const cases: Partial<StagedPreferences>[] = [
       { timezone: "Asia/Tokyo" },
-      { dueSoonDays: c.dueSoonDays + 1 },
-      { handledTasksPageSize: c.handledTasksPageSize + 10 },
+      { dueSoonDays: String(c.dueSoonDays + 1) },
+      { handledTasksPageSize: String(c.handledTasksPageSize + 10) },
       { fontFamily: `${c.fontFamily}-alt` },
       { confirmPermanentDeletions: !c.confirmPermanentDeletions },
     ];
     for (const change of cases) {
-      expect(isPreferencesDraftDirty({ ...c, ...change }, c, KICK_STRING)).toBe(
+      expect(isPreferencesDraftDirty({ ...stagedPreferences(c), ...change }, c, KICK_STRING)).toBe(
         true,
       );
     }

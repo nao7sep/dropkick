@@ -26,8 +26,6 @@ export {
   PREFERENCE_SET_KEYS,
   isValidPreferenceSet,
   preferencesDocument,
-  normalizeDueSoonDays,
-  normalizeHandledTasksPageSize,
   normalizeKickDistances,
   normalizeThemePreference,
   DEFAULT_KICK_DISTANCES,

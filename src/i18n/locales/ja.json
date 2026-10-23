@@ -1,4 +1,5 @@
 {
+  "settings.numberRange": "{min}から{max}までの整数を入力してください。",
   "moveTasks.moving": "タスクを移動しています…",
   "startup.openingWorkspace": "ワークスペースを開いています…",
   "startup.chooseAnotherWorkspace": "別のワークスペースを選択",

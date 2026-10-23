@@ -1,4 +1,5 @@
 {
+  "settings.numberRange": "Введите целое число от {min} до {max}.",
   "moveTasks.moving": "Перемещение задач…",
   "startup.openingWorkspace": "Открытие рабочего пространства…",
   "startup.chooseAnotherWorkspace": "Выбрать другое рабочее пространство",

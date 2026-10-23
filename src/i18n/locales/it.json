@@ -1,4 +1,5 @@
 {
+  "settings.numberRange": "Inserisci un numero intero da {min} a {max}.",
   "moveTasks.moving": "Spostamento delle attività…",
   "startup.openingWorkspace": "Apertura dello spazio di lavoro…",
   "startup.chooseAnotherWorkspace": "Scegli un altro spazio di lavoro",

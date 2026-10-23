@@ -10,17 +10,17 @@
 // persisted-store-separation-conventions.)
 
 import type { PreferencesDto } from "../models";
-import { normalizeKickDistances } from "../models";
+import { normalizeKickDistances, isValidPreferenceSet } from "../models";
 
 // The preferences the Settings modal stages: everything the user edits and
 // commits on Save.
-export type StagedPreferences = PreferencesDto;
+export type StagedPreferences = Omit<PreferencesDto, "dueSoonDays" | "handledTasksPageSize"> & { dueSoonDays: string; handledTasksPageSize: string };
 
 // Projects the committed preferences into a fresh draft.
 export function stagedPreferences(
   preferences: PreferencesDto,
 ): StagedPreferences {
-  return { ...preferences };
+  return { ...preferences, dueSoonDays: String(preferences.dueSoonDays), handledTasksPageSize: String(preferences.handledTasksPageSize) };
 }
 
 // Parses the comma-separated kick-distances field into a clean, ordered list.
@@ -45,5 +45,13 @@ export function isPreferencesDraftDirty(
 
   return (Object.keys(draft) as (keyof StagedPreferences)[])
     .filter((key) => key !== "kickDistances")
-    .some((key) => draft[key] !== committed[key]);
+    .some((key) => draft[key] !== (key === "dueSoonDays" || key === "handledTasksPageSize" ? String(committed[key]) : committed[key]));
+}
+
+// A transient blank or incomplete numeric entry remains a draft, never a
+// fallback value. The stored setting owns the admitted integer range.
+export function parseNumericPreference(key: "dueSoonDays" | "handledTasksPageSize", raw: string): number | null {
+  if (!raw.trim()) return null;
+  const value = Number(raw);
+  return isValidPreferenceSet(key, value) ? value : null;
 }

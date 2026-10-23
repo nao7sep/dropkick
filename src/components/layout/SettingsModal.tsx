@@ -1,18 +1,14 @@
 // Settings modal — edits preferences (font, timezone, kick distances, etc.).
 // Opens from the hamburger menu in the tab bar. Changes are staged locally and saved only on "Save".
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readSystemTheme } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import {
-  DUE_SOON_DAYS_DEFAULT,
   DUE_SOON_DAYS_MAX,
   DUE_SOON_DAYS_MIN,
-  HANDLED_TASKS_PAGE_SIZE_DEFAULT,
   HANDLED_TASKS_PAGE_SIZE_MAX,
   HANDLED_TASKS_PAGE_SIZE_MIN,
-  normalizeDueSoonDays,
-  normalizeHandledTasksPageSize,
   type ThemePreference,
 } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -34,6 +30,7 @@ import {
 import {
   isPreferencesDraftDirty,
   parseKickDistances,
+  parseNumericPreference,
   stagedPreferences,
   type StagedPreferences,
 } from "../../services/preferences-draft";
@@ -49,6 +46,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
+  const fieldId = useId();
   const preferences = usePreferencesStore((s) => s.preferences);
   const systemLanguage = useLanguageStore((s) => s.systemLanguage);
   // System names what it resolves to now, as the time zone's System does
@@ -87,10 +85,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     [draft, preferences, kickInput],
   );
 
+  const dueSoonDays = parseNumericPreference("dueSoonDays", draft.dueSoonDays);
+  const handledTasksPageSize = parseNumericPreference("handledTasksPageSize", draft.handledTasksPageSize);
+  const validNumbers = dueSoonDays !== null && handledTasksPageSize !== null;
+
   const handleSave = async () => {
     // Mirror the Save button's disabled state: an explicit commit requires both
     // dirty and valid, so Cmd+Enter is a no-op when there is nothing to save.
-    if (!isDirty || submittingRef.current) return;
+    if (!isDirty || !validNumbers || submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
     try {
@@ -100,15 +102,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         ...draft,
         fontFamily: singleLine(draft.fontFamily),
         kickDistances: parseKickDistances(kickInput),
-        // Range-clamp on commit rather than per keystroke, so typing "50" is not
-        // fought by the minimum after the first digit. A min/max attribute is not
-        // enforced for typed input, and both values reach consumers that cannot
-        // recover from an out-of-range one — dueSoonDays feeds date arithmetic,
-        // handledTasksPageSize is a slice length.
-        dueSoonDays: normalizeDueSoonDays(draft.dueSoonDays),
-        handledTasksPageSize: normalizeHandledTasksPageSize(
-          draft.handledTasksPageSize,
-        ),
+        dueSoonDays,
+        handledTasksPageSize,
       });
       // A failed write leaves the draft on screen with its message, rather than
       // closing over settings that never reached disk.
@@ -145,7 +140,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       footer={
         <>
           <Button onClick={handleRequestClose} disabled={submitting}>{t("common.cancel")}</Button>
-          <Button variant="primary" onClick={handleSave} disabled={!isDirty || submitting}>
+          <Button variant="primary" onClick={handleSave} disabled={!isDirty || !validNumbers || submitting}>
             {t("settings.save")}
           </Button>
         </>
@@ -170,8 +165,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
       {/* Each language is listed by its own name, in its own script, so a
           reader of any of them can find it whatever language is showing. */}
-      <Field label={t("settings.language")}>
+      <Field label={t("settings.language")} htmlFor={`${fieldId}-language`}>
         <select
+          id={`${fieldId}-language`}
           disabled={submitting}
           value={draft.language}
           onChange={(e) => setField("language", normalizeLanguagePreference(e.target.value))}
@@ -222,8 +218,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       </fieldset>
 
       {/* Font family */}
-      <Field label={t("settings.font")}>
+      <Field label={t("settings.font")} htmlFor={`${fieldId}-font`}>
         <input
+          id={`${fieldId}-font`}
           disabled={submitting}
           type="text"
           value={draft.fontFamily}
@@ -238,8 +235,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
       {/* Time zone — chosen from the list, never typed. System follows the
           computer's zone on every launch. */}
-      <Field label={t("settings.timezone")}>
+      <Field label={t("settings.timezone")} htmlFor={`${fieldId}-timezone`}>
         <select
+          id={`${fieldId}-timezone`}
           disabled={submitting}
           value={draft.timezone}
           onChange={(e) => setField("timezone", e.target.value)}
@@ -255,8 +253,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       </Field>
 
       {/* Kick distances */}
-      <Field label={t("settings.kickDistances")}>
+      <Field label={t("settings.kickDistances")} htmlFor={`${fieldId}-kick`}>
         <input
+          id={`${fieldId}-kick`}
           disabled={submitting}
           type="text"
           value={kickInput}
@@ -270,42 +269,40 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       </Field>
 
       {/* Due soon window */}
-      <Field label={t("settings.dueSoon")}>
+      <Field label={t("settings.dueSoon")} htmlFor={`${fieldId}-due`}>
         <input
+          id={`${fieldId}-due`}
           disabled={submitting}
           type="number"
           min={DUE_SOON_DAYS_MIN}
           max={DUE_SOON_DAYS_MAX}
+          aria-invalid={dueSoonDays === null}
+          aria-describedby={dueSoonDays === null ? `${fieldId}-due-error` : undefined}
           value={draft.dueSoonDays}
-          onChange={(e) =>
-            setField(
-              "dueSoonDays",
-              parseInt(e.target.value, 10) || DUE_SOON_DAYS_DEFAULT,
-            )
-          }
+          onChange={(e) => setField("dueSoonDays", e.target.value)}
           className="dk-field w-24"
         />
+        {dueSoonDays === null && <p id={`${fieldId}-due-error`} className="mt-1.5 text-xs text-danger">{t("settings.numberRange", { min: DUE_SOON_DAYS_MIN, max: DUE_SOON_DAYS_MAX })}</p>}
         <p className="mt-1.5 text-xs leading-5 text-ink-muted">
           {t("settings.dueSoonHint", { group: message("group.dueSoon") })}
         </p>
       </Field>
 
       {/* Handled tasks page size */}
-      <Field label={t("settings.handledPageSize")}>
+      <Field label={t("settings.handledPageSize")} htmlFor={`${fieldId}-handled`}>
         <input
+          id={`${fieldId}-handled`}
           disabled={submitting}
           type="number"
           min={HANDLED_TASKS_PAGE_SIZE_MIN}
           max={HANDLED_TASKS_PAGE_SIZE_MAX}
+          aria-invalid={handledTasksPageSize === null}
+          aria-describedby={handledTasksPageSize === null ? `${fieldId}-handled-error` : undefined}
           value={draft.handledTasksPageSize}
-          onChange={(e) =>
-            setField(
-              "handledTasksPageSize",
-              parseInt(e.target.value, 10) || HANDLED_TASKS_PAGE_SIZE_DEFAULT,
-            )
-          }
+          onChange={(e) => setField("handledTasksPageSize", e.target.value)}
           className="dk-field w-24"
         />
+        {handledTasksPageSize === null && <p id={`${fieldId}-handled-error`} className="mt-1.5 text-xs text-danger">{t("settings.numberRange", { min: HANDLED_TASKS_PAGE_SIZE_MIN, max: HANDLED_TASKS_PAGE_SIZE_MAX })}</p>}
       </Field>
 
       {/* Permanent deletion safety */}
@@ -333,16 +330,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 // Small helper to keep the form layout DRY.
 function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string;
+  htmlFor?: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <label className="dk-label">
-        {label}
-      </label>
+      {htmlFor ? <label className="dk-label" htmlFor={htmlFor}>{label}</label> : <div className="dk-label">{label}</div>}
       {children}
     </div>
   );

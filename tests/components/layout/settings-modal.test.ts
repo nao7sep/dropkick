@@ -16,6 +16,12 @@ vi.mock("../../../src/repositories/window-theme", () => ({
   readSystemTheme: vi.fn(async () => osTheme.current),
 }));
 
+const discard = vi.hoisted(() => vi.fn(async () => true));
+vi.mock("../../../src/repositories/dialogs", async (original) => ({
+  ...await original<typeof import("../../../src/repositories/dialogs")>(),
+  showUnsavedChangesConfirm: discard,
+}));
+
 const update = vi.fn();
 const onClose = vi.fn();
 let host: Mounted;
@@ -198,4 +204,54 @@ it("owns one pending save, holds close and editing, and retains a failed draft",
   expect(timeZoneSelect().disabled).toBe(false);
   expect(timeZoneSelect().value).toBe("Asia/Tokyo");
   expect(document.querySelector('[role="alert"]')?.textContent).toContain("try again");
+});
+
+
+async function typeNumber(field: HTMLInputElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, value);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+it.each([0, 1])("keeps numeric field %i raw until a valid Save", async (index) => {
+  const field = document.querySelectorAll<HTMLInputElement>('input[type="number"]')[index];
+  const saveButton = [...document.querySelectorAll("button")].find((b) => b.textContent === "Save")!;
+  await typeNumber(field, "");
+  expect(field.value).toBe("");
+  expect(field.getAttribute("aria-invalid")).toBe("true");
+  expect(document.getElementById(field.getAttribute("aria-describedby")!)?.textContent).toContain("whole number");
+  expect(saveButton.disabled).toBe(true);
+  await act(async () => field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", metaKey: true, bubbles: true, cancelable: true })));
+  expect(update).not.toHaveBeenCalled();
+  for (const invalid of ["0", "99999", "2.5"]) {
+    await typeNumber(field, invalid);
+    expect(field.value).toBe(invalid);
+    expect(saveButton.disabled).toBe(true);
+  }
+  await typeNumber(field, "25");
+  expect(saveButton.disabled).toBe(false);
+  await save();
+  expect(update).toHaveBeenCalledWith(expect.objectContaining({ [index === 0 ? "dueSoonDays" : "handledTasksPageSize"]: 25 }));
+});
+
+it("binds each Settings field label to the actual control", () => {
+  const labels = [...document.querySelectorAll<HTMLLabelElement>("label[for]")];
+  expect(labels).toHaveLength(6);
+  for (const label of labels) {
+    const control = label.control;
+    expect(control).not.toBeNull();
+    expect(["INPUT", "SELECT"]).toContain(control!.tagName);
+    expect((control as HTMLInputElement).labels).toContain(label);
+  }
+});
+
+it("offers to discard a blank numeric draft without saving a fallback", async () => {
+  const before = usePreferencesStore.getState().preferences;
+  await typeNumber(document.querySelector<HTMLInputElement>('input[type="number"]')!, "");
+  await act(async () => [...document.querySelectorAll("button")].find((b) => b.textContent === "Cancel")!.click());
+  expect(discard).toHaveBeenCalledOnce();
+  expect(onClose).toHaveBeenCalledOnce();
+  expect(update).not.toHaveBeenCalled();
+  expect(usePreferencesStore.getState().preferences).toBe(before);
 });
