@@ -66,6 +66,124 @@ fn failed_new_schema_initialization_leaves_no_marker_or_partial_schema() {
     )
     .is_err());
     assert!(!path.exists());
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn sqlite_is_complete_before_publication_and_preserves_unowned_stages() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("records.sqlite3");
+    let stranded = dir.path().join("records-stranded.tmp");
+    fs::create_dir(&stranded).unwrap();
+    fs::write(stranded.join("unknown"), b"preserve").unwrap();
+    let conn = format_version::open_sqlite_with_publish(
+        &path,
+        Format::Records,
+        "CREATE TABLE logs (id INTEGER); INSERT INTO logs VALUES (42);",
+        |staged, target| {
+            assert!(!target.exists(), "no partial store at the final pathname");
+            assert_eq!(staged.file_name(), target.file_name());
+            assert_eq!(fs::read_dir(staged.parent().unwrap()).unwrap().count(), 1);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                assert_eq!(
+                    fs::metadata(staged.parent().unwrap())
+                        .unwrap()
+                        .permissions()
+                        .mode()
+                        & 0o777,
+                    0o700
+                );
+            }
+            let staged_conn =
+                Connection::open_with_flags(staged, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                    .unwrap();
+            assert_eq!(
+                format_version::sqlite(&staged_conn, Format::Records),
+                Ok(Marker::Readable)
+            );
+            assert_eq!(
+                staged_conn
+                    .query_row("SELECT id FROM logs", [], |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                42
+            );
+            assert_eq!(
+                staged_conn
+                    .query_row("PRAGMA journal_mode", [], |r| r.get::<_, String>(0))
+                    .unwrap(),
+                "delete"
+            );
+            assert_eq!(
+                staged_conn
+                    .query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
+                    .unwrap(),
+                "ok"
+            );
+            staged_conn.close().unwrap();
+            crate::publish_new(staged, target)
+        },
+    )
+    .unwrap();
+    conn.close().unwrap();
+    assert_eq!(fs::read(stranded.join("unknown")).unwrap(), b"preserve");
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
+}
+
+#[test]
+fn competing_sqlite_creation_never_clobbers_the_winning_store() {
+    for marker in [0, 1, 2] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("records.sqlite3");
+        let mut winner_bytes = Vec::new();
+        let result = format_version::open_sqlite_with_publish(
+            &path,
+            Format::Records,
+            "CREATE TABLE losing_schema (id INTEGER);",
+            |staged, target| {
+                let winner = Connection::open(target).unwrap();
+                winner
+                    .execute_batch("CREATE TABLE winning_schema (id INTEGER);")
+                    .unwrap();
+                winner.pragma_update(None, "user_version", marker).unwrap();
+                winner.close().unwrap();
+                winner_bytes = fs::read(target).unwrap();
+                crate::publish_new(staged, target)
+            },
+        );
+        if marker == 1 {
+            let conn = result.unwrap();
+            assert!(conn.prepare("SELECT * FROM winning_schema").is_ok());
+            assert!(conn.prepare("SELECT * FROM losing_schema").is_err());
+            conn.close().unwrap();
+        } else {
+            assert!(result.is_err());
+        }
+        assert_eq!(fs::read(&path).unwrap(), winner_bytes);
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+}
+
+#[test]
+fn existing_readable_and_newer_sqlite_stores_keep_their_bytes_and_markers() {
+    for marker in [1, 3] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("existing.sqlite3");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch("CREATE TABLE original (id INTEGER);")
+            .unwrap();
+        conn.pragma_update(None, "user_version", marker).unwrap();
+        conn.close().unwrap();
+        let before = fs::read(&path).unwrap();
+        let result = format_version::open_sqlite(&path, Format::State, "INVALID SQL;");
+        if marker == 1 {
+            result.unwrap().close().unwrap();
+        } else {
+            assert!(result.unwrap_err().contains("newer than this build"));
+        }
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
 }
 
 #[test]
