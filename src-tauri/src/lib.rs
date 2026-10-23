@@ -1119,7 +1119,17 @@ fn close_window(window: tauri::WebviewWindow, forwarding_complete: bool) -> Resu
     logging::info("window close authorized", json!({
         "window": window.label(), "forwardingComplete": forwarding_complete
     }));
+    if window.label() == "main" {
+        if let Some(close) = window.app_handle().try_state::<instance_owner::LauncherClose>() { close.settle(true); }
+    }
     window.destroy().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn cancel_window_close(window: tauri::WebviewWindow) {
+    if window.label() == "main" {
+        if let Some(close) = window.app_handle().try_state::<instance_owner::LauncherClose>() { close.settle(false); }
+    }
 }
 
 // The main window reports that its writes are settled for the end of the
@@ -1316,7 +1326,8 @@ pub fn run() {
             read_record_sources,
             read_record_detail,
             session_end_settled,
-            close_window
+            close_window,
+            cancel_window_close
         ])
         .build(context())
         .expect("error while building tauri application");

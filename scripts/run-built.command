@@ -44,10 +44,13 @@ if [[ ! -d "$APP_BUNDLE/Contents/MacOS" ]]; then
 fi
 
 built_at="$(stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S %Z' "$APP_BUNDLE/Contents/MacOS" 2>/dev/null || echo 'unknown')"
-node "$RUNTIME_HELPER" claim "$RUNTIME_TOKEN"
 node "$RUNTIME_HELPER" stop
+node "$RUNTIME_HELPER" claim "$RUNTIME_TOKEN"
+export DROPKICK_LAUNCHER_TOKEN="$RUNTIME_TOKEN"
+export DROPKICK_LAUNCHER_ENDPOINT="$(node "$RUNTIME_HELPER" endpoint-path "$RUNTIME_TOKEN")"
 log_step "Launching the existing packaged app (built: $built_at)"
 echo "If you changed source since then, run rebuild instead."
 
-open -n "$APP_BUNDLE"
+open -n "$APP_BUNDLE" --env "DROPKICK_LAUNCHER_TOKEN=$RUNTIME_TOKEN" --env "DROPKICK_LAUNCHER_ENDPOINT=$DROPKICK_LAUNCHER_ENDPOINT" --env "DROPKICK_DATA_DIR=${DROPKICK_DATA_DIR:-}"
 node "$RUNTIME_HELPER" wait-process "$APP_BUNDLE/Contents/MacOS/$APP_EXECUTABLE" 30000
+node "$RUNTIME_HELPER" wait-owned "$RUNTIME_TOKEN" 30000

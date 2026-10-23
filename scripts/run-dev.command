@@ -53,8 +53,10 @@ require_command rustc
 cd "$REPO_DIR"
 
 log_step "Replacing any existing Dropkick runtime"
-node "$RUNTIME_HELPER" claim "$RUNTIME_TOKEN"
 node "$RUNTIME_HELPER" stop
+node "$RUNTIME_HELPER" claim "$RUNTIME_TOKEN"
+export DROPKICK_LAUNCHER_TOKEN="$RUNTIME_TOKEN"
+export DROPKICK_LAUNCHER_ENDPOINT="$(node "$RUNTIME_HELPER" endpoint-path "$RUNTIME_TOKEN")"
 node "$RUNTIME_HELPER" check-endpoint "$DEV_HOST" 29327
 if [[ -n "${TAURI_DEV_HOST:-}" ]]; then
   node "$RUNTIME_HELPER" check-endpoint "$DEV_HOST" 22853
@@ -66,7 +68,10 @@ npm install --no-audit --no-fund
 log_step "Starting Dropkick in development mode"
 npm run tauri dev &
 DEV_PID=$!
+node "$RUNTIME_HELPER" record-support "$RUNTIME_TOKEN" "$DEV_PID"
 node "$RUNTIME_HELPER" wait-http "$DEV_URL" 60000
 node "$RUNTIME_HELPER" wait-process "$REPO_DIR/src-tauri/target/debug/dropkick" 180000
+node "$RUNTIME_HELPER" wait-owned "$RUNTIME_TOKEN" 30000
+node "$RUNTIME_HELPER" record-support "$RUNTIME_TOKEN" "$DEV_PID"
 log_step "Dropkick is ready at $DEV_URL"
 wait "$DEV_PID"

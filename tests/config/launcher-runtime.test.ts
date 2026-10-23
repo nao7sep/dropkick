@@ -100,6 +100,94 @@ it("a retiring generation cannot unlink a concurrently published successor", asy
     expect(await readFile(ownerFile, "utf8")).toBe("new\n");
     await Promise.all(Array.from({ length: 20 }, (_, i) => claimRuntime(`parallel-${i}`, ownerFile)));
     expect(await readFile(ownerFile, "utf8")).toMatch(/^parallel-\d+\n$/);
-    expect(await readdir(directory)).toEqual(["runtime.owner"]);
+    expect((await readdir(directory)).some(name => name.endsWith(".tmp"))).toBe(false);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+it("waits for an owned process's graceful decision and cleans only recorded support identities after exit", async () => {
+  const { fork } = await import("node:child_process");
+  const { once } = await import("node:events");
+  const { writeFile } = await import("node:fs/promises");
+  // @ts-expect-error Direct ESM launcher helper.
+  const { launcherEndpoint, recordSupport, stopRuntime } = await import("../../scripts/launcher-runtime.mjs");
+  const directory = await mkdtemp(join(tmpdir(), "dropkick-launcher-test-"));
+  const ownerFile = join(directory, "runtime.owner");
+  const child = fork(new URL("../helpers/launcher-child.mjs", import.meta.url), { execArgv: [], stdio: ["ignore", "ignore", "ignore", "ipc"] });
+  const exited = once(child, "exit");
+  try {
+    const [{ port }] = await once(child, "message");
+    const gui = { pid: child.pid!, parentPid: 101, created: "fixture-gui", executablePath: `${REPO_ROOT}/src-tauri/target/debug/dropkick`, commandLine: "" };
+    const support = { pid: 101, parentPid: 1, created: "original-support", executablePath: "node", commandLine: "vite" };
+    const unrelated = { pid: 102, parentPid: 1, created: "independent", executablePath: "node", commandLine: "vite" };
+    let current = [gui, support, unrelated];
+    const inspect = async () => current.filter(item => item.pid !== child.pid || child.exitCode === null);
+    const signals: number[] = [];
+    await claimRuntime("fixture", ownerFile);
+    await recordSupport("fixture", 101, ownerFile, inspect);
+    await writeFile(launcherEndpoint("fixture", ownerFile), JSON.stringify({ port, pid: child.pid, generation: "fixture", secret: "fixture-secret", root: "/fixture" }));
+    const requested = once(child, "message");
+    const cancelled = stopRuntime("fixture", ownerFile, { inspect, expectedRoot: "/fixture", signal: async (pid: number) => { signals.push(pid); } });
+    const cancellation = expect(cancelled).rejects.toThrow("cancelled");
+    await requested;
+    expect(signals).toEqual([]);
+    child.send("cancel");
+    await cancellation;
+    expect(await isRuntimeOwner("fixture", ownerFile)).toBe(true);
+    expect(child.exitCode).toBeNull();
+    // A reused support PID is not authority, and an independent matching name
+    // was never captured under the owned root.
+    current = [gui, { ...support, created: "reused-support" }, unrelated];
+    const nextRequest = once(child, "message");
+    const stopping = stopRuntime("fixture", ownerFile, { inspect, expectedRoot: "/fixture", signal: async (pid: number) => { signals.push(pid); } });
+    await nextRequest;
+    expect(signals).toEqual([]);
+    child.send("accept");
+    await Promise.all([stopping, exited]);
+    expect(signals).toEqual([]);
+    expect(await readFile(ownerFile, "utf8")).toBe("fixture\n");
+  } finally {
+    if (child.exitCode === null) child.kill();
+    await exited;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it("cleanup stops only the captured generation's support after GUI exit and leaves a successor intact", async () => {
+  const { writeFile } = await import("node:fs/promises");
+  // @ts-expect-error Direct ESM launcher helper.
+  const { launcherEndpoint, recordSupport, stopRuntime } = await import("../../scripts/launcher-runtime.mjs");
+  const directory = await mkdtemp(join(tmpdir(), "dropkick-launcher-test-"));
+  const ownerFile = join(directory, "runtime.owner");
+  const gui = { pid: 301, parentPid: 300, created: "gui", executablePath: `${REPO_ROOT}/src-tauri/target/debug/dropkick`, commandLine: "" };
+  const support = { pid: 300, parentPid: 1, created: "support", executablePath: "node", commandLine: "npm" };
+  let current = [gui, support];
+  const events: string[] = [];
+  try {
+    await claimRuntime("retiring", ownerFile);
+    await recordSupport("retiring", 300, ownerFile, async () => current);
+    await writeFile(launcherEndpoint("retiring", ownerFile), JSON.stringify({ pid: 301, generation: "retiring", root: "/fixture" }));
+    await stopRuntime("retiring", ownerFile, {
+      inspect: async () => current,
+      expectedRoot: "/fixture",
+      close: async () => {
+        events.push("close"); current = [support];
+        await claimRuntime("successor", ownerFile);
+      },
+      signal: async (pid: number) => { events.push(`support:${pid}`); current = current.filter(item => item.pid !== pid); },
+    });
+    expect(events).toEqual(["close", "support:300"]);
+    expect(await isRuntimeOwner("successor", ownerFile)).toBe(true);
+    expect(await readdir(directory)).toContain("runtime.owner.successor");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+
+it("scopes launcher ownership to the same expanded home-relative data root as the app", async () => {
+  // @ts-expect-error Direct ESM launcher helper.
+  const { launcherRoot } = await import("../../scripts/launcher-runtime.mjs");
+  const { resolve } = await import("node:path");
+  expect(launcherRoot({}, "/fixture/home")).toBe(resolve("/fixture/home/.dropkick"));
+  expect(launcherRoot({ DROPKICK_DATA_DIR: "  ${ROOT}/~literal  ", ROOT: "profiles" }, "/fixture/home")).toBe(resolve("/fixture/home/profiles/~literal"));
+  expect(launcherRoot({ DROPKICK_DATA_DIR: "~/%PROFILE%", PROFILE: "private" }, "/fixture/home")).toBe(resolve("/fixture/home/private"));
+  expect(() => launcherRoot({ DROPKICK_DATA_DIR: "$ABSENT" }, "/fixture/home")).toThrow("empty path");
 });

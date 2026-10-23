@@ -164,3 +164,36 @@ fn short_and_silent_connections_do_not_prevent_a_later_activation() {
     assert!(results.recv_timeout(Duration::from_secs(2)).unwrap());
     worker.join().unwrap();
 }
+
+#[test]
+fn launcher_close_authentication_binds_secret_root_and_generation() {
+    let identity = LauncherIdentity { port: 1, pid: 1, generation: "owned-generation".into(), secret: "fixture-secret".into(), root: PathBuf::from("/owned/root") };
+    for field in [None, Some("generation"), Some("secret"), Some("root")] {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let expected = identity.clone();
+        let worker = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            authenticated_close(&mut stream, &expected)
+        });
+        let mut request = serde_json::json!({ "generation": identity.generation, "secret": identity.secret, "root": identity.root });
+        if let Some(field) = field { request[field] = "different".into(); }
+        let mut client = TcpStream::connect(address).unwrap();
+        writeln!(client, "{request}").unwrap();
+        assert_eq!(worker.join().unwrap(), field.is_none());
+    }
+}
+
+#[test]
+fn a_late_close_reply_cannot_retire_the_next_close_request() {
+    let close = LauncherClose::default();
+    let (first, first_result) = close.begin().unwrap();
+    assert!(close.begin().is_none());
+    close.settle(false);
+    assert!(!first_result.recv().unwrap());
+    let (_, next_result) = close.begin().unwrap();
+    close.retire(&first);
+    assert!(close.begin().is_none());
+    close.settle(true);
+    assert!(next_result.recv().unwrap());
+}

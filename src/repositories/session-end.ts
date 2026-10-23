@@ -21,3 +21,7 @@ export async function reportSessionEndSettled(): Promise<void> {
 export async function closeWindow(forwardingComplete: boolean): Promise<void> {
   await invoke("close_window", { forwardingComplete });
 }
+
+export async function cancelWindowClose(): Promise<void> {
+  await invoke("cancel_window_close");
+}

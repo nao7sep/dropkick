@@ -62,8 +62,10 @@ try {
     Set-Location $repoDir
 
     Write-Step "Replacing any existing Dropkick runtime"
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
+    $env:DROPKICK_LAUNCHER_TOKEN = $runtimeToken
+    $env:DROPKICK_LAUNCHER_ENDPOINT = & node $runtimeHelper endpoint-path $runtimeToken
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-endpoint", $devHost, "29327")
     if ($env:TAURI_DEV_HOST) {
         Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-endpoint", $devHost, "22853")
@@ -74,8 +76,11 @@ try {
 
     Write-Step "Starting Dropkick in development mode"
     $devProcess = Start-Process -FilePath (Get-Command "npm.cmd").Source -ArgumentList @("run", "tauri", "dev") -NoNewWindow -PassThru
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "record-support", $runtimeToken, [string]$devProcess.Id)
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-http", $devUrl, "60000")
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-process", (Join-Path $repoDir "src-tauri/target/debug/dropkick.exe"), "180000")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-owned", $runtimeToken, "30000")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "record-support", $runtimeToken, [string]$devProcess.Id)
     Write-Step "Dropkick is ready at $devUrl"
     $devProcess.WaitForExit()
     if ($devProcess.ExitCode -notin @(0, 130, -1073741510)) {

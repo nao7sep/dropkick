@@ -42,7 +42,7 @@ export {
 
 export { applyWindowTheme, readSystemTheme } from "./window-theme";
 export { closeCurrentWindow, isWindowShowing, onWindowFocused } from "./window-activity";
-export { onSessionEnding, reportSessionEndSettled, closeWindow } from "./session-end";
+export { onSessionEnding, reportSessionEndSettled, closeWindow, cancelWindowClose } from "./session-end";
 export { applyLanguage, loadLanguageEnvironment } from "./language";
 export type { LanguageEnvironment } from "./language";
 

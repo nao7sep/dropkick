@@ -69,8 +69,10 @@ try {
     # Windows locks the release executable while it runs, so replacement must
     # happen before the Tauri build updates it.
     Write-Step "Replacing any existing Dropkick runtime"
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
+    $env:DROPKICK_LAUNCHER_TOKEN = $runtimeToken
+    $env:DROPKICK_LAUNCHER_ENDPOINT = & node $runtimeHelper endpoint-path $runtimeToken
 
     # Remove stale frontend output so a build that fails to emit a file can't be
     # masked by a leftover artifact from a previous run. Only the frontend output
@@ -93,6 +95,7 @@ try {
     Write-Step "Launching the built app"
     Start-Process -FilePath $exePath | Out-Null
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-process", $exePath, "30000")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-owned", $runtimeToken, "30000")
 }
 catch {
     Write-Host ""
