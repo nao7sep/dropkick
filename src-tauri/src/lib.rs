@@ -1335,3 +1335,7 @@ mod atomic_write_tests;
 #[cfg(test)]
 #[path = "../tests/unit/command_dispatch.rs"]
 mod command_dispatch_tests;
+
+#[cfg(test)]
+#[path = "../tests/helpers/process_fixture.rs"]
+mod process_fixture;

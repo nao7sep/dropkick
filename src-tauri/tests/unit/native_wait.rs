@@ -74,43 +74,53 @@ fn a_timed_out_worker_keeps_ownership_until_its_real_work_finishes() {
     fixture.finished.recv_timeout(Duration::from_secs(1)).unwrap();
 }
 
-// More stalled commands than the runtime has workers: under the old dispatch
-// (a synchronous body on an async worker) the quick command below could not
-// start until one of them gave up.
+// Run against a process-local runtime with exactly two async workers. Admission
+// is observed inside both blocking bodies, not merely when futures are queued.
 #[test]
 fn stalled_commands_do_not_hold_up_another_and_settle_with_their_real_result() {
-    use crate::native_wait::settle;
-    use tauri::async_runtime::{block_on, spawn};
-    const STALLED: usize = 64;
-    let (release, held) = std::sync::mpsc::channel::<()>();
-    let held = Arc::new(std::sync::Mutex::new(held));
+    const NAME: &str = "native_wait::tests::stalled_commands_do_not_hold_up_another_and_settle_with_their_real_result";
+    let Ok(mode) = std::env::var("DROPKICK_DISPATCH_FIXTURE") else {
+        let (status, output) = crate::process_fixture::run(NAME,
+            &[("DROPKICK_DISPATCH_FIXTURE", "pool"), ("TOKIO_WORKER_THREADS", "2")], Duration::from_secs(10));
+        assert!(status.success(), "{output}");
+        let (status, output) = crate::process_fixture::run(NAME,
+            &[("DROPKICK_DISPATCH_FIXTURE", "inline"), ("TOKIO_WORKER_THREADS", "2")], Duration::from_secs(10));
+        assert!(!status.success(), "inline blocking unexpectedly passed");
+        assert!(output.contains("runtime responsiveness failed"), "mutant failed for another reason: {output}");
+        return;
+    };
+    let runtime = tauri::async_runtime::TokioRuntime::new().unwrap();
+    assert_eq!(runtime.metrics().num_workers(), 2);
+    tauri::async_runtime::set(runtime.handle().clone());
     let (admitted, started) = mpsc::channel();
-    let stalled: Vec<_> = (0..STALLED)
-        .map(|index| {
-            let held = held.clone();
-            let admitted = admitted.clone();
-            spawn(settle(move || {
+    let mut releases = Vec::new();
+    let mut jobs = Vec::new();
+    for index in 0..2 {
+        let (release, held) = mpsc::channel();
+        releases.push(release);
+        let admitted = admitted.clone();
+        let inline = mode == "inline";
+        jobs.push(tauri::async_runtime::spawn(async move {
+            let work = move || {
                 let _ = admitted.send(());
-                held.lock().unwrap().recv().map_err(|e| e.to_string())?;
+                held.recv_timeout(Duration::from_secs(5)).map_err(|error| error.to_string())?;
                 Ok(index)
-            }))
-        })
-        .collect();
-    started.recv_timeout(Duration::from_secs(5)).unwrap();
-
-    let (answered, answer) = mpsc::channel();
-    spawn(async move {
-        let _ = answered.send(settle(|| Ok("quick")).await);
-    });
-    assert_eq!(answer.recv_timeout(Duration::from_secs(5)).unwrap(), Ok("quick"));
-
-    for _ in 0..STALLED {
-        release.send(()).unwrap();
+            };
+            if inline { work() } else { crate::native_wait::settle(work).await }
+        }));
     }
-    let mut settled: Vec<usize> = stalled
-        .into_iter()
-        .map(|task| block_on(task).unwrap().unwrap())
-        .collect();
+    for _ in 0..2 { started.recv_timeout(Duration::from_secs(2)).unwrap(); }
+    let (answered, answer) = mpsc::channel();
+    let quick = tauri::async_runtime::spawn(async move {
+        let _ = answered.send(crate::native_wait::settle(|| Ok("quick")).await);
+    });
+    let responsive = answer.recv_timeout(Duration::from_secs(1));
+    // Always release the blocking bodies before asserting, including the mutant.
+    for release in releases { let _ = release.send(()); }
+    let mut settled: Vec<_> = jobs.into_iter()
+        .map(|job| runtime.block_on(job).unwrap().unwrap()).collect();
+    runtime.block_on(quick).unwrap();
     settled.sort_unstable();
-    assert_eq!(settled, (0..STALLED).collect::<Vec<_>>());
+    assert_eq!(settled, vec![0, 1]);
+    assert_eq!(responsive.unwrap_or_else(|_| panic!("runtime responsiveness failed")), Ok("quick"));
 }
