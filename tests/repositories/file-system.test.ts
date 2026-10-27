@@ -229,14 +229,15 @@ describe("latest-state serial generations", () => {
 });
 
 
-it("sends task admission and exact formatted content in one invocation without duplicating native failures", async () => {
+it("sends the expected hash and exact formatted content in one invocation without duplicating native failures", async () => {
   vi.mocked(invoke).mockClear(); vi.mocked(log.error).mockClear();
-  const outcome = { status: "failed", message: "disk unavailable", publication: "unknown" };
-  vi.mocked(invoke).mockResolvedValueOnce(outcome);
-  expect(await saveTaskFile("/task.json", { id: "L", tasks: [] }, { kind: "compare", hash: "baseline" })).toEqual(outcome);
+  vi.mocked(invoke).mockResolvedValueOnce({ status: "conflict" });
+  expect(await saveTaskFile("/task.json", { id: "L", tasks: [] }, "baseline")).toEqual({ status: "conflict" });
   expect(invoke).toHaveBeenCalledExactlyOnceWith("save_task_file", {
     path: "/task.json", contents: JSON.stringify({ formatVersion: 1, id: "L", tasks: [] }, null, 2),
-    admission: { kind: "compare", hash: "baseline" },
+    expectedHash: "baseline",
   });
+  vi.mocked(invoke).mockRejectedValueOnce({ kind: "recordedOperation", message: "disk unavailable" });
+  await expect(saveTaskFile("/task.json", { id: "L", tasks: [] }, "baseline")).rejects.toThrow("disk unavailable");
   expect(log.error).not.toHaveBeenCalled();
 });

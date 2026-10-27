@@ -222,3 +222,30 @@ fn native_save_failure_records_one_fact_and_returns_its_marker() {
     assert_eq!(fields["error"]["message"], wire["message"]);
     logging::shutdown();
 }
+
+#[test]
+fn a_checked_write_publishes_only_over_the_expected_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tasks.json");
+    let target = path.to_str().unwrap();
+    let old = r#"{"formatVersion":1,"tasks":[]}"#;
+    let new = r#"{"formatVersion":1,"tasks":[{"id":"new"}]}"#;
+    std::fs::write(&path, old).unwrap();
+
+    let refused = write_atomic_impl(target, new, false, Some("other")).unwrap();
+    assert!(matches!(refused, CheckedWrite::Conflict));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), old);
+
+    let saved = write_atomic_impl(target, new, false, Some(&sha256_hex(old.as_bytes()))).unwrap();
+    assert!(matches!(saved, CheckedWrite::Saved { hash } if hash == sha256_hex(new.as_bytes())));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), new);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+
+    std::fs::write(&path, r#"{"formatVersion":99}"#).unwrap();
+    let newer = sha256_hex(br#"{"formatVersion":99}"#);
+    assert!(write_atomic_impl(target, new, false, Some(&newer)).is_err());
+
+    std::fs::remove_file(&path).unwrap();
+    assert!(matches!(write_atomic_impl(target, new, false, Some(&newer)).unwrap(), CheckedWrite::Missing));
+    assert!(!path.exists());
+}

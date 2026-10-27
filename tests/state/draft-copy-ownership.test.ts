@@ -28,14 +28,13 @@ beforeEach(async () => {
     const { path, contents } = (args ?? {}) as { path: string; contents: string };
     if (command === "read_json_file_with_hash") return { status: "success", ...structuredClone(docs.get(path)) };
     if (command === "write_text_file_atomic" || command === "save_task_file") {
-      const admission = (args as { admission?: { kind: string; hash?: string } }).admission;
-      if (admission?.kind === "compare") {
+      if (command === "save_task_file") {
         const current = docs.get(path)?.hash;
         if (current === undefined) return { status: "missing" };
-        if (current !== admission.hash) return { status: "conflict" };
+        if (current !== (args as { expectedHash: string }).expectedHash) return { status: "conflict" };
       }
       await held?.(); if (fail) throw new Error("disk full");
-      docs.set(path, { data: JSON.parse(contents), hash: contents }); return command === "save_task_file" ? { status: "saved", hash: contents, recoveryPath: null } : contents;
+      docs.set(path, { data: JSON.parse(contents), hash: contents }); return command === "save_task_file" ? { status: "saved", hash: contents } : contents;
     }
   });
 });

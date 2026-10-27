@@ -14,14 +14,13 @@ const readJsonFileWithHash = vi.fn();
 const nativePublish = vi.fn();
 const nativeHash = vi.fn();
 const saveTaskFile = vi.fn();
-const showMessage = vi.fn();
-const chooseSeparateTaskCopy = vi.fn();
 const fileExists = vi.fn();
 const showFileConflictDialog = vi.fn();
 const showFileDeletedDialog = vi.fn();
 
 vi.mock("../../src/repositories/file-system", () => ({
   saveTaskFile: (...args: unknown[]) => saveTaskFile(...args),
+  writeJsonFile: (p: string, _format: string, d: unknown) => nativePublish(p, d),
   readJsonFileWithHash: (...args: unknown[]) => readJsonFileWithHash(...args),
   fileExists: (p: string) => fileExists(p),
   createLatestSerial: () => async (_path: string, work: () => Promise<unknown>) => ({ covered: false, value: await inSerial(work) }),
@@ -30,8 +29,6 @@ vi.mock("../../src/repositories/file-system", () => ({
 }));
 
 vi.mock("../../src/repositories/dialogs", () => ({
-  showMessage: (...args: unknown[]) => showMessage(...args),
-  chooseSeparateTaskCopy: (p: string) => chooseSeparateTaskCopy(p),
   showFileConflictDialog: (p: string) => showFileConflictDialog(p),
   showFileDeletedDialog: (p: string) => showFileDeletedDialog(p),
 }));
@@ -45,18 +42,13 @@ beforeEach(async () => {
   vi.resetAllMocks();
   // The core hashes the bytes it wrote and returns the digest.
   nativePublish.mockResolvedValue("HW");
-  showMessage.mockResolvedValue(undefined);
-  chooseSeparateTaskCopy.mockResolvedValue(null);
-  // These spies represent native disk facts/publication within one invocation;
-  // the repository must call saveTaskFile, never nativeHash then a separate write.
-  saveTaskFile.mockImplementation(async (path, data, admission) => {
-    if (admission.kind === "compare") {
-      const hash = await nativeHash(path);
-      if (hash === null) return { status: "missing" };
-      if (hash !== admission.hash) return { status: "conflict" };
-    }
-    try { return { status: "saved", hash: await nativePublish(path, data), recoveryPath: null }; }
-    catch (error) { return { status: "failed", message: String(error), publication: "untouched" }; }
+  // These spies represent the native comparison and write within one
+  // invocation; the repository never hashes and writes in separate calls.
+  saveTaskFile.mockImplementation(async (path, data, expectedHash) => {
+    const hash = await nativeHash(path);
+    if (hash === null) return { status: "missing" };
+    if (hash !== expectedHash) return { status: "conflict" };
+    return { status: "saved", hash: await nativePublish(path, data) };
   });
   fileExists.mockResolvedValue(true);
   vi.resetModules();
@@ -439,41 +431,13 @@ it("settles a successful move inside both serial slots, after both writes", asyn
   expect(onSaved).toHaveBeenCalledTimes(1);
 });
 
-it("sends the accepted hash and content together and reports a preserved collision as saved", async () => {
+it("sends the accepted hash and content together and remembers the written hash", async () => {
   await register("/f.json");
-  saveTaskFile.mockResolvedValueOnce({ status: "saved", hash: "new-hash", recoveryPath: "/f-recovery.json" });
+  saveTaskFile.mockResolvedValueOnce({ status: "saved", hash: "new-hash" });
   expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "success" });
-  expect(saveTaskFile).toHaveBeenCalledWith("/f.json", data(), { kind: "compare", hash: "H0" });
+  expect(saveTaskFile).toHaveBeenCalledWith("/f.json", data(), "H0");
   expect(nativeHash).not.toHaveBeenCalled();
-  expect(showMessage).toHaveBeenCalledWith(message("save.collisionTitle"), message("save.collisionBody", { path: "/f.json", recovery: "/f-recovery.json" }));
-  saveTaskFile.mockResolvedValueOnce({ status: "saved", hash: "next", recoveryPath: null });
+  saveTaskFile.mockResolvedValueOnce({ status: "saved", hash: "next" });
   await repo.flushTaskList("/f.json", () => data());
-  expect(saveTaskFile).toHaveBeenLastCalledWith("/f.json", data(), { kind: "compare", hash: "new-hash" });
-});
-
-it("saves unsupported-volume work only to a new separate file and keeps the original unsaved", async () => {
-  await register("/f.json");
-  chooseSeparateTaskCopy.mockResolvedValueOnce("/copy.json");
-  saveTaskFile.mockResolvedValueOnce({ status: "unsupported" })
-    .mockResolvedValueOnce({ status: "saved", hash: "copy", recoveryPath: null });
-  expect(await repo.flushTaskList("/f.json", () => data())).toEqual({ status: "error", message: message("save.copySaved", { path: "/copy.json" }) });
-  expect(saveTaskFile).toHaveBeenLastCalledWith("/copy.json", data(), { kind: "create" });
-  saveTaskFile.mockResolvedValueOnce({ status: "conflict" });
-  readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: data(), hash: "outside" });
-  showFileConflictDialog.mockResolvedValueOnce("withdrawn");
-  await repo.flushTaskList("/f.json", () => data());
-  expect(saveTaskFile).toHaveBeenLastCalledWith("/f.json", data(), { kind: "compare", hash: "H0" });
-});
-
-it.each(["native", "transport"])("never compensates the destination after an unknown %s source outcome", async kind => {
-  await register("/source.json", "source-before"); await register("/dest.json", "dest-before");
-  saveTaskFile.mockResolvedValueOnce({ status: "saved", hash: "dest-after", recoveryPath: null });
-  if (kind === "native") saveTaskFile.mockResolvedValueOnce({ status: "failed", message: "partial replacement", publication: "unknown" });
-  else saveTaskFile.mockRejectedValueOnce(new Error("IPC lost"));
-  const input = { sourceDataPreMove: data([makeTask()]), destDataPreMove: data(), sourceTasksPostMove: [], destTasksPostMove: [makeTask()] };
-  expect(await repo.flushMove("/source.json", "/dest.json", () => input)).toEqual({ status: "source-uncertain", message: message("save.moveUncertain") });
-  expect(saveTaskFile).toHaveBeenCalledTimes(2);
-  saveTaskFile.mockResolvedValueOnce({ status: "saved", hash: "confirmed", recoveryPath: null });
-  await repo.flushTaskList("/dest.json", () => data());
-  expect(saveTaskFile).toHaveBeenLastCalledWith("/dest.json", data(), { kind: "compare", hash: "dest-before" });
+  expect(saveTaskFile).toHaveBeenLastCalledWith("/f.json", data(), "new-hash");
 });

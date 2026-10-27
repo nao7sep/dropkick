@@ -31,17 +31,15 @@ beforeEach(async () => {
       if (invalid) return { status: "invalid", message: "bad JSON" };
       return { status: "success", hash, data: structuredClone(disk) };
     }
-    if (command === "save_task_file") {
-      const admission = (args as { admission: { kind: string; hash?: string } }).admission;
-      if (admission.kind === "compare") {
+    if (command === "save_task_file" || command === "write_text_file_atomic") {
+      if (command === "save_task_file") {
         if (hash === null) return { status: "missing" };
-        if (hash !== admission.hash) return { status: "conflict" };
+        if (hash !== (args as { expectedHash: string }).expectedHash) return { status: "conflict" };
       }
-      if (admission.kind === "create" && hash !== null) return { status: "conflict" };
       disk = JSON.parse((args as { contents: string }).contents) as TaskListDto;
       writes.push(structuredClone(disk));
       hash = `saved-${writes.length}`;
-      return { status: "saved", hash, recoveryPath: null };
+      return command === "save_task_file" ? { status: "saved", hash } : hash;
     }
     return undefined;
   });

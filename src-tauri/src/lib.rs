@@ -12,7 +12,6 @@ use tauri::{AppHandle, Manager, State};
 mod backup_store;
 mod document_dates;
 mod format_version;
-mod guarded_save;
 mod i18n;
 mod instance_owner;
 mod logging;
@@ -417,7 +416,7 @@ async fn read_text_file(path: String) -> Result<TextReadResult, String> {
 }
 
 // Atomic write: write to a temp file in the same directory, fsync it, then
-// rename over the target (and fsync the directory) so a crash or power loss can
+// rename over the target, so a crash or power loss can
 // never leave a half-written task/config file — the renamed-in file is either
 // the old bytes or the complete new bytes. The parent directory must already
 // exist (callers ensure_dir first), matching the previous plugin behavior.
@@ -471,20 +470,34 @@ async fn write_text_file_atomic(
     }
 }
 
+// Saves an open task list only while the file still has the hash the list was
+// loaded or last saved with. The comparison is made right before the ordinary
+// atomic write, in the same operation, so a change another program made since
+// is met by the conflict or recreate choice instead of being overwritten.
 #[tauri::command]
-async fn save_task_file(path: String, contents: String, admission: guarded_save::Admission) -> guarded_save::Outcome {
+async fn save_task_file(
+    path: String,
+    contents: String,
+    expected_hash: String,
+) -> Result<CheckedWrite, WriteFailure> {
     let started = log_cmd_start("save_task_file", json!({ "path": path, "bytes": contents.len() }));
     let destination = path.clone();
-    let result = native_wait::settle(move || Ok(guarded_save::save(&destination, &contents, admission))).await;
-    let outcome = result.unwrap_or_else(|message| guarded_save::Outcome::Failed {
-        message, publication: guarded_save::Publication::Unknown,
-    });
-    if let guarded_save::Outcome::Failed { message, publication } = &outcome {
-        logging::error("task file save failed", json!({ "path": path, "error": { "message": message }, "publication": publication }));
-    } else {
-        log_cmd_ok("save_task_file", started, json!({ "path": path }));
+    let result = native_wait::settle(move || {
+        write_atomic_impl(&destination, &contents, true, Some(&expected_hash))
+    }).await;
+    match result {
+        Ok(outcome) => {
+            log_cmd_ok("save_task_file", started, json!({ "path": path, "outcome": &outcome }));
+            Ok(outcome)
+        }
+        Err(message) => {
+            logging::error("file write failed", json!({
+                "command": "save_task_file", "path": path,
+                "elapsedMs": started.elapsed().as_millis(), "error": { "message": message }
+            }));
+            Err(WriteFailure::RecordedOperation { message })
+        }
     }
-    outcome
 }
 
 // The staging directory an atomic write creates beside its target:
@@ -595,14 +608,6 @@ mod windows_replace {
         path.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
     }
 
-    pub fn replace_file_preserving(tmp: &Path, target: &Path, backup: &Path) -> std::io::Result<()> {
-        let (replaced, replacement, backup) = (wide(target), wide(tmp), wide(backup));
-        let ok = unsafe { ReplaceFileW(replaced.as_ptr(), replacement.as_ptr(), backup.as_ptr(),
-            REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_IGNORE_ACL_ERRORS,
-            std::ptr::null_mut(), std::ptr::null_mut()) };
-        if ok != 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
-    }
-
     pub fn replace_file(tmp: &Path, target: &Path) -> std::io::Result<()> {
         let (replaced, replacement) = (wide(target), wide(tmp));
         // SAFETY: both strings are NUL-terminated and outlive the call, and null
@@ -629,17 +634,41 @@ mod windows_replace {
 }
 
 pub fn write_atomic(path: &str, contents: &str) -> Result<String, String> {
-    write_atomic_impl(path, contents, true)
+    write_atomic_impl(path, contents, true, None).map(CheckedWrite::into_hash)
 }
 
 // The same atomic write, minus the backup-history record: for volatile state
 // that is state and nothing else (view state and window placement), which the data-backup
 // convention excludes from backups.sqlite3.
 pub fn write_atomic_unrecorded(path: &str, contents: &str) -> Result<String, String> {
-    write_atomic_impl(path, contents, false)
+    write_atomic_impl(path, contents, false, None).map(CheckedWrite::into_hash)
 }
 
-fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String, String> {
+// The outcome of a write that may require the target to still hold the bytes
+// with an expected hash. Without an expected hash, only Saved occurs.
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+enum CheckedWrite {
+    Saved { hash: String },
+    Conflict,
+    Missing,
+}
+
+impl CheckedWrite {
+    fn into_hash(self) -> String {
+        match self {
+            CheckedWrite::Saved { hash } => hash,
+            CheckedWrite::Conflict | CheckedWrite::Missing => unreachable!("only a checked write is refused"),
+        }
+    }
+}
+
+fn write_atomic_impl(
+    path: &str,
+    contents: &str,
+    record: bool,
+    expected_hash: Option<&str>,
+) -> Result<CheckedWrite, String> {
     use std::io::Write;
     // Saves write through a link to the file it names.
     let resolved = resolve_symlink(std::path::Path::new(path))?;
@@ -663,9 +692,16 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
             if found > current { return Err(format_version::newer_than_message(target, found, current)); }
         }
     }
+    if let Some(expected) = expected_hash {
+        match existing.as_deref() {
+            None => return Ok(CheckedWrite::Missing),
+            Some(bytes) if sha256_hex(bytes) != expected => return Ok(CheckedWrite::Conflict),
+            Some(_) => {}
+        }
+    }
     // Unchanged content does not stage, publish or record another backup.
     if existing.as_deref() == Some(contents.as_bytes()) {
-        return Ok(sha256_hex(contents.as_bytes()));
+        return Ok(CheckedWrite::Saved { hash: sha256_hex(contents.as_bytes()) });
     }
     drop(existing);
 
@@ -706,11 +742,6 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         return Err(e);
     }
 
-    // Best-effort: persist the rename itself by fsyncing the directory.
-    if let Ok(dir) = std::fs::File::open(parent) {
-        let _ = dir.sync_all();
-    }
-
     // --- Data-backup record hook (data-backup conventions) ---
     // The rename has landed: `target` now holds exactly `contents` and is where it
     // belongs, so — and only now, strictly AFTER the rename — record the exact raw
@@ -719,10 +750,9 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
     // bytes (`contents.as_bytes()`), never re-reading the file (which would risk
     // capturing a concurrent writer's content, not what this call wrote).
     //
-    // Internal stores and workspace writes use this publication owner; guarded
-    // task saves record at their own successful publication boundary. record()
-    // only queues bytes for the history's own thread and
-    // returns at once: the save is complete, and a slow or locked store never
+    // Every managed write, task-list saves included, goes through here, so the
+    // hook lives in exactly one place. record() only queues bytes for the
+    // history's own thread and returns at once: the save is complete, and a slow or locked store never
     // delays its reply. Managed durable text (config.json,
     // preferences/workspaces/task-lists — internal and external) is recorded;
     // the history keeps one row per path per session. Not
@@ -734,7 +764,7 @@ fn write_atomic_impl(path: &str, contents: &str, record: bool) -> Result<String,
         backup_store::record(target, contents.as_bytes());
     }
 
-    Ok(sha256_hex(contents.as_bytes()))
+    Ok(CheckedWrite::Saved { hash: sha256_hex(contents.as_bytes()) })
 }
 
 // A write never replaces a file a newer build wrote. The target's marker is

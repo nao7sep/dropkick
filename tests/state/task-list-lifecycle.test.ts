@@ -41,17 +41,16 @@ beforeEach(() => {
     }
     if (command === "read_text_file") return doc ? { status: "success", text: JSON.stringify({ ...doc.data as object, formatVersion: 1 }) } : { status: "missing" };
     if (command === "write_text_file_atomic" || command === "save_task_file") {
-      const admission = (args as { admission?: { kind: string; hash?: string } }).admission;
-      if (admission?.kind === "compare") {
+      if (command === "save_task_file") {
         const current = docs.get(path)?.hash;
         if (current === undefined) return { status: "missing" };
-        if (current !== admission.hash) return { status: "conflict" };
+        if (current !== expectedHash) return { status: "conflict" };
       }
       await holdWrite?.();
       if (failWrites) throw new Error("disk full");
       io.push(`write:${path}`);
       writes.push(path); docs.set(path, { data: JSON.parse(contents), hash: `saved-${writes.length}` });
-      return command === "save_task_file" ? { status: "saved", hash: docs.get(path)!.hash, recoveryPath: null } : docs.get(path)!.hash;
+      return command === "save_task_file" ? { status: "saved", hash: docs.get(path)!.hash } : docs.get(path)!.hash;
     }
     return undefined;
   });
@@ -314,21 +313,3 @@ it("coalesces workspace and optional view-state generations at their own owners"
   expect(docs.get("/coalesced-state.json")!.data).toMatchObject({ sidebarWidth: 319 });
 });
 
-it("retains both on-screen lists and marks the source unsaved after unknown move publication", async () => {
-  put("/source.json", list("source")); put("/dest.json", { id: "dest", tasks: [] });
-  await useTaskListStore.getState().loadFile("/source.json");
-  await useTaskListStore.getState().loadFile("/dest.json");
-  const original = vi.mocked(invoke).getMockImplementation()!;
-  vi.mocked(invoke).mockImplementation(async (command, args) => {
-    if (command === "save_task_file" && (args as { path: string }).path === "/source.json")
-      return { status: "failed", message: "partial", publication: "unknown" };
-    return original(command, args);
-  });
-  const result = await useTaskListStore.getState().moveTasks("/source.json", "/dest.json", new Set(["task"]));
-  expect(result.status).toBe("error");
-  expect(useTaskListStore.getState().files["/source.json"].data.tasks).toHaveLength(1);
-  expect(useTaskListStore.getState().files["/dest.json"].data.tasks).toHaveLength(0);
-  expect(useTaskListStore.getState().unsavedPaths()).toContain("/source.json");
-  expect((docs.get("/dest.json")!.data as TaskListDto).tasks).toHaveLength(1);
-  expect(writes).toEqual(["/dest.json"]);
-});

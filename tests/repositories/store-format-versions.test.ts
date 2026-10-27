@@ -58,10 +58,10 @@ beforeEach(() => {
       case "file_exists":
         return disk.has(path);
       case "save_task_file": {
-        const admission = (args as { admission: { kind: string; hash?: string } }).admission;
-        if (admission.kind === "compare" && disk.get(path) !== admission.hash) return { status: disk.has(path) ? "conflict" : "missing" };
+        const expected = (args as { expectedHash: string }).expectedHash;
+        if (disk.get(path) !== expected) return { status: disk.has(path) ? "conflict" : "missing" };
         disk.set(path, contents);
-        return { status: "saved", hash: contents, recoveryPath: null };
+        return { status: "saved", hash: contents };
       }
       case "write_text_file_atomic":
         disk.set(path, contents);

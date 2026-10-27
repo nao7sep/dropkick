@@ -73,7 +73,6 @@ dirs = "7.0.0"
 # AppKit's language is aligned with the interface language before the app is
 # built (i18n::align_appkit).
 [target.'cfg(target_os = "macos")'.dependencies]
-libc = "0.2.190"
 objc2 = "0.6.5"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSDictionary", "NSObject", "NSString", "NSUserDefaults"] }
 
