@@ -150,79 +150,36 @@ pub fn sqlite(conn: &Connection, format: Format) -> Result<Marker, String> {
     judge(Some(&Value::from(version)), None, format)
 }
 
+// Opens a store at its final path. A database with no marker and no schema is
+// new: a missing file, or the empty file a creation interrupted before its
+// schema committed, which would otherwise be refused on every later launch.
+// Schema and marker commit in one transaction, so a store is never left
+// partly initialized.
 pub fn open_sqlite(
     path: &std::path::Path,
     format: Format,
     schema: &str,
 ) -> Result<Connection, String> {
-    open_sqlite_with_publish(path, format, schema, crate::publish_new)
-}
-
-fn open_existing_sqlite(path: &std::path::Path, format: Format) -> Result<Connection, String> {
-    let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)
-        .map_err(|e| e.to_string())?;
-    if let Marker::Newer(found) = sqlite(&conn, format)? {
-        return Err(newer_message(path, found, format));
-    }
+    let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
     conn.busy_timeout(std::time::Duration::from_secs(5))
         .map_err(|e| e.to_string())?;
-    Ok(conn)
-}
-
-fn open_sqlite_with_publish(
-    path: &std::path::Path,
-    format: Format,
-    schema: &str,
-    publish: impl FnOnce(&std::path::Path, &std::path::Path) -> std::io::Result<()>,
-) -> Result<Connection, String> {
-    match std::fs::symlink_metadata(path) {
-        Ok(_) => return open_existing_sqlite(path, format),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
-        Err(error) => return Err(error.to_string()),
-    }
-    let parent = path
-        .parent()
-        .ok_or_else(|| "path has no parent directory".to_string())?;
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "path has no file name".to_string())?;
-    let stage_dir = parent.join(crate::atomic_temp_name(file_name));
-    let directory = std::fs::DirBuilder::new();
-    #[cfg(unix)]
-    let directory = {
-        use std::os::unix::fs::DirBuilderExt;
-        let mut directory = directory;
-        directory.mode(0o700);
-        directory
-    };
-    directory.create(&stage_dir).map_err(|e| e.to_string())?;
-    struct Stage(std::path::PathBuf);
-    impl Drop for Stage {
-        fn drop(&mut self) {
-            // This invocation exclusively created the private directory. Never
-            // sweep sibling stages: they may belong to another live writer.
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
-    let stage = Stage(stage_dir);
-    let staged_path = stage.0.join(file_name);
-    let mut conn = Connection::open(&staged_path).map_err(|e| e.to_string())?;
     let tx = conn
         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
         .map_err(|e| e.to_string())?;
-    tx.execute_batch(schema).map_err(|e| e.to_string())?;
-    stamp_sqlite(&tx, format)?;
-    tx.commit().map_err(|e| e.to_string())?;
-    // The default DELETE journal keeps the committed store in one file. Close
-    // before publication so no connection or sidecar follows its old pathname.
-    conn.close().map_err(|(_, e)| e.to_string())?;
-    match publish(&staged_path, path) {
-        Ok(()) => (),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => (),
-        Err(error) => return Err(error.to_string()),
+    let marker: i64 = tx
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let objects: i64 = tx
+        .query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    if marker == 0 && objects == 0 {
+        tx.execute_batch(schema).map_err(|e| e.to_string())?;
+        stamp_sqlite(&tx, format)?;
+    } else if let Marker::Newer(found) = sqlite(&tx, format)? {
+        return Err(newer_message(path, found, format));
     }
-    open_existing_sqlite(path, format)
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(conn)
 }
 
 pub fn admit_sqlite(conn: &Connection, format: Format) -> rusqlite::Result<()> {
