@@ -307,7 +307,7 @@ fn a_newer_records_database_is_left_byte_identical_and_entries_take_the_fallback
 }
 
 #[test]
-fn blocked_optional_storage_bounds_admission_and_flush_without_holding_producers() {
+fn blocked_optional_storage_bounds_flush_without_holding_producers() {
     let dir = temp_dir();
     let logger = Arc::new(Logger::open(&dir.path().join("records.sqlite3"), &dir.path().join("logs"), false));
     // Hold initialization itself, before a connection exists. The actual
@@ -315,14 +315,13 @@ fn blocked_optional_storage_bounds_admission_and_flush_without_holding_producers
     let storage = logger.records.lock().unwrap();
     assert!(storage.is_none());
     logger.start_writer();
-    for n in 0..QUEUE_CAPACITY + 25 {
+    for n in 0..300 {
         logger.emit_forwarded(json!({ "time": format!("event-{n}"), "level": "error", "message": "failure", "detail": n }));
     }
     let writer = logger.writer.get().unwrap();
     {
         let state = writer.queue.state.lock().unwrap();
-        assert_eq!(state.entries.len(), QUEUE_CAPACITY);
-        assert_eq!(state.overflow.count, 25);
+        assert_eq!(state.entries.len(), 300);
     }
     let start = std::time::Instant::now();
     writer.flush(Duration::from_millis(20));
@@ -331,11 +330,6 @@ fn blocked_optional_storage_bounds_admission_and_flush_without_holding_producers
     logger.flush();
     logger.stop_writer_for_test();
     let rows = rows(&dir);
-    assert_eq!(rows.len(), QUEUE_CAPACITY + 1);
-    let gap = rows.iter().find(|r| r.message == "diagnostic queue overflow").unwrap();
-    assert_eq!(gap.fields["count"], 25);
-    assert_eq!(gap.fields["levels"]["error"], 25);
-    assert_eq!(gap.fields["first"], format!("event-{QUEUE_CAPACITY}"));
-    assert_eq!(gap.fields["last"], format!("event-{}", QUEUE_CAPACITY + 24));
-    assert_eq!(rows.iter().filter(|r| r.message == "failure").count(), QUEUE_CAPACITY);
+    assert_eq!(rows.len(), 300);
+    assert!(rows.iter().all(|r| r.message == "failure"));
 }

@@ -164,8 +164,8 @@ describe("console fallback", () => {
   });
 });
 
-describe("bounded forwarding", () => {
-  it("retains complete admitted errors, summarizes overflow, and bounds a held drain", async () => {
+describe("drained forwarding", () => {
+  it("forwards every entry in order and bounds a held drain without dropping any", async () => {
     const { flushForwarded } = await import("../../src/repositories/logging");
     let release!: () => void;
     invokeMock.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
@@ -177,9 +177,8 @@ describe("bounded forwarding", () => {
     release();
     expect(await flushForwarded(1000)).toBe(true);
     const entries = invokeMock.mock.calls.map(c => c[1].entry);
-    expect(entries).toHaveLength(258);
-    expect(entries.find(e => e.message === "diagnostic queue overflow")).toMatchObject({ count: 44, levels: { error: 44 }, source: "frontend" });
-    expect(entries.filter(e => e.message === "failure")).toHaveLength(256);
-    expect(entries.find(e => e.message === "failure").error).toEqual({ message: "complete diagnostic", stack: "full stack" });
+    expect(entries).toHaveLength(301);
+    expect(entries.slice(1).map(e => e.detail)).toEqual(Array.from({ length: 300 }, (_, i) => i));
+    expect(entries[1].error).toEqual({ message: "complete diagnostic", stack: "full stack" });
   });
 });

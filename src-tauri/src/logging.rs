@@ -156,36 +156,9 @@ const BUSY_TIMEOUT_MS: u64 = 5_000;
 // Long enough for an entry that waits its full busy timeout to land.
 const FLUSH_BOUND: Duration = Duration::from_millis(BUSY_TIMEOUT_MS + 1_000);
 
-// A normal action burst in the writer regression contains 51 complete events.
-// Leave room for several such bursts without retaining an unlimited backlog.
-const QUEUE_CAPACITY: usize = 256;
-
-#[derive(Default)]
-struct Overflow {
-    count: u64,
-    levels: std::collections::BTreeMap<String, u64>,
-    first: String,
-    last: String,
-}
-impl Overflow {
-    fn add(&mut self, obj: &Map<String, Value>) {
-        let time = obj.get("time").and_then(Value::as_str).unwrap_or_default();
-        if self.count == 0 { self.first = time.into(); }
-        self.last = time.into();
-        self.count += 1;
-        *self.levels.entry(obj.get("level").and_then(Value::as_str).unwrap_or("info").into()).or_default() += 1;
-    }
-    fn envelope(self) -> Map<String, Value> {
-        serde_json::json!({ "time": now_iso_millis(), "level": "warn",
-            "message": "diagnostic queue overflow", "count": self.count,
-            "levels": self.levels, "first": self.first, "last": self.last,
-            "source": "native" }).as_object().unwrap().clone()
-    }
-}
 #[derive(Default)]
 struct QueueState {
     entries: VecDeque<Map<String, Value>>,
-    overflow: Overflow,
     active: bool,
     stopping: bool,
 }
@@ -206,25 +179,15 @@ impl Writer {
         let handle = thread::Builder::new().name("dropkick-log".to_string()).spawn(move || {
             // Optional storage never holds setup or a producer thread.
             logger.initialize_records();
-            let mut prefer_gap = false;
             loop {
                 let entry = {
                     let mut state = owner.state.lock().unwrap_or_else(|e| e.into_inner());
-                    while state.entries.is_empty() && state.overflow.count == 0 && !state.stopping {
+                    while state.entries.is_empty() && !state.stopping {
                         state = owner.changed.wait(state).unwrap_or_else(|e| e.into_inner());
                     }
-                    // Under sustained overload, neither admitted entries nor
-                    // the gap summary may starve the other.
-                    let entry = if !state.entries.is_empty() && (!prefer_gap || state.overflow.count == 0) {
-                        prefer_gap = true;
-                        state.entries.pop_front()
-                    } else if state.overflow.count != 0 {
-                        prefer_gap = false;
-                        Some(std::mem::take(&mut state.overflow).envelope())
-                    } else { None };
-                    if entry.is_none() { break; }
+                    let Some(entry) = state.entries.pop_front() else { break; };
                     state.active = true;
-                    entry.unwrap()
+                    entry
                 };
                 logger.write_envelope(entry);
                 let mut state = owner.state.lock().unwrap_or_else(|e| e.into_inner());
@@ -241,7 +204,7 @@ impl Writer {
     fn flush(&self, bound: Duration) {
         let state = self.queue.state.lock().unwrap_or_else(|e| e.into_inner());
         let _ = self.queue.changed.wait_timeout_while(state, bound, |s|
-            s.active || !s.entries.is_empty() || s.overflow.count != 0);
+            s.active || !s.entries.is_empty());
     }
 }
 
@@ -488,12 +451,12 @@ impl Logger {
             eprintln!("{}", Value::Object(obj));
             return;
         }
-        if state.entries.len() == QUEUE_CAPACITY { state.overflow.add(&obj); }
-        else { state.entries.push_back(obj); }
+        state.entries.push_back(obj);
         writer.queue.changed.notify_one();
     }
 
-    // Best effort within one bound, including a pending overflow summary.
+    // Waits, within FLUSH_BOUND, until every entry submitted before it is
+    // written. Past the bound the remaining entries' outcome is unknown.
     fn flush(&self) {
         if let Some(writer) = self.writer.get() {
             if thread::current().id() != writer.thread { writer.flush(FLUSH_BOUND); }

@@ -34,25 +34,18 @@ function debugEnabled(): boolean {
   return import.meta.env.DEV || runtimeDebug;
 }
 
-// The native writer uses the same allowance: several ordinary action bursts.
-// Keep full admitted diagnostics, with one compact gap record under pressure.
-const FORWARD_CAPACITY = 256;
+// Entries wait here and one drain forwards them in order, because the core
+// writes off the UI thread and two entries in flight at once could be written
+// out of order. Logging never blocks the UI; a failed forward degrades to the
+// console — never swallowed, never thrown.
 const pending: Record<string, unknown>[] = [];
 let forwarding: Promise<void> | null = null;
-let overflow: { count: number; levels: Partial<Record<Level, number>>; first: string; last: string } | null = null;
 
 function startForwarding(): void {
   if (forwarding) return;
   forwarding = Promise.resolve().then(async () => {
-    let preferGap = false;
-    while (pending.length || overflow) {
-      let entry: Record<string, unknown>;
-      if (overflow && (preferGap || pending.length === 0)) {
-        preferGap = false;
-        entry = { ...overflow, time: new Date().toISOString(), level: "warn",
-          message: "diagnostic queue overflow", source: "frontend" };
-        overflow = null;
-      } else { entry = pending.shift()!; preferGap = true; }
+    while (pending.length) {
+      const entry = pending.shift()!;
       try {
         await invoke<void>("log_event", { entry });
       } catch (forwardError) {
@@ -62,20 +55,16 @@ function startForwarding(): void {
     }
   }).finally(() => {
     forwarding = null;
-    if (pending.length || overflow) startForwarding();
+    if (pending.length) startForwarding();
   });
 }
 
 function emit(level: Level, message: string, fields?: LogFields): void {
   if (level === "debug" && !debugEnabled()) return;
-  const time = new Date().toISOString();
-  const entry = { ...fields, time, level, message };
-  if (pending.length === FORWARD_CAPACITY) {
-    overflow ??= { count: 0, levels: {}, first: time, last: time };
-    overflow.count += 1;
-    overflow.levels[level] = (overflow.levels[level] ?? 0) + 1;
-    overflow.last = time;
-  } else { pending.push(entry); }
+  // `time` is stamped at the event instant (UTC ISO 8601 ms + Z). Fields are
+  // spread first and the envelope keys last, so a field that happens to be named
+  // `time` / `level` / `message` can never clobber the envelope.
+  pending.push({ ...fields, time: new Date().toISOString(), level, message });
   startForwarding();
 }
 
