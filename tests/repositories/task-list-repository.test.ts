@@ -23,7 +23,6 @@ vi.mock("../../src/repositories/file-system", () => ({
   writeJsonFile: (p: string, _format: string, d: unknown) => nativePublish(p, d),
   readJsonFileWithHash: (...args: unknown[]) => readJsonFileWithHash(...args),
   fileExists: (p: string) => fileExists(p),
-  createLatestSerial: () => async (_path: string, work: () => Promise<unknown>) => ({ covered: false, value: await inSerial(work) }),
   withSerial: (_p: string, fn: () => unknown) => inSerial(fn),
   withSerialTwo: (_a: string, _b: string, fn: () => unknown) => inSerial(fn),
 }));

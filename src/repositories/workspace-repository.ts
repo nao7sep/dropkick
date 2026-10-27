@@ -1,8 +1,8 @@
 // Reads and writes workspace files.
 //
 // Saves are serialized per path. The store mutates synchronously and then
-// awaits a flush; one write covers requests accepted before it samples the
-// latest state, and later edits keep their place in the per-path queue. No
+// awaits a flush; if several flushes queue against the same path, each runs in
+// order and writes the latest store state at the moment its turn comes up. No
 // hash check is needed — the workspace file is owned exclusively by Dropkick.
 
 import type { WorkspaceDto } from "../models";
@@ -11,7 +11,6 @@ import {
   readJsonFileResult,
   writeJsonFile,
   withSerial,
-  createLatestSerial,
 } from "./file-system";
 
 export type LoadWorkspaceResult =
@@ -62,13 +61,11 @@ export async function loadWorkspace(path: string): Promise<LoadWorkspaceResult> 
 // so overlapping flushes can never land out of order. `getWorkspace` is
 // invoked inside the serial slot, so it sees the latest store state at the
 // instant of the write.
-const latestSave = createLatestSerial();
-
 export async function flushWorkspace(
   path: string,
   getWorkspace: () => WorkspaceDto,
 ): Promise<void> {
-  await latestSave(path, async () => {
+  await withSerial(path, async () => {
     const workspace = getWorkspace();
     const { activeTabIndex: _activeTabIndex, ...persisted } = workspace;
     await writeJsonFile(path, "workspace", persisted);

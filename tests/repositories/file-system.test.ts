@@ -195,38 +195,6 @@ describe("write failure ownership", () => {
   });
 });
 
-// The repository owns the batching policy; real serial reservations keep other
-// operations and optional/required drain accounting intact.
-describe("latest-state serial generations", () => {
-  it("samples each uncovered generation once and preserves intervening operations", async () => {
-    const { createLatestSerial } = await import("../../src/repositories/file-system");
-    const save = createLatestSerial();
-    const held = deferred();
-    const samples: number[] = [];
-    let state = 1;
-    const work = async () => { samples.push(state); await held.promise; };
-    const first = save("latest", work);
-    await vi.waitFor(() => expect(samples).toEqual([1]));
-    state = 2;
-    const burst = Array.from({ length: 30 }, () => save("latest", work));
-    const barrier = withSerial("latest", async () => { samples.push(100); });
-    const after = save("latest", work);
-    held.resolve();
-    await Promise.all([first, ...burst, barrier, after]);
-    expect(samples).toEqual([1, 2, 100, 2]);
-    expect((await Promise.all(burst)).filter(result => result.covered)).toHaveLength(29);
-  });
-  it("settles covered failures without retrying them and admits a later explicit retry", async () => {
-    const { createLatestSerial } = await import("../../src/repositories/file-system");
-    const save = createLatestSerial();
-    const error = new Error("write failed");
-    const write = vi.fn(async () => { throw error; });
-    const results = await Promise.allSettled(Array.from({ length: 10 }, () => save("failed", write)));
-    expect(write).toHaveBeenCalledOnce();
-    expect(results).toEqual(Array.from({ length: 10 }, () => ({ status: "rejected", reason: error })));
-    await expect(save("failed", async () => "retried")).resolves.toEqual({ covered: false, value: "retried" });
-  });
-});
 
 
 it("sends the expected hash and exact formatted content in one invocation without duplicating native failures", async () => {

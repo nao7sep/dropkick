@@ -240,57 +240,6 @@ export async function withSerial<T>(
   return current;
 }
 
-// A latest-state save covers every request admitted before it samples state.
-// Keep each caller's serial reservation (including required/optional accounting),
-// but do not serialize/check/write a generation an earlier save already covered.
-// A different operation in the path's queue ends the batch, so moves, reloads
-// and explicit writes remain barriers even when they use the same file.
-export function createLatestSerial() {
-  interface Batch {
-    accepted: number;
-    settled: number;
-    failure?: { error: unknown };
-    tail?: Promise<unknown>;
-  }
-  const batches = new Map<string, Batch>();
-  return async function latest<T>(
-    key: string,
-    work: () => Promise<T>,
-    settlement: "required" | "optional" = "required",
-  ): Promise<{ covered: true } | { covered: false; value: T }> {
-    let batch = batches.get(key);
-    if (!batch || batch.tail !== serialChains.get(key)) {
-      batch = { accepted: 0, settled: 0 };
-      batches.set(key, batch);
-    }
-    const current = batch;
-    const generation = ++current.accepted;
-    const result = withSerial(key, async () => {
-      if (generation <= current.settled) {
-        if (current.failure) throw current.failure.error;
-        return { covered: true as const };
-      }
-      const through = current.accepted;
-      try {
-        const value = await work();
-        current.failure = undefined;
-        return { covered: false as const, value };
-      } catch (error) {
-        current.failure = { error };
-        throw error;
-      } finally {
-        current.settled = through;
-      }
-    }, settlement);
-    const tail = serialChains.get(key)!;
-    current.tail = tail;
-    void tail.then(() => {
-      if (batches.get(key) === current && current.tail === tail) batches.delete(key);
-    });
-    return result;
-  };
-}
-
 // Acquires two keys in lexicographic order to avoid deadlocks when two callers
 // request the same pair in opposite orders.
 export async function withSerialTwo<T>(

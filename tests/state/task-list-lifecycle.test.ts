@@ -247,21 +247,6 @@ it("discards queued refresh intent on unload before admitting a reopened lifetim
   await useTaskListStore.getState().unloadFile(path);
 });
 
-it("settles a burst against the latest saved generation and writes edits arriving during I/O", async () => {
-  const path = "/coalesced.json";
-  put(path, list("coalesced")); await useTaskListStore.getState().loadFile(path);
-  let release!: () => void;
-  holdWrite = () => new Promise<void>((resolve) => { release = resolve; });
-  const first = useTaskListStore.getState().updateTitle(path, "task", "First");
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
-  const pending = Array.from({ length: 30 }, (_, i) => useTaskListStore.getState().updateTitle(path, "task", `Edit ${i}`));
-  holdWrite = undefined; release();
-  await Promise.all([first, ...pending]);
-  expect(writes).toEqual([path, path]);
-  expect((docs.get(path)!.data as TaskListDto).tasks[0].title).toBe("Edit 29");
-  expect(useTaskListStore.getState().unsavedFiles[path]).toBeUndefined();
-  await useTaskListStore.getState().unloadFile(path);
-});
 
 it("retains a failed coalesced generation for Retry and settles it before tab close", async () => {
   const path = "/coalesced-failed.json";
@@ -279,37 +264,5 @@ it("retains a failed coalesced generation for Retry and settles it before tab cl
   await useTaskListStore.getState().unloadFile(path);
 });
 
-it("does not replay a covered conflict reload over an edit made while the question was open", async () => {
-  const path = "/coalesced-reload.json";
-  put(path, list("coalesced-reload")); await useTaskListStore.getState().loadFile(path);
-  put(path, list("coalesced-reload", "External"));
-  docs.get(path)!.hash = "external";
-  const burst = Array.from({ length: 10 }, (_, i) => useTaskListStore.getState().updateTitle(path, "task", `Before ${i}`));
-  await vi.waitFor(() => expect(useDialogStore.getState().current?.kind).toBe("confirm"));
-  const later = useTaskListStore.getState().updateTitle(path, "task", "While question open");
-  useDialogStore.getState().cancelCurrent();
-  await Promise.all([...burst, later]);
-  expect(useTaskListStore.getState().files[path]?.data.tasks[0].title).toBe("While question open");
-  expect((docs.get(path)!.data as TaskListDto).tasks[0].title).toBe("While question open");
-  expect(writes).toEqual([path]);
-  await useTaskListStore.getState().unloadFile(path);
-});
 
-it("coalesces workspace and optional view-state generations at their own owners", async () => {
-  const { useAppStateStore } = await import("../../src/state/app-state-store");
-  const path = "/coalesced-workspace.json";
-  const data = createDefaultWorkspace("Initial");
-  put(path, data);
-  useWorkspaceStore.getState().adopt(path, data);
-  useAppStateStore.setState({ loaded: true, filePath: "/coalesced-state.json", appState: createDefaultAppState() });
-  const requests = Array.from({ length: 20 }, (_, i) => [
-    useWorkspaceStore.getState().renameWorkspace(`Workspace ${i}`),
-    useAppStateStore.getState().updateViewState({ sidebarWidth: 300 + i }),
-  ]).flat();
-  await Promise.all(requests);
-  expect(writes.filter(p => p === path)).toHaveLength(1);
-  expect(writes.filter(p => p === "/coalesced-state.json")).toHaveLength(1);
-  expect(docs.get(path)!.data).toMatchObject({ name: "Workspace 19" });
-  expect(docs.get("/coalesced-state.json")!.data).toMatchObject({ sidebarWidth: 319 });
-});
 

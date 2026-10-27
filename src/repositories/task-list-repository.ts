@@ -18,7 +18,6 @@ import {
   writeJsonFile,
   saveTaskFile,
   withSerial,
-  createLatestSerial,
   withSerialTwo,
 } from "./file-system";
 import type { JsonReadWithHashResult } from "./file-system";
@@ -57,10 +56,8 @@ export type RefreshResult =
   | { status: "error"; message: string };
 
 // Result of a flush as the store sees it. The repository has already handled
-// any conflict/deleted dialog by the time this resolves. A covered request
-// must not replay the earlier caller’s state transition.
+// any conflict/deleted dialog by the time this resolves.
 export type WriteResult =
-  | { status: "covered" }
   | { status: "success" }
   | { status: "reloaded"; data: TaskListDto; message: Message }
   | { status: "error"; message: Message };
@@ -263,14 +260,12 @@ async function resolveDeleted(
 // one flush is in flight for a given path at a time. `getData` is invoked
 // inside the slot, so it sees the latest store state at the instant of the
 // write. Conflict and deleted-file dialogs are handled inline.
-const latestSave = createLatestSerial();
-
 export async function flushTaskList(
   filePath: string,
   getData: () => TaskListDto,
   onReloaded?: (data: TaskListDto) => boolean,
 ): Promise<WriteResult> {
-  const result = await latestSave<WriteResult>(filePath, async () => {
+  return withSerial(filePath, async () => {
     if (knownHashes.get(filePath) === undefined) {
       return { status: "error", message: message("write.notLoaded") };
     }
@@ -287,7 +282,6 @@ export async function flushTaskList(
     if (attempt.status === "deleted") return resolveDeleted(filePath, data);
     return resolveConflict(filePath, data, onReloaded);
   });
-  return result.covered ? { status: "covered" } : result.value;
 }
 
 // Publishes a move destination first, then source. Holds the serial slot for
