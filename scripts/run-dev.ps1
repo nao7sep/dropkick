@@ -48,7 +48,7 @@ function Invoke-Native {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Split-Path -Parent $scriptDir
 $runtimeHelper = Join-Path $scriptDir "launcher-runtime.mjs"
-$runtimeToken = [guid]::NewGuid().ToString("N")
+$appPid = $null
 $devHost = if ($env:TAURI_DEV_HOST) { $env:TAURI_DEV_HOST } else { "127.0.0.1" }
 $devUrl = "http://${devHost}:29327"
 
@@ -63,9 +63,6 @@ try {
 
     Write-Step "Replacing any existing Dropkick runtime"
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
-    $env:DROPKICK_LAUNCHER_TOKEN = $runtimeToken
-    $env:DROPKICK_LAUNCHER_ENDPOINT = & node $runtimeHelper endpoint-path $runtimeToken
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-endpoint", $devHost, "29327")
     if ($env:TAURI_DEV_HOST) {
         Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-endpoint", $devHost, "22853")
@@ -76,11 +73,9 @@ try {
 
     Write-Step "Starting Dropkick in development mode"
     $devProcess = Start-Process -FilePath (Get-Command "npm.cmd").Source -ArgumentList @("run", "tauri", "dev") -NoNewWindow -PassThru
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "record-support", $runtimeToken, [string]$devProcess.Id)
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-http", $devUrl, "60000")
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-process", (Join-Path $repoDir "src-tauri/target/debug/dropkick.exe"), "180000")
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-owned", $runtimeToken, "30000")
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "record-support", $runtimeToken, [string]$devProcess.Id)
+    $appPid = & node $runtimeHelper record-wrapped $devProcess.Id (Join-Path $repoDir "src-tauri/target/debug/dropkick.exe")
+    if ($LASTEXITCODE -ne 0) { throw "Dropkick did not start." }
     Write-Step "Dropkick is ready at $devUrl"
     $devProcess.WaitForExit()
     if ($devProcess.ExitCode -notin @(0, 130, -1073741510)) {
@@ -93,11 +88,9 @@ catch {
     $scriptExitCode = 1
 }
 finally {
-    & node $runtimeHelper is-owner $runtimeToken *> $null
-    if ($LASTEXITCODE -eq 0) {
-        & node $runtimeHelper stop-if-owner $runtimeToken *> $null
-        Read-Host "Press Enter to close" | Out-Null
-    }
+    # Closing this launcher closes the app it started, unless a later launcher has replaced it.
+    if ($appPid) { & node $runtimeHelper stop-if-recorded $appPid *> $null }
+    Read-Host "Press Enter to close" | Out-Null
 }
 
 exit $scriptExitCode

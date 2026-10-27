@@ -27,7 +27,6 @@ function Write-Step {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Split-Path -Parent $scriptDir
 $runtimeHelper = Join-Path $scriptDir "launcher-runtime.mjs"
-$runtimeToken = [guid]::NewGuid().ToString("N")
 $crate = "dropkick"
 $exePath = Join-Path $repoDir "src-tauri/target/release/$crate.exe"
 
@@ -49,19 +48,11 @@ try {
     $builtAt = (Get-Item $exePath).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
     & node $runtimeHelper stop
     if ($LASTEXITCODE -ne 0) { throw "Could not replace the existing Dropkick runtime." }
-    & node $runtimeHelper claim $runtimeToken
-    if ($LASTEXITCODE -ne 0) { throw "Could not claim the launcher generation." }
-    $env:DROPKICK_LAUNCHER_TOKEN = $runtimeToken
-    $env:DROPKICK_LAUNCHER_ENDPOINT = & node $runtimeHelper endpoint-path $runtimeToken
     Write-Step "Launching the existing built app (built: $builtAt)"
     Write-Host "If you changed source since then, run rebuild instead."
 
-    # GUI app: launch non-blocking via Start-Process.
-    Start-Process -FilePath $exePath | Out-Null
-    & node $runtimeHelper wait-process $exePath 30000
+    & node $runtimeHelper launch-exe $exePath
     if ($LASTEXITCODE -ne 0) { throw "Dropkick did not start." }
-    & node $runtimeHelper wait-owned $runtimeToken 30000
-    if ($LASTEXITCODE -ne 0) { throw "This launcher did not establish its app session." }
 }
 catch {
     Write-Host ""

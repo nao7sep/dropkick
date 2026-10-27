@@ -27,7 +27,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   drainRequiredSerial,
   closeWindow,
-  cancelWindowClose,
   flushForwarded,
   log,
   onSessionEnding,
@@ -231,16 +230,12 @@ export function useWindowClose(): void {
             // cannot extend its bound with a second forwarding allowance.
             return true;
           })();
-          const allowed = await closing;
-          if (!allowed) await cancelWindowClose();
-          else if (!sessionEnding) await closeWindow(forwarded);
+          if ((await closing) && !sessionEnding) await closeWindow(forwarded);
         } catch (e) {
           // A rejection from destroy() leaves the window open. Better that
           // than an unhandled rejection with preventDefault already called —
           // the user can retry the close.
           log.error("window close failed", toErrorFields(e));
-          try { await cancelWindowClose(); }
-          catch (reportError) { log.error("close cancellation report failed", toErrorFields(reportError)); }
         } finally {
           closing = null;
         }

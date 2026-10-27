@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_HELPER="$SCRIPT_DIR/launcher-runtime.mjs"
-RUNTIME_TOKEN="run-dev-$$-$(date +%s)-$RANDOM"
+APP_PID=""
 DEV_HOST="${TAURI_DEV_HOST:-127.0.0.1}"
 DEV_URL="http://$DEV_HOST:29327"
 
@@ -36,8 +36,9 @@ pause_on_failure() {
 cleanup() {
   local status="$?"
   trap - EXIT
-  if node "$RUNTIME_HELPER" is-owner "$RUNTIME_TOKEN" >/dev/null 2>&1; then
-    node "$RUNTIME_HELPER" stop-if-owner "$RUNTIME_TOKEN" >/dev/null 2>&1 || true
+  # Closing this launcher closes the app it started, unless a later launcher has replaced it.
+  if [[ -n "$APP_PID" ]]; then
+    node "$RUNTIME_HELPER" stop-if-recorded "$APP_PID" >/dev/null 2>&1 || true
   fi
   pause_on_failure "$status"
   exit "$status"
@@ -54,9 +55,6 @@ cd "$REPO_DIR"
 
 log_step "Replacing any existing Dropkick runtime"
 node "$RUNTIME_HELPER" stop
-node "$RUNTIME_HELPER" claim "$RUNTIME_TOKEN"
-export DROPKICK_LAUNCHER_TOKEN="$RUNTIME_TOKEN"
-export DROPKICK_LAUNCHER_ENDPOINT="$(node "$RUNTIME_HELPER" endpoint-path "$RUNTIME_TOKEN")"
 node "$RUNTIME_HELPER" check-endpoint "$DEV_HOST" 29327
 if [[ -n "${TAURI_DEV_HOST:-}" ]]; then
   node "$RUNTIME_HELPER" check-endpoint "$DEV_HOST" 22853
@@ -68,10 +66,7 @@ npm install --no-audit --no-fund
 log_step "Starting Dropkick in development mode"
 npm run tauri dev &
 DEV_PID=$!
-node "$RUNTIME_HELPER" record-support "$RUNTIME_TOKEN" "$DEV_PID"
 node "$RUNTIME_HELPER" wait-http "$DEV_URL" 60000
-node "$RUNTIME_HELPER" wait-process "$REPO_DIR/src-tauri/target/debug/dropkick" 180000
-node "$RUNTIME_HELPER" wait-owned "$RUNTIME_TOKEN" 30000
-node "$RUNTIME_HELPER" record-support "$RUNTIME_TOKEN" "$DEV_PID"
+APP_PID="$(node "$RUNTIME_HELPER" record-wrapped "$DEV_PID" "$REPO_DIR/src-tauri/target/debug/dropkick")"
 log_step "Dropkick is ready at $DEV_URL"
 wait "$DEV_PID"
