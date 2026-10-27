@@ -62,37 +62,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_backups_path_session ON backups (path, ses
 /// How long an ordinary quit waits at exit for queued records.
 pub const QUIT_DRAIN: Duration = Duration::from_secs(1);
 
-struct Pending {
-    bytes: Vec<u8>,
-    // Replacing pending content also takes responsibility for its earlier saves.
-    first_generation: u64,
-}
-
+// One path's newest pending bytes replace any older pending bytes for it; the
+// active write is never replaced.
 struct State {
-    pending: HashMap<String, Pending>,
+    pending: HashMap<String, Vec<u8>>,
     ready: VecDeque<String>,
-    active: Option<u64>,
-    next_generation: u64,
+    active: bool,
     closing: bool,
-}
-
-impl State {
-    fn settled_through(&self, target: u64) -> bool {
-        self.active.is_none_or(|generation| generation > target)
-            && self
-                .pending
-                .values()
-                .all(|pending| pending.first_generation > target)
-    }
 }
 
 struct Shared {
     state: Mutex<State>,
     changed: Condvar,
-    // Tests can hold one admitted write before database I/O without racing
-    // SQLite's busy timeout or retaining the production submission lock.
-    #[cfg(test)]
-    pause_before_record: Mutex<Option<std::sync::mpsc::Receiver<()>>>,
 }
 
 impl Shared {
@@ -131,13 +112,10 @@ pub fn init(store_file: PathBuf) {
             pending: HashMap::new(),
             ready: VecDeque::new(),
             // Opening the store belongs to the first drain, even without saves.
-            active: Some(0),
-            next_generation: 0,
+            active: true,
             closing: false,
         }),
         changed: Condvar::new(),
-        #[cfg(test)]
-        pause_before_record: Mutex::new(None),
     });
     let worker_shared = Arc::clone(&shared);
     match std::thread::Builder::new()
@@ -164,7 +142,7 @@ fn run(store_file: &Path, session: &str, shared: Arc<Shared>) {
         }
     };
     let mut state = shared.lock();
-    state.active = None;
+    state.active = false;
     shared.changed.notify_all();
     loop {
         while state.ready.is_empty() && !state.closing {
@@ -176,26 +154,17 @@ fn run(store_file: &Path, session: &str, shared: Arc<Shared>) {
         let Some(path) = state.ready.pop_front() else {
             return;
         };
-        let pending = state
+        let bytes = state
             .pending
             .remove(&path)
             .expect("ready path has pending bytes");
-        state.active = Some(pending.first_generation);
+        state.active = true;
         shared.changed.notify_all();
         drop(state);
 
-        #[cfg(test)]
-        {
-            let pause = shared.pause_before_record.lock().unwrap().take();
-            if let Some(release) = pause {
-                // Disconnect also releases the worker when a test panics.
-                let _ = release.recv();
-            }
-        }
-
         // Neither database waits nor diagnostic I/O hold the submission lock.
         if let Some(conn) = conn.as_mut() {
-            if let Err(err) = try_record(conn, session, &path, &pending.bytes) {
+            if let Err(err) = try_record(conn, session, &path, &bytes) {
                 logging::warn(
                     "backup store: failed to record a managed write",
                     json!({ "file": path, "error": { "message": err.to_string() } }),
@@ -203,7 +172,7 @@ fn run(store_file: &Path, session: &str, shared: Arc<Shared>) {
             }
         }
         state = shared.lock();
-        state.active = None;
+        state.active = false;
         shared.changed.notify_all();
     }
 }
@@ -254,33 +223,20 @@ pub fn record(absolute_path: &Path, bytes: &[u8]) {
     if state.closing {
         return;
     }
-    state.next_generation += 1;
-    let generation = state.next_generation;
-    if let Some(pending) = state.pending.get_mut(&path) {
-        pending.bytes = bytes;
-    } else {
-        state.ready.push_back(path.clone());
-        state.pending.insert(
-            path,
-            Pending {
-                bytes,
-                first_generation: generation,
-            },
-        );
+    if state.pending.insert(path.clone(), bytes).is_none() {
+        state.ready.push_back(path);
     }
     shared.changed.notify_all();
 }
 
-/// Waits up to `bound` for settlement of records accepted so far. A later save
-/// can replace pending bytes and settle their earlier generations only when
-/// that replacement itself settles. Settlement does not guarantee success.
+/// Waits up to `bound` until the owner is idle, so every record accepted so
+/// far has settled. Settlement does not guarantee success.
 pub fn flush(bound: Duration) -> bool {
     let started = Instant::now();
     let shared = lock().as_ref().map(|owner| Arc::clone(&owner.shared));
     let Some(shared) = shared else { return true };
     let mut state = shared.lock();
-    let target = state.next_generation;
-    while !state.settled_through(target) {
+    while state.active || !state.ready.is_empty() {
         let Some(remaining) = bound.checked_sub(started.elapsed()) else {
             return false;
         };

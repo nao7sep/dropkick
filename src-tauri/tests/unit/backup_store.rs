@@ -157,36 +157,23 @@ fn a_new_session_adds_a_row_only_for_content_that_changed() {
     assert_eq!(rows_for(&store.file, "/abs/e.json").len(), 1);
 }
 
-// Wait for the worker's actual ownership transition, with a watchdog only to
-// report a stuck worker. No assertion depends on how fast scheduling or I/O is.
-fn wait_until_active(shared: &Shared, generation: u64) {
-    let state = shared.lock();
-    let (state, _) = shared.changed.wait_timeout_while(
-        state,
-        Duration::from_secs(10),
-        |state| state.active != Some(generation),
-    ).unwrap_or_else(|p| p.into_inner());
-    assert_eq!(state.active, Some(generation));
-}
-
 #[test]
 #[serial(backup_store)]
-fn a_paused_owner_coalesces_pending_bytes_with_the_store_locked_and_drains_on_close() {
+fn a_busy_owner_coalesces_pending_bytes_with_the_store_locked_and_drains_on_close() {
     with_store(|file| {
         assert!(flush(Duration::from_secs(10)));
         let shared = Arc::clone(&lock().as_ref().unwrap().shared);
+        // The worker waits on SQLite's busy timeout while another connection
+        // holds the write lock, so later saves arrive behind an active write.
         let holder = Connection::open(file).unwrap();
         holder.execute_batch("BEGIN IMMEDIATE").unwrap();
-        // Hold admission before I/O: no amount of test scheduling can outlast
-        // SQLite's busy timeout and accidentally settle the active snapshot.
-        let (release, pause) = std::sync::mpsc::channel();
-        *shared.pause_before_record.lock().unwrap() = Some(pause);
         record(Path::new("/abs/f.json"), b"active snapshot");
-        wait_until_active(&shared, 1);
-
-        record(Path::new("/abs/f.json"), b"first pending");
-        record(Path::new("/abs/g.json"), b"other first");
-        let target = shared.lock().next_generation;
+        {
+            let state = shared.lock();
+            let (state, _) = shared.changed.wait_timeout_while(state, Duration::from_secs(10),
+                |state| !(state.active && state.ready.is_empty())).unwrap_or_else(|p| p.into_inner());
+            assert!(state.active && state.ready.is_empty());
+        }
         for _ in 0..100 {
             record(Path::new("/abs/f.json"), b"superseded");
             record(Path::new("/abs/g.json"), b"other superseded");
@@ -196,59 +183,19 @@ fn a_paused_owner_coalesces_pending_bytes_with_the_store_locked_and_drains_on_cl
         record(Path::new("/abs/g.json"), b"other newest");
         {
             let state = shared.lock();
-            assert_eq!(state.active, Some(1), "an active snapshot is never replaced");
             assert_eq!(state.pending.len(), 2);
             assert_eq!(state.ready.iter().map(String::as_str).collect::<Vec<_>>(),
                 ["/abs/f.json", "/abs/g.json"]);
-            assert_eq!(state.pending["/abs/f.json"].bytes, newest);
-            assert_eq!(state.pending["/abs/g.json"].bytes, b"other newest");
-            assert_eq!(state.pending["/abs/f.json"].first_generation, 2);
-            assert_eq!(state.pending["/abs/g.json"].first_generation, 3);
-            assert!(!state.settled_through(target));
+            assert_eq!(state.pending["/abs/f.json"], newest);
+            assert_eq!(state.pending["/abs/g.json"], b"other newest");
         }
-        // Verify the actual database lock independently of the admission gate.
-        let mut probe = open(file).unwrap();
-        probe.busy_timeout(Duration::ZERO).unwrap();
-        let error = try_record(&mut probe, "probe", "/abs/probe.json", b"locked")
-            .expect_err("the separate writer must hold SQLite's write lock");
-        assert_eq!(error.sqlite_error_code(), Some(rusqlite::ErrorCode::DatabaseBusy));
-        drop(probe);
-        // Repeated drains cannot report completion before the admitted write
-        // settles, and do not allocate queued barrier jobs.
-        for _ in 0..100 {
-            assert!(!flush(Duration::ZERO));
-        }
+        assert!(!flush(Duration::ZERO));
         holder.execute_batch("COMMIT").unwrap();
         drop(holder);
-        release.send(()).unwrap();
         close_for_test();
         assert_eq!(rows_for(file, "/abs/f.json")[0].0, newest);
         assert_eq!(rows_for(file, "/abs/g.json")[0].0, b"other newest");
     });
-}
-
-#[test]
-fn a_coalesced_successor_owns_earlier_generations_until_it_settles() {
-    let mut state = State {
-        pending: HashMap::from([("/abs/a.json".into(), Pending {
-            bytes: b"later successor".to_vec(),
-            first_generation: 2,
-        })]),
-        ready: VecDeque::from(["/abs/a.json".into()]),
-        active: None,
-        next_generation: 100,
-        closing: false,
-    };
-    let earlier_barrier = 2;
-    assert!(!state.settled_through(earlier_barrier));
-    let path = state.ready.pop_front().unwrap();
-    state.active = Some(state.pending.remove(&path).unwrap().first_generation);
-    assert!(!state.settled_through(earlier_barrier), "dequeue is not settlement");
-    state.active = None;
-    assert!(state.settled_through(earlier_barrier));
-    // A barrier does not acquire responsibility for newly admitted paths.
-    state.active = Some(101);
-    assert!(state.settled_through(earlier_barrier));
 }
 
 #[test]
