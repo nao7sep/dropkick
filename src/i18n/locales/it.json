@@ -429,7 +429,6 @@
   "records.levelDebug": "Debug",
   "records.paused": "Gli aggiornamenti in tempo reale sono in pausa. I record visualizzati potrebbero non essere aggiornati.",
   "records.sourcesFailed": "Impossibile aggiornare le opzioni di avvio.",
-  "records.newest": "Più recenti",
   "records.loading": "Caricamento del log…",
   "records.empty": "Nessuna voce corrisponde a questi filtri.",
   "records.loadFailed": "Impossibile leggere il log.",

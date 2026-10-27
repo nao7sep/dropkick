@@ -333,26 +333,3 @@ fn a_newer_database_is_not_read() {
     let error = open(&f.path).expect_err("a newer database is refused");
     assert!(error.contains("records.sqlite3"), "{error}");
 }
-
-#[test]
-fn reverse_cursor_refetches_evicted_pages_in_display_order_without_scanning_the_gap() {
-    let f = fixture();
-    for index in 0..500 { f.insert(S2, S2, "warn", &format!("m{index}"), None, "{}"); }
-    let reader = f.reader();
-    let page = read_page(&reader, &RecordsQuery {
-        before: Some(RecordCursor { time: S2.into(), id: 201 }),
-        level: Some(LevelFilter::Attention),
-        ..RecordsQuery::default()
-    }).unwrap();
-    assert_eq!(page.records.len(), PAGE_SIZE);
-    assert_eq!(page.records.first().unwrap().id, 301);
-    assert_eq!(page.records.last().unwrap().id, 202);
-    assert!(page.more);
-    let newest = read_page(&reader, &RecordsQuery {
-        before: Some(RecordCursor { time: S2.into(), id: 450 }),
-        ..RecordsQuery::default()
-    }).unwrap();
-    assert_eq!(newest.records.first().unwrap().id, 500);
-    assert_eq!(newest.records.last().unwrap().id, 451);
-    assert!(!newest.more);
-}

@@ -51,8 +51,8 @@ export function readRecordDetail(id: number): Promise<RecordDetail | null> {
   return invoke<RecordDetail | null>("read_record_detail", { id });
 }
 
-export function onRecordsChanged(listener: (session: string | null) => void): () => void {
-  return subscribe<string | null>(RECORDS_CHANGED, listener);
+export function onRecordsChanged(listener: () => void): () => void {
+  return subscribe<null>(RECORDS_CHANGED, () => listener());
 }
 
 // The main window tells the Records window, when it is open, about a change.

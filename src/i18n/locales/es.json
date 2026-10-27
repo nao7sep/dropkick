@@ -429,7 +429,6 @@
   "records.levelDebug": "Depuración",
   "records.paused": "Las actualizaciones en vivo están en pausa. Los registros mostrados pueden estar desactualizados.",
   "records.sourcesFailed": "No se pudieron actualizar las opciones de inicio.",
-  "records.newest": "Más recientes",
   "records.loading": "Cargando registros…",
   "records.empty": "Ningún registro coincide con estos filtros.",
   "records.loadFailed": "No se pudieron leer los registros.",
