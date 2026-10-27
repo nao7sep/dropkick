@@ -230,8 +230,9 @@ fn load_file_owned(path: &Path) -> Result<SavedPlacement, String> {
     }
 }
 
-pub(crate) fn prepare(app: &AppHandle, tracked: &TrackedWindow) -> Result<Option<Placement>, String> {
-    let root = paths::data_root(app)?;
+fn load(app: &AppHandle, tracked: &TrackedWindow) -> Result<Option<Placement>, String> {
+    let app = app.clone();
+    let root = crate::native_wait::run("app-paths".to_string(), move || paths::data_root(&app))?;
     let path = root.join(tracked.file_name);
     match load_file(&path)? {
         SavedPlacement::Absent => Ok(None),
@@ -251,17 +252,14 @@ pub(crate) fn prepare(app: &AppHandle, tracked: &TrackedWindow) -> Result<Option
 // window reopened in the same session takes the placement it closed with,
 // which is saved only at exit.
 pub(crate) fn restore(app: &AppHandle, window: &Window<Wry>, tracked: &TrackedWindow) {
+    let fallback = current_rectangle(window).ok().map(|normal| Placement {
+        normal,
+        maximized: false,
+    });
     let remembered = match state_value(tracked) {
         Some(placement) => Ok(Some(placement)),
-        None => prepare(app, tracked),
+        None => load(app, tracked),
     };
-    restore_prepared(window, tracked, remembered);
-}
-
-pub(crate) fn restore_prepared(window: &Window<Wry>, tracked: &TrackedWindow, remembered: Result<Option<Placement>, String>) {
-    let fallback = current_rectangle(window).ok().map(|normal| Placement {
-        normal, maximized: false,
-    });
     let saved = match remembered {
         Ok(saved) => saved,
         Err(error) => {

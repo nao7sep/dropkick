@@ -1294,26 +1294,12 @@ pub fn run() {
                 if let Err(error) = theme::apply(&window, appearance.theme) {
                     logging::warn("apply saved window theme failed", json!({ "error": error }));
                 }
-                // Storage preparation runs off the event loop. Only applying
-                // native geometry and showing the already themed window returns
-                // to the main thread.
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    let reader = handle.clone();
-                    let saved = native_wait::settle(move || {
-                        window_placement::prepare(&reader, &reader.state::<window_placement::WindowPlacements>().main)
-                    }).await;
-                    let ui = handle.clone();
-                    if let Err(error) = handle.run_on_main_thread(move || {
-                        window_placement::restore_prepared(&window.as_ref().window(),
-                            &ui.state::<window_placement::WindowPlacements>().main, saved);
-                        if let Err(error) = window.show() {
-                            logging::error("main window could not be shown", json!({ "error": error.to_string() }));
-                        }
-                    }) {
-                        logging::error("main window setup dispatch failed", json!({ "error": error.to_string() }));
-                    }
-                });
+                window_placement::restore(
+                    app.handle(),
+                    &window.as_ref().window(),
+                    &app.state::<window_placement::WindowPlacements>().main,
+                );
+                window.show()?;
             }
             os_quit::install(app.handle());
             Ok(())
