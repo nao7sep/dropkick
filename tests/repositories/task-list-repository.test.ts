@@ -57,21 +57,21 @@ beforeEach(async () => {
 // Loads a file so its hash is registered as `hash`, the precondition for flushes.
 async function register(filePath: string, hash = "H0") {
   readJsonFileWithHash.mockResolvedValueOnce({ status: "success", data: data(), hash });
-  await repo.loadTaskList(filePath);
+  await repo.loadTaskList(filePath, (read) => read());
 }
 
 describe("loadTaskList", () => {
   it("records the hash and returns the loaded data on success", async () => {
     readJsonFileWithHash.mockResolvedValue({ status: "success", data: data(), hash: "H1" });
-    const adopted = vi.fn(() => { expect(insideSerial).toBe(true); return true; });
-    const result = await repo.loadTaskList("/f.json", adopted);
-    expect(adopted).toHaveBeenCalledWith(data());
+    let inTurn = false;
+    const result = await repo.loadTaskList("/f.json", async (read) => { inTurn = insideSerial; return await read(); });
+    expect(inTurn).toBe(true);
     expect(result).toEqual({ status: "success", taskList: { filePath: "/f.json", data: data() } });
   });
 
   it("passes through a non-success load result", async () => {
     readJsonFileWithHash.mockResolvedValue({ status: "missing" });
-    expect(await repo.loadTaskList("/f.json")).toEqual({ status: "missing" });
+    expect(await repo.loadTaskList("/f.json", (read) => read())).toEqual({ status: "missing" });
   });
 
   it("does not rewrite a file that already has an id", async () => {
@@ -80,7 +80,7 @@ describe("loadTaskList", () => {
       data: { id: "EXISTING", tasks: [] },
       hash: "H1",
     });
-    const result = await repo.loadTaskList("/f.json");
+    const result = await repo.loadTaskList("/f.json", (read) => read());
     expect(nativePublish).not.toHaveBeenCalled();
     if (result.status !== "success") throw new Error("expected success");
     expect(result.taskList.data.id).toBe("EXISTING");
@@ -227,7 +227,7 @@ describe("flushTaskList — deleted resolution", () => {
 describe("forgetTaskList", () => {
   it("drops the hash so later flushes report the file as not loaded", async () => {
     await register("/f.json", "H0");
-    await repo.forgetTaskList("/f.json");
+    await repo.forgetTaskList("/f.json", () => {});
     expect(await repo.flushTaskList("/f.json", () => data())).toEqual({
       status: "error",
       message: message("write.notLoaded"),

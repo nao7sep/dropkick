@@ -318,13 +318,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   // (the store decides whether it may take the new copy).
   useTaskListRefresh(activeTab);
 
-  // Load the active tab's file when the active tab changes. loadFile owns the
-  // failed-load record; TaskListPane renders that record with retry/removal, so
-  // this effect must not add a second dialog for the same attempt.
   useEffect(() => {
-    if (activeTab && !activeTab.isUnifiedView) {
-      void loadFile(activeTab.filePath);
-    }
     clearSelection();
   }, [activeTab?.filePath, activeTab?.isUnifiedView]);
 
@@ -343,19 +337,25 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
     [workspace.openTabs],
   );
 
-  // Eagerly load every open list file — not just the active tab — so each tab's
+  // Load every open list file — not just the active tab — so each tab's
   // deadline dot reflects its own list, and so unified view has every file's
-  // tasks. The active tab is loaded by the effect above, with failures shown
-  // inline in TaskListPane, so it's skipped here to avoid a duplicate read.
+  // tasks. One list at a time (serial by default), the active tab first; a
+  // change of tab or open lists starts the order again from the new active tab.
   // loadFile records any failure in fileLoadErrors and never rejects, so a
-  // background tab's failure surfaces inline (its alert icon and, in unified
-  // view, the missing-lists notice in the task list pane).
+  // failure surfaces inline (TaskListPane's retry and removal for the active
+  // tab, the tab's alert icon and, in unified view, the missing-lists notice).
   useEffect(() => {
     const paths = openListPathsKey ? openListPathsKey.split("\0") : [];
-    for (const path of paths) {
-      if (!activeTab?.isUnifiedView && path === activeTab?.filePath) continue;
-      void loadFile(path);
-    }
+    const active = activeTab && !activeTab.isUnifiedView ? activeTab.filePath : null;
+    const ordered = active ? [active, ...paths.filter((path) => path !== active)] : paths;
+    const superseded = new AbortController();
+    void (async () => {
+      for (const path of ordered) {
+        if (superseded.signal.aborted) return;
+        await loadFile(path);
+      }
+    })();
+    return () => superseded.abort();
   }, [openListPathsKey, activeTab?.filePath, activeTab?.isUnifiedView, loadFile]);
 
   // Drop note drafts whose subject is provably gone.

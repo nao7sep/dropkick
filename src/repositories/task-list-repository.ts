@@ -92,31 +92,32 @@ function rememberHash(filePath: string, hash: string): void {
 
 // Called by the store when a tab closes so the repository can release state.
 // Routed through the same serial chain as flushes so any queued write for this
-// path lands on disk before the hash is dropped.
-export async function forgetTaskList(filePath: string): Promise<void> {
+// path lands on disk before the hash is dropped; `retire` runs in that same
+// turn, so the store lets the list go in the list's own order.
+export async function forgetTaskList(filePath: string, retire: () => void): Promise<void> {
   await withSerial(filePath, async () => {
+    retire();
     knownHashes.delete(filePath);
   }, "optional");
 }
 
-// Loads a task list and records its hash for future writes.
-// Serialized per path so a load racing against an in-flight forget for the
-// same path lands in a deterministic order — the load either runs first (and
-// is then unregistered) or last (and stays registered).
-export async function loadTaskList(
+// Runs `take` in the path's turn of its serial chain, with a `read` that loads
+// the task list and records its hash for future writes. `take` decides whether
+// to read and publishes the result in the same turn, so loads, saves, refreshes
+// and the forget of one list run one at a time in the order they were asked.
+export async function loadTaskList<T>(
   filePath: string,
-  onLoaded?: (data: TaskListDto) => void,
-): Promise<LoadTaskListResult> {
-  return withSerial(filePath, async () => {
+  take: (read: () => Promise<LoadTaskListResult>) => Promise<T>,
+): Promise<T> {
+  return withSerial(filePath, () => take(async () => {
     const loaded = await readJsonFileWithHash<TaskListDto>(filePath);
     if (loaded.status !== "success") return loaded;
     rememberHash(filePath, loaded.hash);
-    onLoaded?.(loaded.data);
     return {
       status: "success",
       taskList: { filePath, data: loaded.data },
     };
-  }, "optional");
+  }), "optional");
 }
 
 // Creates an empty task list file on disk and records its hash.
@@ -136,11 +137,14 @@ export async function createTaskListFile(
 // save then reads back as `unchanged`, because the stored hash is the one that
 // save produced. A changed copy is offered to `adopt` inside the same slot, so
 // no flush can run between the caller's decision and the hash it implies.
+// `onTurn` runs when the refresh's turn comes, before it reads.
 export async function refreshTaskList(
   filePath: string,
   adopt: (data: TaskListDto) => boolean,
+  onTurn: () => void = () => {},
 ): Promise<RefreshResult> {
   return withSerial(filePath, async () => {
+    onTurn();
     const known = knownHashes.get(filePath);
     if (known === undefined) return { status: "notLoaded" };
     let loaded: JsonReadWithHashResult<TaskListDto> | { status: "unchanged" };

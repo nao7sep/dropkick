@@ -56,8 +56,8 @@ beforeEach(() => {
   });
 });
 
-it("a held outgoing refresh cannot delay adoption or publish into the next workspace", async () => {
-  put("/old.json", list("identity")); put("/copy.json", list("identity"));
+it("a held outgoing refresh cannot delay adoption, and the list retires after it in its own order", async () => {
+  put("/old.json", list("identity")); put("/copy.json", list("other"));
   workspace("/a.json", ["/old.json"]); workspace("/b.json", ["/copy.json"]);
   await openWorkspaceSession("/a.json"); await useTaskListStore.getState().loadFile("/old.json");
   put("/old.json", list("identity", "Outside change"));
@@ -150,6 +150,7 @@ it("switching releases old-only lists and their identity while retaining note co
   await openWorkspaceSession("/a.json"); await useTaskListStore.getState().loadFile("/old.json");
   useNoteDraftStore.getState().setDraft("task|%2Fold.json", "Unsent note");
   expect(await openWorkspaceSession("/b.json")).toEqual({ kind: "success" });
+  await drainSerial("/old.json");
   expect(Object.keys(useTaskListStore.getState().files)).toEqual([]);
   expect(useNoteDraftStore.getState().drafts["task|%2Fold.json"]).toBe("Unsent note");
   expect(useNoteDraftStore.getState().parkedTasks["task|%2Fold.json"].title).toBe("Original");
@@ -228,7 +229,7 @@ it("coalesces focus refreshes behind a held read without delaying an accepted sa
   await Promise.all([useTaskListStore.getState().unloadFile(path), useTaskListStore.getState().unloadFile("/focus-b.json")]);
 });
 
-it("discards queued refresh intent on unload before admitting a reopened lifetime", async () => {
+it("runs a queued refresh, the unload and a reopening load in the list's order", async () => {
   const path = "/focus-retired.json";
   put(path, list("retired")); await useTaskListStore.getState().loadFile(path);
   let release!: () => void;
@@ -242,7 +243,7 @@ it("discards queued refresh intent on unload before admitting a reopened lifetim
   const reopening = useTaskListStore.getState().loadFile(path);
   holdRead = undefined; release();
   await Promise.all([refresh, repeat, retiring, reopening]);
-  expect(io).toEqual([`read:${path}`, `read:${path}`]);
+  expect(io).toEqual([`read:${path}`, `read:${path}`, `read:${path}`]);
   expect(useTaskListStore.getState().files[path]?.data.tasks[0]?.title).toBe("Reopened data");
   await useTaskListStore.getState().unloadFile(path);
 });

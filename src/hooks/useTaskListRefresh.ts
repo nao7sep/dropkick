@@ -9,27 +9,32 @@
 // list the app holds edits for, and the app's own saves read back unchanged.
 
 import { refreshCalendarDay } from "./useCalendarDay";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { onWindowFocused } from "../repositories";
 import { useTaskListStore } from "../state/task-list-store";
 
-function refreshLoaded(paths?: readonly string[]): void {
-  const store = useTaskListStore.getState();
-  for (const path of paths ?? Object.keys(store.files)) {
-    if (store.files[path]) void store.refreshFromDisk(path);
+// One list at a time (serial by default), the active list first.
+async function refreshLoaded(first: string | null, paths?: readonly string[]): Promise<void> {
+  const all = paths ?? Object.keys(useTaskListStore.getState().files);
+  const ordered = first && all.includes(first) ? [first, ...all.filter((path) => path !== first)] : all;
+  for (const path of ordered) {
+    const store = useTaskListStore.getState();
+    if (store.files[path]) await store.refreshFromDisk(path);
   }
 }
 
 export function useTaskListRefresh(
   activeTab: { filePath: string; isUnifiedView: boolean } | null | undefined,
 ): void {
-  const activePath = activeTab?.isUnifiedView ? null : activeTab?.filePath;
+  const activePath = activeTab?.isUnifiedView ? null : activeTab?.filePath ?? null;
   const unified = activeTab?.isUnifiedView ?? false;
+  const active = useRef(activePath);
+  active.current = activePath;
 
   useEffect(() => {
-    if (unified) refreshLoaded();
-    else if (activePath) refreshLoaded([activePath]);
+    if (unified) void refreshLoaded(null);
+    else if (activePath) void refreshLoaded(null, [activePath]);
   }, [activePath, unified]);
 
-  useEffect(() => onWindowFocused(() => { refreshCalendarDay(); refreshLoaded(); }), []);
+  useEffect(() => onWindowFocused(() => { refreshCalendarDay(); void refreshLoaded(active.current); }), []);
 }

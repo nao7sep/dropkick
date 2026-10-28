@@ -204,7 +204,6 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
       if (!path) return;
       log.info("open task list", { path });
       const loaded = await loadFile(path);
-      if (loaded.status === "cancelled") return;
       if (loaded.status !== "success") {
         // The load-failure warning is emitted once by the task-list store
         // (covers this path and background loads); here we only show the dialog.
@@ -227,7 +226,6 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
     try {
       log.info("open recent task list", { path });
       const loaded = await loadFile(path);
-      if (loaded.status === "cancelled") return;
       if (loaded.status !== "success") {
         // Load-failure warning is emitted once by the task-list store.
         await showMessage(

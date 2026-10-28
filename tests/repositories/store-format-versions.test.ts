@@ -225,7 +225,7 @@ describe("task lists", () => {
   it("reports a list without a marker as invalid and leaves it alone", async () => {
     const path = "/repo/legacy.json";
     const text = put(path, { id: "L1", tasks: [] });
-    expect((await loadTaskList(path)).status).toBe("invalid");
+    expect((await loadTaskList(path, (read) => read())).status).toBe("invalid");
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);
   });
@@ -233,7 +233,7 @@ describe("task lists", () => {
   it("round-trips the current version", async () => {
     const path = "/repo/current.json";
     put(path, { formatVersion: 1, id: "L1", tasks: [] });
-    const loaded = await loadTaskList(path);
+    const loaded = await loadTaskList(path, (read) => read());
     expect(loaded).toMatchObject({ status: "success", taskList: { data: { id: "L1" } } });
     if (loaded.status !== "success") return;
     expect(await flushTaskList(path, () => loaded.taskList.data)).toEqual({ status: "success" });
@@ -243,7 +243,7 @@ describe("task lists", () => {
   it("refuses a newer build's list and leaves it byte-identical, even without an id", async () => {
     const path = "/repo/newer.json";
     const text = put(path, { formatVersion: 2, items: [] });
-    expect(await loadTaskList(path)).toEqual({ status: "newer", formatVersion: 2 });
+    expect(await loadTaskList(path, (read) => read())).toEqual({ status: "newer", formatVersion: 2 });
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);
   });
@@ -295,7 +295,7 @@ describe("files from v0.1.0", () => {
   it("opens a task list and writes this build's format at its next save", async () => {
     const path = "/repo/tasks.json";
     put(path, { version: "1.0.0", id: "L1", tasks: [] });
-    expect((await loadTaskList(path)).status).toBe("success");
+    expect((await loadTaskList(path, (read) => read())).status).toBe("success");
     expect(writes()).toEqual([]);
     await flushTaskList(path, () => ({ id: "L1", tasks: [] }));
     expect(stored(path)).toEqual({ formatVersion: 1, id: "L1", tasks: [] });

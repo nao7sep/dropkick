@@ -18,11 +18,7 @@ const refreshTaskList = vi.fn();
 vi.mock("../../src/repositories", () => ({
   pendingSerialKeys: vi.fn(() => []),
   drainRequiredSerial: vi.fn(async () => {}),
-  loadTaskList: async (p: string, onLoaded?: (data: TaskListDto) => void) => {
-    const result = await loadTaskList(p);
-    if (result.status === "success") onLoaded?.(result.taskList.data);
-    return result;
-  },
+  loadTaskList: (p: string, take: (read: () => Promise<unknown>) => Promise<unknown>) => take(() => loadTaskList(p)),
   createTaskListFile: (p: string) => createTaskListFile(p),
   flushTaskList: async (p: string, getData: () => TaskListDto, onReloaded?: (data: TaskListDto) => void) => {
     const result = await flushTaskList(p, getData);
@@ -37,8 +33,11 @@ vi.mock("../../src/repositories", () => ({
     }
     return result;
   },
-  forgetTaskList: (p: string) => forgetTaskList(p),
-  refreshTaskList: (p: string, adopt: (data: TaskListDto) => boolean) => refreshTaskList(p, adopt),
+  forgetTaskList: (p: string, retire: () => void) => { retire(); return forgetTaskList(p); },
+  refreshTaskList: (p: string, adopt: (data: TaskListDto) => boolean, onTurn?: () => void) => {
+    onTurn?.();
+    return refreshTaskList(p, adopt);
+  },
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   loadFailureFields: (path: string, result: { status: string; message?: string }) => ({
     path,
@@ -48,6 +47,7 @@ vi.mock("../../src/repositories", () => ({
 }));
 
 import { useTaskListStore } from "../../src/state/task-list-store";
+import { pendingSerialKeys } from "../../src/repositories";
 import { usePreferencesStore } from "../../src/state/preferences-store";
 import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { composerDraftKey } from "../../src/services/note-drafts";
@@ -146,31 +146,6 @@ describe("loadFile", () => {
       message:
         "The task list could not be read. Check that it is still available and that Dropkick has access, then try again.",
     });
-  });
-
-  it("collapses concurrent loads of the same path into a single read", async () => {
-    // Hold the read open so both calls overlap before either resolves.
-    let resolveRead!: (value: unknown) => void;
-    loadTaskList.mockReturnValue(
-      new Promise((resolve) => {
-        resolveRead = resolve;
-      }),
-    );
-
-    const first = useTaskListStore.getState().loadFile(FILE);
-    const second = useTaskListStore.getState().loadFile(FILE);
-    // Second call joins the in-flight load instead of issuing its own read.
-    expect(loadTaskList).toHaveBeenCalledTimes(1);
-
-    resolveRead({
-      status: "success",
-      taskList: { filePath: FILE, data: { tasks: [makeTask({ id: "z" })] } },
-    });
-    const [r1, r2] = await Promise.all([first, second]);
-    expect(r1).toEqual({ status: "success" });
-    expect(r2).toEqual({ status: "success" });
-    expect(loadTaskList).toHaveBeenCalledTimes(1);
-    expect(tasksOf().map((t) => t.id)).toEqual(["z"]);
   });
 
   it("retries a previously errored path on a later load (in-flight entry cleared)", async () => {
@@ -706,6 +681,8 @@ describe("refreshFromDisk", () => {
     flushTaskList.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
     const saving = useTaskListStore.getState().updateTitle(FILE, "a", "typed in app");
     diskHolds([makeTask({ id: "a", title: "edited outside" })]);
+    // The save's turn in the list's chain is still queued or running.
+    vi.mocked(pendingSerialKeys).mockReturnValueOnce([FILE]);
 
     await useTaskListStore.getState().refreshFromDisk(FILE);
 

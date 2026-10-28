@@ -38,7 +38,6 @@ import {
   refreshTaskList,
   log,
   loadFailureFields,
-  drainRequiredSerial,
   pendingSerialKeys,
 } from "../repositories";
 import { createTask, createNote, parseTaskKey, retainSelection } from "../utils";
@@ -77,7 +76,7 @@ interface FileState {
   data: TaskListDto;
 }
 
-type LoadFileResult = { status: "success" } | { status: "cancelled" } | LoadFailure;
+type LoadFileResult = { status: "success" } | LoadFailure;
 
 type FileLoadError = LoadFailure;
 
@@ -229,13 +228,13 @@ function loadResultToStoreResult(result: LoadTaskListResult | FileLoadError): Lo
   return result;
 }
 
-// loadTaskList returns explicit results for known failures, but the underlying
+// The read returns explicit results for known failures, but the underlying
 // backend read can also reject outright (IPC / serialization error). Convert a
 // throw into an error result so callers always record it in fileLoadErrors and
 // surface it inline — load actions never reject.
-async function safeLoadTaskList(filePath: string, onLoaded?: (data: TaskListDto) => void): Promise<LoadTaskListResult> {
+async function safeRead(read: () => Promise<LoadTaskListResult>): Promise<LoadTaskListResult> {
   try {
-    return await loadTaskList(filePath, onLoaded);
+    return await read();
   } catch (e) {
     return {
       status: "error",
@@ -283,34 +282,18 @@ function removeRecordKey<T>(
 }
 
 export const useTaskListStore = create<TaskListState>((set, get) => {
-  // In-flight loads keyed by path. The active-tab effect and the eager
-  // background-load effect (MainWindow) can both call loadFile for the same path
-  // across a tab switch; without this, each would pass the not-yet-loaded guard
-  // and issue a duplicate read, and a retry could race a re-fired effect. Sharing
-  // one promise per path collapses concurrent loads into a single read.
-  const inFlightLoads = new Map<string, Promise<LoadFileResult>>();
-  // Admission starts before a reopening request waits on old physical work.
-  // A second workspace departure must also revoke that waiting successor.
-  const loadAdmissions = new Map<string, object>();
-  // Optional reads own one active admission and one latest invalidation. A
-  // successor joins the serial queue only after settlement, behind saves
-  // already accepted while the read was held.
-  const refreshes = new Map<string, { pending: boolean; promise: Promise<void> }>();
-
-  // The number of writes still queued or running per file. A list with one
-  // keeps its loaded copy when the disk changes (refreshFromDisk).
-  const pendingWrites = new Map<string, number>();
-  const inFlightUnloads = new Map<string, Promise<void>>();
-
-  function beginPendingWrite(filePath: string): void {
-    pendingWrites.set(filePath, (pendingWrites.get(filePath) ?? 0) + 1);
-  }
-
-  function endPendingWrite(filePath: string): void {
-    const remaining = (pendingWrites.get(filePath) ?? 1) - 1;
-    if (remaining <= 0) pendingWrites.delete(filePath);
-    else pendingWrites.set(filePath, remaining);
-  }
+  // Each list's load, save, refresh, move and unload run in that list's serial
+  // chain (repositories' withSerial), one at a time in the order asked, so a
+  // later operation always sees what an earlier one left.
+  //
+  // The lists this store holds or has been asked to load. A workspace switch
+  // retires every one of them, including a list whose load is still queued;
+  // its unload then runs after that load in the list's chain.
+  const requested = new Set<string>();
+  // The refresh queued for a list and not yet started. A later request joins
+  // it; once it starts reading, a new request queues one more, so the newest
+  // request always reads after it was made.
+  const queuedRefreshes = new Map<string, Promise<void>>();
 
   // The edit stays in memory and on screen; the list waits for a save that
   // lands (a later edit or Retry), and quit and closing its tab ask about it.
@@ -380,30 +363,24 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         if (duplicateOf(get().files, data, filePath)) return false;
         const current = get().files[filePath]?.data;
         const retained = writtenData && current ? retainLaterTaskList(writtenData, current, data) : data;
-        endPendingWrite(filePath);
         clearUnsaved(filePath);
         applyData(filePath, retained);
         reloadSettled = true;
-        if (retained !== data && !pendingWrites.has(filePath)) {
-          beginPendingWrite(filePath);
-          void flush(filePath, action, fields);
-        }
+        // Later edits kept over the reloaded copy are written in a later turn.
+        if (retained !== data) void flush(filePath, action, fields);
         return true;
       });
     } catch {
-      endPendingWrite(filePath);
       markUnsaved(filePath, message("write.taskList"));
       return { status: "success" };
     }
 
     if (result.status === "success") {
-      endPendingWrite(filePath);
       clearUnsaved(filePath);
       clearDiskError(filePath);
       return { status: "success" };
     }
     if (result.status === "error") {
-      endPendingWrite(filePath);
       markUnsaved(filePath, result.message);
       return { status: "success" };
     }
@@ -411,12 +388,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     const duplicate = duplicateOf(get().files, result.data, filePath);
     if (duplicate) {
       log.warn("task list reload refused", loadFailureFields(filePath, duplicate));
-      endPendingWrite(filePath);
       markUnsaved(filePath, describeDiskFailure(duplicate));
       return { status: "success" };
     }
     if (!reloadSettled) {
-      endPendingWrite(filePath);
       clearUnsaved(filePath);
       applyData(filePath, result.data);
     }
@@ -475,7 +450,6 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     });
     if (!loaded) return { status: "error", message: message("task.fileNotLoaded") };
     if (!changed) return { status: "success", changed: false };
-    beginPendingWrite(filePath);
     const result = await flush(
       filePath,
       action,
@@ -553,14 +527,15 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       : result;
   }
 
-  async function refreshOnce(filePath: string, isCurrent: () => boolean): Promise<void> {
+  async function refreshOnce(filePath: string): Promise<void> {
     let result: RefreshResult | FileLoadError;
     let duplicate: FileLoadError | null = null;
     try {
       result = await refreshTaskList(filePath, (data) => {
         const current = get().files[filePath];
-        if (!isCurrent() || !current || inFlightUnloads.has(filePath)) return false;
-        if (pendingWrites.has(filePath)) return false;
+        if (!current) return false;
+        // A write queued behind this read holds newer input; it keeps its copy.
+        if (pendingSerialKeys().includes(filePath)) return false;
         if (get().unsavedFiles[filePath]) return false;
         if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks, filePath)) {
           return false;
@@ -569,11 +544,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         if (duplicate) return false;
         applyData(filePath, data);
         return true;
-      });
+      }, () => queuedRefreshes.delete(filePath));
     } catch (e) {
       result = { status: "error", message: e instanceof Error ? e.message : String(e) };
     }
-    if (!isCurrent() || !get().files[filePath] || inFlightUnloads.has(filePath)) return;
+    if (!get().files[filePath]) return;
     if (duplicate) result = duplicate;
     switch (result.status) {
       case "notLoaded":
@@ -618,31 +593,19 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     // --- File management ---
 
     loadFile: async (filePath: string) => {
-      const admission = loadAdmissions.get(filePath) ?? {};
-      loadAdmissions.set(filePath, admission);
-      // A reopened tab belongs to the next lifetime, after the previous one
-      // has finished its writes and released its comparison hash.
-      const retiring = inFlightUnloads.get(filePath);
-      if (retiring) await retiring;
-      if (loadAdmissions.get(filePath) !== admission) return { status: "cancelled" };
-      if (get().files[filePath]) {
-        loadAdmissions.delete(filePath);
-        return { status: "success" };
-      }
-
-      const existing = inFlightLoads.get(filePath);
-      if (existing) return existing;
-
-      const load = (async (): Promise<LoadFileResult> => {
-        const read = await safeLoadTaskList(filePath);
-        if (loadAdmissions.get(filePath) !== admission) return { status: "cancelled" };
+      requested.add(filePath);
+      return await loadTaskList(filePath, async (read): Promise<LoadFileResult> => {
+        // A list loaded by an earlier turn, or still loaded until an unload
+        // queued after this turn, needs no second read.
+        if (get().files[filePath]) return { status: "success" };
+        const result = await safeRead(read);
         const loaded =
-          read.status === "success"
-            ? (duplicateOf(get().files, read.taskList.data, filePath) ?? read)
-            : read;
+          result.status === "success"
+            ? (duplicateOf(get().files, result.taskList.data, filePath) ?? result)
+            : result;
         if (loaded.status !== "success") {
           // Single source for load-boundary failures — covers the active tab,
-          // every eagerly background-loaded tab, and opens from the tab menu.
+          // every background-loaded tab, and opens from the tab menu.
           log.warn("task list load failed", loadFailureFields(filePath, loaded));
           set((state) => ({
             fileLoadErrors: {
@@ -665,18 +628,11 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
         }));
         return { status: "success" };
-      })();
-
-      inFlightLoads.set(filePath, load);
-      try {
-        return await load;
-      } finally {
-        inFlightLoads.delete(filePath);
-        if (loadAdmissions.get(filePath) === admission) loadAdmissions.delete(filePath);
-      }
+      });
     },
 
     createFile: async (filePath: string) => {
+      requested.add(filePath);
       const loaded = await createTaskListFile(filePath);
       log.info("task list created", { path: filePath });
       set((state) => ({
@@ -688,16 +644,14 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       }));
     },
 
+    // Runs after every operation already queued for the list, so its writes
+    // land before it lets the list go, and a load still queued publishes first
+    // and is then retired. Reopening queues behind it.
     unloadFile: async (filePath: string) => {
-      refreshes.delete(filePath);
-      loadAdmissions.delete(filePath);
-      const existing = inFlightUnloads.get(filePath);
-      if (existing) return existing;
-      const mustSave = pendingWrites.has(filePath) || pendingSerialKeys().includes(filePath);
-      const retire = () => {
+      requested.delete(filePath);
+      await forgetTaskList(filePath, () => {
         const closing = get().files[filePath];
         if (closing) useNoteDraftStore.getState().rememberTasks(closing.data, filePath);
-        pendingWrites.delete(filePath);
         set((state) => ({
           files: removeRecordKey(state.files, filePath),
           fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
@@ -707,20 +661,10 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           handledExpanded: removeRecordKey(state.handledExpanded, filePath),
         }));
         log.debug("task list unloaded", { path: filePath });
-      };
-      const unload = Promise.resolve().then(async () => {
-        if (mustSave) { await drainRequiredSerial(filePath); retire(); }
-        await inFlightLoads.get(filePath);
-        // Logical admission ends before unrelated reads finish. The physical
-        // reservation/hash remains owned until settlement; reopening waits.
-        await forgetTaskList(filePath);
       });
-      inFlightUnloads.set(filePath, unload);
-      if (!mustSave) retire();
-      try { await unload; } finally { inFlightUnloads.delete(filePath); }
     },
 
-    ownedFilePaths: () => [...new Set([...Object.keys(get().files), ...Object.keys(get().fileLoadErrors), ...loadAdmissions.keys()])],
+    ownedFilePaths: () => [...new Set([...Object.keys(get().files), ...Object.keys(get().fileLoadErrors), ...requested])],
 
     // --- Selection ---
 
@@ -813,7 +757,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         if (!ids) { ids = new Map(); byFile.set(task.sourceFile, ids); }
         ids.set(task.id, [...ids.get(task.id) ?? [], index]);
       });
-      await Promise.all([...byFile].map(async ([path, ids]) => {
+      // One list at a time (serial by default).
+      for (const [path, ids] of byFile) {
         const changedIndices = new Set<number>();
         const result = await mutateTasks(path, `set task ${change.field}`, { count: ids.size, value: change.value }, (tasks) => {
           let changed = false;
@@ -843,7 +788,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           if (!results[index]) results[index] = result.status === "error" ? result : { status: "error", message: message("task.notFound") };
           else if (changedIndices.has(index)) results[index] = result;
         }
-      }));
+      }
       return results as ActionResult[];
     },
 
@@ -995,10 +940,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
                 [sourceFilePath, settled.sourceData, sourceData],
                 [destFilePath, settled.destData, destData],
               ] as const) {
-                if (retained !== saved) {
-                  beginPendingWrite(path);
-                  void flush(path, "save edits made during task move");
-                }
+                if (retained !== saved) void flush(path, "save edits made during task move");
               }
             },
           };
@@ -1051,32 +993,17 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
     retryUnsaved: (paths) => {
       for (const filePath of paths ?? Object.keys(get().unsavedFiles)) {
         if (!get().unsavedFiles[filePath] || !get().files[filePath]) continue;
-        beginPendingWrite(filePath);
         void flush(filePath, "retry save");
       }
     },
 
     refreshFromDisk: (filePath: string) => {
-      if (!get().files[filePath] || inFlightUnloads.has(filePath)) return Promise.resolve();
-      const active = refreshes.get(filePath);
-      if (active) {
-        active.pending = true;
-        return active.promise;
-      }
-      const entry = { pending: true, promise: Promise.resolve() };
-      refreshes.set(filePath, entry);
-      const isCurrent = () => refreshes.get(filePath) === entry;
-      entry.promise = (async () => {
-        try {
-          do {
-            entry.pending = false;
-            await refreshOnce(filePath, isCurrent);
-          } while (entry.pending && isCurrent() && get().files[filePath] && !inFlightUnloads.has(filePath));
-        } finally {
-          if (isCurrent()) refreshes.delete(filePath);
-        }
-      })();
-      return entry.promise;
+      if (!get().files[filePath]) return Promise.resolve();
+      const queued = queuedRefreshes.get(filePath);
+      if (queued) return queued;
+      const refresh = Promise.resolve().then(() => refreshOnce(filePath));
+      queuedRefreshes.set(filePath, refresh);
+      return refresh;
     },
   };
 });
