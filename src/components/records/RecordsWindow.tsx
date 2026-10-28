@@ -3,7 +3,7 @@
 // each record it stores; the window pages itself as it scrolls and takes new
 // records in as they arrive.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useI18n } from "../../i18n/I18nContext";
@@ -108,14 +108,12 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   const [listWidth, setListWidth] = useState(initialListWidth);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const [available, setAvailable] = useState(0);
-  const listGeneration = useRef(0);
   const currentList = useRef(list);
   currentList.current = list;
-  const fetchingNewest = useRef<number | null>(null);
-  const firstPagePending = useRef<number | null>(null);
-  // Set from the moment a next-page read starts until it settles, so a second
-  // scroll cannot start another read for the same page.
-  const fetchingMore = useRef(false);
+  // The latest list request. A list read applies only while its request is
+  // still the latest, because an IPC read cannot be cancelled.
+  const listToken = useRef<object>({});
+  const selectedRef = useRef(selected);
   // The filters the current list was read for, for the live reads below.
   const filtersRef = useRef(filters);
   // New records arrived while the list was scrolled away from the top.
@@ -175,88 +173,104 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     return () => clearTimeout(timer);
   }, [searchText]);
 
-  useEffect(() => {
-    let cancelled = false;
-    readRecordSources().then(
-      (next) => {
-        if (!cancelled) { setSources(next); setSourceFailed(false); }
-      },
-      () => {
-        // The core recorded the failure.
-        if (!cancelled) setSourceFailed(true);
-      },
-    );
-    return () => {
-      cancelled = true;
+  // The window's one reader, the frontend log drain's form: reads run one at
+  // a time in the order asked, and once none is queued it reads the newest
+  // records if they are wanted — new ones arrived (`newestPending`), the list
+  // is shown and scrolled to the top, and live reads are not paused after a
+  // failure. Every read handles its own failure.
+  const reader = useMemo(() => {
+    const queue: Array<() => Promise<void>> = [];
+    let reading: Promise<void> | null = null;
+
+    const newestWanted = (): boolean => {
+      const scroll = scrollRef.current;
+      return newestPending.current && !liveSuspended.current && currentList.current.status === "ready"
+        && (scroll === null || atTop(scroll));
     };
-  }, [sourceReads]);
+
+    // The newest page read again for new records. It joins the rows already
+    // shown rather than replacing them, so the list never falls back to the
+    // loading note and the pages already read stay.
+    const readNewest = async (): Promise<void> => {
+      newestPending.current = false;
+      const token = listToken.current;
+      const shown = currentList.current.status === "ready" ? currentList.current.records : [];
+      try {
+        const page = await readNewestRecords(shown, (after) => readRecordsPage({ ...filtersRef.current, after }), () => token !== listToken.current);
+        if (page === null || token !== listToken.current) return;
+        liveSuspended.current = false;
+        setList((current) => current.status === "ready"
+          ? { ...current, ...mergeNewestPage(current.records, current.more, page), paused: false }
+          : { status: "ready", records: page.records, more: page.more, paused: false, loadingMore: false, moreFailed: false });
+      } catch {
+        if (token !== listToken.current) return;
+        liveSuspended.current = true;
+        failedRead.current = "newest";
+        setList((current) => current.status === "ready" ? { ...current, paused: true } : current);
+      }
+    };
+
+    const drain = (): void => {
+      if (reading) return;
+      reading = (async () => {
+        for (;;) {
+          const next = queue.shift() ?? (newestWanted() ? readNewest : undefined);
+          if (!next) return;
+          await next();
+        }
+      })().finally(() => {
+        reading = null;
+        if (queue.length || newestWanted()) drain();
+      });
+    };
+
+    const read = (work: () => Promise<void>): void => {
+      queue.push(work);
+      drain();
+    };
+    return { read, drain, readNewest: () => read(readNewest) };
+  }, []);
+
+  useEffect(() => {
+    reader.read(async () => {
+      try {
+        setSources(await readRecordSources());
+        setSourceFailed(false);
+      } catch {
+        // The core recorded the failure.
+        setSourceFailed(true);
+      }
+    });
+  }, [sourceReads, reader]);
 
   // A page applies only while the filters it was read for are still the
   // newest ones asked for.
   useEffect(() => {
     filtersRef.current = filters;
-    const generation = ++listGeneration.current;
-    firstPagePending.current = generation;
-    fetchingMore.current = false;
+    const token = {};
+    listToken.current = token;
     newestPending.current = false;
     setList({ status: "loading" });
-    readRecordsPage({ ...filters, after: null }).then(
-      (page) => {
-        if (generation !== listGeneration.current) return;
-        firstPagePending.current = null;
+    reader.read(async () => {
+      if (token !== listToken.current) return;
+      try {
+        const page = await readRecordsPage({ ...filters, after: null });
+        if (token !== listToken.current) return;
         liveSuspended.current = false;
         setList({ status: "ready", records: page.records, more: page.more, paused: false, loadingMore: false, moreFailed: false });
-      },
-      () => {
-        if (generation !== listGeneration.current) return;
-        firstPagePending.current = null;
+      } catch {
+        if (token !== listToken.current) return;
         liveSuspended.current = true;
         setList({ status: "failed" });
-      },
-    );
-    return () => { listGeneration.current += 1; };
-  }, [filters]);
-
-  // The newest page read again for new records. It joins the rows already
-  // shown rather than replacing them, so the list never falls back to the
-  // loading note and the pages already read stay. It reads only refs, so one
-  // copy serves the live subscription below.
-  const readNewest = useCallback((): void => {
-    const generation = listGeneration.current;
-    if (firstPagePending.current === generation || currentList.current.status === "loading" || fetchingNewest.current === generation) {
-      newestPending.current = true;
-      return;
-    }
-    fetchingNewest.current = generation;
-    newestPending.current = false;
-    const shown = currentList.current.status === "ready" ? currentList.current.records : [];
-    readNewestRecords(shown, (after) => readRecordsPage({ ...filtersRef.current, after }), () => generation !== listGeneration.current).then(
-      (page) => {
-        if (page === null || generation !== listGeneration.current) return;
-        liveSuspended.current = false;
-        setList((current) => current.status === "ready"
-          ? { ...current, ...mergeNewestPage(current.records, current.more, page), paused: false }
-          : { status: "ready", records: page.records, more: page.more, paused: false, loadingMore: false, moreFailed: false });
-      },
-      () => {
-        if (generation !== listGeneration.current) return;
-        liveSuspended.current = true;
-        failedRead.current = "newest";
-        setList((current) => current.status === "ready" ? { ...current, paused: true } : current);
-      },
-    ).finally(() => {
-      if (fetchingNewest.current !== generation) return;
-      fetchingNewest.current = null;
-      if (newestPending.current && !liveSuspended.current && scrollRef.current && atTop(scrollRef.current)) readNewest();
+      }
     });
-  }, []);
+  }, [filters, reader]);
 
   // Arrivals during the first read wait for its ready render, so the first
   // page cannot overwrite a newer read and the bridge starts from shown rows.
   useEffect(() => {
-    if (list.status === "ready" && newestPending.current && !liveSuspended.current
-      && scrollRef.current && atTop(scrollRef.current)) readNewest();
-  }, [list.status, readNewest]);
+    if (list.status === "ready") reader.drain();
+  }, [list.status, reader]);
 
   // A stored record reaches the list at once while it is scrolled to the top;
   // otherwise it waits until the list is back there, so the list never moves
@@ -268,63 +282,59 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
       timer = setTimeout(() => {
         timer = null;
         if (!sourceFailedRef.current) setSourceReads((count) => count + 1);
-        const scroll = scrollRef.current;
-        if (scroll === null || atTop(scroll)) readNewest();
-        else newestPending.current = true;
+        newestPending.current = true;
+        reader.drain();
       }, LIVE_INTERVAL_MS);
     });
     return () => {
       unsubscribe();
       if (timer !== null) clearTimeout(timer);
     };
-  }, [readNewest]);
+  }, [reader]);
 
   useEffect(() => {
+    selectedRef.current = selected;
     if (selected === null) {
       setDetail({ status: "none" });
       return;
     }
-    let cancelled = false;
     setDetail({ status: "loading" });
-    readRecordDetail(selected).then(
-      (record) => {
-        if (!cancelled) setDetail(record === null ? { status: "failed" } : { status: "ready", record });
-      },
-      () => {
-        if (!cancelled) setDetail({ status: "failed" });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [selected]);
+    reader.read(async () => {
+      if (selectedRef.current !== selected) return;
+      try {
+        const record = await readRecordDetail(selected);
+        if (selectedRef.current === selected) setDetail(record === null ? { status: "failed" } : { status: "ready", record });
+      } catch {
+        if (selectedRef.current === selected) setDetail({ status: "failed" });
+      }
+    });
+  }, [selected, reader]);
 
   // Loading more: composite-control-conventions, Integration Points. A failed
   // page is read again when the end is reached again.
   const loadMore = (): void => {
-    if (list.status !== "ready" || !list.more || fetchingMore.current) return;
-    fetchingMore.current = true;
-    const generation = listGeneration.current;
+    if (list.status !== "ready" || !list.more || list.loadingMore) return;
+    const token = listToken.current;
+    const after = cursorAfter(list.records);
     setList((current) => (current.status === "ready" ? { ...current, loadingMore: true, moreFailed: false } : current));
-    readRecordsPage({ ...filters, after: cursorAfter(list.records) }).then(
-      (page) => {
-        if (generation !== listGeneration.current) return;
-        fetchingMore.current = false;
+    reader.read(async () => {
+      if (token !== listToken.current) return;
+      try {
+        const page = await readRecordsPage({ ...filtersRef.current, after });
+        if (token !== listToken.current) return;
         liveSuspended.current = false;
         setList((current) =>
           current.status === "ready"
             ? { ...current, records: mergeNewestPage(current.records, current.more, page).records, more: page.more, paused: false, loadingMore: false }
             : current,
         );
-      },
-      () => {
-        if (generation !== listGeneration.current) return;
-        fetchingMore.current = false;
+      } catch {
+        if (token !== listToken.current) return;
         liveSuspended.current = true;
         failedRead.current = "older";
         setList((current) => (current.status === "ready" ? { ...current, paused: true, loadingMore: false, moreFailed: true } : current));
-      },
-    );
+      }
+    });
   };
 
   // A page that leaves the list short of the end reads the next one; a failed
@@ -339,17 +349,14 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   const onListScroll = (): void => {
     const scroll = scrollRef.current;
     if (scroll === null) return;
-    if (newestPending.current && atTop(scroll)) {
-      newestPending.current = false;
-      readNewest();
-    }
+    if (newestPending.current && atTop(scroll)) reader.readNewest();
     if (nearEnd(scroll)) loadMore();
   };
 
   // Retry repeats the read that failed; live reads resume once it succeeds.
   const retry = (): void => {
     if (list.status === "ready" && failedRead.current === "older") loadMore();
-    else readNewest();
+    else reader.readNewest();
   };
 
   const records = list.status === "ready" ? list.records : [];

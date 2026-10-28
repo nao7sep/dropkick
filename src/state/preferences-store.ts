@@ -1,9 +1,8 @@
 // PreferencesStore — loaded once at launch from the app-wide settings collection.
 // Provides display settings, timezone, kick distances, etc. to the entire app.
 //
-// `update` mutates synchronously, then awaits a serialized flush via the
-// repository. Concurrent updates all read and apply against the latest store
-// state, and disk writes can never land out of order.
+// `update` takes its turn in the store's change chain: it applies the change,
+// then awaits its flush via the repository, before the next change starts.
 //
 // Zoom and sidebar width are NOT here: they are view state and live in
 // state.json through the app-state store (persisted-store-separation-
@@ -37,13 +36,36 @@ interface PreferencesState {
 }
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => {
-  // A write resolves after later updates may already have changed the store.
-  // The confirmed snapshot provides a safe rollback point after the final
-  // outstanding write fails.
-  let nextRevision = 0;
-  let pendingWrites = 0;
-  let lastPersistedWrite = 0;
-  let persistedPreferences = createDefaultPreferences();
+  // One change at a time, the app-config-store form: each change starts from
+  // the preferences the earlier ones settled, so a failed write restores
+  // exactly what was on disk before it and an explicit Settings save stays
+  // dirty and retryable.
+  let queue: Promise<unknown> = Promise.resolve();
+
+  async function applyChange(changes: Partial<PreferenceSets>): Promise<ActionResult> {
+    const before = get().preferences;
+    // The single funnel for every preference change: log which keys changed,
+    // not the values, to keep the line stable and free of any future
+    // setting's content.
+    const changed = changedPreferenceSets(changes, before);
+    const changedKeys = Object.keys(changed);
+    if (changedKeys.length === 0) return { status: "success" };
+    log.info("preferences updated", { changed: changedKeys });
+    set({ preferences: { ...before, ...changed } });
+
+    const { filePath } = get();
+    if (!filePath) return { status: "success" };
+    try {
+      await flushPreferences(filePath, () => get().preferences);
+    } catch {
+      set({ preferences: before });
+      return {
+        status: "error",
+        message: message("write.preferences"),
+      };
+    }
+    return { status: "success" };
+  }
 
   return {
     preferences: createDefaultPreferences(),
@@ -53,67 +75,14 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => {
     initialize: async () => {
       const result = await initializePreferences();
       if (result.status !== "success") return result;
-
-      pendingWrites = 0;
-      lastPersistedWrite = 0;
-      persistedPreferences = result.preferences;
       set({ preferences: result.preferences, filePath: result.filePath, loaded: true });
       return result;
     },
 
-    update: async (changes: Partial<PreferenceSets>) => {
-      // The single funnel for every preference change: log which keys changed,
-      // not the values, to keep the line stable and free of any future
-      // setting's content.
-      const changed = changedPreferenceSets(changes, get().preferences);
-      const changedKeys = Object.keys(changed);
-      if (changedKeys.length === 0) return { status: "success" };
-      log.info("preferences updated", { changed: changedKeys });
-
-      const revision = ++nextRevision;
-
-      // Sync state transition first — reads the latest store, applies changes
-      // atomically. Concurrent updates queue their own sync transitions and
-      // each sees the prior one's result.
-      set((state) => ({
-        preferences: { ...state.preferences, ...changed },
-      }));
-
-      const { filePath } = get();
-      if (!filePath) return { status: "success" };
-      pendingWrites += 1;
-
-      // Serialized flush. The getter is invoked inside the slot so it captures
-      // the latest state at the moment of the write. A rejected write is
-      // reported. Once the final queued attempt fails, the last full snapshot
-      // confirmed on disk is restored so an explicit Settings save remains
-      // dirty and retryable.
-      let written: PreferencesDto | undefined;
-      try {
-        await flushPreferences(filePath, () => {
-          written = get().preferences;
-          return written;
-        });
-      } catch (e) {
-        pendingWrites = Math.max(0, pendingWrites - 1);
-        if (pendingWrites === 0) set({ preferences: persistedPreferences });
-        return {
-          status: "error",
-          message: message("write.preferences"),
-        };
-      }
-
-      // A write may capture edits from calls queued behind it, so its complete
-      // snapshot—not merely this call's changed keys—is now confirmed on disk.
-      // Ignore an out-of-order older completion when selecting the rollback
-      // snapshot (the repository serializes these in production; this also
-      // makes the store robust to an equivalent adapter).
-      pendingWrites = Math.max(0, pendingWrites - 1);
-      if (written && revision > lastPersistedWrite) {
-        persistedPreferences = written;
-        lastPersistedWrite = revision;
-      }
-      return { status: "success" };
+    update: (changes: Partial<PreferenceSets>) => {
+      const result = queue.then(() => applyChange(changes));
+      queue = result.catch(() => undefined);
+      return result;
     },
   };
 });

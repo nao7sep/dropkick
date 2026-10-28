@@ -77,8 +77,8 @@ export function mergeNewestPage(
 }
 
 // A live read must connect to the already shown range, even if several pages
-// arrived while the reader was scrolled away. Stop stale generations between
-// reads; the caller owns admission and application.
+// arrived while the reader was scrolled away. Stop between reads once the
+// request is no longer the latest; the caller owns admission and application.
 export async function readNewestRecords(
   shown: readonly RecordSummary[],
   readPage: (after: RecordCursor | null) => Promise<RecordsPage>,

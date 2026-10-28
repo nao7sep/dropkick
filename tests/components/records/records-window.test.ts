@@ -425,12 +425,13 @@ describe("RecordsWindow", () => {
 
     expect(records.readRecordsPage).toHaveBeenCalledTimes(2);
     expect(lastQuery()).toEqual({ session: null, level: null, search: "", after: null });
-    expect(records.readRecordSources).toHaveBeenCalledTimes(2);
     expect(options()).toHaveLength(2);
     expect(document.body.textContent).not.toContain("Loading records…");
 
     await act(async () => next.resolve({ records: [newer, error, warn], more: false }));
     expect(messages()).toEqual(["view state updated", "command error", "window placement could not be loaded"]);
+    // The window's one reader reads the launch choices after the held page.
+    expect(records.readRecordSources).toHaveBeenCalledTimes(2);
   });
 
   it("leaves the list alone while scrolled down, and shows new records once back at the top", async () => {

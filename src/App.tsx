@@ -67,11 +67,16 @@ function App() {
   const loadLanguageEnvironment = useLanguageStore((s) => s.load);
   const { language, locale } = useInterfaceLanguage();
   const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
-  // Guards against a double Launch: phase stays "startup" until the awaited
-  // loads finish, so two quick clicks would otherwise both run the sequence.
-  const launchingRef = useRef(false);
   const initializedRef = useRef(false);
-  const startupAttemptRef = useRef<{ active: boolean } | null>(null);
+  // The workspace open in progress, as one latest-request token: a newer open,
+  // Choose another or Cancel supersedes it, and its late result is dropped
+  // (an IPC read cannot be cancelled).
+  const openingRef = useRef<object | null>(null);
+  const beginOpen = () => {
+    const token = {};
+    openingRef.current = token;
+    return () => openingRef.current === token;
+  };
 
   // The window theme is the one theme authority: it paints the title bar, and
   // App.css's tokens follow it through prefers-color-scheme, which reaches the
@@ -215,6 +220,7 @@ function App() {
     (async () => {
       // Which store a failure leaves unread, so its message names the right one.
       let failure: "startup.appStateFailed" | "startup.appConfigFailed" = "startup.appStateFailed";
+      let isCurrent: (() => boolean) | null = null;
       try {
         await loadLanguageEnvironment();
         const preferences = await initializePreferences();
@@ -232,11 +238,10 @@ function App() {
         if (configRecovery) notices.push(describeAppConfigRecovery(configRecovery));
         const state = useAppStateStore.getState().appState;
         if (state.lastWorkspacePath) {
-          const attempt = { active: true };
-          startupAttemptRef.current = attempt;
+          isCurrent = beginOpen();
           setPhase({ kind: "opening", path: state.lastWorkspacePath, notices });
-          const opened = await openWorkspaceSession(state.lastWorkspacePath, () => attempt.active);
-          if (!attempt.active || opened.kind === "abandoned") return;
+          const opened = await openWorkspaceSession(state.lastWorkspacePath, isCurrent);
+          if (!isCurrent() || opened.kind === "abandoned") return;
           if (opened.kind === "success") setPhase({ kind: "main" });
           else {
             setPhase({ kind: "startup" });
@@ -250,7 +255,7 @@ function App() {
         }
         if (notices.length) setStartupNotices(notices);
       } catch (e) {
-        if (startupAttemptRef.current?.active === false) return;
+        if (isCurrent && !isCurrent()) return;
         log.error("app initialization failed", toErrorFields(e));
         await loadInterfaceCatalogue(currentInterfaceLanguage());
         setPhase({
@@ -264,11 +269,10 @@ function App() {
   const handleLaunch = async (
     workspacePath: string,
   ) => {
-    if (launchingRef.current) return;
-    launchingRef.current = true;
+    const isCurrent = beginOpen();
     try {
-      const opened = await openWorkspaceSession(workspacePath);
-      if (opened.kind === "abandoned") return;
+      const opened = await openWorkspaceSession(workspacePath, isCurrent);
+      if (!isCurrent() || opened.kind === "abandoned") return;
       if (opened.kind === "tasks") {
         setPhase({ kind: "main" });
         await showMessage(message("startup.workspaceFailed.title"), message("tabs.notSaved", { path: opened.paths.join("\n") }));
@@ -292,8 +296,6 @@ function App() {
     } catch (error) {
       log.error("open session failed", toErrorFields(error));
       await showMessage(message("startup.workspaceFailed.title"), message("startup.openWorkspaceFailed.body"));
-    } finally {
-      launchingRef.current = false;
     }
   };
   const quit = () => {
@@ -311,7 +313,7 @@ function App() {
 
     case "opening":
       content = <StartupLoadingScreen path={phase.path} onChooseAnother={() => {
-        if (startupAttemptRef.current) startupAttemptRef.current.active = false;
+        openingRef.current = null;
         setStartupNotices(phase.notices);
         setPhase({ kind: "startup" });
       }} />;
@@ -323,7 +325,7 @@ function App() {
 
     case "startup":
       content = <StartupPicker onLaunch={handleLaunch} onQuit={quit}
-        onCancel={phase.returnTo ? () => { if (!launchingRef.current) setPhase({ kind: phase.returnTo! }); } : undefined} />;
+        onCancel={phase.returnTo ? () => { openingRef.current = null; setPhase({ kind: phase.returnTo! }); } : undefined} />;
       break;
 
     case "main":

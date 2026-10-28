@@ -46,12 +46,14 @@ describe("load", () => {
 });
 
 describe("update", () => {
-  it("applies changes synchronously before any flush resolves", () => {
+  it("applies the change before its write reads the store", async () => {
     usePreferencesStore.setState({ filePath: "/p.json" });
-    flushPreferences.mockResolvedValue(usePreferencesStore.getState().preferences);
-    void usePreferencesStore.getState().update({ dueSoonDays: 10 });
-    // The synchronous set ran already, even though the flush promise is pending.
-    expect(usePreferencesStore.getState().preferences.dueSoonDays).toBe(10);
+    let written: number | undefined;
+    flushPreferences.mockImplementation(async (_p, getPrefs: () => PreferencesDto) => {
+      written = getPrefs().dueSoonDays;
+    });
+    await usePreferencesStore.getState().update({ dueSoonDays: 10 });
+    expect(written).toBe(10);
   });
 
   it("does not flush when no file path is set", async () => {
@@ -74,27 +76,20 @@ describe("update", () => {
     expect(usePreferencesStore.getState().preferences.dueSoonDays).toBe(7);
   });
 
-  it("does not let an older write completion erase a newer update", async () => {
+  it("runs a later change only after the earlier write settles", async () => {
     usePreferencesStore.setState({ filePath: "/p.json" });
-    let resolveFirst!: () => void;
+    let releaseFirst!: () => void;
+    const firstHeld = new Promise<void>((resolve) => { releaseFirst = resolve; });
     flushPreferences
-      .mockImplementationOnce(
-        async (_p, getPrefs: () => PreferencesDto) => {
-          const snapshot = getPrefs();
-          return await new Promise<PreferencesDto>((resolve) => {
-            resolveFirst = () => resolve(snapshot);
-          });
-        },
-      )
-      .mockImplementationOnce(async (_p, getPrefs: () => PreferencesDto) =>
-        getPrefs(),
-      );
+      .mockImplementationOnce(async () => { await firstHeld; })
+      .mockImplementationOnce(async () => {});
 
     const first = usePreferencesStore.getState().update({ dueSoonDays: 10 });
     const second = usePreferencesStore.getState().update({ theme: "dark" });
-    expect(usePreferencesStore.getState().preferences.theme).toBe("dark");
+    await Promise.resolve();
+    expect(usePreferencesStore.getState().preferences.theme).not.toBe("dark");
 
-    resolveFirst();
+    releaseFirst();
     await Promise.all([first, second]);
 
     const preferences = usePreferencesStore.getState().preferences;
@@ -102,28 +97,19 @@ describe("update", () => {
     expect(preferences.theme).toBe("dark");
   });
 
-  it("keeps a later edit already captured by an earlier successful write", async () => {
+  it("restores only a failed later change's own fields", async () => {
     usePreferencesStore.setState({ filePath: "/p.json" });
-    let releaseFirst!: () => void;
     flushPreferences
-      .mockImplementationOnce(
-        async (_p, getPrefs: () => PreferencesDto) => {
-          await new Promise<void>((resolve) => {
-            releaseFirst = resolve;
-          });
-          return getPrefs();
-        },
-      )
+      .mockImplementationOnce(async () => {})
       .mockRejectedValueOnce(new Error("second write failed"));
 
     const first = usePreferencesStore.getState().update({ dueSoonDays: 10 });
     const second = usePreferencesStore.getState().update({ theme: "dark" });
-    releaseFirst();
-    await first;
-    await second;
+    expect(await first).toEqual({ status: "success" });
+    expect((await second).status).toBe("error");
 
     const preferences = usePreferencesStore.getState().preferences;
     expect(preferences.dueSoonDays).toBe(10);
-    expect(preferences.theme).toBe("dark");
+    expect(preferences.theme).toBe(createDefaultPreferences().theme);
   });
 });

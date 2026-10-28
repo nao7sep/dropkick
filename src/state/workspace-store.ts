@@ -1,10 +1,10 @@
 // WorkspaceStore — loaded at launch, written to disk on structural changes.
 // Manages open tabs, recent files, and runtime active tab state.
 //
-// Mutations are split into two phases:
-//   1. A synchronous `set((state) => …)` that updates the latest store state.
-//   2. An asynchronous flush via the repository, which serializes writes per
-//      workspace path. Overlapping flushes never land out of order.
+// Each change that writes the workspace takes its turn in the store's change
+// chain: it updates the store, then awaits its flush through the repository,
+// before the next change starts. Switching the active tab writes nothing and
+// applies at once.
 
 import { create } from "zustand";
 import { message, type Message } from "../i18n/translate";
@@ -81,7 +81,15 @@ async function mayCloseList(filePath: string): Promise<boolean> {
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
-  let structuralVersion = 0;
+  // One change at a time, the app-config-store form: each change applies to
+  // what the earlier ones left and its write settles before the next starts,
+  // so a failed reorder restores exactly the order before it.
+  let changes: Promise<unknown> = Promise.resolve();
+  function change<T>(apply: () => Promise<T>): Promise<T> {
+    const result = changes.then(apply);
+    changes = result.catch(() => undefined);
+    return result;
+  }
 
   // Helper: queue a flush for the current workspace path. `getWorkspace` runs
   // inside the serial slot so it sees the latest store state at the moment of
@@ -113,12 +121,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     dismissWorkspacePersistenceError: () => set({ workspacePersistenceError: null }),
 
     adopt: (filePath, workspace) => {
-      structuralVersion += 1;
       set({ workspace: { ...workspace, activeTabIndex: startupTabIndex(workspace.openTabs) }, filePath, loaded: true, workspacePersistenceError: null });
     },
-    saveBeforeSwitch: () => flush(),
+    saveBeforeSwitch: () => change(() => flush()),
 
-    addTab: async (taskFilePath: string, displayName: string) => {
+    addTab: (taskFilePath: string, displayName: string) => change(async () => {
       // Synchronously update state. If the file is already open, just focus it.
       let needsFlush = false;
       set((state) => {
@@ -141,13 +148,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           },
         };
       });
-      if (needsFlush) {
-        structuralVersion += 1;
-        await flush();
-      }
-    },
+      if (needsFlush) await flush();
+    }),
 
-    addUnifiedViewTab: async () => {
+    addUnifiedViewTab: () => change(async () => {
       let needsFlush = false;
       set((state) => {
         const alreadyOpen = state.workspace.openTabs.findIndex(
@@ -169,42 +173,40 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           },
         };
       });
-      if (needsFlush) {
-        structuralVersion += 1;
-        await flush();
-      }
-    },
+      if (needsFlush) await flush();
+    }),
 
     closeTab: async (index: number) => {
       const tab = get().workspace.openTabs[index];
       if (tab && !tab.isUnifiedView && !(await mayCloseList(tab.filePath))) return;
-      // The tabs may have changed while a question was open.
-      const at = tab
-        ? get().workspace.openTabs.findIndex(
-            (open) => open.isUnifiedView === tab.isUnifiedView && open.filePath === tab.filePath,
-          )
-        : index;
-      if (at < 0) return;
-      // Remove the tab from the workspace; file unload is handled by
-      // MainWindow's file-lifecycle effect after React commits the unmount.
-      set((state) => {
-        const newTabs = state.workspace.openTabs.filter((_, i) => i !== at);
-        let newActive = state.workspace.activeTabIndex;
-        if (at === newActive) {
-          newActive = Math.min(newActive, newTabs.length - 1);
-        } else if (at < newActive) {
-          newActive -= 1;
-        }
-        return {
-          workspace: {
-            ...state.workspace,
-            openTabs: newTabs,
-            activeTabIndex: newActive,
-          },
-        };
+      await change(async () => {
+        // The tabs may have changed while a question was open.
+        const at = tab
+          ? get().workspace.openTabs.findIndex(
+              (open) => open.isUnifiedView === tab.isUnifiedView && open.filePath === tab.filePath,
+            )
+          : index;
+        if (at < 0) return;
+        // Remove the tab from the workspace; file unload is handled by
+        // MainWindow's file-lifecycle effect after React commits the unmount.
+        set((state) => {
+          const newTabs = state.workspace.openTabs.filter((_, i) => i !== at);
+          let newActive = state.workspace.activeTabIndex;
+          if (at === newActive) {
+            newActive = Math.min(newActive, newTabs.length - 1);
+          } else if (at < newActive) {
+            newActive -= 1;
+          }
+          return {
+            workspace: {
+              ...state.workspace,
+              openTabs: newTabs,
+              activeTabIndex: newActive,
+            },
+          };
+        });
+        await flush();
       });
-      structuralVersion += 1;
-      await flush();
     },
 
     setActiveTab: async (index: number) => {
@@ -218,12 +220,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       });
     },
 
-    renameWorkspace: async (name: string) => {
+    renameWorkspace: (name: string) => change(async () => {
       set((state) => ({ workspace: { ...state.workspace, name } }));
       return flush();
-    },
+    }),
 
-    renameTab: async (taskFilePath: string, displayName: string) => {
+    renameTab: (taskFilePath: string, displayName: string) => change(async () => {
       // Identified by filePath, not index. Indices shift under reorder/close;
       // filePath is stable. Unified view isn't renameable, so no special case.
       set((state) => ({
@@ -236,11 +238,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           ),
         },
       }));
-      structuralVersion += 1;
       await flush();
-    },
+    }),
 
-    reorderTabs: async (fromIndex: number, toIndex: number) => {
+    reorderTabs: (fromIndex: number, toIndex: number) => change(async () => {
       const previous = get().workspace;
       set((state) => {
         const tabs = [...state.workspace.openTabs];
@@ -263,21 +264,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         };
         return { workspace: optimistic };
       });
-      const reorderVersion = ++structuralVersion;
       if (await flush("tabOrder")) return;
 
-      // Restore only when no later structural action superseded this reorder.
-      // Runtime-only tab selection may have changed while the write was in
-      // flight, so preserve the selected tab by stable identity.
-      if (structuralVersion !== reorderVersion) return;
-      structuralVersion += 1;
+      // No later change has run yet. Runtime-only tab selection may have
+      // changed while the write was in flight, so preserve the selected tab by
+      // stable identity.
       set((state) => ({
         workspace: restoreTabOrder(previous, state.workspace),
         workspacePersistenceError: message("write.tabOrderRestored"),
       }));
-    },
+    }),
 
-    addRecentFile: async (taskFilePath: string) => {
+    addRecentFile: (taskFilePath: string) => change(async () => {
       const now = new Date().toISOString();
       set((state) => {
         const filtered = state.workspace.recentFiles.filter(
@@ -292,9 +290,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           workspace: { ...state.workspace, recentFiles },
         };
       });
-      structuralVersion += 1;
       await flush();
-    },
+    }),
   };
 });
 
