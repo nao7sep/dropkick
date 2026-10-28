@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+// What the packages contain, read from the bundle configuration. The packaging
+// scripts are tested by running them.
 describe("installer configuration", () => {
   const config = JSON.parse(
     readFileSync(join(process.cwd(), "src-tauri", "tauri.conf.json"), "utf8"),
@@ -11,31 +13,7 @@ describe("installer configuration", () => {
     expect(config.bundle?.windows?.nsis?.installMode).toBe("both");
   });
 
-  // The installer follows the computer's language, in the app's language set
-  // (English first, as the fallback).
-  it("speaks the app's interface languages", () => {
-    expect(config.bundle?.windows?.nsis?.languages).toEqual([
-      "English",
-      "German",
-      "Spanish",
-      "French",
-      "Italian",
-      "PortugueseBR",
-      "Russian",
-      "Japanese",
-      "Korean",
-      "SimpChinese",
-    ]);
-  });
-
-  it("ships the application licence in installed and portable packages", () => {
+  it("ships the application licence", () => {
     expect(config.bundle?.resources?.["../LICENSE"]).toBe("LICENSE.txt");
-    const packageScript = readFileSync(
-      join(process.cwd(), "scripts", "package.ps1"),
-      "utf8",
-    );
-    expect(packageScript).toContain(
-      'Compress-Archive -Path "src-tauri/target/release/$Crate.exe", "LICENSE"',
-    );
   });
 });

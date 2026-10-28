@@ -19,6 +19,7 @@ vi.mock("../../src/repositories", () => ({
 }));
 
 import { useWorkspaceStore } from "../../src/state/workspace-store";
+import { settled } from "../helpers/settled";
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { useDialogStore } from "../../src/state/dialog-store";
 import { message } from "../../src/i18n/translate";
@@ -119,7 +120,7 @@ describe("closing the tab of an unsaved list", () => {
 
   async function answered(answer: () => void): Promise<void> {
     const closing = useWorkspaceStore.getState().closeTab(0);
-    await vi.waitFor(() => expect(useDialogStore.getState().current).not.toBeNull());
+    await settled(useDialogStore, (state) => state.current !== null);
     const dialog = useDialogStore.getState().current;
     expect(dialog?.body.key).toBe("dialog.notSaved.tabBody");
     expect(dialog?.body.values).toEqual({ paths: "/a.json" });

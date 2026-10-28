@@ -72,10 +72,12 @@ it("closing one note copy retains both independently authored drafts and their n
 it("a delayed delete of B never retires newer drafts on surviving A", async () => {
   await load();
   let release!: () => void;
-  held = () => new Promise<void>((resolve) => { release = resolve; });
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  held = () => new Promise<void>((resolve) => { release = resolve; reached(); });
   const deleting = deleteSelectedTasks({ selectedTasks: [toTask(docs.get(B)!.data.tasks[0], B, "UTC", 7)],
     removeTasks: useTaskListStore.getState().removeTasks, clearTaskDrafts: useNoteDraftStore.getState().clearTaskDrafts });
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   const keys = [fieldDraftKey("same", "title", A), editorDraftKey("same", "note", A), composerDraftKey("same", A)];
   for (const key of keys) useNoteDraftStore.getState().setDraft(key, "newer A text");
   held = undefined; release(); await deleting;
@@ -94,9 +96,11 @@ it("a failed move retains source drafts; a successful retry transfers all kinds 
   for (const key of sourceKeys) expect(useNoteDraftStore.getState().drafts[key]).toBe("A text");
   fail = false;
   let release!: () => void;
-  held = () => new Promise<void>((resolve) => { release = resolve; });
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  held = () => new Promise<void>((resolve) => { release = resolve; reached(); });
   const moving = useTaskListStore.getState().moveTasks(A, C, new Set(["same"]));
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   useNoteDraftStore.getState().setDraft(sourceKeys[2], "newer A edit");
   held = undefined; release(); await moving;
   expect(useNoteDraftStore.getState().drafts[editorDraftKey("same", "note", C)]).toBe("newer A edit");
@@ -114,9 +118,11 @@ it.each(["composer", "editor"] as const)("a %s save receipt follows its draft th
   useNoteDraftStore.getState().setDraft(key, "submitted text");
   const version = useNoteDraftStore.getState().draftVersions[key];
   let release!: () => void;
-  held = () => new Promise<void>((resolve) => { release = resolve; });
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  held = () => new Promise<void>((resolve) => { release = resolve; reached(); });
   const moving = useTaskListStore.getState().moveTasks(A, C, new Set(["same"]));
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   // TaskDetail captures this receipt before awaiting its real store action.
   const saving = (kind === "composer"
     ? useTaskListStore.getState().addNewNote(A, "same", "submitted text")
@@ -134,9 +140,11 @@ it("an old move/save receipt preserves newer text on the moved copy and independ
   useNoteDraftStore.getState().setDraft(key, "submitted text");
   const version = useNoteDraftStore.getState().draftVersions[key];
   let release!: () => void;
-  held = () => new Promise<void>((resolve) => { release = resolve; });
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  held = () => new Promise<void>((resolve) => { release = resolve; reached(); });
   const moving = useTaskListStore.getState().moveTasks(A, C, new Set(["same"]));
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   const saving = useTaskListStore.getState().addNewNote(A, "same", "submitted text")
     .then(() => useNoteDraftStore.getState().clearDraftIf(key, "submitted text", version));
   useNoteDraftStore.getState().setDraft(key, "newer text");
@@ -151,9 +159,11 @@ it("a deletion during a held move retires that subject's drafts instead of trans
   useNoteDraftStore.getState().setDraft(composerDraftKey("same", A), "A text");
   const other = composerDraftKey("same", B); useNoteDraftStore.getState().setDraft(other, "B text");
   let release!: () => void;
-  held = () => new Promise<void>((resolve) => { release = resolve; });
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  held = () => new Promise<void>((resolve) => { release = resolve; reached(); });
   const moving = useTaskListStore.getState().moveTasks(A, C, new Set(["same"]));
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   const deleting = deleteSelectedTasks({ selectedTasks: [toTask(docs.get(A)!.data.tasks[0], A, "UTC", 7)],
     removeTasks: useTaskListStore.getState().removeTasks, clearTaskDrafts: useNoteDraftStore.getState().clearTaskDrafts });
   held = undefined; release(); await Promise.all([moving, deleting]);

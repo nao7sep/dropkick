@@ -48,6 +48,7 @@ vi.mock("../../src/repositories", () => ({
 
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { pendingSerialKeys } from "../../src/repositories";
+import { settled } from "../helpers/settled";
 import { usePreferencesStore } from "../../src/state/preferences-store";
 import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { composerDraftKey } from "../../src/services/note-drafts";
@@ -287,9 +288,8 @@ describe("unsaved lists", () => {
       return { status: "success" };
     });
     useTaskListStore.getState().retryUnsaved();
-    await vi.waitFor(() => expect(written).toEqual(["after"]));
-
-    await vi.waitFor(() => expect(useTaskListStore.getState().unsavedPaths()).toEqual([]));
+    await settled(useTaskListStore, (state) => Object.keys(state.unsavedFiles).length === 0);
+    expect(written).toEqual(["after"]);
   });
 
   it("stay unsaved when the retry fails too", async () => {
@@ -298,7 +298,7 @@ describe("unsaved lists", () => {
     await useTaskListStore.getState().updateTitle(FILE, "a", "after");
 
     useTaskListStore.getState().retryUnsaved([FILE]);
-    await vi.waitFor(() => expect(flushTaskList).toHaveBeenCalledTimes(2));
+    expect(flushTaskList).toHaveBeenCalledTimes(2);
 
     expect(useTaskListStore.getState().unsavedPaths()).toEqual([FILE]);
     expect(tasksOf()[0].title).toBe("after");
@@ -603,8 +603,8 @@ describe("moveTasks", () => {
       return { status: "success" };
     });
     useTaskListStore.getState().retryUnsaved();
-    await vi.waitFor(() => expect(written).toEqual([["d1"]]));
-    await vi.waitFor(() => expect(useTaskListStore.getState().unsavedPaths()).toEqual([]));
+    await settled(useTaskListStore, (state) => Object.keys(state.unsavedFiles).length === 0);
+    expect(written).toEqual([["d1"]]);
   });
 
   it("clears both lists' unsaved marks when a repeated move lands", async () => {

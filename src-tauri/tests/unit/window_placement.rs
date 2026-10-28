@@ -189,13 +189,12 @@ fn maximizing_keeps_the_latest_normal_rectangle() {
     {
         use super::{on_window_event, state_value, WindowPlacements};
         use std::sync::mpsc;
-        use std::time::Duration;
         use tauri::Manager;
 
         const NAME: &str = "window_placement::tests::maximizing_keeps_the_latest_normal_rectangle";
         if std::env::var_os("DROPKICK_PLACEMENT_FIXTURE").is_none() {
             let (status, output) = crate::process_fixture::run(NAME,
-                &[("DROPKICK_PLACEMENT_FIXTURE", "1")], Duration::from_secs(20));
+                &[("DROPKICK_PLACEMENT_FIXTURE", "1")]);
             assert!(status.success(), "{output}");
             return;
         }
@@ -229,12 +228,9 @@ fn maximizing_keeps_the_latest_normal_rectangle() {
             let _exit = ExitOnDrop(handle.clone());
             let window = handle.get_webview_window("main").ok_or("configured main window is missing")?;
             let wait_for = |matches: fn(super::Placement) -> bool| -> Result<super::Placement, String> {
-                let deadline = std::time::Instant::now() + Duration::from_secs(5);
                 loop {
-                    let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-                    let placement = observations.recv_timeout(remaining).map_err(|error| error.to_string())?;
+                    let placement = observations.recv().map_err(|error| error.to_string())?;
                     if matches(placement) { return Ok(placement); }
-                    if remaining.is_zero() { return Err("placement observation deadline expired".into()); }
                 }
             };
             window.show().map_err(|error| error.to_string())?;

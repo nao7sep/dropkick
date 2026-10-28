@@ -40,10 +40,12 @@ describe("switching a workspace", () => {
   });
   it("never adopts or retires lists from an abandoned workspace read", async () => {
     let finish!: (value: unknown) => void;
-    mocks.workspace.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    let reached!: () => void;
+    const reading = new Promise<void>((resolve) => { reached = resolve; });
+    mocks.workspace.mockImplementationOnce(() => { reached(); return new Promise((resolve) => { finish = resolve; }); });
     let current = true;
     const opening = openWorkspaceSession("slow", () => current);
-    await vi.waitFor(() => expect(mocks.workspace).toHaveBeenCalled());
+    await reading;
     current = false;
     finish({ status: "success", workspace: { id: "old", openTabs: [], recentFiles: [] } });
     expect(await opening).toEqual({ kind: "abandoned" });

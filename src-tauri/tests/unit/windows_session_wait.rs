@@ -33,10 +33,12 @@ mod queue_tests {
         std::thread::spawn(|| {
             seed_queue();
             let count = Cell::new(0);
+            // The fake clock stands still, so only settlement ends the wait.
+            let start = Instant::now();
             let outcome = wait_for_settlement(
-                Instant::now() + Duration::from_secs(4),
+                start + Duration::from_secs(4),
                 || count.get() < 3,
-                Instant::now,
+                || start,
                 wait_for_input,
                 || {
                     assert_eq!(dispatch_one(), Message::Dispatched);
@@ -92,11 +94,13 @@ mod queue_tests {
     fn native_quit_is_preserved_for_the_outer_event_loop() {
         std::thread::spawn(|| unsafe {
             PostQuitMessage(17);
+            // The fake clock stands still, so only the quit message ends the wait.
+            let start = Instant::now();
             assert_eq!(
                 wait_for_settlement(
-                    Instant::now() + Duration::from_secs(4),
+                    start + Duration::from_secs(4),
                     || true,
-                    Instant::now,
+                    || start,
                     wait_for_input,
                     dispatch_one,
                 ),

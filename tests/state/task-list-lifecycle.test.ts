@@ -62,12 +62,15 @@ it("a held outgoing refresh cannot delay adoption, and the list retires after it
   await openWorkspaceSession("/a.json"); await useTaskListStore.getState().loadFile("/old.json");
   put("/old.json", list("identity", "Outside change"));
   let release!: () => void;
-  holdRead = (path) => path === "/old.json" ? new Promise<void>((resolve) => { release = resolve; }) : Promise.resolve();
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  holdRead = (path) => path === "/old.json" ? new Promise<void>((resolve) => { release = resolve; reached(); }) : Promise.resolve();
   const refresh = useTaskListStore.getState().refreshFromDisk("/old.json");
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   const opening = openWorkspaceSession("/b.json");
   try {
-    await vi.waitFor(() => expect(useWorkspaceStore.getState().filePath).toBe("/b.json"));
+    expect(await opening).toEqual({ kind: "success" });
+    expect(useWorkspaceStore.getState().filePath).toBe("/b.json");
     expect(await useTaskListStore.getState().loadFile("/copy.json")).toEqual({ status: "success" });
   } finally { holdRead = undefined; release(); await Promise.all([refresh, opening]); }
   await Promise.all([...docs.keys()].map(drainSerial));
@@ -80,9 +83,11 @@ it.each([false, true])("a pending outgoing initial load loses admission in eithe
   workspace("/a.json", ["/old.json"]); workspace("/b.json", ["/copy.json"]);
   await openWorkspaceSession("/a.json");
   let release!: () => void;
-  holdRead = (path) => path === "/old.json" ? new Promise<void>((resolve) => { release = resolve; }) : Promise.resolve();
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  holdRead = (path) => path === "/old.json" ? new Promise<void>((resolve) => { release = resolve; reached(); }) : Promise.resolve();
   const loading = useTaskListStore.getState().loadFile("/old.json");
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   try {
     expect(await openWorkspaceSession("/b.json")).toEqual({ kind: "success" });
     if (oldFirst) { holdRead = undefined; release(); await loading; }
@@ -99,9 +104,11 @@ it("a reopening request waiting on physical retirement can be revoked by a secon
   await openWorkspaceSession("/a.json"); await useTaskListStore.getState().loadFile("/old.json");
   put("/old.json", list("identity", "Outside change"));
   let release!: () => void;
-  holdRead = (path) => path === "/old.json" ? new Promise<void>((resolve) => { release = resolve; }) : Promise.resolve();
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  holdRead = (path) => path === "/old.json" ? new Promise<void>((resolve) => { release = resolve; reached(); }) : Promise.resolve();
   const refresh = useTaskListStore.getState().refreshFromDisk("/old.json");
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   let reopening: Promise<unknown> | undefined;
   try {
     await openWorkspaceSession("/b.json"); await openWorkspaceSession("/a.json");
@@ -132,9 +139,11 @@ it("refuses the readable duplicate state left by an interrupted move before publ
 it("reopening waits for pending retirement and registers a fresh usable copy", async () => {
   put("/old.json", list("old")); await useTaskListStore.getState().loadFile("/old.json");
   let release!: () => void;
-  holdWrite = () => new Promise<void>((resolve) => { release = resolve; });
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  holdWrite = () => new Promise<void>((resolve) => { release = resolve; reached(); });
   const saving = useTaskListStore.getState().updateTitle("/old.json", "task", "Saved");
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   const retiring = useTaskListStore.getState().unloadFile("/old.json");
   const reopening = useTaskListStore.getState().loadFile("/old.json");
   holdWrite = undefined; release();
@@ -175,12 +184,14 @@ it("keeps the old session reachable when an outgoing list is unsaved or the new 
 it("an unrelated held disposable-state save does not prevent a readable workspace opening", async () => {
   workspace("/new-workspace.json", []);
   let release!: () => void;
-  holdWrite = () => new Promise<void>((resolve) => { release = resolve; });
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  holdWrite = () => new Promise<void>((resolve) => { release = resolve; reached(); });
   const optional = flushAppState("/state.json", createDefaultAppState);
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   let opened = false;
   const opening = openWorkspaceSession("/new-workspace.json").then((result) => { opened = result.kind === "success"; });
-  try { await vi.waitFor(() => expect(opened).toBe(true)); }
+  try { await opening; expect(opened).toBe(true); }
   finally { holdWrite = undefined; release(); await Promise.all([optional, opening]); }
 });
 
@@ -214,9 +225,11 @@ it("coalesces focus refreshes behind a held read without delaying an accepted sa
   await useTaskListStore.getState().loadFile(path);
   io = [];
   let release!: () => void;
-  holdRead = (reading) => reading === path ? new Promise<void>((resolve) => { release = resolve; }) : Promise.resolve();
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  holdRead = (reading) => reading === path ? new Promise<void>((resolve) => { release = resolve; reached(); }) : Promise.resolve();
   const first = useTaskListStore.getState().refreshFromDisk(path);
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   const repeats = Array.from({ length: 30 }, () => useTaskListStore.getState().refreshFromDisk(path));
   const saving = useTaskListStore.getState().updateTitle(path, "task", "Latest edit");
   try {
@@ -233,10 +246,12 @@ it("runs a queued refresh, the unload and a reopening load in the list's order",
   const path = "/focus-retired.json";
   put(path, list("retired")); await useTaskListStore.getState().loadFile(path);
   let release!: () => void;
-  holdRead = () => new Promise<void>((resolve) => { release = resolve; });
+  let reached!: () => void;
+  const holding = new Promise<void>((resolve) => { reached = resolve; });
+  holdRead = () => new Promise<void>((resolve) => { release = resolve; reached(); });
   io = [];
   const refresh = useTaskListStore.getState().refreshFromDisk(path);
-  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  await holding;
   const repeat = useTaskListStore.getState().refreshFromDisk(path);
   const retiring = useTaskListStore.getState().unloadFile(path);
   put(path, list("retired", "Reopened data"));

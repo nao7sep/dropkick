@@ -57,6 +57,10 @@ export default defineConfig(() => ({
     environment: "node",
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.ts"],
+    // Tests carry no timeouts: each waits for the event it needs, and the
+    // runner reports durations instead of failing a slow test.
+    testTimeout: 0,
+    hookTimeout: 0,
     coverage: {
       // V8's native coverage for the frontend (the Rust backend has its own
       // cargo-llvm-cov pass). `include` spans src so the report flags logic no

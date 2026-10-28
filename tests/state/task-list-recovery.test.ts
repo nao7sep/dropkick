@@ -7,6 +7,7 @@ import { useNoteDraftStore } from "../../src/state/note-draft-store";
 import { refuseDialogs, useDialogStore } from "../../src/state/dialog-store";
 import { drainSerial } from "../../src/repositories/file-system";
 import { makeTask } from "../helpers/task";
+import { settled } from "../helpers/settled";
 import type { TaskListDto } from "../../src/models";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -53,7 +54,7 @@ afterEach(async () => {
 });
 
 async function question() {
-  await vi.waitFor(() => expect(useDialogStore.getState().current?.kind).toBe("confirm"));
+  await settled(useDialogStore, (state) => state.current?.kind === "confirm");
 }
 function title() { return useTaskListStore.getState().files[PATH].data.tasks[0].title; }
 

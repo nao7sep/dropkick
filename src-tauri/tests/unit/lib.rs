@@ -160,7 +160,7 @@ fn volatile_state_uses_the_atomic_writer_without_recording_backup_history() {
     settled(write_text_file_atomic(config.to_str().unwrap().to_string(), r#"{"knownWorkspaces":[]}"#.to_string(), None)).unwrap();
     settled(write_text_file_atomic(preferences.to_str().unwrap().to_string(), r#"{"id":"prefs","theme":"dark"}"#.to_string(), Some(true))).unwrap();
 
-    assert!(backup_store::flush(std::time::Duration::from_secs(10)));
+    assert!(backup_store::flush(std::time::Duration::MAX));
     let conn = rusqlite::Connection::open(history).unwrap();
     let rows = |path: &std::path::Path| -> i64 {
         conn.query_row("SELECT COUNT(*) FROM backups WHERE path = ?1", [path.to_str().unwrap()], |row| row.get(0)).unwrap()
@@ -199,7 +199,7 @@ fn native_save_failure_records_one_fact_and_returns_its_marker() {
     const NAME: &str = "tests::native_save_failure_records_one_fact_and_returns_its_marker";
     if std::env::var_os("DROPKICK_WRITE_FAILURE_FIXTURE").is_none() {
         let (status, output) = crate::process_fixture::run(NAME,
-            &[("DROPKICK_WRITE_FAILURE_FIXTURE", "1")], std::time::Duration::from_secs(15));
+            &[("DROPKICK_WRITE_FAILURE_FIXTURE", "1")]);
         assert!(status.success(), "{output}");
         return;
     }

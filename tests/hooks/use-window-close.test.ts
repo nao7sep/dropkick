@@ -87,6 +87,7 @@ import { useAppStateStore } from "../../src/state/app-state-store";
 import { createDefaultWorkspace } from "../../src/models";
 import { fieldDraftKey } from "../../src/services/note-drafts";
 import { makeTask, makeNote } from "../helpers/task";
+import { settled } from "../helpers/settled";
 
 const copyDraft = (key: string) => `${key}|${encodeURIComponent(LIST)}`;
 const invokeMock = invoke as unknown as Mock;
@@ -142,14 +143,15 @@ describe("close request", () => {
   it("does not ask about or wait for a held disposable view-state save", async () => {
     useAppStateStore.setState({ filePath: "/state.json", loaded: true });
     let release!: () => void;
+    let reached!: () => void;
+    const holding = new Promise<void>((resolve) => { reached = resolve; });
     invokeMock.mockImplementation((command, args) => command === "write_text_file_atomic" && args.path === "/state.json"
-      ? new Promise<void>((resolve) => { release = resolve; }) : Promise.resolve(undefined));
+      ? new Promise<void>((resolve) => { release = resolve; reached(); }) : Promise.resolve(undefined));
     const optional = useAppStateStore.getState().updateViewState({ zoomLevel: 1.2 });
-    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
-    let allowed = false;
-    const closing = prepareWindowClose().then((value) => { allowed = value !== null; });
+    await holding;
+    const closing = prepareWindowClose();
     try {
-      await vi.waitFor(() => expect(allowed).toBe(true));
+      await expect(closing).resolves.not.toBeNull();
       expect(useDialogStore.getState().current).toBeNull();
     } finally { release(); await Promise.all([optional, closing]); }
   });
@@ -190,11 +192,7 @@ function stuckWrite(path: string): () => void {
   return release;
 }
 
-async function waitForDialog(): Promise<void> {
-  for (let i = 0; i < 50 && !useDialogStore.getState().current; i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-}
+const waitForDialog = () => settled(useDialogStore, (state) => state.current !== null);
 
 describe("a write that does not finish", () => {
   const LIST = "/Volumes/share/tasks.json";

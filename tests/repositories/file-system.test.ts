@@ -161,16 +161,17 @@ describe("drainSerial", () => {
     let releaseA!: () => void;
     let releaseB!: () => void;
     const a = withSerial("a", () => new Promise<void>((resolve) => { releaseA = resolve; }));
-    void withSerial("b", () => new Promise<void>((resolve) => { releaseB = resolve; }));
+    const heldB = new Promise<void>((resolve) => { releaseB = resolve; });
+    void withSerial("b", () => heldB);
     let drained = false;
     const drain = drainSerial("a").then(() => { drained = true; });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    releaseB();
+    await drainSerial("b");
     expect(drained).toBe(false);
     releaseA();
     await a;
     await drain;
     expect(drained).toBe(true);
-    releaseB();
   });
 });
 

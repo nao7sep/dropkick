@@ -329,9 +329,8 @@ describe("a question asked while the window is not showing", () => {
     shown.answer = "Quit Anyway";
     let choice!: Promise<"quit" | "retry" | "cancel">;
     await open(() => { choice = useDialogStore.getState().enqueueQuitSave(["tasks.json"]); });
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    await act(async () => { await expect(choice).resolves.toBe("quit"); });
     expect(shown.asked).toEqual([["Cancel", "Retry", "Quit Anyway"]]);
-    await expect(choice).resolves.toBe("quit");
   });
 
   it("treats a standalone dialog closed without a choice as the safe answer", async () => {
@@ -339,9 +338,8 @@ describe("a question asked while the window is not showing", () => {
     shown.answer = null;
     let answer!: Promise<boolean>;
     await open(() => { answer = showAppConfirm(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"), { confirmLabel: message("dialog.delete") }); });
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    await act(async () => { await expect(answer).resolves.toBe(false); });
     expect(shown.asked[0]).toEqual(["Cancel", "Delete"]);
-    await expect(answer).resolves.toBe(false);
   });
 
   it("stays in the window while it is showing", async () => {
