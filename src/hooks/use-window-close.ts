@@ -1,4 +1,5 @@
-// Holds the window open until pending writes are on disk, within a bound.
+// Holds the window open until pending writes are on disk, within the exit
+// deadline.
 //
 // Tauri would otherwise terminate the renderer the moment the OS sends the
 // close request. That defeats the "writes happen immediately" promise for
@@ -18,9 +19,13 @@
 // OS session discards it without asking. A title or description is ordinary
 // saving: the close commits it, focused or parked (state/note-draft-store).
 //
-// The wait is bounded. A write stuck on an unresponsive volume would otherwise
-// hold the window open with no feedback, so after CLOSE_WAIT_MS the user is
-// told which files are still being written and may close anyway.
+// The quit has one deadline, EXIT_DEADLINE_MS, fixed here when the close's
+// waits start. The writes, then log forwarding, draw on it, and close_window
+// hands what remains to the core, whose exit tail draws on the rest. A write
+// still running at the deadline is asked about with the unsaved lists (Retry,
+// Quit Anyway, Cancel). Time spent answering a question is the user's, so the
+// waits after an answer start the deadline again. At the end of an OS session
+// the core's own session-end wait is the deadline, and the window holds none.
 
 import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -40,13 +45,12 @@ import { unsavedNoteText } from "../services/note-drafts";
 import { commitParkedFields } from "../services/commit-task-fields";
 import { useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
-import { refuseDialogs, showAppConfirm, useDialogStore } from "../state/dialog-store";
-import { message } from "../i18n/translate";
+import { refuseDialogs, useDialogStore } from "../state/dialog-store";
 
-export const CLOSE_WAIT_MS = 3000;
+export const EXIT_DEADLINE_MS = 3000;
 
 // True while the OS ends the session: nothing is asked, and whatever could
-// not be saved within the bound is logged and left.
+// not be saved before the core lets the session go is logged and left.
 let sessionEnding = false;
 
 // The work that must finish before the window is destroyed. Resolves to every
@@ -89,99 +93,66 @@ async function confirmDiscardNoteText(): Promise<boolean> {
   return false;
 }
 
-function within(work: Promise<unknown>, ms: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), ms);
-    void work.then(() => {
+// Resolves the work's result, or "late" once the deadline (a performance.now()
+// time) passes first. An Infinity deadline sets no timer.
+function untilDeadline<T>(work: Promise<T>, deadline: number): Promise<T | "late"> {
+  if (deadline === Infinity) return work;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve("late"), Math.max(0, deadline - performance.now()));
+    void work.then((value) => {
       clearTimeout(timer);
-      resolve(true);
-    }, () => {
+      resolve(value);
+    }, (error: unknown) => {
       clearTimeout(timer);
-      resolve(true);
+      reject(error);
     });
   });
 }
 
-// Settles pending writes before a close. Resolves true when the window may be
-// destroyed: the writes finished, the user chose to close anyway, or the
-// session is ending. Resolves false when the user chose to keep the window
-// open. Exported so the close path can be exercised without driving a real
-// window.
+// Settles pending writes before a close. Resolves the exit deadline when the
+// window may be destroyed: the writes finished, the user chose to quit anyway,
+// or the session is ending. Resolves null when the user chose to keep the
+// window open. Exported so the close path can be exercised without driving a
+// real window.
 //
 // Note text not yet added or saved is asked about first, so Keep Editing
 // leaves everything as it was. The task lists are the user's own work, so a
-// write that fails holds the close and offers Retry or Quit Anyway
-// (unsaved-edits-conventions, Quitting). A failed list save keeps its edit, so
-// a list unsaved before the close is asked about too. Retry saves the unsaved
-// lists again and runs the whole bounded settle again.
-export async function prepareWindowClose(waitMs = CLOSE_WAIT_MS): Promise<boolean> {
-  if (!(await confirmDiscardNoteText())) return false;
+// write that fails, or is still running at the deadline, holds the close and
+// offers Retry or Quit Anyway (unsaved-edits-conventions, Quitting). A failed
+// list save keeps its edit, so a list unsaved before the close is asked about
+// too. Retry saves the unsaved lists again and waits again.
+export async function prepareWindowClose(deadlineMs = EXIT_DEADLINE_MS): Promise<number | null> {
+  if (!(await confirmDiscardNoteText())) return null;
   for (;;) {
-    const settled = settlePendingWrites();
-    if (!(await within(settled, waitMs))) {
-      const outcome = await askWhileStillSaving(settled, waitMs);
-      if (outcome !== "settled") return outcome === "close-anyway";
-    }
-    const paths = await settled;
-    if (paths.length === 0) return true;
+    const deadline = sessionEnding ? Infinity : performance.now() + deadlineMs;
+    const settled = await untilDeadline(settlePendingWrites(), deadline);
+    const paths = settled !== "late" ? settled
+      : [...new Set([...pendingSerialKeys(), ...useTaskListStore.getState().unsavedPaths()])];
+    if (paths.length === 0) return deadline;
     if (sessionEnding) {
       log.warn("session ended with changes not saved", { paths });
-      return true;
+      return deadline;
     }
 
-    log.warn("window close held by changes not saved", { paths });
+    log.warn("window close held by changes not saved", { paths, late: settled === "late" });
     const choice = await useDialogStore.getState().enqueueQuitSave(paths);
     if (choice === "quit" || sessionEnding) {
       log.warn("window closed with changes not saved", { paths });
-      return true;
+      return sessionEnding ? Infinity : performance.now() + deadlineMs;
     }
-    if (choice === "cancel") return false;
+    if (choice === "cancel") return null;
     useTaskListStore.getState().retryUnsaved();
   }
 }
 
-// Past the bound, names the files still being written and lets the user close
-// anyway. The question stops mattering once the writes finish, so it is
-// withdrawn then and the close goes ahead as if it had never been asked. At
-// the end of a session the close goes ahead with the writes still pending.
-async function askWhileStillSaving(
-  settled: Promise<string[]>,
-  waitMs: number,
-): Promise<"settled" | "close-anyway" | "keep-open"> {
-  const paths = pendingSerialKeys();
-  log.warn("window close waiting on writes", { paths, waitMs });
-  const withdraw = new AbortController();
-  // At the end of a session the dialog store cancels the question at once.
-  const answer = showAppConfirm(
-    message("dialog.stillSaving.title"),
-    message("dialog.stillSaving.body", { paths: paths.join("\n") }),
-    {
-      tone: "warning",
-      confirmLabel: message("dialog.stillSaving.closeAnyway"),
-      cancelLabel: message("dialog.stillSaving.keepOpen"),
-      signal: withdraw.signal,
-    },
-  );
-  const outcome = await Promise.race([
-    settled.then(() => "settled" as const, () => "settled" as const),
-    answer.then((closeAnyway) =>
-      closeAnyway || sessionEnding ? ("close-anyway" as const) : ("keep-open" as const),
-    ),
-  ]);
-  withdraw.abort();
-  if (outcome === "close-anyway") {
-    log.warn("window closed with writes pending", { paths: pendingSerialKeys() });
-  }
-  return outcome;
-}
-
-// The OS is ending the session: settle within the bound, ask nothing, and tell
-// the core, which lets the session go on. A close the user started that is
-// still running is joined rather than run twice; its question, if on screen,
+// The OS is ending the session: settle, ask nothing, and tell the core, which
+// lets the session go on, at the latest when its session-end wait ends. A
+// close the user started that is still running is joined rather than run
+// twice; its question, if on screen,
 // is cancelled. The window is left for the OS to end, and if the session goes
 // on after all (Windows lets another app cancel it) the app carries on as
 // before.
-async function endSession(running: Promise<boolean> | null): Promise<void> {
+async function endSession(running: Promise<unknown> | null): Promise<void> {
   if (sessionEnding) return;
   sessionEnding = true;
   refuseDialogs(true);
@@ -208,7 +179,7 @@ export function useWindowClose(): void {
     let unlistenFn: (() => void) | null = null;
     // One close at a time: a second click (or Cmd+Q) while the first is still
     // waiting joins it rather than starting another wait and another dialog.
-    let closing: Promise<boolean> | null = null;
+    let closing: Promise<number | null> | null = null;
 
     const stopSessionEnd = onSessionEnding(() => void endSession(closing));
 
@@ -219,18 +190,19 @@ export function useWindowClose(): void {
         if (closing || sessionEnding) return;
         log.info("window close requested", {});
         try {
-          const deadline = performance.now() + CLOSE_WAIT_MS;
           let forwarded = false;
           closing = (async () => {
-            if (!(await prepareWindowClose())) return false;
-            // Saving and forwarding share the existing allowance. Time spent
-            // waiting or answering a question never buys another logging delay.
+            const deadline = await prepareWindowClose();
+            // The OS owns destruction during session end.
+            if (deadline === null || sessionEnding) return deadline;
+            // Forwarding draws on what remains of the deadline.
             forwarded = await flushForwarded(Math.max(0, deadline - performance.now()));
-            // The OS owns destruction during session end; joining this promise
-            // cannot extend its bound with a second forwarding allowance.
-            return true;
+            return deadline;
           })();
-          if ((await closing) && !sessionEnding) await closeWindow(forwarded);
+          const deadline = await closing;
+          if (deadline !== null && !sessionEnding) {
+            await closeWindow(forwarded, Math.max(0, Math.round(deadline - performance.now())));
+          }
         } catch (e) {
           // A rejection from destroy() leaves the window open. Better that
           // than an unhandled rejection with preventDefault already called —

@@ -1,28 +1,48 @@
-//! Native waits: IPC commands await their work's real end; main-thread callers
-//! wait within a bound and keep physical ownership until the worker settles.
+//! Native waits: IPC commands await their work's real end, and the exit
+//! sequence as a whole has one deadline.
 
-use std::collections::HashSet;
-use std::sync::{mpsc, Mutex, OnceLock};
-use std::time::Duration;
+use std::sync::{mpsc, Mutex};
+use std::time::{Duration, Instant};
 
-pub const WAIT_BOUND: Duration = Duration::from_secs(10);
+/// The exit deadline's length when nothing fixed it earlier. The main window
+/// fixes the deadline when its close starts and the end of an OS session fixes
+/// it when the session-end wait starts, so this applies only to an exit that
+/// began some other way.
 pub const EXIT_TAIL_BOUND: Duration = Duration::from_secs(3);
-static ACTIVE: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
-pub fn exit_tail(work: impl FnOnce()) {
-    exit_tail_with_bound(EXIT_TAIL_BOUND, || std::process::exit(0), work);
+// The quit's one deadline, set by the code that starts the quit (the main
+// window's close_window, or the session-end wait) and read by the exit tail.
+// Only the main thread sets it; the Mutex is what Rust requires to share it.
+static EXIT_DEADLINE: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// Fixes the exit deadline; a later quit fixes its own.
+pub fn set_exit_deadline(deadline: Instant) {
+    *EXIT_DEADLINE.lock().unwrap_or_else(|e| e.into_inner()) = Some(deadline);
 }
 
-pub fn exit_tail_with_bound(
-    bound: Duration,
+fn exit_deadline() -> Instant {
+    EXIT_DEADLINE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .unwrap_or_else(|| Instant::now() + EXIT_TAIL_BOUND)
+}
+
+/// Runs the exit's last steps; the process exits at the deadline if they have
+/// not finished. Each step draws on what remains (`remaining`).
+pub fn exit_tail(work: impl FnOnce(Instant)) {
+    exit_tail_until(exit_deadline(), || std::process::exit(0), work);
+}
+
+pub fn exit_tail_until(
+    deadline: Instant,
     expired: impl FnOnce() + Send + 'static,
-    work: impl FnOnce(),
+    work: impl FnOnce(Instant),
 ) {
     let (done, finished) = mpsc::sync_channel(1);
     if std::thread::Builder::new()
         .name("dropkick-exit-deadline".to_string())
         .spawn(move || {
-            if finished.recv_timeout(bound).is_err() {
+            if finished.recv_timeout(remaining(deadline)).is_err() {
                 expired();
             }
         })
@@ -30,46 +50,13 @@ pub fn exit_tail_with_bound(
     {
         std::process::exit(0);
     }
-    work();
+    work(deadline);
     let _ = done.send(());
 }
 
-// A main-thread caller that stops waiting leaves its worker running; the key
-// stays claimed until that worker settles, so the next write to the same
-// resource is refused rather than racing it.
-struct Claim(String);
-impl Drop for Claim {
-    fn drop(&mut self) {
-        ACTIVE.get().unwrap().lock().unwrap_or_else(|e| e.into_inner()).remove(&self.0);
-    }
-}
-
-pub fn run<T: Send + 'static>(
-    key: String,
-    work: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
-    run_with_bound(key, WAIT_BOUND, work)
-}
-
-pub fn run_with_bound<T: Send + 'static>(
-    key: String,
-    bound: Duration,
-    work: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
-    let mut active = ACTIVE
-        .get_or_init(|| Mutex::new(HashSet::new()))
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    if !active.insert(key.clone()) {
-        return Err("native operation remains in progress for this resource".to_string());
-    }
-    drop(active);
-    let claim = Claim(key);
-    wait(bound, move || {
-        let result = work();
-        drop(claim);
-        result
-    })
+/// What remains of a deadline, zero once it has passed.
+pub fn remaining(deadline: Instant) -> Duration {
+    deadline.saturating_duration_since(Instant::now())
 }
 
 // Runs an IPC command's blocking work on the runtime's blocking pool and awaits
@@ -83,25 +70,6 @@ pub async fn settle<T: Send + 'static>(
     tauri::async_runtime::spawn_blocking(work)
         .await
         .map_err(|e| e.to_string())?
-}
-
-fn wait<T: Send + 'static>(bound: Duration, work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
-    let (done, finished) = mpsc::sync_channel(1);
-    std::thread::Builder::new()
-        .name("dropkick-native-io".to_string())
-        .spawn(move || {
-            let result = work();
-            let _ = done.send(result);
-        })
-        .map_err(|e| e.to_string())?;
-    finished.recv_timeout(bound).map_err(|e| match e {
-        mpsc::RecvTimeoutError::Timeout => {
-            "native operation timed out; its result remains unknown until it settles".to_string()
-        }
-        mpsc::RecvTimeoutError::Disconnected => {
-            "native operation worker stopped without a result".to_string()
-        }
-    })?
 }
 
 #[cfg(test)]

@@ -59,9 +59,6 @@ CREATE INDEX IF NOT EXISTS idx_backups_path_id ON backups (path, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_backups_path_session ON backups (path, session_id);
 ";
 
-/// How long an ordinary quit waits at exit for queued records.
-pub const QUIT_DRAIN: Duration = Duration::from_secs(1);
-
 // One path's newest pending bytes replace any older pending bytes for it; the
 // active write is never replaced.
 struct State {

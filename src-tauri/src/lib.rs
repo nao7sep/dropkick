@@ -1137,10 +1137,19 @@ fn logging_debug_enabled() -> bool {
 
 // The privileged owner receives the final decision before it destroys the
 // renderer. Admission is nonblocking; diagnostic durability remains best effort.
+// The quit's deadline arrives with it as the milliseconds that remain, so the
+// exit tail draws on the deadline the window's close fixed.
 #[tauri::command]
-fn close_window(window: tauri::WebviewWindow, forwarding_complete: bool) -> Result<(), String> {
+fn close_window(
+    window: tauri::WebviewWindow,
+    forwarding_complete: bool,
+    remaining_ms: u64,
+) -> Result<(), String> {
+    native_wait::set_exit_deadline(
+        std::time::Instant::now() + std::time::Duration::from_millis(remaining_ms),
+    );
     logging::info("window close authorized", json!({
-        "window": window.label(), "forwardingComplete": forwarding_complete
+        "window": window.label(), "forwardingComplete": forwarding_complete, "remainingMs": remaining_ms
     }));
     window.destroy().map_err(|error| error.to_string())
 }
@@ -1342,18 +1351,18 @@ pub fn run() {
             reopen_main(app_handle);
         }
         if let tauri::RunEvent::Exit = event {
-            native_wait::exit_tail(|| {
+            native_wait::exit_tail(|deadline| {
                 // The end of a session exits with its windows still open.
                 capture_open_windows(app_handle);
                 window_placement::save_all(
                     app_handle,
                     &app_handle.state::<window_placement::WindowPlacements>(),
                 );
-                // Records queued by the last saves get a short drain at an
-                // ordinary quit; the end of an OS session skips them
-                // (data-backup conventions).
+                // Records queued by the last saves drain within what remains of
+                // the deadline at an ordinary quit; the end of an OS session
+                // skips them (data-backup conventions).
                 if !os_quit::session_ended() {
-                    backup_store::flush(backup_store::QUIT_DRAIN);
+                    backup_store::flush(native_wait::remaining(deadline));
                 }
                 logging::info("app shutdown", json!({ "reason": "exit" }));
                 logging::shutdown();

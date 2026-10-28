@@ -9,6 +9,7 @@
 //! - The end of a session never prompts: the window is told to settle its
 //!   writes without asking anything, and the session goes on when the window
 //!   reports back or when `SESSION_END_WAIT` has passed, whichever is first.
+//!   That wait is the exit's deadline; the exit tail draws on what remains.
 //!
 //! tao and Tauri see neither route in time. On macOS both arrive as
 //! `terminate:`, and nothing in tao implements `applicationShouldTerminate:`,
@@ -41,9 +42,8 @@ mod session_wait;
 /// Tells the main window that the session is ending (the frontend's session-end subscription).
 pub const SESSION_ENDING_EVENT: &str = "session-ending";
 
-/// The longest the end of a session waits for the main window. It exceeds the
-/// window's own bound (`CLOSE_WAIT_MS` in the frontend's window-close hook), so the
-/// window can log what it could not save before the session goes on, and stays
+/// The end of a session's one deadline: the main window's settling, which holds
+/// no timer of its own, and the exit tail after it both draw on it. It stays
 /// under the five seconds Windows gives an app to answer the end of a session.
 pub const SESSION_END_WAIT: Duration = Duration::from_millis(4000);
 
@@ -99,6 +99,7 @@ fn begin_with(ask_window: impl FnOnce() -> Result<(), String>) -> SessionEndStar
     if SESSION_END_PENDING.swap(true, Ordering::SeqCst) {
         return SessionEndStart::AlreadyPending;
     }
+    crate::native_wait::set_exit_deadline(std::time::Instant::now() + SESSION_END_WAIT);
     logging::info("session ending", json!({}));
     if let Err(error) = ask_window() {
         logging::warn("session end event failed", json!({ "error": error }));

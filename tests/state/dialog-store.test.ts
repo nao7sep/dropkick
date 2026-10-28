@@ -104,53 +104,6 @@ describe("queueing", () => {
   });
 });
 
-describe("withdrawal", () => {
-  const title = message("dialog.deleteTask.title");
-  const body = message("dialog.deleteNote.body");
-
-  it("takes the showing dialog off screen and settles it as cancelled", async () => {
-    const withdraw = new AbortController();
-    const queued = showAppConfirm(message("startup.appConfigReset.title"), body);
-    useDialogStore.getState().confirmCurrent();
-    await queued;
-
-    const answer = showAppConfirm(title, body, { signal: withdraw.signal });
-    const next = showAppConfirm(message("startup.appConfigReset.title"), body);
-    expect(useDialogStore.getState().current?.title).toEqual(title);
-
-    withdraw.abort();
-
-    await expect(answer).resolves.toBe(false);
-    expect(useDialogStore.getState().current?.title).toEqual(
-      message("startup.appConfigReset.title"),
-    );
-    useDialogStore.getState().cancelCurrent();
-    await next;
-  });
-
-  it("removes a queued dialog before it is ever shown", async () => {
-    const withdraw = new AbortController();
-    const first = showAppConfirm(message("startup.appConfigReset.title"), body);
-    const answer = showAppConfirm(title, body, { signal: withdraw.signal });
-
-    withdraw.abort();
-
-    await expect(answer).resolves.toBe(false);
-    expect(useDialogStore.getState().queue).toEqual([]);
-    useDialogStore.getState().confirmCurrent();
-    await expect(first).resolves.toBe(true);
-    expect(useDialogStore.getState().current).toBeNull();
-  });
-
-  it("leaves an answered dialog's result alone", async () => {
-    const withdraw = new AbortController();
-    const answer = showAppConfirm(title, body, { signal: withdraw.signal });
-    useDialogStore.getState().confirmCurrent();
-    withdraw.abort();
-    await expect(answer).resolves.toBe(true);
-  });
-});
-
 // The end of an OS session: no dialog may wait on the user
 // (modal-dialog-conventions).
 describe("refusing dialogs while the session ends", () => {

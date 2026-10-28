@@ -13,7 +13,9 @@
 // The core's own entries are written by one writer thread, in the order they
 // were logged, so a slow or locked database never holds the thread that logged
 // them (the main thread, for window and menu events). `flush` waits, bounded,
-// for that thread to catch up; the exit and panic paths call it.
+// for that thread to catch up; the panic path calls it. At exit `shutdown`
+// lets the thread write what is queued and waits for it, within the exit
+// deadline.
 //
 // After each entry the database stores, the listener set with `on_stored`
 // runs; it tells the Records window (records_window::notify_changed).
@@ -153,7 +155,8 @@ type Records = Result<Connection, String>;
 // instance runs at a time (instance_owner); the Records window reads the same
 // file from this process.
 const BUSY_TIMEOUT_MS: u64 = 5_000;
-// Long enough for an entry that waits its full busy timeout to land.
+// How long a panic waits for queued entries: long enough for an entry that
+// waits its full busy timeout to land.
 const FLUSH_BOUND: Duration = Duration::from_millis(BUSY_TIMEOUT_MS + 1_000);
 
 #[derive(Default)]
@@ -343,25 +346,16 @@ pub fn debug_enabled() -> bool {
     global().map(|l| l.debug_enabled).unwrap_or(false)
 }
 
+// Stops the writer once it has written every entry already queued, and waits
+// for it. At exit the exit tail's deadline bounds this wait.
 pub fn shutdown() {
-    let Some(logger) = global() else {
+    let Some(writer) = global().and_then(|logger| logger.writer.get()) else {
         return;
     };
-    logger.flush();
-    if let Some(writer) = logger.writer.get() {
-        writer.stop();
-        let handle = writer
-            .handle
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take();
-        if let Some(handle) = handle {
-            let _ = crate::native_wait::run("logging-shutdown".to_string(), move || {
-                handle
-                    .join()
-                    .map_err(|_| "logging writer panicked".to_string())
-            });
-        }
+    writer.stop();
+    let handle = writer.handle.lock().unwrap_or_else(|e| e.into_inner()).take();
+    if let Some(handle) = handle {
+        let _ = handle.join();
     }
 }
 

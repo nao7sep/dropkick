@@ -92,7 +92,7 @@ fn normal_geometry_events_replace_the_whole_rectangle_before_maximized_close() {
             let dir = tempfile::tempdir().unwrap();
             let file = dir.path().join("window.json");
             std::fs::write(&file, super::file_text(captured).unwrap()).unwrap();
-            assert_eq!(super::load_file_owned(&file).unwrap(), super::SavedPlacement::Found(expected));
+            assert_eq!(super::load_file(&file).unwrap(), super::SavedPlacement::Found(expected));
         }
     }
 }

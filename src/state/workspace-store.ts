@@ -13,7 +13,7 @@ import { createDefaultWorkspace, createTab, createUnifiedViewTab } from "../mode
 import { flushWorkspace, drainSerial, log, toErrorFields } from "../repositories";
 import { useTaskListStore } from "./task-list-store";
 import { commitParkedFields } from "../services/commit-task-fields";
-import { showAppConfirm, useDialogStore } from "./dialog-store";
+import { useDialogStore } from "./dialog-store";
 
 // Tab loading and unloading is owned by the React component tree (MainWindow's
 // file-lifecycle effect). This store settles task-list saves before closing
@@ -56,21 +56,18 @@ function startupTabIndex(openTabs: WorkspaceDto["openTabs"]): number {
   return openTabs.length > 0 ? 0 : -1;
 }
 
-// How long closing a tab waits for its list's writes before saying so, the
-// bound quit uses (hooks/use-window-close).
-export const TAB_CLOSE_WAIT_MS = 3000;
-
 // A list whose latest changes are not on disk is asked about before its tab
 // closes, as quit asks (unsaved-edits-conventions): Retry saves it again, Close
 // Anyway lets the edit go, Cancel keeps the tab. A field that commits on blur
-// commits first, so its write is the one this waits for.
+// commits first, and the close waits for the list's writes to settle; local
+// storage gets no timeout.
 async function mayCloseList(filePath: string): Promise<boolean> {
   if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();
   }
   commitParkedFields(filePath);
   for (;;) {
-    if (!(await settledOrClosedAnyway(filePath))) return false;
+    await drainSerial(filePath);
     if (!useTaskListStore.getState().unsavedFiles[filePath]) return true;
     log.warn("tab close held by changes not saved", { path: filePath });
     const choice = await useDialogStore.getState().enqueueQuitSave([filePath], "tab");
@@ -81,37 +78,6 @@ async function mayCloseList(filePath: string): Promise<boolean> {
     if (choice === "cancel") return false;
     useTaskListStore.getState().retryUnsaved([filePath]);
   }
-}
-
-// A write has no timeout, so one on storage that stopped answering would hold
-// the tab open with no feedback. Past the bound the user is told the list is
-// still being written and may close anyway; the question is withdrawn if the
-// write finishes first. Resolves false when the user keeps the tab.
-async function settledOrClosedAnyway(filePath: string): Promise<boolean> {
-  const drained = drainSerial(filePath).then(() => "settled" as const);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const late = new Promise<"late">((resolve) => {
-    timer = setTimeout(() => resolve("late"), TAB_CLOSE_WAIT_MS);
-  });
-  const first = await Promise.race([drained, late]);
-  clearTimeout(timer);
-  if (first === "settled") return true;
-  log.warn("tab close waiting on writes", { path: filePath });
-  const withdraw = new AbortController();
-  const answer = showAppConfirm(
-    message("dialog.stillSaving.title"),
-    message("dialog.stillSaving.body", { paths: filePath }),
-    {
-      tone: "warning",
-      confirmLabel: message("dialog.stillSaving.closeAnyway"),
-      cancelLabel: message("dialog.stillSaving.keepOpen"),
-      signal: withdraw.signal,
-    },
-  ).then((closeAnyway) => (closeAnyway ? "close-anyway" as const : "keep-open" as const));
-  const outcome = await Promise.race([drained, answer]);
-  withdraw.abort();
-  if (outcome === "close-anyway") log.warn("tab closed with writes pending", { path: filePath });
-  return outcome !== "keep-open";
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {

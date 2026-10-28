@@ -23,16 +23,9 @@ struct Owner {
     _lock: File,
 }
 
-// A timed-out launch stays on the startup error surface until relaunch. The
-// worker keeps actual ownership through settlement, but cannot admit a normal
-// session after setup has skipped its other owners.
+// The data root this process owns, or why it could not claim it; a failure
+// opens only the startup error surface.
 pub struct StartupRoot(Result<PathBuf, String>);
-fn establish_with_bound(
-    bound: Duration,
-    work: impl FnOnce() -> Result<PathBuf, String> + Send + 'static,
-) -> StartupRoot {
-    StartupRoot(crate::native_wait::run_with_bound("startup-owner".into(), bound, work))
-}
 pub fn admitted_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.try_state::<StartupRoot>().ok_or_else(|| "storage ownership is unavailable".to_string())?.0.clone()
 }
@@ -149,7 +142,7 @@ pub fn init() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri::plugin::Builder::<tauri::Wry>::new("instance-owner")
         .setup(|app, _api| {
             let handle = app.app_handle().clone();
-            let root = establish_with_bound(crate::native_wait::WAIT_BOUND, move || {
+            let root = StartupRoot((|| {
                 let path = crate::paths::initialize_data_root(&handle)?;
                 match claim(&path)? {
                     Claim::Primary { lock, listener } => {
@@ -162,8 +155,8 @@ pub fn init() -> tauri::plugin::TauriPlugin<tauri::Wry> {
                         std::process::exit(0);
                     }
                 }
-            });
-            // Failure or timeout opens the existing error surface. All normal
+            })());
+            // Failure opens the existing error surface. All normal
             // root consumers require this admitted result before opening stores.
             app.manage(root);
             Ok(())

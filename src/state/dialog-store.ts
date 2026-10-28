@@ -13,10 +13,6 @@ interface DialogOptions {
   // deliberately (modal-dialog-conventions). Do not set it to avoid choosing:
   // it states that no safe choice exists, not that one was hard to pick.
   noSafeAction?: boolean;
-  // Withdraws the request when aborted: it leaves the screen (or the queue) and
-  // settles through its cancel path. For a question the app stops needing an
-  // answer to, such as "close anyway?" once the pending writes have finished.
-  signal?: AbortSignal;
   // Withdrawal is not a user choice when both buttons are destructive.
   onWithdraw?: () => void;
 }
@@ -93,16 +89,14 @@ type SetDialogState = (
 // (modal-dialog-conventions); see refuseDialogs.
 let refusing = false;
 
-// Shows the request now, or queues it behind the one on screen, and wires its
-// withdrawal to `signal`.
+// Shows the request now, or queues it behind the one on screen.
 function present(
   request: DialogRequest,
-  signal: AbortSignal | undefined,
   get: () => DialogState,
   set: SetDialogState,
   settleCancelled: () => void,
 ): void {
-  if (signal?.aborted || refusing) {
+  if (refusing) {
     settleCancelled();
     return;
   }
@@ -112,21 +106,6 @@ function present(
   } else {
     set({ current: request });
   }
-  signal?.addEventListener(
-    "abort",
-    () => {
-      const state = get();
-      if (state.current === request) {
-        set(advanceQueue(state.queue));
-      } else if (state.queue.includes(request)) {
-        set({ queue: state.queue.filter((queued) => queued !== request) });
-      } else {
-        return; // already answered
-      }
-      settleCancelled();
-    },
-    { once: true },
-  );
 }
 
 export const useDialogStore = create<DialogState>((set, get) => ({
@@ -145,7 +124,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
       cancelLabel: message("common.cancel"),
       retryLabel: message("dialog.notSaved.retry"), noSafeAction: false, resolve,
     };
-    present(request, undefined, get, set, () => resolve("cancel"));
+    present(request, get, set, () => resolve("cancel"));
   }),
   retryCurrent: () => {
     const { current, queue } = get();
@@ -164,7 +143,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         confirmLabel: options.confirmLabel ?? message("common.ok"),
         resolve,
       };
-      present(request, options.signal, get, set, () => resolve());
+      present(request, get, set, () => resolve());
     }),
 
   enqueueConfirm: async (title, body, options = {}) =>
@@ -180,7 +159,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         resolve,
         withdraw: () => { options.onWithdraw?.(); resolve(false); },
       };
-      present(request, options.signal, get, set, request.withdraw);
+      present(request, get, set, request.withdraw);
     }),
 
   confirmCurrent: () => {

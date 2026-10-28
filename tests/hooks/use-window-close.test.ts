@@ -74,7 +74,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 
 import { invoke } from "@tauri-apps/api/core";
 import {
-  CLOSE_WAIT_MS,
+  EXIT_DEADLINE_MS,
   prepareWindowClose,
   useWindowClose,
 } from "../../src/hooks/use-window-close";
@@ -147,7 +147,7 @@ describe("close request", () => {
     const optional = useAppStateStore.getState().updateViewState({ zoomLevel: 1.2 });
     await vi.waitFor(() => expect(release).toBeTypeOf("function"));
     let allowed = false;
-    const closing = prepareWindowClose().then((value) => { allowed = value; });
+    const closing = prepareWindowClose().then((value) => { allowed = value !== null; });
     try {
       await vi.waitFor(() => expect(allowed).toBe(true));
       expect(useDialogStore.getState().current).toBeNull();
@@ -199,7 +199,7 @@ async function waitForDialog(): Promise<void> {
 describe("a write that does not finish", () => {
   const LIST = "/Volumes/share/tasks.json";
 
-  it("names the file after the bound and closes when the user closes anyway", async () => {
+  it("names the file at the deadline and closes when the user quits anyway", async () => {
     const release = stuckWrite(LIST);
     const closing = prepareWindowClose(10);
 
@@ -208,7 +208,7 @@ describe("a write that does not finish", () => {
     expect(dialog?.body.values).toEqual({ paths: LIST });
     useDialogStore.getState().confirmCurrent();
 
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.not.toBeNull();
     release();
   });
 
@@ -219,19 +219,20 @@ describe("a write that does not finish", () => {
     await waitForDialog();
     useDialogStore.getState().cancelCurrent();
 
-    await expect(closing).resolves.toBe(false);
+    await expect(closing).resolves.toBeNull();
     release();
   });
 
-  it("withdraws the question and closes once the write finishes", async () => {
+  it("waits again on Retry and closes once the write finishes", async () => {
     const release = stuckWrite(LIST);
     const closing = prepareWindowClose(10);
 
     await waitForDialog();
-    expect(useDialogStore.getState().current).not.toBeNull();
+    expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
     release();
+    useDialogStore.getState().retryCurrent();
 
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.not.toBeNull();
     expect(useDialogStore.getState().current).toBeNull();
   });
 
@@ -294,7 +295,7 @@ describe("a task-list write that fails outright", () => {
     // Retry once the volume takes writes again saves the change and closes.
     listDisk.fail = false;
     useDialogStore.getState().retryCurrent();
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.not.toBeNull();
     expect(listDisk.written).toEqual([`${LIST}:Critical`]);
     expect(priorityOfT1()).toBe("Critical");
   });
@@ -309,7 +310,7 @@ describe("a task-list write that fails outright", () => {
     await waitForDialog();
     useDialogStore.getState().confirmCurrent();
 
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.not.toBeNull();
     expect(listDisk.written).toEqual([]);
   });
 
@@ -325,7 +326,7 @@ describe("a task-list write that fails outright", () => {
     expect(useDialogStore.getState().current?.body.values).toEqual({ paths: LIST });
     expect(priorityOfT1()).toBe("Critical");
     useDialogStore.getState().confirmCurrent();
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.not.toBeNull();
   });
 });
 
@@ -343,7 +344,7 @@ describe("note text not yet added or saved", () => {
       await waitForDialog();
       expect(useDialogStore.getState().current?.body.values).toEqual({ tasks: "Source" });
       useDialogStore.getState().cancelCurrent();
-      await expect(closing).resolves.toBe(false);
+      await expect(closing).resolves.toBeNull();
       expect(useNoteDraftStore.getState().drafts[copyDraft("t1:n1")]).toBe("milk and eggs");
     }
   });
@@ -353,7 +354,7 @@ describe("note text not yet added or saved", () => {
       ["/copy.json", { data: { id: "destination", tasks: [makeTask({ id: "t1", title: "Destination" })] } }]] as const;
     useTaskListStore.setState({ files: Object.fromEntries(reverse ? [...entries].reverse() : entries) });
     useNoteDraftStore.getState().setDraft(fieldDraftKey("t1", "title", "/copy.json"), "Edited destination");
-    await expect(prepareWindowClose()).resolves.toBe(true);
+    await expect(prepareWindowClose()).resolves.not.toBeNull();
     expect(useTaskListStore.getState().files[LIST].data.tasks[0].title).toBe("Source");
     expect(useTaskListStore.getState().files["/copy.json"].data.tasks[0].title).toBe("Edited destination");
     expect(listDisk.written).toHaveLength(1);
@@ -381,7 +382,7 @@ describe("note text not yet added or saved", () => {
     expect(dialog?.body.values).toEqual({ tasks: "Groceries" });
     useDialogStore.getState().cancelCurrent();
 
-    await expect(closing).resolves.toBe(false);
+    await expect(closing).resolves.toBeNull();
     expect(useNoteDraftStore.getState().drafts[copyDraft("t1")]).toBe("half a thought");
     expect(listDisk.written).toEqual([]);
   });
@@ -395,7 +396,7 @@ describe("note text not yet added or saved", () => {
     await waitForDialog();
     useDialogStore.getState().confirmCurrent();
 
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.not.toBeNull();
   });
 
   it("does not ask about a note opened for editing but unchanged", async () => {
@@ -403,7 +404,7 @@ describe("note text not yet added or saved", () => {
     seedNote();
     useNoteDraftStore.getState().openDraft(copyDraft("t1:n1"), "milk");
 
-    await expect(prepareWindowClose()).resolves.toBe(true);
+    await expect(prepareWindowClose()).resolves.not.toBeNull();
     expect(useDialogStore.getState().current).toBeNull();
   });
 
@@ -415,7 +416,7 @@ describe("note text not yet added or saved", () => {
     await waitForDialog();
     expect(useDialogStore.getState().current?.body.key).toBe("dialog.unsavedChanges.quitBody");
     useDialogStore.getState().confirmCurrent();
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.not.toBeNull();
   });
 
   it("commits a parked title and description instead of asking", async () => {
@@ -424,7 +425,7 @@ describe("note text not yet added or saved", () => {
     useNoteDraftStore.getState().setDraft(copyDraft("t1#title"), "  Renamed  ");
     useNoteDraftStore.getState().setDraft(copyDraft("t1#description"), "described");
 
-    await expect(prepareWindowClose()).resolves.toBe(true);
+    await expect(prepareWindowClose()).resolves.not.toBeNull();
 
     expect(useDialogStore.getState().current).toBeNull();
     const task = useTaskListStore.getState().files[LIST].data.tasks[0];
@@ -481,18 +482,18 @@ describe("the end of an OS session", () => {
     expect(windowStub.events).not.toContain("destroy");
   });
 
-  it("reports once the bound passes when a write does not finish", async () => {
+  it("holds no timer of its own and reports once a held write finishes", async () => {
     await mountHarness();
     const release = stuckWrite(LIST);
 
     await endSession();
-    await vi.advanceTimersByTimeAsync(CLOSE_WAIT_MS - 1);
+    await vi.advanceTimersByTimeAsync(EXIT_DEADLINE_MS * 10);
     expect(reported()).toBe(0);
-    await vi.advanceTimersByTimeAsync(1);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(reported()).toBe(1);
     expect(useDialogStore.getState().current).toBeNull();
-    release();
   });
 
   it("joins a close the user started, withdrawing its question", async () => {
@@ -530,7 +531,7 @@ describe("the end of an OS session", () => {
 
     expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
     useDialogStore.getState().confirmCurrent();
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.not.toBeNull();
   });
 });
 
@@ -547,13 +548,13 @@ describe("workspace saves at quit", () => {
     await waitForDialog();
     expect(useDialogStore.getState().current?.body.values).toEqual({ paths: "/workspace.json" });
     useDialogStore.getState().cancelCurrent();
-    await expect(first).resolves.toBe(false);
+    await expect(first).resolves.toBeNull();
     expect(useWorkspaceStore.getState().workspace.openTabs[0].filePath).toBe("/tasks.json");
     const retry = prepareWindowClose();
     await waitForDialog();
     invokeMock.mockResolvedValue(undefined);
     useDialogStore.getState().retryCurrent();
-    await expect(retry).resolves.toBe(true);
+    await expect(retry).resolves.not.toBeNull();
     expect(useWorkspaceStore.getState().workspacePersistenceError).toBeNull();
   });
 });
@@ -574,7 +575,7 @@ describe("drafts from closed tabs", () => {
     expect(listDisk.written.length).toBeGreaterThan(0);
     await useTaskListStore.getState().unloadFile(LIST);
     expect(useNoteDraftStore.getState().drafts).toEqual({});
-    await expect(prepareWindowClose()).resolves.toBe(true);
+    await expect(prepareWindowClose()).resolves.not.toBeNull();
   });
 
   it("keeps an inactive tab open when saving its parked field fails", async () => {
@@ -602,7 +603,7 @@ describe("drafts from closed tabs", () => {
     await waitForDialog();
     expect(useDialogStore.getState().current?.body.values).toEqual({ tasks: title });
     useDialogStore.getState().cancelCurrent();
-    await expect(closing).resolves.toBe(false);
+    await expect(closing).resolves.toBeNull();
     useNoteDraftStore.getState().clearDraft(copyDraft("t1"));
     expect(useNoteDraftStore.getState().parkedTasks).toEqual({});
   });
@@ -613,7 +614,7 @@ describe("drafts from closed tabs", () => {
     ] } } } });
     useNoteDraftStore.getState().openDraft(copyDraft("t1:n1"), "milk");
     await useTaskListStore.getState().unloadFile(LIST);
-    await expect(prepareWindowClose()).resolves.toBe(true);
+    await expect(prepareWindowClose()).resolves.not.toBeNull();
     expect(useDialogStore.getState().current).toBeNull();
   });
 });
@@ -637,7 +638,7 @@ it("does not let a failed workspace save prompt or hold OS session end", async (
 });
 
 describe("close diagnostic acknowledgement", () => {
-  it.each([false, true])("waits for forwarding only within the existing close allowance (release=%s)", async (finish) => {
+  it.each([false, true])("waits for forwarding only within the exit deadline and passes the rest to the core (release=%s)", async (finish) => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
     await mountHarness();
     let release!: () => void;
@@ -655,12 +656,14 @@ describe("close diagnostic acknowledgement", () => {
     expect(windowStub.events).toEqual([]);
     if (finish) release();
     else {
-      await vi.advanceTimersByTimeAsync(CLOSE_WAIT_MS - 1);
+      await vi.advanceTimersByTimeAsync(EXIT_DEADLINE_MS - 1);
       expect(windowStub.events).toEqual([]);
       await vi.advanceTimersByTimeAsync(1);
     }
     await closing;
-    expect(invokeMock).toHaveBeenCalledWith("close_window", { forwardingComplete: finish });
+    expect(invokeMock).toHaveBeenCalledWith("close_window", {
+      forwardingComplete: finish, remainingMs: finish ? EXIT_DEADLINE_MS : 0,
+    });
     expect(windowStub.events).toEqual(["destroy"]);
     if (!finish) release();
     await vi.advanceTimersByTimeAsync(0);
@@ -676,7 +679,7 @@ describe("close diagnostic acknowledgement", () => {
     expect(invokeMock.mock.calls.some(([command]) => command === "close_window")).toBe(false);
   });
 
-  it("does not add another logging allowance after Quit Anyway", async () => {
+  it("fixes the deadline again after Quit Anyway, for the steps that follow the answer", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
     await mountHarness();
     const releaseWrite = stuckWrite(LIST);
@@ -691,12 +694,15 @@ describe("close diagnostic acknowledgement", () => {
       return Promise.resolve();
     });
     const closing = windowStub.handlers.at(-1)!({ preventDefault() {} });
-    await vi.advanceTimersByTimeAsync(CLOSE_WAIT_MS);
-    expect(useDialogStore.getState().current?.title.key).toBe("dialog.stillSaving.title");
+    await vi.advanceTimersByTimeAsync(EXIT_DEADLINE_MS);
+    expect(useDialogStore.getState().current?.title.key).toBe("dialog.notSaved.title");
+    await vi.advanceTimersByTimeAsync(5000);
     useDialogStore.getState().confirmCurrent();
+    await vi.advanceTimersByTimeAsync(EXIT_DEADLINE_MS - 1);
+    expect(windowStub.events).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
     await closing;
-    expect(invokeMock).toHaveBeenCalledWith("close_window", { forwardingComplete: false });
+    expect(invokeMock).toHaveBeenCalledWith("close_window", { forwardingComplete: false, remainingMs: 0 });
     releaseLog(); releaseWrite();
     await vi.advanceTimersByTimeAsync(0);
   });
@@ -717,7 +723,7 @@ it("OS session end joins held forwarding without destroying or adding another de
   const closing = windowStub.handlers.at(-1)!({ preventDefault() {} });
   await vi.advanceTimersByTimeAsync(1000);
   await endSession();
-  await vi.advanceTimersByTimeAsync(CLOSE_WAIT_MS - 1000);
+  await vi.advanceTimersByTimeAsync(EXIT_DEADLINE_MS - 1000);
   await closing;
   expect(reported()).toBe(1);
   expect(invokeMock.mock.calls.some(([command]) => command === "close_window")).toBe(false);

@@ -195,13 +195,6 @@ fn state_value(tracked: &TrackedWindow) -> Option<Placement> {
 /// Reads a placement file. An unreadable one is quarantined and reads as
 /// absent; a newer build's file is left exactly as it is.
 pub fn load_file(path: &Path) -> Result<SavedPlacement, String> {
-    let path = path.to_path_buf();
-    crate::native_wait::run(path.to_string_lossy().into_owned(), move || {
-        load_file_owned(&path)
-    })
-}
-
-fn load_file_owned(path: &Path) -> Result<SavedPlacement, String> {
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -231,9 +224,7 @@ fn load_file_owned(path: &Path) -> Result<SavedPlacement, String> {
 }
 
 fn load(app: &AppHandle, tracked: &TrackedWindow) -> Result<Option<Placement>, String> {
-    let app = app.clone();
-    let root = crate::native_wait::run("app-paths".to_string(), move || paths::data_root(&app))?;
-    let path = root.join(tracked.file_name);
+    let path = paths::data_root(app)?.join(tracked.file_name);
     match load_file(&path)? {
         SavedPlacement::Absent => Ok(None),
         SavedPlacement::Found(placement) => Ok(Some(placement)),
@@ -406,16 +397,10 @@ fn save(app: &AppHandle, tracked: &TrackedWindow) {
     let Some(placement) = state_value(tracked) else {
         return;
     };
-    let app = app.clone();
-    let file_name = tracked.file_name;
-    let result = crate::native_wait::run(
-        format!("placement:{file_name}"),
-        move || -> Result<(), String> {
-            let root = paths::data_root(&app)?;
-            let path = root.join(file_name);
-            write_atomic_unrecorded(&path.to_string_lossy(), &file_text(placement)?).map(|_| ())
-        },
-    );
+    let result = paths::data_root(app).and_then(|root| {
+        let path = root.join(tracked.file_name);
+        write_atomic_unrecorded(&path.to_string_lossy(), &file_text(placement)?).map(|_| ())
+    });
     if let Err(error) = result {
         logging::warn(
             "window placement could not be saved",

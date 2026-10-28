@@ -39,17 +39,14 @@ pub struct Appearance {
 // One immutable preview supplies both first-paint choices. The frontend still
 // owns full validation and legacy adoption; this read never rewrites a source.
 pub fn read_appearance(state_file: &Path) -> Appearance {
-    let state_file = state_file.to_path_buf();
-    crate::native_wait::run(state_file.to_string_lossy().into_owned(), move || {
-        let preferences = previewed_preferences_owned(&state_file);
-        Ok(Appearance {
-            language: preferences.as_ref().and_then(crate::i18n::saved_preference),
-            theme: preferences.as_ref().and_then(preferences_window_theme),
-        })
-    }).unwrap_or_default()
+    let preferences = previewed_preferences(state_file);
+    Appearance {
+        language: preferences.as_ref().and_then(crate::i18n::saved_preference),
+        theme: preferences.as_ref().and_then(preferences_window_theme),
+    }
 }
 
-fn previewed_preferences_owned(state_file: &Path) -> Option<Value> {
+fn previewed_preferences(state_file: &Path) -> Option<Value> {
     let paths = crate::paths::app_paths(state_file.parent()?);
     let settings = Path::new(&paths.settings_file);
     // Unavailable canonical settings never fall back to a retired source.
