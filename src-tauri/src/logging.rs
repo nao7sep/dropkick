@@ -152,10 +152,6 @@ CREATE INDEX IF NOT EXISTS idx_logs_time ON logs (time, id);
 // then takes the fallback.
 type Records = Result<Connection, String>;
 
-// How long a panic waits for queued entries before the process goes on to
-// abort. A panic is not a quit, so there is no exit deadline to draw on.
-const FLUSH_BOUND: Duration = Duration::from_millis(6_000);
-
 // A read of the records database, given the writer's connection or why the
 // database could not be opened.
 type Read = Box<dyn FnOnce(Result<&Connection, &str>) + Send>;
@@ -490,11 +486,15 @@ impl Logger {
         writer.queue.changed.notify_one();
     }
 
-    // Waits, within FLUSH_BOUND, until every entry submitted before it is
-    // written. Past the bound the remaining entries' outcome is unknown.
+    // Waits, for at most an exit deadline's length, until every entry submitted
+    // before it is written. A panic is not a quit, but an unbounded wait would
+    // turn a crash on a stalled disk into a hang. Past the bound the remaining
+    // entries' outcome is unknown.
     fn flush(&self) {
         if let Some(writer) = self.writer.get() {
-            if thread::current().id() != writer.thread { writer.flush(FLUSH_BOUND); }
+            if thread::current().id() != writer.thread {
+                writer.flush(crate::native_wait::EXIT_TAIL_BOUND);
+            }
         }
     }
 
