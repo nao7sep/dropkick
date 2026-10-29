@@ -28,15 +28,15 @@ fn exit_deadline() -> Instant {
 }
 
 /// Runs the exit's last steps; the process exits at the deadline if they have
-/// not finished. Each step draws on what remains (`remaining`).
-pub fn exit_tail(work: impl FnOnce(Instant)) {
+/// not finished, so each step draws on what remains with no wait of its own.
+pub fn exit_tail(work: impl FnOnce()) {
     exit_tail_until(exit_deadline(), || std::process::exit(0), work);
 }
 
 pub fn exit_tail_until(
     deadline: Instant,
     expired: impl FnOnce() + Send + 'static,
-    work: impl FnOnce(Instant),
+    work: impl FnOnce(),
 ) {
     let (done, finished) = mpsc::sync_channel(1);
     if std::thread::Builder::new()
@@ -50,12 +50,12 @@ pub fn exit_tail_until(
     {
         std::process::exit(0);
     }
-    work(deadline);
+    work();
     let _ = done.send(());
 }
 
 /// What remains of a deadline, zero once it has passed.
-pub fn remaining(deadline: Instant) -> Duration {
+fn remaining(deadline: Instant) -> Duration {
     deadline.saturating_duration_since(Instant::now())
 }
 

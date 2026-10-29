@@ -1,9 +1,10 @@
 // The Records window's reads of records.sqlite3: paging, filters, the launch
-// list and one record whole, against a database of the logger's own shape.
+// list and one record whole, against a database of the logger's own shape. The
+// logger's writer runs them on its connection (logging's tests).
 
 use crate::logging::SCHEMA;
 use crate::records::{
-    open, read_detail, read_page, read_sources, LevelFilter, RecordCursor, RecordsQuery, PAGE_SIZE,
+    read_detail, read_page, read_sources, LevelFilter, RecordCursor, RecordsQuery, PAGE_SIZE,
 };
 use rusqlite::Connection;
 
@@ -53,7 +54,7 @@ impl Fixture {
     }
 
     fn reader(&self) -> Connection {
-        open(&self.path).expect("open reader")
+        Connection::open(&self.path).expect("open reader")
     }
 }
 
@@ -281,23 +282,6 @@ fn a_record_is_read_whole_and_a_missing_one_is_none() {
 }
 
 #[test]
-fn the_reader_never_writes() {
-    let f = fixture();
-    let reader = f.reader();
-    assert!(reader
-        .execute("INSERT INTO logs (time, session, level, message, fields) VALUES ('t', 's', 'info', 'm', '{}')", [])
-        .is_err());
-}
-
-#[test]
-fn a_missing_database_cannot_be_read() {
-    let dir = tempfile::tempdir().expect("temp dir");
-    let path = dir.path().join("records.sqlite3");
-    assert!(open(&path).is_err());
-    assert!(!path.exists(), "a read creates no database");
-}
-
-#[test]
 fn the_query_arrives_as_the_window_sends_it() {
     let query: RecordsQuery = serde_json::from_value(serde_json::json!({
         "session": S2,
@@ -315,21 +299,4 @@ fn the_query_arrives_as_the_window_sends_it() {
             id: 4
         })
     );
-}
-
-#[test]
-fn a_database_without_its_format_version_is_not_read() {
-    let f = fixture();
-    f.writer
-        .pragma_update(None, "user_version", 0)
-        .expect("clear version");
-    assert!(open(&f.path).is_err());
-}
-
-#[test]
-fn a_newer_database_is_not_read() {
-    let f = fixture();
-    f.writer.pragma_update(None, "user_version", 2).expect("set version");
-    let error = open(&f.path).expect_err("a newer database is refused");
-    assert!(error.contains("records.sqlite3"), "{error}");
 }

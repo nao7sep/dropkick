@@ -2,24 +2,17 @@
 //! summaries, newest first and keyset-paged by a cursor; the launches that
 //! have records; and one record whole, every field as stored.
 //!
-//! Reads open their own read-only connection, so they never queue behind the
-//! logger's writer thread, and a reader never writes. The commands that call
-//! these log only their failures: every stored record signals the Records
-//! window, so a read that logged its success would start the next read.
-
-use std::path::Path;
-use std::time::Duration;
+//! Each read runs on the logger's writer thread and connection
+//! (`logging::read`), in order with the entries it writes, and writes nothing.
+//! The commands that call these log only their failures: every stored record
+//! signals the Records window, so a read that logged its success would start
+//! the next read.
 
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{params_from_iter, Connection, OpenFlags, OptionalExtension, Row};
+use rusqlite::{params_from_iter, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 
-use crate::format_version::{self, Format, Marker};
-
 pub const PAGE_SIZE: usize = 100;
-
-// How long a read waits for a writer's lock before it fails.
-const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The level filter: a record's own level, or `attention`, every record at
 /// `warn` or `error`.
@@ -101,21 +94,6 @@ pub struct RecordDetail {
 pub struct RecordSources {
     pub current_session: Option<String>,
     pub sessions: Vec<String>,
-}
-
-/// Opens the database for reading. A newer build's records are not read: this
-/// build cannot know what their rows mean.
-pub fn open(path: &Path) -> Result<Connection, String> {
-    let conn = Connection::open_with_flags(
-        path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|e| e.to_string())?;
-    conn.busy_timeout(BUSY_TIMEOUT).map_err(|e| e.to_string())?;
-    if let Marker::Newer(found) = format_version::sqlite(&conn, Format::Records)? {
-        return Err(format_version::newer_message(path, found, Format::Records));
-    }
-    Ok(conn)
 }
 
 // The search text as a LIKE pattern that matches it literally anywhere.

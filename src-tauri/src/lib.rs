@@ -1091,13 +1091,7 @@ async fn read_records<T: Send + 'static>(
     read: impl FnOnce(&rusqlite::Connection) -> rusqlite::Result<T> + Send + 'static,
 ) -> Result<T, String> {
     let started = Instant::now();
-    let result = native_wait::settle(move || {
-        logging::records_file()
-            .ok_or_else(|| "the records database is not open".to_string())
-            .and_then(|path| records::open(&path))
-            .and_then(|conn| read(&conn).map_err(|e| e.to_string()))
-    })
-    .await;
+    let result = native_wait::settle(move || logging::read(read)).await;
     if let Err(message) = &result {
         log_cmd_err(command, started, message.clone());
     }
@@ -1351,7 +1345,7 @@ pub fn run() {
             reopen_main(app_handle);
         }
         if let tauri::RunEvent::Exit = event {
-            native_wait::exit_tail(|deadline| {
+            native_wait::exit_tail(|| {
                 // The end of a session exits with its windows still open.
                 capture_open_windows(app_handle);
                 window_placement::save_all(
@@ -1359,10 +1353,10 @@ pub fn run() {
                     &app_handle.state::<window_placement::WindowPlacements>(),
                 );
                 // Records queued by the last saves drain within what remains of
-                // the deadline at an ordinary quit; the end of an OS session
-                // skips them (data-backup conventions).
+                // the exit deadline at an ordinary quit; the end of an OS
+                // session skips them (data-backup conventions).
                 if !os_quit::session_ended() {
-                    backup_store::flush(native_wait::remaining(deadline));
+                    backup_store::flush();
                 }
                 logging::info("app shutdown", json!({ "reason": "exit" }));
                 logging::shutdown();

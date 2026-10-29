@@ -1,5 +1,4 @@
 use super::*;
-use std::time::Duration;
 use serial_test::serial;
 
 // The store singleton is process-global, so every test that touches it is
@@ -46,7 +45,7 @@ fn with_store<F: FnOnce(&Path)>(body: F) {
 // A read-only view of every row for a path, in insert order, for assertions,
 // once every queued record has been applied.
 fn rows_for(file: &Path, path: &str) -> Vec<(Vec<u8>, String, i64, String)> {
-    assert!(flush(Duration::MAX), "queued records were not applied");
+    flush();
     let conn = Connection::open(file).unwrap();
     let mut stmt = conn
         .prepare(
@@ -159,12 +158,12 @@ fn a_new_session_adds_a_row_only_for_content_that_changed() {
 
 #[test]
 #[serial(backup_store)]
-fn a_busy_owner_coalesces_pending_bytes_with_the_store_locked_and_drains_on_close() {
+fn a_busy_owner_queues_every_save_in_order_and_drains_on_close() {
     with_store(|file| {
-        assert!(flush(Duration::MAX));
+        flush();
         let shared = Arc::clone(&lock().as_ref().unwrap().shared);
-        // The worker waits on SQLite's busy timeout while another connection
-        // holds the write lock, so later saves arrive behind an active write.
+        // Another connection holds the write lock, so the owner's write waits on
+        // it and later saves arrive behind an active write.
         let holder = Connection::open(file).unwrap();
         holder.execute_batch("BEGIN IMMEDIATE").unwrap();
         record(Path::new("/abs/f.json"), b"active snapshot");
@@ -174,27 +173,23 @@ fn a_busy_owner_coalesces_pending_bytes_with_the_store_locked_and_drains_on_clos
                 |state| !(state.active && state.ready.is_empty())).unwrap_or_else(|p| p.into_inner());
             assert!(state.active && state.ready.is_empty());
         }
-        for _ in 0..100 {
-            record(Path::new("/abs/f.json"), b"superseded");
-            record(Path::new("/abs/g.json"), b"other superseded");
-        }
         let newest = [0xEF, 0xBB, 0xBF, b'\r', b'\n', 0xFF];
+        record(Path::new("/abs/f.json"), b"second");
+        record(Path::new("/abs/g.json"), b"other");
         record(Path::new("/abs/f.json"), &newest);
-        record(Path::new("/abs/g.json"), b"other newest");
         {
             let state = shared.lock();
-            assert_eq!(state.pending.len(), 2);
-            assert_eq!(state.ready.iter().map(String::as_str).collect::<Vec<_>>(),
-                ["/abs/f.json", "/abs/g.json"]);
-            assert_eq!(state.pending["/abs/f.json"], newest);
-            assert_eq!(state.pending["/abs/g.json"], b"other newest");
+            assert_eq!(
+                state.ready.iter().map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+                    .collect::<Vec<_>>(),
+                [("/abs/f.json", b"second".as_slice()), ("/abs/g.json", b"other".as_slice()),
+                    ("/abs/f.json", newest.as_slice())]);
         }
-        assert!(!flush(Duration::ZERO));
         holder.execute_batch("COMMIT").unwrap();
         drop(holder);
         close_for_test();
         assert_eq!(rows_for(file, "/abs/f.json")[0].0, newest);
-        assert_eq!(rows_for(file, "/abs/g.json")[0].0, b"other newest");
+        assert_eq!(rows_for(file, "/abs/g.json")[0].0, b"other");
     });
 }
 
@@ -210,7 +205,7 @@ fn reverting_to_an_earlier_session_still_replaces_this_sessions_changed_row() {
     record(path, b"original");
     assert_eq!(rows_for(&store.file, path.to_str().unwrap()).len(), 1);
     record(path, b"changed this session");
-    assert!(flush(Duration::MAX));
+    flush();
     record(path, b"original");
     let rows = rows_for(&store.file, path.to_str().unwrap());
     assert_eq!(rows.iter().map(|row| row.0.as_slice()).collect::<Vec<_>>(),
@@ -250,7 +245,7 @@ fn a_store_open_failure_disables_recording_without_panicking() {
 
     init(store_file); // open fails -> disabled, one warn logged, no panic
     record(Path::new("/abs/whatever.json"), b"data"); // silent no-op, no panic
-    assert!(flush(Duration::MAX));
+    flush();
     close_for_test();
 }
 
@@ -267,7 +262,7 @@ fn user_version(file: &Path) -> i64 {
 #[serial(backup_store)]
 fn a_new_store_is_stamped_with_its_format_version() {
     with_store(|file| {
-        assert!(flush(Duration::MAX));
+        flush();
         assert_eq!(user_version(file), 2);
     });
 }
@@ -349,13 +344,13 @@ fn a_newer_store_is_left_byte_identical_and_records_nothing() {
 #[serial(backup_store)]
 fn a_post_open_record_failure_does_not_fail_primary_saves_or_stop_the_owner() {
     with_store(|file| {
-        assert!(flush(Duration::MAX));
+        flush();
         let fixture = Connection::open(file).unwrap();
         fixture.execute_batch("DROP TABLE backups").unwrap();
         let primary = file.with_file_name("authored.json");
         let path = primary.to_str().unwrap();
         crate::write_atomic(path, "first authored version").unwrap();
-        assert!(flush(Duration::MAX));
+        flush();
         assert_eq!(std::fs::read_to_string(&primary).unwrap(), "first authored version");
         fixture.execute_batch(SCHEMA).unwrap();
         crate::write_atomic(path, "later authored version").unwrap();

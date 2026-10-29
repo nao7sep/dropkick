@@ -331,3 +331,42 @@ fn blocked_optional_storage_bounds_flush_without_holding_producers() {
     assert_eq!(rows.len(), 300);
     assert!(rows.iter().all(|r| r.message == "failure"));
 }
+
+fn read_count(logger: &Logger) -> Result<i64, String> {
+    let (answer, answered) = std::sync::mpsc::sync_channel(1);
+    logger.submit_read(Box::new(move |records| {
+        let _ = answer.send(records.map_err(str::to_string).and_then(|conn| {
+            conn.query_row("SELECT count(*) FROM logs", [], |r| r.get(0)).map_err(|e| e.to_string())
+        }));
+    })).expect("read queued");
+    answered.recv().expect("read answered")
+}
+
+#[test]
+fn a_read_runs_on_the_writer_after_the_entries_logged_before_it() {
+    let dir = temp_dir();
+    let logger = Arc::new(Logger::open(&dir.path().join("records.sqlite3"), &dir.path().join("logs"), false));
+    logger.start_writer();
+    for n in 0..3 {
+        logger.emit(Level::Info, "queued", json!({ "n": n }));
+    }
+    assert_eq!(read_count(&logger), Ok(3));
+    logger.stop_writer_for_test();
+}
+
+#[test]
+fn a_read_of_a_newer_records_database_answers_its_error() {
+    let tmp = temp_dir();
+    let file = tmp.path().join("records.sqlite3");
+    {
+        let conn = Connection::open(&file).expect("open records");
+        conn.pragma_update(None, "user_version", 2).expect("set version");
+        conn.execute_batch("CREATE TABLE logs (anything TEXT);").expect("schema");
+    }
+    let before = std::fs::read(&file).expect("read records");
+    let logger = Logger::open(&file, &tmp.path().join("logs"), false);
+    let error = read_count(&logger).expect_err("a newer database is not read");
+    assert!(error.contains("records.sqlite3"), "{error}");
+    drop(logger);
+    assert_eq!(std::fs::read(&file).expect("read records"), before);
+}

@@ -19,7 +19,7 @@ fn the_exit_deadline_covers_a_stalled_optional_tail() {
             move || {
                 let _ = expired.send(());
             },
-            |_| {
+            || {
                 let _ = held.recv();
             },
         );

@@ -161,8 +161,6 @@ pub fn open_sqlite(
     schema: &str,
 ) -> Result<Connection, String> {
     let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
-    conn.busy_timeout(std::time::Duration::from_secs(5))
-        .map_err(|e| e.to_string())?;
     let tx = conn
         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
         .map_err(|e| e.to_string())?;

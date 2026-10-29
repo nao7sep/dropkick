@@ -15,22 +15,21 @@
 //!
 //! The history is best effort and never part of a save: `record` only queues the
 //! bytes for one background owner, the `dropkick-backup` thread, which applies
-//! them serially, keeping only the newest pending bytes per path, so a slow or
-//! locked store delays neither the save's reply nor quit. Each session (one
-//! launch) keeps one row per path, updated in place
-//! by later saves; a session's first save equal to the latest earlier row writes
-//! nothing. At an ordinary quit the queue gets a short drain (`flush`); at the
-//! end of an OS session it is skipped. Any failure logs one warning and is
+//! every save in save order, so a slow or locked store delays neither the
+//! save's reply nor quit. Each session (one launch) keeps one row per path,
+//! updated in place by later saves; a session's first save equal to the latest
+//! earlier row writes nothing. At an ordinary quit the queue drains (`flush`)
+//! within what remains of the exit deadline; at the end of an OS session it is
+//! skipped. Any failure logs one warning and is
 //! swallowed. A successful record logs nothing.
 //!
 //! SQLite binding: `rusqlite` with the `bundled` feature, so the store needs no
 //! system libsqlite3 and adds no packaging churn. A BLOB is stored and read as
 //! raw bytes, so CR/LF, a BOM and non-UTF-8 content stay byte-identical.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
-use std::time::{Duration, Instant};
 
 use rusqlite::{Connection, TransactionBehavior};
 use serde_json::json;
@@ -59,11 +58,9 @@ CREATE INDEX IF NOT EXISTS idx_backups_path_id ON backups (path, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_backups_path_session ON backups (path, session_id);
 ";
 
-// One path's newest pending bytes replace any older pending bytes for it; the
-// active write is never replaced.
+// Saves waiting for the owner, in save order.
 struct State {
-    pending: HashMap<String, Vec<u8>>,
-    ready: VecDeque<String>,
+    ready: VecDeque<(String, Vec<u8>)>,
     active: bool,
     closing: bool,
 }
@@ -106,7 +103,6 @@ pub fn init(store_file: PathBuf) {
     let session = logging::session().unwrap_or_else(crate::nanoid::generate);
     let shared = Arc::new(Shared {
         state: Mutex::new(State {
-            pending: HashMap::new(),
             ready: VecDeque::new(),
             // Opening the store belongs to the first drain, even without saves.
             active: true,
@@ -148,13 +144,9 @@ fn run(store_file: &Path, session: &str, shared: Arc<Shared>) {
                 .wait(state)
                 .unwrap_or_else(|p| p.into_inner());
         }
-        let Some(path) = state.ready.pop_front() else {
+        let Some((path, bytes)) = state.ready.pop_front() else {
             return;
         };
-        let bytes = state
-            .pending
-            .remove(&path)
-            .expect("ready path has pending bytes");
         state.active = true;
         shared.changed.notify_all();
         drop(state);
@@ -192,11 +184,7 @@ fn open(store_file: &Path) -> Result<Connection, String> {
             store_file.display()
         ));
     }
-    // busy_timeout lets a write wait briefly for SQLite's lock instead of
-    // failing at once; the wait is the owner thread's, never a save's.
     conn.pragma_update(None, "journal_mode", "WAL")
-        .map_err(|e| e.to_string())?;
-    conn.pragma_update(None, "busy_timeout", 5000)
         .map_err(|e| e.to_string())?;
     Ok(conn)
 }
@@ -220,30 +208,21 @@ pub fn record(absolute_path: &Path, bytes: &[u8]) {
     if state.closing {
         return;
     }
-    if state.pending.insert(path.clone(), bytes).is_none() {
-        state.ready.push_back(path);
-    }
+    state.ready.push_back((path, bytes));
     shared.changed.notify_all();
 }
 
-/// Waits up to `bound` until the owner is idle, so every record accepted so
-/// far has settled. Settlement does not guarantee success.
-pub fn flush(bound: Duration) -> bool {
-    let started = Instant::now();
+/// Waits until the owner is idle, so every record accepted so far has
+/// settled. Settlement does not guarantee success. At exit the exit tail's
+/// deadline ends the wait.
+pub fn flush() {
     let shared = lock().as_ref().map(|owner| Arc::clone(&owner.shared));
-    let Some(shared) = shared else { return true };
-    let mut state = shared.lock();
-    while state.active || !state.ready.is_empty() {
-        let Some(remaining) = bound.checked_sub(started.elapsed()) else {
-            return false;
-        };
-        let (next, _) = shared
-            .changed
-            .wait_timeout(state, remaining)
-            .unwrap_or_else(|p| p.into_inner());
-        state = next;
-    }
-    true
+    let Some(shared) = shared else { return };
+    let state = shared.lock();
+    let _state = shared
+        .changed
+        .wait_while(state, |state| state.active || !state.ready.is_empty())
+        .unwrap_or_else(|p| p.into_inner());
 }
 
 /// Applies one record. The latest row for the path decides: equal content

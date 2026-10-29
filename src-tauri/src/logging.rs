@@ -12,10 +12,11 @@
 //
 // The core's own entries are written by one writer thread, in the order they
 // were logged, so a slow or locked database never holds the thread that logged
-// them (the main thread, for window and menu events). `flush` waits, bounded,
-// for that thread to catch up; the panic path calls it. At exit `shutdown`
-// lets the thread write what is queued and waits for it, within the exit
-// deadline.
+// them (the main thread, for window and menu events). The thread owns the one
+// connection to the database: the Records window's reads (`read`) queue on it
+// and run in order with the entries. `flush` waits, bounded, for that thread to
+// catch up; the panic path calls it. At exit `shutdown` lets the thread write
+// what is queued and waits for it, within the exit deadline.
 //
 // After each entry the database stores, the listener set with `on_stored`
 // runs; it tells the Records window (records_window::notify_changed).
@@ -24,7 +25,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::collections::VecDeque;
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::sync::{mpsc, Arc, Condvar, Mutex, OnceLock};
 use std::thread::{self, ThreadId};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -151,17 +152,22 @@ CREATE INDEX IF NOT EXISTS idx_logs_time ON logs (time, id);
 // then takes the fallback.
 type Records = Result<Connection, String>;
 
-// How long a write waits for SQLite's lock before taking the fallback. One
-// instance runs at a time (instance_owner); the Records window reads the same
-// file from this process.
-const BUSY_TIMEOUT_MS: u64 = 5_000;
-// How long a panic waits for queued entries: long enough for an entry that
-// waits its full busy timeout to land.
-const FLUSH_BOUND: Duration = Duration::from_millis(BUSY_TIMEOUT_MS + 1_000);
+// How long a panic waits for queued entries before the process goes on to
+// abort. A panic is not a quit, so there is no exit deadline to draw on.
+const FLUSH_BOUND: Duration = Duration::from_millis(6_000);
+
+// A read of the records database, given the writer's connection or why the
+// database could not be opened.
+type Read = Box<dyn FnOnce(Result<&Connection, &str>) + Send>;
+
+enum Job {
+    Entry(Map<String, Value>),
+    Read(Read),
+}
 
 #[derive(Default)]
 struct QueueState {
-    entries: VecDeque<Map<String, Value>>,
+    entries: VecDeque<Job>,
     active: bool,
     stopping: bool,
 }
@@ -192,7 +198,10 @@ impl Writer {
                     state.active = true;
                     entry
                 };
-                logger.write_envelope(entry);
+                match entry {
+                    Job::Entry(entry) => logger.write_envelope(entry),
+                    Job::Read(read) => logger.run_read(read),
+                }
                 let mut state = owner.state.lock().unwrap_or_else(|e| e.into_inner());
                 state.active = false;
                 owner.changed.notify_all();
@@ -297,12 +306,10 @@ fn open_records(records_file: &Path) -> Records {
         return Err(format_version::newer_message(records_file, found, Format::Records));
     }
     // WAL with synchronous=NORMAL keeps every committed row through an app
-    // crash; busy_timeout lets a write wait for SQLite's lock briefly.
+    // crash.
     conn.pragma_update(None, "journal_mode", "WAL")
         .map_err(|e| e.to_string())?;
     conn.pragma_update(None, "synchronous", "NORMAL")
-        .map_err(|e| e.to_string())?;
-    conn.pragma_update(None, "busy_timeout", BUSY_TIMEOUT_MS as i64)
         .map_err(|e| e.to_string())?;
     Ok(conn)
 }
@@ -364,9 +371,19 @@ pub fn session() -> Option<String> {
     global().map(|l| l.session.clone())
 }
 
-// The records database this session writes to.
-pub fn records_file() -> Option<PathBuf> {
-    global().map(|l| l.records_file.clone())
+// Runs `read` on the records database after the entries queued so far, on the
+// writer's thread and connection, and waits for its result. A read must not
+// log: each stored entry signals the Records window to read again.
+pub fn read<T: Send + 'static>(
+    read: impl FnOnce(&Connection) -> rusqlite::Result<T> + Send + 'static,
+) -> Result<T, String> {
+    let logger = global().ok_or_else(|| "the records database is not open".to_string())?;
+    let (answer, answered) = mpsc::sync_channel(1);
+    logger.submit_read(Box::new(move |records| {
+        let _ = answer.send(records.map_err(str::to_string)
+            .and_then(|conn| read(conn).map_err(|e| e.to_string())));
+    }))?;
+    answered.recv().map_err(|_| "the records writer stopped".to_string())?
 }
 
 // Sets what runs after each entry the database stored. Set once.
@@ -409,6 +426,31 @@ impl Logger {
         }
     }
 
+    fn run_read(&self, read: Read) {
+        self.initialize_records();
+        let records = self.records.lock().unwrap_or_else(|p| p.into_inner());
+        match records.as_ref().unwrap() {
+            Ok(conn) => read(Ok(conn)),
+            Err(e) => read(Err(e)),
+        }
+    }
+
+    fn submit_read(&self, read: Read) -> Result<(), String> {
+        let Some(writer) = self.writer.get() else {
+            #[cfg(test)]
+            return { self.run_read(read); Ok(()) };
+            #[cfg(not(test))]
+            return Err("the records writer is not running".to_string());
+        };
+        let mut state = writer.queue.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.stopping {
+            return Err("the records writer stopped".to_string());
+        }
+        state.entries.push_back(Job::Read(read));
+        writer.queue.changed.notify_one();
+        Ok(())
+    }
+
     fn set_stored_listener(&self, listener: impl Fn() + Send + Sync + 'static) {
         if self.stored.set(Box::new(listener)).is_err() {
             eprintln!("[dropkick:logging] stored listener already set; ignoring");
@@ -445,7 +487,7 @@ impl Logger {
             eprintln!("{}", Value::Object(obj));
             return;
         }
-        state.entries.push_back(obj);
+        state.entries.push_back(Job::Entry(obj));
         writer.queue.changed.notify_one();
     }
 
