@@ -188,7 +188,7 @@ fn an_unopenable_database_sends_each_entry_to_the_session_fallback_file() {
 }
 
 #[test]
-fn a_failed_insert_keeps_later_entries_on_fallback_without_retrying_the_broken_sink() {
+fn a_failed_insert_takes_the_fallback_and_the_next_entry_reaches_the_database() {
     let (dir, logger) = temp_logger(false);
     logger.emit(Level::Info, "before", json!({}));
     let conn = Connection::open(dir.path().join("records.sqlite3")).unwrap();
@@ -197,12 +197,13 @@ fn a_failed_insert_keeps_later_entries_on_fallback_without_retrying_the_broken_s
     conn.execute_batch("ALTER TABLE moved RENAME TO logs").unwrap();
     logger.emit(Level::Info, "after", json!({}));
     let messages: Vec<String> = rows(&dir).into_iter().map(|row| row.message).collect();
-    assert_eq!(messages, ["before"]);
+    assert_eq!(messages, ["before", "after"]);
     let lines = fallback_lines(&logger);
-    assert_eq!(lines.len(), 2);
+    assert_eq!(lines.len(), 1);
     assert_eq!(lines[0]["message"], json!("during"));
-    assert_eq!(lines[1]["message"], json!("after"));
-    assert_eq!(lines[0]["recordsError"], lines[1]["recordsError"]);
+    assert!(lines[0]["recordsError"].is_string());
+    // Records reads keep working on the same connection.
+    assert_eq!(read_count(&logger), Ok(2));
 }
 
 #[test]

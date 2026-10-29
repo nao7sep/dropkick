@@ -400,7 +400,7 @@ impl Logger {
         // Recover from a poisoned mutex: a prior panic-while-writing must not
         // wedge logging shut, least of all the panic hook trying to record it.
         self.initialize_records();
-        let mut records = self.records.lock().unwrap_or_else(|p| p.into_inner());
+        let records = self.records.lock().unwrap_or_else(|p| p.into_inner());
         let outcome = match records.as_ref().unwrap() {
             Ok(conn) => insert(conn, &self.session, &obj).map_err(|e| e.to_string()),
             Err(e) => Err(e.clone()),
@@ -413,9 +413,8 @@ impl Logger {
             }
             Err(error) => error,
         };
-        // A broken sink stays on fallback for this launch. Repeating its busy
-        // timeout for every queued envelope would turn one failure into a stall.
-        *records = Some(Err(error.clone()));
+        // This entry takes the fallback; the next one tries the database again,
+        // and a store that never opened stays on the fallback for this launch.
         drop(records);
         obj.insert("recordsError".to_string(), Value::String(error));
         let mut line = Value::Object(obj).to_string();
