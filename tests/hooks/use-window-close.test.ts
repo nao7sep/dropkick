@@ -155,6 +155,19 @@ describe("close request", () => {
       expect(useDialogStore.getState().current).toBeNull();
     } finally { release(); await Promise.all([optional, closing]); }
   });
+  it("starts a divider or zoom step's delayed save at once", async () => {
+    useAppStateStore.setState({ filePath: "/state.json", loaded: true });
+    let written: string | null = null;
+    invokeMock.mockImplementation((command, args) => {
+      if (command === "write_text_file_atomic" && args.path === "/state.json") written = args.contents;
+      return Promise.resolve(undefined);
+    });
+    useAppStateStore.getState().stepViewState({ sidebarWidth: 412 });
+    await expect(prepareWindowClose()).resolves.not.toBeNull();
+    // Long before the step's own save delay.
+    expect(JSON.parse(written!)).toMatchObject({ sidebarWidth: 412 });
+  });
+
   it("closes without asking when no note text is waiting", async () => {
     await mountHarness();
     useNoteDraftStore.getState().setDraft(copyDraft("t1"), "   \n  ");

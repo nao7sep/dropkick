@@ -66,6 +66,9 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   // Zoom is view state (state.json), not a preference — read/write via app-appState.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   const updateViewState = useAppStateStore((s) => s.updateViewState);
+  // Zoom − and + are steps of one adjustment, saved after the last
+  // (stepViewState); Reset is one command and saves at once.
+  const stepViewState = useAppStateStore((s) => s.stepViewState);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const workspaceFilePath = useWorkspaceStore((s) => s.filePath);
   const activeTabIndex = workspace.activeTabIndex;
@@ -578,7 +581,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                     <button
                       onClick={() => {
                         const next = stepZoomOut(zoomLevel);
-                        if (next !== zoomLevel) updateViewState({ zoomLevel: next });
+                        if (next !== zoomLevel) stepViewState({ zoomLevel: next });
                       }}
                       disabled={stepZoomOut(zoomLevel) === zoomLevel}
                       className="flex h-7 w-7 items-center justify-center text-ink-soft transition-colors hover:bg-control-hover active:bg-control-pressed disabled:opacity-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring"
@@ -602,7 +605,7 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
                     <button
                       onClick={() => {
                         const next = stepZoomIn(zoomLevel);
-                        if (next !== zoomLevel) updateViewState({ zoomLevel: next });
+                        if (next !== zoomLevel) stepViewState({ zoomLevel: next });
                       }}
                       disabled={stepZoomIn(zoomLevel) === zoomLevel}
                       className="flex h-7 w-7 items-center justify-center text-ink-soft transition-colors hover:bg-control-hover active:bg-control-pressed disabled:opacity-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-ring"

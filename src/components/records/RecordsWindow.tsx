@@ -3,7 +3,7 @@
 // each record it stores; the window pages itself as it scrolls and takes new
 // records in as they arrive.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useI18n } from "../../i18n/I18nContext";
@@ -198,6 +198,13 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
       try {
         const page = await readNewestRecords(shown, (after) => readRecordsPage({ ...filtersRef.current, after }), () => token !== listToken.current);
         if (page === null || token !== listToken.current) return;
+        // A page that lands after the list left its top waits like a new
+        // record, and is read again once the list is back there.
+        const scroll = scrollRef.current;
+        if (scroll !== null && !atTop(scroll)) {
+          newestPending.current = true;
+          return;
+        }
         liveSuspended.current = false;
         setList((current) => current.status === "ready"
           ? { ...current, ...mergeNewestPage(current.records, current.more, page), paused: false }
@@ -274,7 +281,8 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
 
   // A stored record reaches the list at once while it is scrolled to the top;
   // otherwise it waits until the list is back there, so the list never moves
-  // under the reader.
+  // under the reader. A newest page read at the top that lands after the list
+  // left it waits too (readNewest).
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const unsubscribe = onRecordsChanged(() => {
@@ -411,7 +419,8 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   };
 
   // Drag intent: window-conventions, Content-based minimum size. Only the end
-  // of a drag saves, and the main window, which owns state.json, persists it.
+  // of a drag is handed over, and the main window, which owns state.json,
+  // persists it.
   const onSplitterDown = (event: ReactMouseEvent<HTMLDivElement>): void => {
     event.preventDefault();
     const startX = event.clientX;
@@ -440,28 +449,20 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   };
 
   // The same bounds from the keyboard (the window splitter pattern, as in
-  // BigMouth; developer decision): arrows move the divider by 16 px, Home and
-  // End take it to either bound, and releasing the key or leaving the divider
-  // saves once, so a held arrow writes once.
-  const keyedWidth = useRef<number | null>(null);
+  // BigMouth; developer decision): arrows move the divider by 16 px, and Home
+  // and End take it to either bound. Each step is handed over; the main window
+  // saves a moment after the last one, so a run of steps writes once.
   const onSplitterKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    // A held key moves on from where the last press left it.
-    const from = keyedWidth.current ?? shownListWidth;
     const target =
-      event.key === "ArrowLeft" ? from - KEY_RESIZE_STEP
-      : event.key === "ArrowRight" ? from + KEY_RESIZE_STEP
+      event.key === "ArrowLeft" ? shownListWidth - KEY_RESIZE_STEP
+      : event.key === "ArrowRight" ? shownListWidth + KEY_RESIZE_STEP
       : event.key === "Home" ? RECORDS_LIST_WIDTH.min
       : event.key === "End" ? RECORDS_LIST_WIDTH.max
       : null;
     if (target === null) return;
     event.preventDefault();
-    keyedWidth.current = Math.max(RECORDS_LIST_WIDTH.min, Math.min(RECORDS_LIST_WIDTH.max, target));
-    setListWidth(keyedWidth.current);
-  };
-  const commitKeyedWidth = (): void => {
-    const width = keyedWidth.current;
-    if (width === null) return;
-    keyedWidth.current = null;
+    const width = Math.max(RECORDS_LIST_WIDTH.min, Math.min(RECORDS_LIST_WIDTH.max, target));
+    setListWidth(width);
     commitRecordsListWidth(width).catch((error) =>
       log.warn("records list width save failed", { width, ...toErrorFields(error) }),
     );
@@ -480,33 +481,9 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
   } else if (records.length === 0) {
     listBody = <p className={NOTE_CLASS}>{t("records.empty")}</p>;
   } else {
-    listBody = records.map((record) => {
-      const isSelected = record.id === selected;
-      return (
-        <div
-          key={record.id}
-          id={optionId(record.id)}
-          role="option"
-          aria-selected={isSelected}
-          onClick={() => setSelected(record.id)}
-          // A flat row: hover and selection are fills, and the keyboard cursor,
-          // while the keyboard drives the list, is a ring inside the row.
-          className={`mx-1.5 mb-0.5 flex cursor-pointer flex-col gap-0.5 rounded-[var(--radius-sm)] px-2.5 py-2 transition-colors duration-[var(--motion)] ${
-            isSelected
-              ? "bg-primary-surface-strong hover:bg-selection-hover group-focus-visible:ring-[1.5px] group-focus-visible:ring-inset group-focus-visible:ring-primary-ring"
-              : "hover:bg-control-hover"
-          }`}
-        >
-          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-            <span className="tabular-nums">{timeFormat.format(new Date(record.time))}</span>
-            <LevelPill level={record.level} />
-          </div>
-          {/* Clamped in the list; selecting the record shows the whole message
-              in the detail pane. */}
-          <div className="line-clamp-2 text-sm text-ink [overflow-wrap:anywhere]">{record.message}</div>
-        </div>
-      );
-    });
+    listBody = records.map((record) => (
+      <RecordRow key={record.id} record={record} selected={record.id === selected} timeFormat={timeFormat} onSelect={setSelected} />
+    ));
   }
 
   return (
@@ -589,8 +566,6 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
         tabIndex={0}
         onMouseDown={onSplitterDown}
         onKeyDown={onSplitterKeyDown}
-        onKeyUp={commitKeyedWidth}
-        onBlur={commitKeyedWidth}
         className="shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong focus-visible:bg-primary-accent focus-visible:outline-none"
         style={{ width: `${SPLITTER_WIDTH}px` }}
       />
@@ -610,6 +585,45 @@ export function RecordsWindow({ initialListWidth, timeZone }: { initialListWidth
     </div>
   );
 }
+
+// One row of the list. Rows are kept from re-rendering while only another row,
+// a filter or a later page changes, so a long list stays quick as records
+// arrive.
+const RecordRow = memo(function RecordRow({
+  record,
+  selected,
+  timeFormat,
+  onSelect,
+}: {
+  record: RecordSummary;
+  selected: boolean;
+  timeFormat: Intl.DateTimeFormat;
+  onSelect: (id: number) => void;
+}) {
+  return (
+    <div
+      id={optionId(record.id)}
+      role="option"
+      aria-selected={selected}
+      onClick={() => onSelect(record.id)}
+      // A flat row: hover and selection are fills, and the keyboard cursor,
+      // while the keyboard drives the list, is a ring inside the row.
+      className={`mx-1.5 mb-0.5 flex cursor-pointer flex-col gap-0.5 rounded-[var(--radius-sm)] px-2.5 py-2 transition-colors duration-[var(--motion)] ${
+        selected
+          ? "bg-primary-surface-strong hover:bg-selection-hover group-focus-visible:ring-[1.5px] group-focus-visible:ring-inset group-focus-visible:ring-primary-ring"
+          : "hover:bg-control-hover"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+        <span className="tabular-nums">{timeFormat.format(new Date(record.time))}</span>
+        <LevelPill level={record.level} />
+      </div>
+      {/* Clamped in the list; selecting the record shows the whole message
+          in the detail pane. */}
+      <div className="line-clamp-2 text-sm text-ink [overflow-wrap:anywhere]">{record.message}</div>
+    </div>
+  );
+});
 
 function FilterSelect({
   label,

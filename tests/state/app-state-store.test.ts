@@ -12,7 +12,7 @@ vi.mock("../../src/repositories", () => ({
   toErrorFields: (e: unknown) => ({ error: { message: String(e) } }),
 }));
 
-import { useAppStateStore } from "../../src/state/app-state-store";
+import { useAppStateStore, VIEW_STEP_SAVE_DELAY_MS } from "../../src/state/app-state-store";
 import { useToastStore } from "../../src/state/toast-store";
 import { createDefaultAppState } from "../../src/models";
 
@@ -64,6 +64,59 @@ describe("updateViewState", () => {
     await useAppStateStore.getState().updateViewState({ zoomLevel: 2 });
     expect(useAppStateStore.getState().appState.zoomLevel).toBe(2);
     expect(flushAppState).not.toHaveBeenCalled();
+  });
+});
+
+describe("stepViewState", () => {
+  it("applies each step at once and saves once, a delay after the last step", async () => {
+    vi.useFakeTimers();
+    try {
+      useAppStateStore.setState({ filePath: "/state.json" });
+      const { stepViewState } = useAppStateStore.getState();
+      for (const width of [336, 352, 368]) {
+        stepViewState({ sidebarWidth: width });
+        expect(useAppStateStore.getState().appState.sidebarWidth).toBe(width);
+        await vi.advanceTimersByTimeAsync(VIEW_STEP_SAVE_DELAY_MS - 1);
+      }
+      expect(flushAppState).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(flushAppState).toHaveBeenCalledOnce();
+      expect(flushAppState.mock.calls[0][1]().sidebarWidth).toBe(368);
+      await vi.advanceTimersByTimeAsync(VIEW_STEP_SAVE_DELAY_MS);
+      expect(flushAppState).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("saves a waiting step at once when the window closes, and only once", async () => {
+    vi.useFakeTimers();
+    try {
+      useAppStateStore.setState({ filePath: "/state.json" });
+      useAppStateStore.getState().stepViewState({ zoomLevel: 1.1 });
+      useAppStateStore.getState().flushViewSteps();
+      expect(flushAppState).toHaveBeenCalledOnce();
+      expect(flushAppState.mock.calls[0][1]().zoomLevel).toBe(1.1);
+      await vi.advanceTimersByTimeAsync(VIEW_STEP_SAVE_DELAY_MS);
+      useAppStateStore.getState().flushViewSteps();
+      expect(flushAppState).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets an immediate save carry a waiting step", async () => {
+    vi.useFakeTimers();
+    try {
+      useAppStateStore.setState({ filePath: "/state.json" });
+      useAppStateStore.getState().stepViewState({ sidebarWidth: 400 });
+      await useAppStateStore.getState().updateViewState({ zoomLevel: 1 });
+      await vi.advanceTimersByTimeAsync(VIEW_STEP_SAVE_DELAY_MS);
+      expect(flushAppState).toHaveBeenCalledOnce();
+      expect(flushAppState.mock.calls[0][1]()).toMatchObject({ sidebarWidth: 400, zoomLevel: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

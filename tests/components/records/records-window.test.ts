@@ -450,6 +450,26 @@ describe("RecordsWindow", () => {
     expect(messages()).toEqual(["view state updated", "command error", "window placement could not be loaded"]);
   });
 
+  it("holds a newest page that lands after the list left the top until it is back there", async () => {
+    await render();
+    vi.useFakeTimers();
+    const next = deferred<RecordsPage>();
+    records.readRecordsPage.mockReturnValueOnce(next.promise)
+      .mockResolvedValueOnce({ records: [newer, error, warn], more: false });
+
+    await signal();
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(records.readRecordsPage).toHaveBeenCalledTimes(2);
+    await scrollTo(300);
+    await act(async () => next.resolve({ records: [newer, error, warn], more: false }));
+    expect(messages()).toEqual(["command error", "window placement could not be loaded"]);
+    expect(box.scrollTop).toBe(300);
+
+    await scrollTo(0);
+    expect(records.readRecordsPage).toHaveBeenCalledTimes(3);
+    expect(messages()).toEqual(["view state updated", "command error", "window placement could not be loaded"]);
+  });
+
   it("keeps the selected record selected through an update", async () => {
     await render();
     await act(async () => options()[1]!.click());
@@ -514,35 +534,29 @@ describe("RecordsWindow", () => {
     expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.max}px`);
   });
 
-  it("moves the divider by keyboard and hands the width over once on key release or blur", async () => {
+  it("moves the divider by keyboard, handing each step over for the main window's delayed save", async () => {
     await render();
     const splitter = document.querySelector<HTMLElement>('[role="separator"]')!;
     expect(splitter.tabIndex).toBe(0);
-    const key = (type: "keydown" | "keyup", name: string) =>
-      splitter.dispatchEvent(new KeyboardEvent(type, { key: name, bubbles: true }));
+    const key = (name: string) => splitter.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true }));
 
-    await act(async () => {
-      key("keydown", "ArrowRight");
-      key("keydown", "ArrowRight");
-    });
+    await act(async () => key("ArrowRight"));
+    await act(async () => key("ArrowRight"));
     expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.default + 32}px`);
-    expect(records.commitRecordsListWidth).not.toHaveBeenCalled();
-    await act(async () => key("keyup", "ArrowRight"));
-    expect(records.commitRecordsListWidth).toHaveBeenCalledExactlyOnceWith(RECORDS_LIST_WIDTH.default + 32);
+    expect(records.commitRecordsListWidth.mock.calls).toEqual([[RECORDS_LIST_WIDTH.default + 16], [RECORDS_LIST_WIDTH.default + 32]]);
 
-    await act(async () => key("keydown", "Home"));
+    await act(async () => key("Home"));
     expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.min}px`);
-    // Leaving the divider before the key is released saves too, once.
-    await act(async () => {
-      splitter.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
-    });
-    expect(records.commitRecordsListWidth).toHaveBeenCalledTimes(2);
-    await act(async () => key("keyup", "Home"));
-    expect(records.commitRecordsListWidth).toHaveBeenCalledTimes(2);
+    await act(async () => key("ArrowLeft"));
     expect(records.commitRecordsListWidth).toHaveBeenLastCalledWith(RECORDS_LIST_WIDTH.min);
 
-    await act(async () => key("keydown", "End"));
+    await act(async () => key("End"));
     expect(listPane().style.width).toBe(`${RECORDS_LIST_WIDTH.max}px`);
+    await act(async () => {
+      splitter.dispatchEvent(new KeyboardEvent("keyup", { key: "End", bubbles: true }));
+      splitter.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    expect(records.commitRecordsListWidth).toHaveBeenCalledTimes(5);
   });
 
   it("narrows the list when the window narrows, handing nothing over", async () => {

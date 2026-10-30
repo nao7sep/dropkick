@@ -24,7 +24,7 @@ export function useRecordsWindowSync(): void {
   const { language, locale } = useInterfaceLanguage();
   const timezone = usePreferencesStore((s) => s.preferences.timezone);
   const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
-  const updateViewState = useAppStateStore((s) => s.updateViewState);
+  const stepViewState = useAppStateStore((s) => s.stepViewState);
   const timeZone = conversionTimeZone(timezone) ?? null;
 
   useEffect(() => {
@@ -38,9 +38,10 @@ export function useRecordsWindowSync(): void {
       onRecordsListWidthCommitted((width) => {
         if (typeof width !== "number" || !Number.isFinite(width)) return;
         const recordsListWidth = Math.max(RECORDS_LIST_WIDTH.min, Math.min(RECORDS_LIST_WIDTH.max, Math.round(width)));
-        void updateViewState({ recordsListWidth });
+        // A drag's end or one keyboard step: saved after the last of a run.
+        stepViewState({ recordsListWidth });
       }),
-    [updateViewState],
+    [stepViewState],
   );
 }
 

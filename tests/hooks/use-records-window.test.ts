@@ -35,7 +35,7 @@ vi.mock("../../src/repositories", () => ({
 }));
 
 import { useRecordsWindow, useRecordsWindowSync } from "../../src/hooks/useRecordsWindow";
-import { useAppStateStore } from "../../src/state/app-state-store";
+import { useAppStateStore, VIEW_STEP_SAVE_DELAY_MS } from "../../src/state/app-state-store";
 import { usePreferencesStore } from "../../src/state/preferences-store";
 import { useLanguageStore } from "../../src/state/language-store";
 import { createDefaultAppState, createDefaultPreferences } from "../../src/models";
@@ -145,16 +145,24 @@ describe("useRecordsWindow", () => {
     expect(useAppStateStore.getState().appState.recordsListWidth).toBe(470);
   });
 
-  it("persists the width the Records window hands back, within the pane's bounds", async () => {
-    await act(async () => records.width!(512.4));
-    expect(useAppStateStore.getState().appState.recordsListWidth).toBe(512);
-    expect(shell.flushAppState).toHaveBeenCalledTimes(1);
-    expect(shell.flushAppState.mock.calls[0][1]().recordsListWidth).toBe(512);
+  it("persists the width the Records window hands back, within the pane's bounds, after the last of a run", async () => {
+    vi.useFakeTimers();
+    try {
+      await act(async () => records.width!(512.4));
+      expect(useAppStateStore.getState().appState.recordsListWidth).toBe(512);
+      await act(async () => records.width!(5000));
+      expect(useAppStateStore.getState().appState.recordsListWidth).toBe(RECORDS_LIST_WIDTH.max);
+      expect(shell.flushAppState).not.toHaveBeenCalled();
+      await act(async () => vi.advanceTimersByTimeAsync(VIEW_STEP_SAVE_DELAY_MS));
+      expect(shell.flushAppState).toHaveBeenCalledTimes(1);
+      expect(shell.flushAppState.mock.calls[0][1]().recordsListWidth).toBe(RECORDS_LIST_WIDTH.max);
 
-    await act(async () => records.width!(5000));
-    expect(useAppStateStore.getState().appState.recordsListWidth).toBe(RECORDS_LIST_WIDTH.max);
-
-    await act(async () => records.width!(Number.NaN));
-    expect(shell.flushAppState).toHaveBeenCalledTimes(2);
+      await act(async () => records.width!(Number.NaN));
+      await act(async () => vi.advanceTimersByTimeAsync(VIEW_STEP_SAVE_DELAY_MS));
+      expect(shell.flushAppState).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
+
 });

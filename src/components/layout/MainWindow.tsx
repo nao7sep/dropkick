@@ -57,6 +57,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   const sidebarIntent = useAppStateStore((s) => s.appState.sidebarWidth);
   const updateViewState = useAppStateStore((s) => s.updateViewState);
+  const stepViewState = useAppStateStore((s) => s.stepViewState);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const activeTabIndex = workspace.activeTabIndex;
   const activeTab =
@@ -127,7 +128,6 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   // otherwise. Held in state so the sidebar tracks the cursor before the persist.
   const [dragIntent, setDragIntent] = useState(intent);
   const draggingRef = useRef(false);
-  const keyedWidth = useRef<number | null>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
 
@@ -149,7 +149,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   // Sync dragIntent when the persisted intent changes externally (e.g. a
   // different preferences file loads). Skipped mid-drag so the live drag wins.
   useEffect(() => {
-    if (draggingRef.current || keyedWidth.current !== null) return;
+    if (draggingRef.current) return;
     setDragIntent(intent);
   }, [intent]);
 
@@ -162,24 +162,19 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   );
 
   const sidebarMax = clampSidebarWidth(Infinity, containerWidth);
+  // Each arrow, Home or End step moves the divider at once; the width saves
+  // a moment after the last step (stepViewState), so a run of steps writes once.
   const handleDividerKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isComposingEvent(event)) return;
-    const from = keyedWidth.current ?? sidebarWidth;
-    const target = event.key === "ArrowLeft" ? from - 16
-      : event.key === "ArrowRight" ? from + 16
+    const target = event.key === "ArrowLeft" ? sidebarWidth - 16
+      : event.key === "ArrowRight" ? sidebarWidth + 16
       : event.key === "Home" ? SIDEBAR_MIN_WIDTH
       : event.key === "End" ? sidebarMax : null;
     if (target === null) return;
     event.preventDefault();
-    keyedWidth.current = clampSidebarWidth(target, containerWidth);
-    setDragIntent(keyedWidth.current);
-  };
-  const commitKeyedWidth = () => {
-    if (keyedWidth.current === null) return;
-    const width = clampSidebarWidth(keyedWidth.current, containerWidth);
-    keyedWidth.current = null;
+    const width = clampSidebarWidth(target, containerWidth);
     setDragIntent(width);
-    void updateViewState({ sidebarWidth: width });
+    stepViewState({ sidebarWidth: width });
   };
 
   const handleDividerDown = useCallback(
@@ -286,10 +281,10 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
       }
       if (isZoomIn(e)) {
         e.preventDefault();
-        updateViewState({ zoomLevel: stepZoomIn(zoomLevelRef.current) });
+        stepViewState({ zoomLevel: stepZoomIn(zoomLevelRef.current) });
       } else if (isZoomOut(e)) {
         e.preventDefault();
-        updateViewState({ zoomLevel: stepZoomOut(zoomLevelRef.current) });
+        stepViewState({ zoomLevel: stepZoomOut(zoomLevelRef.current) });
       } else if (isZoomReset(e)) {
         e.preventDefault();
         updateViewState({ zoomLevel: ZOOM_DEFAULT });
@@ -297,7 +292,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [updateViewState]);
+  }, [stepViewState, updateViewState]);
 
   useEffect(() => {
     // The title is the tab's name and the product name, with no words of its
@@ -480,8 +475,6 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
             tabIndex={0}
             onMouseDown={handleDividerDown}
             onKeyDown={handleDividerKeyDown}
-            onKeyUp={commitKeyedWidth}
-            onBlur={commitKeyedWidth}
             className="shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary-accent active:bg-primary-accent-strong focus-visible:bg-primary-accent focus-visible:outline-none"
             style={{ width: `${SPLITTER_WIDTH}px` }}
           />

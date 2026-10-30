@@ -45,6 +45,7 @@ import { unsavedNoteText } from "../services/note-drafts";
 import { commitParkedFields } from "../services/commit-task-fields";
 import { useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
+import { useAppStateStore } from "../state/app-state-store";
 import { refuseDialogs, useDialogStore } from "../state/dialog-store";
 
 export const EXIT_DEADLINE_MS = 3000;
@@ -63,6 +64,8 @@ async function settlePendingWrites(): Promise<string[]> {
     document.activeElement.blur();
   }
   commitParkedFields();
+  // A divider or zoom step still waiting for its save delay saves now.
+  useAppStateStore.getState().flushViewSteps();
   const workspace = useWorkspaceStore.getState();
   // Dismissing a structural-save notice does not make the workspace durable.
   // Use its existing full-save owner, just as switching workspaces does.
