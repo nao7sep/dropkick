@@ -14,47 +14,31 @@ const committed = (): PreferencesDto => createDefaultPreferences();
 const KICK_STRING = "5, 25";
 
 describe("parseKickDistances", () => {
-  it("parses a clean comma-separated list", () => {
-    expect(parseKickDistances("5, 25")).toEqual([5, 25]);
+  it("reads a comma-separated list in the typed order, trimming each item", () => {
+    expect(parseKickDistances("5, 25")).toEqual({ status: "valid", distances: [5, 25] });
+    expect(parseKickDistances("  25 ,5,   10  ")).toEqual({ status: "valid", distances: [25, 5, 10] });
+    expect(parseKickDistances("1, 999")).toEqual({ status: "valid", distances: [1, 999] });
   });
 
-  it("trims surrounding whitespace around each value", () => {
-    expect(parseKickDistances("  5 ,   25  ")).toEqual([5, 25]);
+  it("reads an empty field as no distances, never as the built-in", () => {
+    expect(parseKickDistances("")).toEqual({ status: "valid", distances: [] });
+    expect(parseKickDistances("   ")).toEqual({ status: "valid", distances: [] });
   });
 
-  it("preserves the entered order (does not sort)", () => {
-    expect(parseKickDistances("25, 5, 10")).toEqual([25, 5, 10]);
+  it("skips blank items between commas", () => {
+    expect(parseKickDistances("5,, 25,")).toEqual({ status: "valid", distances: [5, 25] });
   });
 
-  it("drops zero, negatives, and non-numeric entries", () => {
-    expect(parseKickDistances("0, -3, 5, abc, 25")).toEqual([5, 25]);
+  it.each(["0", "1000", "-3", "3.9", "abc", "+5", "1e2", "5 5"])("names %j as outside 1 to 999 instead of correcting it", (item) => {
+    expect(parseKickDistances(`5, ${item}, 25`)).toEqual({ status: "invalid", item, reason: "range" });
   });
 
-  it("de-duplicates while keeping first occurrence", () => {
-    expect(parseKickDistances("5, 5, 25, 5")).toEqual([5, 25]);
+  it("names a repeated item as typed", () => {
+    expect(parseKickDistances("5, 25, 05")).toEqual({ status: "invalid", item: "05", reason: "duplicate" });
   });
 
-  it("clamps values above 999 to 999", () => {
-    expect(parseKickDistances("1000, 5")).toEqual([999, 5]);
-    // Two over-large values collapse to a single 999 after clamping + dedup.
-    expect(parseKickDistances("1000, 2000")).toEqual([999]);
-  });
-
-  it("truncates decimals via parseInt", () => {
-    expect(parseKickDistances("3.9, 5")).toEqual([3, 5]);
-  });
-
-  it("falls back to the default pair when nothing valid remains", () => {
-    expect(parseKickDistances("")).toEqual([5, 25]);
-    expect(parseKickDistances("   ")).toEqual([5, 25]);
-    expect(parseKickDistances("abc, -1, 0")).toEqual([5, 25]);
-  });
-
-  it("returns a fresh array each call (no shared mutable default)", () => {
-    const a = parseKickDistances("");
-    const b = parseKickDistances("");
-    expect(a).toEqual(b);
-    expect(a).not.toBe(b);
+  it("names the first failing item", () => {
+    expect(parseKickDistances("abc, 5, 5")).toEqual({ status: "invalid", item: "abc", reason: "range" });
   });
 });
 

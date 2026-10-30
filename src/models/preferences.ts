@@ -22,23 +22,17 @@ export interface PreferencesDto {
 }
 
 // Default kick distances — the single source of truth for the "+N" actions.
-// Used by createDefaultPreferences and as the fallback when normalization finds
-// no usable values.
 export const DEFAULT_KICK_DISTANCES: readonly number[] = [5, 25];
+export const KICK_DISTANCE_MIN = 1;
+export const KICK_DISTANCE_MAX = 999;
 
-// Normalizes a kick-distances value into a clean, ordered list: positive
-// integers only, each truncated and clamped to 999, de-duplicated, original
-// order preserved. Non-arrays and empty results fall back to
-// DEFAULT_KICK_DISTANCES. Settings input uses this normalization. Stored load
-// replaces an invalid whole set with its built-in value; persistence refuses
-// invalid sets.
-export function normalizeKickDistances(values: unknown): number[] {
-  const list = Array.isArray(values) ? values : [];
-  const cleaned = list
-    .filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0)
-    .map((n) => Math.min(Math.trunc(n), 999));
-  const deduplicated = [...new Set(cleaned)];
-  return deduplicated.length > 0 ? deduplicated : [...DEFAULT_KICK_DISTANCES];
+// A kick-distances set: whole numbers from 1 to 999, each once, in the order
+// the user typed them. Empty is valid and means no +N buttons; the plain Kick
+// is always offered.
+function isValidKickDistances(value: unknown): boolean {
+  return Array.isArray(value)
+    && value.every((n) => isBoundedInteger(n, KICK_DISTANCE_MIN, KICK_DISTANCE_MAX))
+    && new Set(value).size === value.length;
 }
 
 // The UI font stack the app falls back to, and the value the default
@@ -119,9 +113,7 @@ export function isValidPreferenceSet(key: PreferenceSetKey, value: unknown): boo
     case "fontFamily": return typeof value === "string" && value === singleLine(value);
     case "theme": return value === normalizeThemePreference(value);
     case "timezone": return value === SYSTEM_TIME_ZONE || isKnownTimeZone(value);
-    case "kickDistances":
-      return Array.isArray(value)
-        && JSON.stringify(value) === JSON.stringify(normalizeKickDistances(value));
+    case "kickDistances": return isValidKickDistances(value);
     case "dueSoonDays": return isBoundedInteger(value, DUE_SOON_DAYS_MIN, DUE_SOON_DAYS_MAX);
     case "handledTasksPageSize": return isBoundedInteger(value, HANDLED_TASKS_PAGE_SIZE_MIN, HANDLED_TASKS_PAGE_SIZE_MAX);
     case "confirmPermanentDeletions": return typeof value === "boolean";

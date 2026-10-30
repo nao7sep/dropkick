@@ -5,10 +5,13 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readSystemTheme } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import {
+  DEFAULT_KICK_DISTANCES,
   DUE_SOON_DAYS_MAX,
   DUE_SOON_DAYS_MIN,
   HANDLED_TASKS_PAGE_SIZE_MAX,
   HANDLED_TASKS_PAGE_SIZE_MIN,
+  KICK_DISTANCE_MAX,
+  KICK_DISTANCE_MIN,
   type ThemePreference,
 } from "../../models";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
@@ -87,12 +90,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   const dueSoonDays = parseNumericPreference("dueSoonDays", draft.dueSoonDays);
   const handledTasksPageSize = parseNumericPreference("handledTasksPageSize", draft.handledTasksPageSize);
-  const validNumbers = dueSoonDays !== null && handledTasksPageSize !== null;
+  const kickDistances = parseKickDistances(kickInput);
+  const validNumbers = dueSoonDays !== null && handledTasksPageSize !== null
+    && kickDistances.status === "valid";
 
   const handleSave = async () => {
     // Mirror the Save button's disabled state: an explicit commit requires both
     // dirty and valid, so Cmd+Enter is a no-op when there is nothing to save.
-    if (!isDirty || !validNumbers || submittingRef.current) return;
+    if (!isDirty || !validNumbers || kickDistances.status !== "valid" || submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
     try {
@@ -101,7 +106,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       const result = await update({
         ...draft,
         fontFamily: singleLine(draft.fontFamily),
-        kickDistances: parseKickDistances(kickInput),
+        kickDistances: kickDistances.distances,
         dueSoonDays,
         handledTasksPageSize,
       });
@@ -259,13 +264,30 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           disabled={submitting}
           type="text"
           value={kickInput}
+          aria-invalid={kickDistances.status === "invalid"}
+          aria-describedby={kickDistances.status === "invalid" ? `${fieldId}-kick-error` : undefined}
           onChange={(e) => { if (!submittingRef.current) setKickInput(e.target.value); }}
-          placeholder="5, 25"
           className="dk-field w-full"
         />
+        {kickDistances.status === "invalid" && (
+          <p id={`${fieldId}-kick-error`} className="mt-1.5 text-xs text-danger">
+            {kickDistances.reason === "range"
+              ? t("settings.kickDistanceRange", { item: kickDistances.item, min: KICK_DISTANCE_MIN, max: KICK_DISTANCE_MAX })
+              : t("settings.kickDistanceDuplicate", { item: kickDistances.item })}
+          </p>
+        )}
         <p className="mt-1.5 text-xs leading-5 text-ink-muted">
           {t("settings.kickDistancesHint", { kick: message("action.kick") })}
         </p>
+        {/* Reset is a draft action: it fills the field, and Save writes it. */}
+        <Button
+          size="sm"
+          className="mt-2"
+          disabled={submitting}
+          onClick={() => { if (!submittingRef.current) setKickInput(DEFAULT_KICK_DISTANCES.join(", ")); }}
+        >
+          {t("settings.kickDistancesReset")}
+        </Button>
       </Field>
 
       {/* Due soon window */}

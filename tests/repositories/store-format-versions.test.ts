@@ -349,6 +349,14 @@ describe("one app-wide settings collection", () => {
     expect((await initializePreferences())).toMatchObject({ status: "success", preferences: { theme: "system" } });
   });
 
+  it("keeps an empty kick-distances list as the user's choice across a reload", async () => {
+    const initial = await initializePreferences();
+    if (initial.status !== "success") throw new Error("initialization failed");
+    await flushPreferences(initial.filePath, () => ({ ...initial.preferences, kickDistances: [] }));
+    expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1, kickDistances: [] });
+    expect(await initializePreferences()).toMatchObject({ status: "success", preferences: { kickDistances: [] } });
+  });
+
   it("adopts the last successful source once, before retiring paths, and preserves every source", async () => {
     const launched = put("/launched.json", { formatVersion: 1, id: "p", name: "Launched", language: "ja", theme: "dark" });
     const selected = put("/selected.json", { formatVersion: 1, id: "q", name: "Selected", theme: "light" });

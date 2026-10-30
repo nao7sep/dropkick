@@ -255,3 +255,55 @@ it("offers to discard a blank numeric draft without saving a fallback", async ()
   expect(update).not.toHaveBeenCalled();
   expect(usePreferencesStore.getState().preferences).toBe(before);
 });
+
+function kickField(): HTMLInputElement {
+  return document.querySelector<HTMLInputElement>('input[type="text"][id$="-kick"]')!;
+}
+
+function button(label: string): HTMLButtonElement {
+  return [...document.querySelectorAll("button")].find((b) => b.textContent === label)!;
+}
+
+describe("SettingsModal kick distances", () => {
+  it.each([
+    ["5, 1000", "“1000” is not a whole number from 1 to 999."],
+    ["5, 2.5", "“2.5” is not a whole number from 1 to 999."],
+    ["5, 25, 5", "“5” is listed more than once."],
+  ])("keeps %j as typed, names the failing item and holds Save and Cmd+Enter", async (typed, error) => {
+    const field = kickField();
+    await typeNumber(field, typed);
+    expect(field.value).toBe(typed);
+    expect(field.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(field.getAttribute("aria-describedby")!)?.textContent).toBe(error);
+    expect(button("Save").disabled).toBe(true);
+    await act(async () => field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", metaKey: true, bubbles: true, cancelable: true })));
+    await act(async () => field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true })));
+    expect(update).not.toHaveBeenCalled();
+    expect(field.value).toBe(typed);
+  });
+
+  it("saves an empty field as no +N distances", async () => {
+    await typeNumber(kickField(), "");
+    expect(kickField().getAttribute("aria-invalid")).toBe("false");
+    await save();
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ kickDistances: [] }));
+  });
+
+  it("saves the typed order", async () => {
+    await typeNumber(kickField(), "40, 3");
+    await save();
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ kickDistances: [40, 3] }));
+  });
+
+  it("resets the field to 5, 25 as a draft that Save writes", async () => {
+    await host.unmount();
+    usePreferencesStore.setState({ preferences: { ...createDefaultPreferences(), kickDistances: [] }, update });
+    host = await mount(createElement(SettingsModal, { onClose }));
+    expect(kickField().value).toBe("");
+    await act(async () => button("Reset kick distances").click());
+    expect(kickField().value).toBe("5, 25");
+    expect(update).not.toHaveBeenCalled();
+    await save();
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ kickDistances: [5, 25] }));
+  });
+});

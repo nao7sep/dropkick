@@ -10,7 +10,7 @@
 // persisted-store-separation-conventions.)
 
 import type { PreferencesDto } from "../models";
-import { normalizeKickDistances, isValidPreferenceSet } from "../models";
+import { isValidPreferenceSet, KICK_DISTANCE_MAX, KICK_DISTANCE_MIN } from "../models";
 
 // The preferences the Settings modal stages: everything the user edits and
 // commits on Save.
@@ -23,14 +23,24 @@ export function stagedPreferences(
   return { ...preferences, dueSoonDays: String(preferences.dueSoonDays), handledTasksPageSize: String(preferences.handledTasksPageSize) };
 }
 
-// Parses the comma-separated kick-distances field into a clean, ordered list.
-// Delegates the positive-integer / clamp-to-999 / de-dup / fallback rules to the
-// model normalizer for Settings input. Stored load replaces an invalid whole
-// set with its built-in value, and persistence refuses invalid sets.
-export function parseKickDistances(input: string): number[] {
-  return normalizeKickDistances(
-    input.split(",").map((value) => parseInt(value.trim(), 10)),
-  );
+// Reads the comma-separated kick-distances field without changing what was
+// typed: each item is trimmed and blank items are skipped, and the first item
+// that is not a whole number from 1 to 999, or repeats an earlier one, is
+// returned as typed so the field's message can name it. An empty field is the
+// empty list.
+export type KickDistancesInput =
+  | { status: "valid"; distances: number[] }
+  | { status: "invalid"; item: string; reason: "range" | "duplicate" };
+
+export function parseKickDistances(input: string): KickDistancesInput {
+  const distances: number[] = [];
+  for (const item of input.split(",").map((value) => value.trim()).filter(Boolean)) {
+    const value = /^\d+$/.test(item) ? Number(item) : NaN;
+    if (!(value >= KICK_DISTANCE_MIN && value <= KICK_DISTANCE_MAX)) return { status: "invalid", item, reason: "range" };
+    if (distances.includes(value)) return { status: "invalid", item, reason: "duplicate" };
+    distances.push(value);
+  }
+  return { status: "valid", distances };
 }
 
 // True when the staged draft differs from the committed preferences in any way

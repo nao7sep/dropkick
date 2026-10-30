@@ -52,7 +52,7 @@ describe("preferences sets", () => {
   it.each([
     ["language", "xx", "system"], ["theme", "sepia", "system"],
     ["fontFamily", 42, ""], ["fontFamily", " Inter ", ""], ["timezone", 3, "system"], ["timezone", "Not/AZone", "system"],
-    ["kickDistances", "nope", [5, 25]], ["kickDistances", [5, "25"], [5, 25]], ["kickDistances", [5, 5, 1000], [5, 25]],
+    ["kickDistances", "nope", [5, 25]], ["kickDistances", [5, "25"], [5, 25]], ["kickDistances", [5, 5], [5, 25]], ["kickDistances", [1000], [5, 25]],
     ["dueSoonDays", "abc", 7], ["dueSoonDays", 100000000, 7], ["handledTasksPageSize", null, 50], ["handledTasksPageSize", -5, 50],
     ["confirmPermanentDeletions", "no", true],
   ])("reads an invalid %s set (%j) as its built-in and warns", async (key, value, fallback) => {
