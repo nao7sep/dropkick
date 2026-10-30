@@ -294,16 +294,4 @@ describe("SettingsModal kick distances", () => {
     await save();
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ kickDistances: [40, 3] }));
   });
-
-  it("resets the field to 5, 25 as a draft that Save writes", async () => {
-    await host.unmount();
-    usePreferencesStore.setState({ preferences: { ...createDefaultPreferences(), kickDistances: [] }, update });
-    host = await mount(createElement(SettingsModal, { onClose }));
-    expect(kickField().value).toBe("");
-    await act(async () => button("Reset kick distances").click());
-    expect(kickField().value).toBe("5, 25");
-    expect(update).not.toHaveBeenCalled();
-    await save();
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ kickDistances: [5, 25] }));
-  });
 });

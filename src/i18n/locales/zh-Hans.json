@@ -24,7 +24,6 @@
   "settings.kickDistancesHint": "每个数字会添加一个 +N 按钮，将所选任务在其分组内向下移过 N 个任务。以逗号分隔的数字（例如 5, 25）。留空则没有 +N 按钮。“{kick}”始终可用。",
   "settings.kickDistanceRange": "“{item}”不是 {min} 到 {max} 之间的整数。",
   "settings.kickDistanceDuplicate": "“{item}”出现了不止一次。",
-  "settings.kickDistancesReset": "重置下移距离",
   "settings.dueSoon": "即将到期天数",
   "settings.dueSoonHint": "从明天起算，在此天数内到期的任务会显示在“{group}”组中。",
   "settings.handledPageSize": "已处理任务每页显示数量",

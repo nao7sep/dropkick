@@ -5,7 +5,6 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readSystemTheme } from "../../repositories";
 import { usePreferencesStore } from "../../state/preferences-store";
 import {
-  DEFAULT_KICK_DISTANCES,
   DUE_SOON_DAYS_MAX,
   DUE_SOON_DAYS_MIN,
   HANDLED_TASKS_PAGE_SIZE_MAX,
@@ -279,15 +278,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         <p className="mt-1.5 text-xs leading-5 text-ink-muted">
           {t("settings.kickDistancesHint", { kick: message("action.kick") })}
         </p>
-        {/* Reset is a draft action: it fills the field, and Save writes it. */}
-        <Button
-          size="sm"
-          className="mt-2"
-          disabled={submitting}
-          onClick={() => { if (!submittingRef.current) setKickInput(DEFAULT_KICK_DISTANCES.join(", ")); }}
-        >
-          {t("settings.kickDistancesReset")}
-        </Button>
       </Field>
 
       {/* Due soon window */}

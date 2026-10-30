@@ -24,7 +24,6 @@
   "settings.kickDistancesHint": "Cada número adiciona um botão +N que move as tarefas selecionadas N tarefas para baixo no grupo. Números separados por vírgula (ex.: 5, 25). Deixe vazio para não ter botões +N. “{kick}” está sempre disponível.",
   "settings.kickDistanceRange": "“{item}” não é um número inteiro entre {min} e {max}.",
   "settings.kickDistanceDuplicate": "“{item}” aparece mais de uma vez.",
-  "settings.kickDistancesReset": "Redefinir distâncias de chute",
   "settings.dueSoon": "Período de vencimento próximo",
   "settings.dueSoonHint": "Tarefas que vencem dentro desse número de dias a partir de amanhã aparecem no grupo “{group}”.",
   "settings.handledPageSize": "Tarefas encerradas por página",

@@ -24,7 +24,6 @@
   "settings.kickDistancesHint": "Cada número añade un botón +N que baja las tareas seleccionadas N tareas dentro de su grupo. Números separados por comas (p. ej., 5, 25). Déjalo vacío para no tener botones +N. «{kick}» siempre está disponible.",
   "settings.kickDistanceRange": "«{item}» no es un número entero entre {min} y {max}.",
   "settings.kickDistanceDuplicate": "«{item}» aparece más de una vez.",
-  "settings.kickDistancesReset": "Restablecer distancias de patada",
   "settings.dueSoon": "Margen de vencimiento próximo",
   "settings.dueSoonHint": "Las tareas que vencen dentro de esa cantidad de días a partir de mañana aparecen en el grupo «{group}».",
   "settings.handledPageSize": "Tareas cerradas por página",
