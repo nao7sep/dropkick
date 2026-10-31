@@ -158,8 +158,7 @@ pub struct TaskDto {
 #[serde(rename_all = "camelCase")]
 pub struct TaskListDto {
     // The list's stable identity, generated once when the list is created. A
-    // v0.1.0 list may lack one; classify_json_bytes gives it one, which its
-    // next save writes. Any other list without one is invalid.
+    // list without one is invalid.
     #[serde(default)]
     pub id: String,
     pub tasks: Vec<TaskDto>,
@@ -281,10 +280,7 @@ fn classify_json_bytes_with_hash(bytes: &[u8], hash: String) -> JsonFileWithHash
         Err(message) => return JsonFileWithHashResult::Invalid { message },
     }
     match serde_json::from_slice::<TaskListDto>(bytes) {
-        Ok(mut data) => {
-            if data.id.is_empty() && format_version::is_v010(bytes) {
-                data.id = nanoid::generate();
-            }
+        Ok(data) => {
             match validate_task_list(&data) {
             Ok(()) => JsonFileWithHashResult::Success {
                 data,
@@ -771,7 +767,7 @@ fn write_atomic_impl(
 // compared with the marker of the document being written, which its writer
 // stamps with that format's current version, so each format is judged against
 // its own. Contents without a marker are not a store document and are not
-// judged; a target without one (v0.1.0's files) is never newer.
+// judged; nor is a target without one, which is never newer.
 fn refuse_newer_than(path: &std::path::Path, current: u64) -> Result<(), String> {
     match std::fs::read(path) {
         Ok(bytes) => match format_version::stamped(&bytes) {

@@ -47,12 +47,14 @@ fn classify_json_bytes_success_and_invalid() {
     ));
 }
 
-// The task list's format version (store-recovery-conventions). v0.1.0's label
-// is the one stand-in for a marker; see a_v010_task_list_is_read_*.
+// The task list's format version (store-recovery-conventions). A list v0.1.0
+// wrote carries a label instead of a marker and is refused like any other.
 #[test]
 fn a_task_list_without_a_marker_is_invalid() {
     for json in [
-        &br#"{"version":"1.0.1","id":"L1","tasks":[]}"#[..],
+        &br#"{"version":"1.0.0","id":"L1","tasks":[]}"#[..],
+        br#"{"version":"1.0.0","tasks":[]}"#,
+        br#"{"version":"1.0.1","id":"L1","tasks":[]}"#,
         br#"{"id":"L1","tasks":[]}"#,
         br#"[]"#,
     ] {
@@ -174,9 +176,6 @@ fn a_write_is_judged_against_the_version_it_writes() {
     std::fs::write(&path, r#"{"formatVersion":3}"#).unwrap();
     assert!(write_atomic(p, r#"{"formatVersion":2}"#).is_err());
     write_atomic(p, r#"{"formatVersion":3,"x":1}"#).unwrap();
-    // v0.1.0's files carry a label, not a marker, so they are never newer.
-    std::fs::write(&path, r#"{"version":"1.0.0","id":"L1","tasks":[]}"#).unwrap();
-    write_atomic(p, r#"{"formatVersion":1,"id":"L1","tasks":[]}"#).unwrap();
 }
 
 #[test]
@@ -189,33 +188,6 @@ fn setting_a_store_aside_never_replaces_an_earlier_copy() {
     assert!(set_aside_to(&path, earlier.clone()).is_err());
     assert_eq!(std::fs::read_to_string(&earlier).unwrap(), "earlier");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "now");
-}
-
-#[test]
-fn a_v010_task_list_is_read_and_given_an_identity_when_it_has_none() {
-    let task = r#"{"id":"t1","title":"T","description":"","status":"Pending","priority":"Default","dueDate":null,"createdAtUtc":"2026-07-01T00:00:00.000Z","updatedAtUtc":"2026-07-01T00:00:00.000Z","completedAtUtc":null,"notes":[{"id":"n1","content":"c","actionability":"Informational","createdAtUtc":"2026-07-01T00:00:00.000Z"}]}"#;
-    let with_id = format!(r#"{{"version":"1.0.0","id":"L1","tasks":[{task}]}}"#);
-    match classify_json_bytes(with_id.as_bytes()) {
-        JsonFileWithHashResult::Success { data, hash } => {
-            assert_eq!(data.id, "L1");
-            assert_eq!(data.tasks.len(), 1);
-            assert_eq!(hash, sha256_hex(with_id.as_bytes()));
-        }
-        _ => panic!("a v0.1.0 list must be read"),
-    }
-    let without_id = format!(r#"{{"version":"1.0.0","tasks":[{task}]}}"#);
-    match classify_json_bytes(without_id.as_bytes()) {
-        JsonFileWithHashResult::Success { data, .. } => assert!(!data.id.is_empty()),
-        _ => panic!("a v0.1.0 list without an id must be read"),
-    }
-    // Only v0.1.0's label stands in for the marker, and only for v0.1.0.
-    for bytes in [
-        r#"{"version":"2.0.0","id":"L1","tasks":[]}"#,
-        r#"{"id":"L1","tasks":[]}"#,
-        r#"{"formatVersion":1,"tasks":[]}"#,
-    ] {
-        assert!(matches!(classify_json_bytes(bytes.as_bytes()), JsonFileWithHashResult::Invalid { .. }), "{bytes}");
-    }
 }
 
 #[test]
@@ -611,8 +583,8 @@ fn document_admission_preserves_supported_utc_precision_and_legacy_dates() {
             for field in ["createdAtUtc", "updatedAtUtc", "completedAtUtc"] { task[field] = json!(stamp); }
             task["notes"][0]["createdAtUtc"] = json!(stamp);
             task["notes"][0]["editedAtUtc"] = json!(stamp);
-            let legacy = json!({"version":format_version::V010_LABEL, "tasks":[task]});
-            match classify_json_bytes(legacy.to_string().as_bytes()) {
+            let document = json!({"formatVersion":1, "id":"L1", "tasks":[task]});
+            match classify_json_bytes(document.to_string().as_bytes()) {
                 JsonFileWithHashResult::Success { data, .. } => assert_eq!(data.tasks[0].created_at_utc, stamp),
                 _ => panic!("rejected {stamp}"),
             }

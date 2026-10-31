@@ -68,19 +68,9 @@ pub enum Marker {
     Newer(u64),
 }
 
-// The label v0.1.0, the one published release before format markers, wrote
-// into every JSON document it saved (developer decision: the next version
-// opens its workspaces and task lists). Their formats are this build's
-// version 1, with the same body; a task list without an id is given one.
-// Nothing else is inferred from a file's shape.
-pub const V010_LABEL: &str = "1.0.0";
-
-// A store without a positive-integer marker is unreadable, unless it carries
-// v0.1.0's label instead.
-fn judge(found: Option<&Value>, label: Option<&Value>, format: Format) -> Result<Marker, String> {
-    if found.is_none() && label.and_then(Value::as_str) == Some(V010_LABEL) {
-        return Ok(Marker::Readable);
-    }
+// A store without a positive-integer marker is unreadable. Nothing is inferred
+// from a file's shape.
+fn judge(found: Option<&Value>, format: Format) -> Result<Marker, String> {
     let version = found
         .and_then(Value::as_u64)
         .filter(|version| *version >= 1)
@@ -94,7 +84,7 @@ fn judge(found: Option<&Value>, label: Option<&Value>, format: Format) -> Result
 
 /// The marker of a parsed JSON document.
 pub fn json_value(document: &Value, format: Format) -> Result<Marker, String> {
-    judge(document.get("formatVersion"), document.get("version"), format)
+    judge(document.get("formatVersion"), format)
 }
 
 // Only the marker, so a store is judged before its body is parsed.
@@ -102,23 +92,13 @@ pub fn json_value(document: &Value, format: Format) -> Result<Marker, String> {
 struct MarkerOnly {
     #[serde(default, rename = "formatVersion")]
     format_version: Option<Value>,
-    #[serde(default)]
-    version: Option<Value>,
 }
 
 /// The marker of a JSON file's bytes; bytes that are not a JSON object are
 /// unreadable, with the parser's own error.
 pub fn json_bytes(bytes: &[u8], format: Format) -> Result<Marker, String> {
     let marker = serde_json::from_slice::<MarkerOnly>(bytes).map_err(|e| e.to_string())?;
-    judge(marker.format_version.as_ref(), marker.version.as_ref(), format)
-}
-
-/// Whether JSON bytes are a document v0.1.0 wrote: its label, no marker.
-pub fn is_v010(bytes: &[u8]) -> bool {
-    serde_json::from_slice::<MarkerOnly>(bytes).is_ok_and(|marker| {
-        marker.format_version.is_none()
-            && marker.version.as_ref().and_then(Value::as_str) == Some(V010_LABEL)
-    })
+    judge(marker.format_version.as_ref(), format)
 }
 
 /// The positive-integer marker a JSON document carries, if any.
@@ -141,7 +121,7 @@ pub fn sqlite(conn: &Connection, format: Format) -> Result<Marker, String> {
             .map_err(|e| e.to_string())
     };
     let version = read("PRAGMA user_version")?;
-    judge(Some(&Value::from(version)), None, format)
+    judge(Some(&Value::from(version)), format)
 }
 
 // Opens a store at its final path. A database with no marker and no schema is

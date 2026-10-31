@@ -34,8 +34,8 @@ const disk = new Map<string, string>();
 function readTaskList(path: string): unknown {
   const text = disk.get(path);
   if (text === undefined) return { status: "missing" };
-  const { formatVersion, version, id = "", tasks } = JSON.parse(text);
-  if (formatVersion === undefined && version !== "1.0.0") return { status: "invalid", message: "formatVersion is missing" };
+  const { formatVersion, id = "", tasks } = JSON.parse(text);
+  if (formatVersion === undefined) return { status: "invalid", message: "formatVersion is missing" };
   if (formatVersion > FORMAT_VERSIONS.taskList) return { status: "newer", formatVersion };
   return { status: "success", data: { id, tasks }, hash: text };
 }
@@ -235,9 +235,8 @@ describe("task lists", () => {
 });
 
 // v0.1.0, the one published release before format markers, labelled every
-// document `"version": "1.0.0"`. Its workspaces and task lists open, stay
-// untouched until the next save, and that save writes this build's format.
-// Its private files are not read: a state.json from it is set aside.
+// document `"version": "1.0.0"`. That label is not a marker: its files are
+// refused like any other unreadable file.
 describe("files from v0.1.0", () => {
   it("sets aside its state.json and starts on the defaults", async () => {
     const text = put(PATHS.stateFile, { version: "1.0.0", lastWorkspacePath: "/docs/workspace.json" });
@@ -246,27 +245,13 @@ describe("files from v0.1.0", () => {
     expect(disk.get(`${PATHS.stateFile}.invalid`)).toBe(text);
   });
 
-  it("opens a workspace as it is", async () => {
+  it("refuses a workspace and leaves it alone", async () => {
     const path = "/docs/workspace.json";
-    const tabs = [{ filePath: "/repo/tasks.json", displayName: "tasks", isUnifiedView: false }];
-    const text = put(path, { version: "1.0.0", id: "w", name: "Work", openTabs: tabs, recentFiles: [] });
-    const result = await loadWorkspace(path);
-    expect(result).toMatchObject({ status: "success", workspace: { id: "w", openTabs: tabs } });
+    const text = put(path, { version: "1.0.0", id: "w", name: "Work", openTabs: [], recentFiles: [] });
+    expect((await loadWorkspace(path)).status).toBe("invalid");
     expect(disk.get(path)).toBe(text);
-    if (result.status !== "success") return;
-    await flushWorkspace(path, () => result.workspace);
-    expect(stored(path)).toEqual({ formatVersion: 1, id: "w", name: "Work", openTabs: tabs, recentFiles: [] });
-  });
-
-  it("opens a task list and writes this build's format at its next save", async () => {
-    const path = "/repo/tasks.json";
-    put(path, { version: "1.0.0", id: "L1", tasks: [] });
-    expect((await loadTaskList(path, (read) => read())).status).toBe("success");
     expect(writes()).toEqual([]);
-    await flushTaskList(path, () => ({ id: "L1", tasks: [] }));
-    expect(stored(path)).toEqual({ formatVersion: 1, id: "L1", tasks: [] });
   });
-
 });
 
 describe("one app-wide settings collection", () => {

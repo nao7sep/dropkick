@@ -7,30 +7,14 @@ export type StoreFormat = keyof typeof FORMAT_VERSION_TABLE;
 
 export const FORMAT_VERSIONS: Readonly<Record<StoreFormat, number>> = FORMAT_VERSION_TABLE;
 
-// The label v0.1.0, the one published release before format markers, wrote
-// into every JSON document it saved (developer decision: the next version
-// opens its workspaces and task lists). Their formats are this build's
-// version 1, with the same body. Mirrored in the Rust core's format_version
-// module.
-const V010_LABEL = "1.0.0";
-
-// Whether a parsed document is one v0.1.0 wrote: its label and no marker.
-function isV010Document(data: unknown): data is Record<string, unknown> {
-  if (typeof data !== "object" || data === null || Array.isArray(data)) return false;
-  const record = data as Record<string, unknown>;
-  return record.formatVersion === undefined && record.version === V010_LABEL;
-}
-
 // What a parsed document's marker says about it. A document without its
-// marker is unreadable, unless it carries v0.1.0's label instead: nothing else
-// infers a version from a file's shape.
+// marker is unreadable: nothing infers a version from a file's shape.
 export type FormatVersionCheck =
   | { status: "readable" }
   | { status: "newer"; formatVersion: number }
   | { status: "invalid"; message: string };
 
 export function checkFormatVersion(data: unknown, format: StoreFormat): FormatVersionCheck {
-  if (isV010Document(data)) return { status: "readable" };
   const found = typeof data === "object" && data !== null && !Array.isArray(data)
     ? (data as Record<string, unknown>).formatVersion
     : undefined;
