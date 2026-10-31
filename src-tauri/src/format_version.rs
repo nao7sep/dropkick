@@ -101,6 +101,35 @@ pub fn json_bytes(bytes: &[u8], format: Format) -> Result<Marker, String> {
     judge(marker.format_version.as_ref(), format)
 }
 
+// What a user document says it is and what wrote it, right after its marker
+// (the frontend's store-format module writes them).
+#[derive(Deserialize)]
+struct Identity {
+    #[serde(default)]
+    kind: Option<Value>,
+    #[serde(default)]
+    writer: Option<Writer>,
+}
+
+#[derive(Deserialize)]
+struct Writer {
+    name: String,
+    version: String,
+}
+
+/// Whether a readable user document's bytes name `kind` and a writer with a
+/// name and version. A document of another kind is unreadable like any other.
+pub fn json_identity(bytes: &[u8], kind: &str) -> Result<(), String> {
+    let identity = serde_json::from_slice::<Identity>(bytes).map_err(|e| e.to_string())?;
+    if identity.kind.as_ref().and_then(Value::as_str) != Some(kind) {
+        return Err(format!("kind is missing or not {kind}"));
+    }
+    match identity.writer {
+        Some(writer) if !writer.name.is_empty() && !writer.version.is_empty() => Ok(()),
+        _ => Err("writer is missing or has no name and version".to_string()),
+    }
+}
+
 /// The positive-integer marker a JSON document carries, if any.
 pub fn stamped(bytes: &[u8]) -> Option<u64> {
     serde_json::from_slice::<MarkerOnly>(bytes)

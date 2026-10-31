@@ -33,7 +33,7 @@ fn quarantine_target_is_stem_stamp_dot_invalid_beside_the_source() {
 
 #[test]
 fn classify_json_bytes_success_and_invalid() {
-    let json = br#"{"formatVersion":1,"id":"L1","tasks":[]}"#;
+    let json = br#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[]}"#;
     match classify_json_bytes(json) {
         JsonFileWithHashResult::Success { data, hash } => {
             assert!(data.tasks.is_empty());
@@ -65,16 +65,32 @@ fn a_task_list_without_a_marker_is_invalid() {
 #[test]
 fn a_task_list_without_its_id_is_invalid() {
     for json in [
-        &br#"{"formatVersion":1,"tasks":[]}"#[..],
-        br#"{"formatVersion":1,"id":"","tasks":[]}"#,
+        &br#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"tasks":[]}"#[..],
+        br#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"","tasks":[]}"#,
     ] {
         assert!(matches!(classify_json_bytes(json), JsonFileWithHashResult::Invalid { .. }));
     }
 }
 
+// A task list says what it is and what wrote it: a workspace, a list without
+// its kind, or one without a writer that has a name and version is refused.
 #[test]
-fn a_current_task_list_carries_no_version_field_back_to_the_webview() {
-    match classify_json_bytes(br#"{"formatVersion":1,"id":"L1","tasks":[]}"#) {
+fn a_task_list_without_its_kind_or_writer_is_invalid() {
+    for json in [
+        &br#"{"formatVersion":1,"writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[]}"#[..],
+        br#"{"formatVersion":1,"kind":"workspace","writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[]}"#,
+        br#"{"formatVersion":1,"kind":"taskList","id":"L1","tasks":[]}"#,
+        br#"{"formatVersion":1,"kind":"taskList","writer":"dropkick","id":"L1","tasks":[]}"#,
+        br#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick"},"id":"L1","tasks":[]}"#,
+        br#"{"formatVersion":1,"kind":"taskList","writer":{"name":"","version":"1.0.0"},"id":"L1","tasks":[]}"#,
+    ] {
+        assert!(matches!(classify_json_bytes(json), JsonFileWithHashResult::Invalid { .. }), "{}", String::from_utf8_lossy(json));
+    }
+}
+
+#[test]
+fn a_current_task_list_carries_no_header_field_back_to_the_webview() {
+    match classify_json_bytes(br#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[]}"#) {
         JsonFileWithHashResult::Success { data, .. } => assert_eq!(
             serde_json::to_value(&data).unwrap(),
             serde_json::json!({ "id": "L1", "tasks": [] })
@@ -131,13 +147,13 @@ fn task_json(task_id: &str, notes: &[&str]) -> serde_json::Value {
 fn consumed_identities_and_required_nullable_members_are_validated() {
     for invalid in ["", "task:note", "task#title"] {
         let value =
-            serde_json::json!({"formatVersion":1,"id":"L1","tasks":[task_json(invalid, &[])]});
+            serde_json::json!({"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[task_json(invalid, &[])]});
         assert!(matches!(
             classify_json_bytes(value.to_string().as_bytes()),
             JsonFileWithHashResult::Invalid { .. }
         ));
         let value =
-            serde_json::json!({"formatVersion":1,"id":"L1","tasks":[task_json("t1", &[invalid])]});
+            serde_json::json!({"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[task_json("t1", &[invalid])]});
         assert!(matches!(
             classify_json_bytes(value.to_string().as_bytes()),
             JsonFileWithHashResult::Invalid { .. }
@@ -146,7 +162,7 @@ fn consumed_identities_and_required_nullable_members_are_validated() {
     for field in ["dueDate", "completedAtUtc"] {
         let mut task = task_json("t1", &[]);
         task.as_object_mut().unwrap().remove(field);
-        let value = serde_json::json!({"formatVersion":1,"id":"L1","tasks":[task]});
+        let value = serde_json::json!({"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[task]});
         assert!(matches!(
             classify_json_bytes(value.to_string().as_bytes()),
             JsonFileWithHashResult::Invalid { .. }
@@ -210,6 +226,8 @@ fn a_new_published_document_uses_the_ordinary_create_mode() {
 fn classify_tasks(tasks: Vec<serde_json::Value>) -> JsonFileWithHashResult {
     let bytes = serde_json::to_vec(&serde_json::json!({
         "formatVersion": 1,
+        "kind": "taskList",
+        "writer": { "name": "dropkick", "version": "1.0.0" },
         "id": "list-1",
         "tasks": tasks
     }))
@@ -388,13 +406,13 @@ fn write_atomic_preserves_a_target_open_without_delete_sharing() {
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("tasks.json");
-        let original = r#"{"formatVersion":1,"id":"list","tasks":[]}"#;
+        let original = r#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"list","tasks":[]}"#;
         std::fs::write(&path, original).unwrap();
         // FILE_SHARE_READ | FILE_SHARE_WRITE, deliberately no FILE_SHARE_DELETE:
         // another program can read the list but prevents its atomic replacement.
         let held = std::fs::OpenOptions::new().read(true).share_mode(0x00000003)
             .open(&path).unwrap();
-        assert!(write_atomic(path.to_str().unwrap(), r#"{"formatVersion":1,"id":"changed","tasks":[]}"#).is_err());
+        assert!(write_atomic(path.to_str().unwrap(), r#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"changed","tasks":[]}"#).is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "staging must be cleaned up");
         drop(held);
@@ -583,7 +601,7 @@ fn document_admission_preserves_supported_utc_precision_and_legacy_dates() {
             for field in ["createdAtUtc", "updatedAtUtc", "completedAtUtc"] { task[field] = json!(stamp); }
             task["notes"][0]["createdAtUtc"] = json!(stamp);
             task["notes"][0]["editedAtUtc"] = json!(stamp);
-            let document = json!({"formatVersion":1, "id":"L1", "tasks":[task]});
+            let document = json!({"formatVersion":1, "kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"}, "id":"L1", "tasks":[task]});
             match classify_json_bytes(document.to_string().as_bytes()) {
                 JsonFileWithHashResult::Success { data, .. } => assert_eq!(data.tasks[0].created_at_utc, stamp),
                 _ => panic!("rejected {stamp}"),

@@ -10,7 +10,7 @@ import { openWorkspaceSession } from "../../src/services/open-workspace-session"
 import { flushAppState } from "../../src/repositories/app-state-repository";
 import { fieldDraftKey } from "../../src/services/drafts";
 import { commitParkedFields } from "../../src/services/commit-task-fields";
-import { createDefaultAppState, createDefaultWorkspace, createTab, type TaskListDto } from "../../src/models";
+import { createDefaultAppState, createDefaultWorkspace, createTab, WRITER, type TaskListDto } from "../../src/models";
 import { makeTask } from "../helpers/task";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 let docs: Map<string, { data: unknown; hash: string }>;
@@ -39,7 +39,7 @@ beforeEach(() => {
       await holdRead?.(path);
       return doc ? expectedHash === doc.hash ? { status: "unchanged" } : { status: "success", ...structuredClone(doc) } : { status: "missing" };
     }
-    if (command === "read_text_file") return doc ? { status: "success", text: JSON.stringify({ ...doc.data as object, formatVersion: 1 }) } : { status: "missing" };
+    if (command === "read_text_file") return doc ? { status: "success", text: JSON.stringify({ ...doc.data as object, formatVersion: 1, kind: "workspace", writer: WRITER }) } : { status: "missing" };
     if (command === "write_text_file_atomic" || command === "save_task_file") {
       if (command === "save_task_file") {
         const current = docs.get(path)?.hash;

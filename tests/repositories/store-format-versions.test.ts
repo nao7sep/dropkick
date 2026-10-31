@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { createDefaultSettings, FORMAT_VERSIONS } from "../../src/models";
+import { createDefaultSettings, FORMAT_VERSIONS, WRITER } from "../../src/models";
 import { flushAppConfig, loadAppConfig } from "../../src/repositories/app-config-repository";
 import { flushAppState, initializeAppState } from "../../src/repositories/app-state-repository";
 import { flushSettings, initializeSettings } from "../../src/repositories/settings-repository";
@@ -190,12 +190,35 @@ describe("workspace documents", () => {
   });
 
   it("round-trips the current version", async () => {
-    const text = put(path, { formatVersion: 1, id: "w", name: "Work", openTabs: [], recentFiles: [] });
+    const text = put(path, { formatVersion: 1, kind: "workspace", writer: WRITER, id: "w", name: "Work", openTabs: [], recentFiles: [] });
     const result = await loadWorkspace(path);
     expect(result).toMatchObject({ status: "success", workspace: { id: "w" } });
     if (result.status !== "success") return;
     await flushWorkspace(path, () => result.workspace);
-    expect(JSON.parse(disk.get(path)!)).toEqual(JSON.parse(text));
+    expect(JSON.stringify(stored(path))).toBe(text);
+  });
+
+  it("refuses a task list, or a document without its kind or writer, and leaves it alone", async () => {
+    for (const document of [
+      { formatVersion: 1, kind: "taskList", writer: WRITER, id: "L1", tasks: [] },
+      { formatVersion: 1, writer: WRITER, id: "w", name: "Work", openTabs: [], recentFiles: [] },
+      { formatVersion: 1, kind: "workspace", id: "w", name: "Work", openTabs: [], recentFiles: [] },
+      { formatVersion: 1, kind: "workspace", writer: { name: "dropkick" }, id: "w", name: "Work", openTabs: [], recentFiles: [] },
+    ]) {
+      const text = put(path, document);
+      expect((await loadWorkspace(path)).status).toBe("invalid");
+      expect(disk.get(path)).toBe(text);
+    }
+    expect(writes()).toEqual([]);
+  });
+
+  it("writes this build as its writer at every save", async () => {
+    put(path, { formatVersion: 1, kind: "workspace", writer: { name: "dropkick", version: "0.9.0" }, id: "w", name: "Work", openTabs: [], recentFiles: [] });
+    const result = await loadWorkspace(path);
+    if (result.status !== "success") throw new Error("load failed");
+    await flushWorkspace(path, () => result.workspace);
+    expect(Object.keys(stored(path)).slice(0, 3)).toEqual(["formatVersion", "kind", "writer"]);
+    expect(stored(path).writer).toEqual(WRITER);
   });
 
   it("refuses a newer build's document and leaves it byte-identical, even without an id", async () => {
@@ -217,12 +240,12 @@ describe("task lists", () => {
 
   it("round-trips the current version", async () => {
     const path = "/repo/current.json";
-    put(path, { formatVersion: 1, id: "L1", tasks: [] });
+    put(path, { formatVersion: 1, kind: "taskList", writer: WRITER, id: "L1", tasks: [] });
     const loaded = await loadTaskList(path, (read) => read());
     expect(loaded).toMatchObject({ status: "success", taskList: { data: { id: "L1" } } });
     if (loaded.status !== "success") return;
     expect(await flushTaskList(path, () => loaded.taskList.data)).toEqual({ status: "success" });
-    expect(stored(path)).toEqual({ formatVersion: 1, id: "L1", tasks: [] });
+    expect(stored(path)).toEqual({ formatVersion: 1, kind: "taskList", writer: WRITER, id: "L1", tasks: [] });
   });
 
   it("refuses a newer build's list and leaves it byte-identical, even without an id", async () => {

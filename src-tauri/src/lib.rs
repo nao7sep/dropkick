@@ -279,6 +279,9 @@ fn classify_json_bytes_with_hash(bytes: &[u8], hash: String) -> JsonFileWithHash
         }
         Err(message) => return JsonFileWithHashResult::Invalid { message },
     }
+    if let Err(message) = format_version::json_identity(bytes, "taskList") {
+        return JsonFileWithHashResult::Invalid { message };
+    }
     match serde_json::from_slice::<TaskListDto>(bytes) {
         Ok(data) => {
             match validate_task_list(&data) {

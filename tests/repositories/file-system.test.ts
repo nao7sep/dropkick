@@ -9,6 +9,7 @@ vi.mock("../../src/repositories/logging", () => ({ log: { debug: vi.fn(), error:
 import { log } from "../../src/repositories/logging";
 
 import { invoke } from "@tauri-apps/api/core";
+import { WRITER } from "../../src/models";
 import {
   saveTaskFile,
   writeJsonFile,
@@ -203,7 +204,7 @@ it("sends the expected hash and exact formatted content in one invocation withou
   vi.mocked(invoke).mockResolvedValueOnce({ status: "conflict" });
   expect(await saveTaskFile("/task.json", { id: "L", tasks: [] }, "baseline")).toEqual({ status: "conflict" });
   expect(invoke).toHaveBeenCalledExactlyOnceWith("save_task_file", {
-    path: "/task.json", contents: JSON.stringify({ formatVersion: 1, id: "L", tasks: [] }, null, 2),
+    path: "/task.json", contents: JSON.stringify({ formatVersion: 1, kind: "taskList", writer: WRITER, id: "L", tasks: [] }, null, 2),
     expectedHash: "baseline",
   });
   vi.mocked(invoke).mockRejectedValueOnce({ kind: "recordedOperation", message: "disk unavailable" });

@@ -69,4 +69,4 @@ export type {
 export { TASK_GROUP_ORDER } from "./domain";
 
 export type { StoreFormat, FormatVersionCheck, StoreRecovery } from "./store-format";
-export { FORMAT_VERSIONS, checkFormatVersion, withFormatVersion } from "./store-format";
+export { FORMAT_VERSIONS, WRITER, checkFormatVersion, withFormatVersion } from "./store-format";

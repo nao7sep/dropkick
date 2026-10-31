@@ -82,7 +82,7 @@ fn read_json_returns_success_with_hash() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
     let path = dir.join("good.json");
-    let json = br#"{"formatVersion":1,"id":"L1","tasks":[]}"#;
+    let json = br#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[]}"#;
     std::fs::write(&path, json).unwrap();
     let result = settled(read_json_file_with_hash(path.to_str().unwrap().to_string(), None)).unwrap();
     match result {
@@ -182,7 +182,7 @@ fn refresh_hash_match_skips_decoding_but_changed_bytes_still_require_admission()
     let expected = sha256_hex(bytes);
     let result = settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap();
     assert_eq!(serde_json::to_value(result).unwrap(), json!({ "status": "unchanged" }));
-    let changed = br#"{"formatVersion":1,"id":"changed","tasks":[]}"#;
+    let changed = br#"{"formatVersion":1,"kind":"taskList","writer":{"name":"dropkick","version":"1.0.0"},"id":"changed","tasks":[]}"#;
     std::fs::write(&path, changed).unwrap();
     let result = settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap();
     assert!(matches!(result, JsonFileWithHashResult::Success { hash, .. } if hash == sha256_hex(changed)));
