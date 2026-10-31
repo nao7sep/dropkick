@@ -67,7 +67,7 @@ export {
   describeLoadFailure,
   fileNameWithoutExt,
 } from "./load-failure";
-export { describeAppConfigRecovery } from "./recovery-presentation";
+export { describeLaunchStop, describeSideStoreOff } from "./recovery-presentation";
 
 export type { StagedSettings } from "./settings-draft";
 

@@ -166,24 +166,24 @@ fn run(store_file: &Path, session: &str, shared: Arc<Shared>) {
     }
 }
 
+// A backup store that cannot be opened is refused for the launch: a newer one
+// stops it, an unreadable one leaves backup history off with a notice.
 fn open(store_file: &Path) -> Result<Connection, String> {
+    open_file(store_file).map_err(|refused| {
+        let reason = if refused.newer { crate::refusals::Reason::Newer } else { crate::refusals::Reason::Unreadable };
+        crate::refusals::note(store_file, reason, crate::refusals::Store::Backups);
+        refused.message
+    })
+}
+
+fn open_file(store_file: &Path) -> Result<Connection, format_version::Refused> {
     // The store may be the first thing written on a fresh root.
     if let Some(parent) = store_file.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+    // The header is judged before the journal mode changes: a newer or
+    // unreadable store is left untouched with recording disabled.
     let conn = format_version::open_sqlite(store_file, Format::Backups, SCHEMA)?;
-    // Only the current format is supported. Reject existing history before
-    // changing its journal mode, leaving it untouched with recording disabled.
-    let version: i64 = conn
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
-    let current = Format::Backups.current();
-    if version != i64::from(current) {
-        return Err(format!(
-            "{} has unsupported backup format version {version}; this build reads {current}; left untouched",
-            store_file.display()
-        ));
-    }
     conn.pragma_update(None, "journal_mode", "WAL")
         .map_err(|e| e.to_string())?;
     Ok(conn)

@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { guardBackgroundWrite, type BackgroundWrite } from "./background-write";
-import type { AppStateDto } from "../models";
+import type { AppStateDto, FileRefusal } from "../models";
 import { createDefaultAppState } from "../models";
 import { initializeAppState, flushAppState, log } from "../repositories";
 
@@ -23,7 +23,8 @@ interface AppStateStore {
   loaded: boolean;
 
   // Actions.
-  initialize: () => Promise<void>;
+  // Resolves with the refused state.json, if a newer build wrote it.
+  initialize: () => Promise<FileRefusal | null>;
   // Apply a live view adjustment (zoom / sidebar width / Records list width) and
   // persist it. The single funnel for zoom shortcuts, the hamburger-menu zoom,
   // and the divider adjustments — the state-store analogue of the settings store's
@@ -61,8 +62,9 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
     loaded: false,
 
     initialize: async () => {
-      const { appState, statePath } = await initializeAppState();
+      const { appState, statePath, refusal } = await initializeAppState();
       set({ appState, filePath: statePath, loaded: true });
+      return refusal;
     },
 
     updateViewState: async (changes) => {

@@ -44,6 +44,8 @@ vi.mock("../src/repositories", () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   toErrorFields: vi.fn(() => ({})),
   loadFailureFields: vi.fn(() => ({})),
+  launchRefusals: vi.fn(async () => []),
+  stopLaunch: vi.fn(async () => {}),
   initializeAppState: vi.fn(),
   flushAppState: vi.fn(),
   loadSettings: vi.fn(),
@@ -116,6 +118,7 @@ beforeEach(() => {
       appState: appState,
       loaded: true,
     });
+    return null;
   });
   useAppStateStore.setState({ appState, initialize, loaded: false });
   useAppConfigStore.setState({ initialize: vi.fn().mockResolvedValue(null), appConfig: { knownWorkspaces: ["/workspace.json"] } });
@@ -173,7 +176,7 @@ describe("startup theme", () => {
   });
 
   it("sends nothing while initialization is still running", async () => {
-    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<void>(() => {})) });
+    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<null>(() => {})) });
     await mountApp();
 
     expect(applyWindowTheme).not.toHaveBeenCalled();
@@ -240,7 +243,7 @@ describe("startup language", () => {
   });
 
   it("sends nothing while initialization is still running", async () => {
-    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<void>(() => {})) });
+    useAppStateStore.setState({ initialize: vi.fn(() => new Promise<null>(() => {})) });
     await mountApp();
 
     expect(applyLanguage).not.toHaveBeenCalled();

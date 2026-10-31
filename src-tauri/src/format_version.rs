@@ -230,6 +230,32 @@ fn write_sqlite_header(conn: &Connection, format: Format, with_format: bool) -> 
     Ok(())
 }
 
+/// Why a SQLite store was not opened: a newer build wrote it, or it could not
+/// be read. Either way nothing in it was changed.
+#[derive(Debug)]
+pub struct Refused {
+    pub newer: bool,
+    pub message: String,
+}
+
+impl From<String> for Refused {
+    fn from(message: String) -> Self {
+        Refused { newer: false, message }
+    }
+}
+
+impl From<Refused> for String {
+    fn from(refused: Refused) -> Self {
+        refused.message
+    }
+}
+
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
 // Opens a store at its final path. A database with no version and no schema is
 // new: a missing file, or the empty file a creation interrupted before its
 // schema committed, which would otherwise be refused on every later launch.
@@ -240,7 +266,7 @@ pub fn open_sqlite(
     path: &std::path::Path,
     format: Format,
     schema: &str,
-) -> Result<Connection, String> {
+) -> Result<Connection, Refused> {
     let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
     let tx = conn
         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -259,7 +285,7 @@ pub fn open_sqlite(
     } else {
         sqlite_identity(&tx, format)?;
         if let Marker::Newer(found) = sqlite(&tx, format)? {
-            return Err(newer_message(path, found, format));
+            return Err(Refused { newer: true, message: newer_message(path, found, format) });
         }
         write_sqlite_header(&tx, format, false)?;
     }

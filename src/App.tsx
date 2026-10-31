@@ -19,10 +19,12 @@ import {
   applyLanguage,
   applyWindowTheme,
   showMessage,
+  launchRefusals,
   log,
+  stopLaunch,
   toErrorFields,
 } from "./repositories";
-import { DEFAULT_UI_FONT_STACK } from "./models";
+import { DEFAULT_UI_FONT_STACK, type FileRefusal } from "./models";
 import { useSettingsStore } from "./state/settings-store";
 import { useAppConfigStore } from "./state/app-config-store";
 import { useAppStateStore } from "./state/app-state-store";
@@ -40,8 +42,9 @@ import { MainWindow } from "./components/layout/MainWindow";
 import { AppDialogHost } from "./components/shared/AppDialogHost";
 import { ToastHost } from "./components/shared/ToastHost";
 import {
-  describeAppConfigRecovery,
+  describeLaunchStop,
   describeLoadFailure,
+  describeSideStoreOff,
 } from "./services";
 
 type StartupNotice = { title: Message; body: Message };
@@ -50,7 +53,7 @@ type AppPhase =
   | { kind: "loading" }
   | { kind: "opening"; path: string; notices: StartupNotice[] }
   | { kind: "startup"; returnTo?: "main" }
-  | { kind: "error"; message: Message }
+  | { kind: "error"; message: Message | Message[] }
   | { kind: "main" };
 
 function App() {
@@ -223,19 +226,34 @@ function App() {
       let isCurrent: (() => boolean) | null = null;
       try {
         await loadLanguageEnvironment();
+        // Every file the launch opens is read before anything is written. A
+        // refused one stops the launch, all of them named in one message;
+        // an unreadable side store only switches itself off with a notice.
+        const refusals: FileRefusal[] = [];
+        const notices: StartupNotice[] = [];
         const settings = await initializeSettings();
         if (settings.status !== "success") {
-          await loadInterfaceCatalogue(currentInterfaceLanguage());
-          setPhase({ kind: "error", message: describeLoadFailure("settings", settings, settings.filePath) });
-          return;
+          refusals.push({ path: settings.filePath, reason: settings.status === "newer" ? "newer" : "unreadable" });
         }
-        await initializeAppState();
+        const stateRefusal = await initializeAppState();
+        if (stateRefusal) refusals.push(stateRefusal);
         failure = "startup.appConfigFailed";
-        const configRecovery = await initializeAppConfig();
+        const configRefusal = await initializeAppConfig();
+        if (configRefusal) refusals.push(configRefusal);
+        for (const refusal of await launchRefusals()) {
+          if (refusal.reason === "newer" || refusal.store === "windowPlacement") {
+            refusals.push({ path: refusal.file, reason: refusal.reason });
+          } else {
+            notices.push(describeSideStoreOff(refusal.store, refusal.file));
+          }
+        }
         // The first text on screen is already in the interface language.
         await loadInterfaceCatalogue(currentInterfaceLanguage());
-        const notices: StartupNotice[] = [];
-        if (configRecovery) notices.push(describeAppConfigRecovery(configRecovery));
+        if (refusals.length > 0) {
+          await stopLaunch();
+          setPhase({ kind: "error", message: describeLaunchStop(refusals) });
+          return;
+        }
         const state = useAppStateStore.getState().appState;
         if (state.lastWorkspacePath) {
           isCurrent = beginOpen();

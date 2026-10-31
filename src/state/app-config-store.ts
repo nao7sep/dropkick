@@ -1,6 +1,6 @@
 // Saved workspace locations are config. Browsing never changes the active workspace.
 import { create } from "zustand";
-import type { AppConfigDto, AppConfigSetKey, StoreRecovery } from "../models";
+import type { AppConfigDto, AppConfigSetKey, FileRefusal } from "../models";
 import { createDefaultAppConfig, registerWorkspace, unregisterWorkspace } from "../models";
 import { loadAppConfig, flushAppConfig } from "../repositories";
 import { guardBackgroundWrite } from "./background-write";
@@ -9,7 +9,8 @@ interface AppConfigStore {
   appConfig: AppConfigDto;
   filePath: string;
   loaded: boolean;
-  initialize: () => Promise<StoreRecovery | null>;
+  // Resolves with the refused config.json, if it could not be used.
+  initialize: () => Promise<FileRefusal | null>;
   // Each resolves true only once the list change is saved.
   register: (path: string) => Promise<boolean>;
   unregister: (path: string) => Promise<boolean>;
@@ -49,9 +50,9 @@ export const useAppConfigStore = create<AppConfigStore>((set, get) => {
   return {
     appConfig: createDefaultAppConfig(), filePath: "", loaded: false,
     initialize: async () => {
-      const { appConfig, filePath, recovery } = await loadAppConfig();
+      const { appConfig, filePath, refusal } = await loadAppConfig();
       set({ appConfig, filePath, loaded: true });
-      return recovery;
+      return refusal;
     },
     register: (path) => changeList("knownWorkspaces", path, true),
     unregister: (path) => changeList("knownWorkspaces", path, false),

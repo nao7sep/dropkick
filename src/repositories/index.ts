@@ -1,4 +1,6 @@
 export { loadAppConfig, flushAppConfig } from "./app-config-repository";
+export { launchRefusals, stopLaunch } from "./launch";
+export type { CoreRefusal } from "./launch";
 
 export { log, toErrorFields, loadFailureFields, initLogging, flushForwarded } from "./logging";
 export type { LogFields } from "./logging";
@@ -7,7 +9,6 @@ export {
   readJsonFileResult,
   readJsonFileWithHash,
   writeJsonFile,
-  quarantineFile,
   fileExists,
   ensureDirectory,
   appPaths,

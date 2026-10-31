@@ -24,7 +24,7 @@ describe("load failure presentation", () => {
 
   it("says a newer build's document was left unchanged, on every surface", () => {
     const newer = { status: "newer", formatVersion: 2 } as const;
-    for (const kind of ["taskList", "settings", "workspace"] as const) {
+    for (const kind of ["taskList", "workspace"] as const) {
       expect(inEnglish(describeLoadFailure(kind, newer))).toContain("newer version of Dropkick");
       const at = inEnglish(describeLoadFailure(kind, newer, "/Users/person/list.json"));
       expect(at).toContain("/Users/person/list.json");

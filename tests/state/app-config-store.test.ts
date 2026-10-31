@@ -19,7 +19,7 @@ const selection = () => {
   return { lastWorkspacePath };
 };
 beforeEach(async () => {
-  loadAppConfig.mockReset().mockResolvedValue({ appConfig: defaults, filePath: "/config.json", quarantinedTo: null });
+  loadAppConfig.mockReset().mockResolvedValue({ appConfig: defaults, filePath: "/config.json", refusal: null });
   flushAppConfig.mockReset().mockImplementation(async (_path, getConfig) => { getConfig(); });
   flushAppState.mockReset().mockResolvedValue(undefined);
   useToastStore.setState({ message: null, backgroundWriteError: null });

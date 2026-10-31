@@ -2,16 +2,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, act } from "react";
 import { mount, type Mounted } from "./helpers/react-dom";
-const mocks = vi.hoisted(() => ({ state: { lastWorkspacePath: "", zoomLevel: 1 }, config: { knownWorkspaces: [] as string[] }, preview: vi.fn<() => Promise<{ status: string; filePath?: string }>>(), open: vi.fn(), paths: vi.fn(), close: vi.fn(), init: vi.fn(async () => null) }));
+const mocks = vi.hoisted(() => ({ state: { lastWorkspacePath: "", zoomLevel: 1 }, config: { knownWorkspaces: [] as string[] }, preview: vi.fn<() => Promise<{ status: string; filePath?: string }>>(), open: vi.fn(), paths: vi.fn(), close: vi.fn(), init: vi.fn(async () => null), stateInit: vi.fn(async (): Promise<{ path: string; reason: string } | null> => null), configInit: vi.fn(async (): Promise<{ path: string; reason: string } | null> => null), refusals: vi.fn(async () => [] as unknown[]), stop: vi.fn(async () => {}), message: vi.fn(async () => {}) }));
 vi.mock("../src/hooks/useRecordsWindow", () => ({ useRecordsWindowSync: vi.fn() }));
 vi.mock("../src/hooks/use-window-close", () => ({ useWindowClose: vi.fn() }));
 vi.mock("../src/services/open-workspace-session", () => ({ openWorkspaceSession: mocks.open }));
 vi.mock("../src/hooks/useInterfaceLanguage", () => ({ currentInterfaceLanguage: () => "en", useInterfaceLanguage: () => ({ language: "en", locale: "en-US" }) }));
 vi.mock("../src/state/settings-store", () => ({ useSettingsStore: (select: (state: unknown) => unknown) => select({ initialize: mocks.preview, settings: { theme: "system", fontFamily: "" } }) }));
-vi.mock("../src/state/app-state-store", () => ({ useAppStateStore: Object.assign((select: (state: unknown) => unknown) => select({ initialize: mocks.init, setLastWorkspace: mocks.paths, appState: mocks.state }), { getState: () => ({ appState: mocks.state }) }) }));
-vi.mock("../src/state/app-config-store", () => ({ useAppConfigStore: Object.assign((select: (state: unknown) => unknown) => select({ initialize: mocks.init }), { getState: () => ({ appConfig: mocks.config }) }) }));
+vi.mock("../src/state/app-state-store", () => ({ useAppStateStore: Object.assign((select: (state: unknown) => unknown) => select({ initialize: mocks.stateInit, setLastWorkspace: mocks.paths, appState: mocks.state }), { getState: () => ({ appState: mocks.state }) }) }));
+vi.mock("../src/state/app-config-store", () => ({ useAppConfigStore: Object.assign((select: (state: unknown) => unknown) => select({ initialize: mocks.configInit }), { getState: () => ({ appConfig: mocks.config }) }) }));
 vi.mock("../src/state/language-store", () => ({ useLanguageStore: (select: (state: unknown) => unknown) => select({ load: mocks.init }) }));
-vi.mock("../src/repositories", () => ({ applyLanguage: async () => {}, applyWindowTheme: async () => {}, showMessage: async () => {}, log: { warn: vi.fn(), error: vi.fn() }, toErrorFields: () => ({}), loadFailureFields: () => ({}) }));
+vi.mock("../src/repositories", () => ({ applyLanguage: async () => {}, applyWindowTheme: async () => {}, showMessage: mocks.message, launchRefusals: mocks.refusals, stopLaunch: mocks.stop, log: { warn: vi.fn(), error: vi.fn() }, toErrorFields: () => ({}), loadFailureFields: () => ({}) }));
 vi.mock("@tauri-apps/api/window", () => ({ LogicalSize: class {}, currentMonitor: async () => null, getCurrentWindow: () => ({ isMaximized: async () => true, isFullscreen: async () => false, isMinimized: async () => false, onMoved: async () => () => {}, onScaleChanged: async () => () => {}, close: mocks.close }) }));
 vi.mock("../src/components/layout/StartupPicker", () => ({ StartupPicker: ({ onCancel, onLaunch }: { onCancel?: () => void; onLaunch: (w: string) => void }) => createElement("div", null, "Picker", createElement("button", { onClick: onCancel }, "Cancel"), createElement("button", { onClick: () => onLaunch("new-w") }, "Open")) }));
 vi.mock("../src/components/layout/MainWindow", () => ({ MainWindow: ({ onSwitchWorkspace }: { onSwitchWorkspace: () => void }) => createElement("button", { onClick: onSwitchWorkspace }, "Main") }));
@@ -25,10 +25,48 @@ beforeEach(() => {
   mocks.config.knownWorkspaces = [];
   mocks.open.mockResolvedValue({ kind: "success" });
   mocks.init.mockResolvedValue(null);
+  mocks.stateInit.mockResolvedValue(null);
+  mocks.configInit.mockResolvedValue(null);
+  mocks.refusals.mockResolvedValue([]);
   mocks.preview.mockResolvedValue({ status: "success" });
 });
 afterEach(async () => { await host?.unmount(); });
 const click = async (label: string) => { await act(async () => { [...document.querySelectorAll("button")].find((b) => b.textContent === label)!.click(); }); };
+describe("launch refusals", () => {
+  it("stops the launch naming every refused file, newer or unreadable, and opens nothing", async () => {
+    mocks.state.lastWorkspacePath = "old-w";
+    mocks.preview.mockResolvedValue({ status: "newer", filePath: "/root/settings.json" });
+    mocks.stateInit.mockResolvedValue({ path: "/root/state.json", reason: "newer" });
+    mocks.configInit.mockResolvedValue({ path: "/root/config.json", reason: "unreadable" });
+    mocks.refusals.mockResolvedValue([
+      { file: "/root/window.json", reason: "newer", store: "windowPlacement" },
+      { file: "/root/records.sqlite3", reason: "newer", store: "records" },
+    ]);
+    host = await mount(createElement(App));
+    const text = document.body.textContent ?? "";
+    for (const path of ["/root/settings.json", "/root/state.json", "/root/config.json", "/root/window.json", "/root/records.sqlite3"]) {
+      expect(text).toContain(path);
+    }
+    expect(text).toContain("This file could not be read.");
+    expect(text).toContain("This file was saved by a newer version of Dropkick.");
+    expect(mocks.stop).toHaveBeenCalledOnce();
+    expect(mocks.open).not.toHaveBeenCalled();
+    expect(mocks.paths).not.toHaveBeenCalled();
+  });
+
+  it("keeps running with a notice when a side store cannot be read", async () => {
+    mocks.refusals.mockResolvedValue([{ file: "/root/backups.sqlite3", reason: "unreadable", store: "backups" }]);
+    host = await mount(createElement(App));
+    expect(document.body.textContent).toContain("Picker");
+    expect(mocks.stop).not.toHaveBeenCalled();
+    await act(async () => {});
+    expect(mocks.message).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "startup.backupsOff.title" }),
+      expect.objectContaining({ key: "startup.backupsOff.body", values: { path: "/root/backups.sqlite3" } }),
+    );
+  });
+});
+
 describe("startup routing", () => {
   it("shows an opened workspace while its optional remembered-location save remains pending", async () => {
     mocks.config.knownWorkspaces = ["known"];

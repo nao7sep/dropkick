@@ -1,6 +1,6 @@
 // Tests for the pieces of the write path that are ordinary
 // functions rather than IPC commands: the digest, the temp-file naming grammar,
-// the JSON classifier, the quarantine name, and write_atomic itself.
+// the JSON classifier, and write_atomic itself.
 // The commands that wrap them are tested in tests/unit/lib.rs.
 
 use crate::*;
@@ -15,20 +15,6 @@ fn sha256_hex_matches_known_vectors() {
         sha256_hex(b"abc"),
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     );
-}
-
-#[test]
-fn quarantine_target_is_stem_stamp_dot_invalid_beside_the_source() {
-    let target = quarantine_target(std::path::Path::new("/data/state.json"));
-    assert_eq!(target.parent(), Some(std::path::Path::new("/data")));
-    let name = target.file_name().and_then(|n| n.to_str()).unwrap();
-    // <stem>-<yyyymmdd-hhmmss-utc>.invalid — seconds, one final role
-    // extension, never a suffix dot-appended after the full "state.json".
-    assert!(name.starts_with("state-"), "unexpected name: {name}");
-    let stamp = name.trim_start_matches("state-").trim_end_matches("-utc.invalid");
-    assert_eq!(stamp.len(), "yyyymmdd-hhmmss".len(), "not seconds: {name}");
-    assert!(name.ends_with("-utc.invalid"), "unexpected name: {name}");
-    assert!(!name.contains("state.json"), "old shape leaked in: {name}");
 }
 
 #[test]
@@ -208,18 +194,6 @@ fn a_write_is_judged_against_the_version_it_writes() {
     std::fs::write(&path, r#"{"format":{"owner":"dropkick","kind":"task-list","version":3},"writer":{"name":"dropkick","version":"1.0.0"}}"#).unwrap();
     assert!(write_atomic(p, r#"{"format":{"owner":"dropkick","kind":"task-list","version":2},"writer":{"name":"dropkick","version":"1.0.0"}}"#).is_err());
     write_atomic(p, r#"{"format":{"owner":"dropkick","kind":"task-list","version":3},"writer":{"name":"dropkick","version":"1.0.0"},"x":1}"#).unwrap();
-}
-
-#[test]
-fn setting_a_store_aside_never_replaces_an_earlier_copy() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("state.json");
-    let earlier = dir.path().join("state-20261009-120000-utc.invalid");
-    std::fs::write(&path, "now").unwrap();
-    std::fs::write(&earlier, "earlier").unwrap();
-    assert!(set_aside_to(&path, earlier.clone()).is_err());
-    assert_eq!(std::fs::read_to_string(&earlier).unwrap(), "earlier");
-    assert_eq!(std::fs::read_to_string(&path).unwrap(), "now");
 }
 
 #[test]

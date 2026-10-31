@@ -1,26 +1,27 @@
 import { inEnglish } from "../helpers/i18n";
 import { describe, expect, it } from "vitest";
-import { describeAppConfigRecovery } from "../../src/services/recovery-presentation";
+import { describeLaunchStop, describeSideStoreOff } from "../../src/services/recovery-presentation";
 
 describe("recovery presentation", () => {
-  it("keeps the internal quarantine path out of the recovery notice", () => {
-    const hostile = { kind: "quarantined", quarantinedTo: "/.dropkick/HOSTILE-SENTINEL-EACCES.invalid" } as const;
-    for (const notice of [describeAppConfigRecovery(hostile)]) {
-      const message = inEnglish(notice.body);
-      expect(message).toContain("location is recorded in Records");
-      expect(message).not.toContain("/.dropkick/");
-      expect(message).not.toContain(".invalid");
-      expect(message).not.toContain("HOSTILE-SENTINEL");
-      expect(message).not.toContain("EACCES");
-    }
+  it("names every refused file in the launch stop, newer or unreadable, and what to do", () => {
+    const paragraphs = describeLaunchStop([
+      { path: "/root/settings.json", reason: "newer" },
+      { path: "/root/config.json", reason: "unreadable" },
+    ]).map(inEnglish);
+    expect(paragraphs[0]).toContain("Nothing was changed");
+    expect(paragraphs[1]).toBe("/root/settings.json\nThis file was saved by a newer version of Dropkick.");
+    expect(paragraphs[2]).toBe("/root/config.json\nThis file could not be read.");
+    expect(paragraphs[3]).toContain("move them away to start fresh");
+    expect(paragraphs).toHaveLength(4);
   });
 
-  it("says a newer build's file was left unchanged rather than reset", () => {
-    const newer = { kind: "newer", formatVersion: 2 } as const;
-    for (const notice of [describeAppConfigRecovery(newer)]) {
-      expect(inEnglish(notice.title)).toContain("Not Loaded");
-      expect(inEnglish(notice.body)).toContain("newer version of Dropkick");
-      expect(inEnglish(notice.body)).toContain("left unchanged");
-    }
+  it("says which side store is off, names its file and that it was left unchanged", () => {
+    const records = describeSideStoreOff("records", "/root/records.sqlite3");
+    expect(inEnglish(records.title)).toBe("Records Are Off");
+    expect(inEnglish(records.body)).toContain("/root/records.sqlite3");
+    expect(inEnglish(records.body)).toContain("left unchanged");
+    const backups = describeSideStoreOff("backups", "/root/backups.sqlite3");
+    expect(inEnglish(backups.title)).toBe("Backup History Is Off");
+    expect(inEnglish(backups.body)).toContain("/root/backups.sqlite3");
   });
 });

@@ -192,8 +192,9 @@ fn state_value(tracked: &TrackedWindow) -> Option<Placement> {
     }
 }
 
-/// Reads a placement file. An unreadable one is quarantined and reads as
-/// absent; a newer build's file is left exactly as it is.
+/// Reads a placement file; reading writes nothing. An unreadable one is
+/// disposable: it reads as absent, and the next save may replace it. A newer
+/// build's file is left exactly as it is.
 pub fn load_file(path: &Path) -> Result<SavedPlacement, String> {
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
@@ -210,13 +211,9 @@ pub fn load_file(path: &Path) -> Result<SavedPlacement, String> {
     match parsed {
         Ok(placement) => Ok(SavedPlacement::Found(placement)),
         Err(error) => {
-            let quarantined = crate::set_aside(path)?;
             logging::warn(
-                "invalid window placement was set aside",
-                serde_json::json!({
-                    "error": error,
-                    "quarantinedTo": quarantined.to_string_lossy(),
-                }),
+                "window placement is unreadable; using the default placement",
+                serde_json::json!({ "file": path.to_string_lossy(), "error": error }),
             );
             Ok(SavedPlacement::Absent)
         }
@@ -230,11 +227,27 @@ fn load(app: &AppHandle, tracked: &TrackedWindow) -> Result<Option<Placement>, S
         SavedPlacement::Found(placement) => Ok(Some(placement)),
         SavedPlacement::Newer(found) => {
             tracked.left_in_place.store(true, Ordering::Relaxed);
+            crate::refusals::note(&path, crate::refusals::Reason::Newer, crate::refusals::Store::WindowPlacement);
             logging::warn(
                 "window placement is newer than this build; left in place and not written this session",
                 serde_json::json!({ "file": path.to_string_lossy(), "formatVersion": found }),
             );
             Ok(None)
+        }
+    }
+}
+
+// Notes every placement file a newer build wrote, at launch, so the launch
+// stops before any window saves; such a window is never written this session.
+// Reading writes nothing.
+pub(crate) fn check_at_launch(app: &AppHandle, placements: &WindowPlacements) {
+    let Ok(root) = paths::data_root(app) else { return };
+    for tracked in placements.all() {
+        let path = root.join(tracked.file_name);
+        let Ok(bytes) = std::fs::read(&path) else { continue };
+        if let Ok(Marker::Newer(_)) = format_version::json_bytes(&bytes, Format::WindowPlacement) {
+            tracked.left_in_place.store(true, Ordering::Relaxed);
+            crate::refusals::note(&path, crate::refusals::Reason::Newer, crate::refusals::Store::WindowPlacement);
         }
     }
 }
@@ -392,7 +405,7 @@ pub fn file_text(placement: Placement) -> Result<String, String> {
 }
 
 fn save(app: &AppHandle, tracked: &TrackedWindow) {
-    if tracked.left_in_place.load(Ordering::Relaxed) {
+    if tracked.left_in_place.load(Ordering::Relaxed) || crate::refusals::launch_stopped() {
         return;
     }
     let Some(placement) = state_value(tracked) else {

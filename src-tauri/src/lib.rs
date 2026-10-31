@@ -22,6 +22,7 @@ mod os_quit;
 mod paths;
 mod records;
 mod records_window;
+mod refusals;
 mod theme;
 mod window_placement;
 
@@ -792,111 +793,33 @@ fn refuse_newer_than(path: &std::path::Path, owner: &str, kind: &str, current: u
     }
 }
 
+// The files the core refused while starting (refusals module), once both side
+// stores have opened, so the launch can stop for a newer one before anything
+// is saved. Both placement files are checked here, the Records window's too,
+// whether or not that window has opened yet.
 #[tauri::command]
-async fn file_exists(path: String) -> Result<bool, String> {
+async fn launch_refusals(app: AppHandle) -> Result<Vec<refusals::Refusal>, String> {
     native_wait::settle(move || {
-        Ok(std::path::Path::new(&path).exists())
+        window_placement::check_at_launch(&app, &app.state::<window_placement::WindowPlacements>());
+        // Each returns only once its store has been opened or refused.
+        let _ = logging::read(|_| Ok(()));
+        backup_store::flush();
+        Ok(refusals::all())
     })
     .await
 }
 
-// `<stem>-<yyyymmdd-hhmmss-utc>.invalid` beside the source — the
-// derived-filename grammar with a moment discriminator (storage-path
-// conventions' quarantine name). Seconds suffice: a store is set aside at most
-// once per launch, and set_aside refuses rather than replace an earlier copy.
-pub fn quarantine_target(path: &std::path::Path) -> std::path::PathBuf {
-    let stem = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("store");
-    path.with_file_name(format!("{stem}-{}.invalid", logging::filename_stamp_seconds_now()))
-}
-
-// Moves a store aside to a name nothing occupies. These OS primitives fail
-// when the target exists, including a dangling link, with no check-then-
-// overwriting-rename window and nothing left behind on failure.
-#[cfg(target_os = "macos")]
-fn publish_new(staged: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
-    use std::ffi::CString;
-    use std::os::unix::ffi::OsStrExt;
-    extern "C" {
-        fn renamex_np(from: *const std::ffi::c_char, to: *const std::ffi::c_char, flags: u32) -> i32;
-    }
-    let from = CString::new(staged.as_os_str().as_bytes())?;
-    let to = CString::new(target.as_os_str().as_bytes())?;
-    // RENAME_EXCL. Both NUL-terminated strings outlive the native call.
-    if unsafe { renamex_np(from.as_ptr(), to.as_ptr(), 0x0000_0004) } == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
-
-#[cfg(windows)]
-fn publish_new(staged: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
-    // std::fs::rename replaces on Windows too; MoveFileExW with zero flags does not.
-    use std::os::windows::ffi::OsStrExt;
-    #[link(name = "kernel32")]
-    extern "system" { fn MoveFileExW(from: *const u16, to: *const u16, flags: u32) -> i32; }
-    let from: Vec<u16> = staged.as_os_str().encode_wide().chain(Some(0)).collect();
-    let to: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
-    // No REPLACE_EXISTING or COPY_ALLOWED: same-volume atomic publication only.
-    if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), 0) } != 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
-
-#[cfg(not(any(target_os = "macos", windows)))]
-fn publish_new(staged: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
-    // Other builds retain atomic no-clobber publication on filesystems that
-    // support hard links, then remove the source only after publication succeeds.
-    std::fs::hard_link(staged, target)?;
-    std::fs::remove_file(staged)
-}
-
-// Renames an unreadable store to its quarantine name so the original bytes
-// survive while the caller starts fresh. An existing file at that name is never
-// replaced (a rename would replace it silently), and every failure reaches the
-// caller, which must not fall through to a reset over the bytes this keeps.
-pub fn set_aside(path: &std::path::Path) -> Result<std::path::PathBuf, String> {
-    set_aside_to(path, quarantine_target(path))
-}
-
-pub fn set_aside_to(
-    path: &std::path::Path,
-    target: std::path::PathBuf,
-) -> Result<std::path::PathBuf, String> {
-    publish_new(path, &target).map_err(|e| e.to_string())?;
-    Ok(target)
-}
-
-// Quarantines a present-but-unparseable managed store. `kind` and
-// `format_version` name the store's format and the version this build writes
-// for it, so a file a newer build wrote meanwhile is refused and left in place.
+// The launch stopped for a refused file: nothing is saved for the rest of the
+// process.
 #[tauri::command]
-async fn quarantine_file(path: String, kind: String, format_version: u64) -> Result<String, String> {
+fn stop_launch() {
+    refusals::stop_launch();
+}
+
+#[tauri::command]
+async fn file_exists(path: String) -> Result<bool, String> {
     native_wait::settle(move || {
-        let path = path.as_str();
-        let started = log_cmd_start("quarantine_file", json!({ "path": path }));
-        let result = refuse_newer_than(std::path::Path::new(path), format_version::OWNER, &kind, format_version)
-            .and_then(|()| set_aside(std::path::Path::new(path)));
-        match result {
-            Ok(target) => {
-                let target = target.to_string_lossy().to_string();
-                log_cmd_ok(
-                    "quarantine_file",
-                    started,
-                    json!({ "path": path, "quarantinedTo": target }),
-                );
-                Ok(target)
-            }
-            Err(message) => {
-                log_cmd_err("quarantine_file", started, message.clone());
-                Err(message)
-            }
-        }
+        Ok(std::path::Path::new(&path).exists())
     })
     .await
 }
@@ -1325,12 +1248,13 @@ pub fn run() {
             write_text_file_atomic,
             save_task_file,
             file_exists,
-            quarantine_file,
             ensure_dir,
             app_paths,
             log_event,
             logging_debug_enabled,
             open_records_window,
+            launch_refusals,
+            stop_launch,
             read_records_page,
             read_record_sources,
             read_record_detail,

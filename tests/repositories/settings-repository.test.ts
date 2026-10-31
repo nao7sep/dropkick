@@ -14,12 +14,13 @@ import { createDefaultSettings } from "../../src/models";
 
 type SettingsRepository = typeof import("../../src/repositories/settings-repository");
 let initializeSettings: SettingsRepository["initializeSettings"];
+let flushSettings: SettingsRepository["flushSettings"];
 
 const PATH = "/root/settings.json";
 
 beforeEach(async () => {
   vi.resetModules();
-  ({ initializeSettings } = await import("../../src/repositories/settings-repository"));
+  ({ initializeSettings, flushSettings } = await import("../../src/repositories/settings-repository"));
   readJsonFileResult.mockReset();
   writeJsonFile.mockReset();
   warn.mockReset();
@@ -84,7 +85,17 @@ describe("settings sets", () => {
     stored({ timezone: null });
     const result = await initializeSettings();
     expect(result.status === "success" && result.settings.timezone).toBe("system");
-    expect(warn).toHaveBeenCalledExactlyOnceWith("settings set is invalid; using built-in", { path: PATH, key: "timezone" });
+    expect(warn).toHaveBeenCalledExactlyOnceWith("settings set is invalid; using built-in and keeping the stored value", { path: PATH, key: "timezone" });
+  });
+
+  it("keeps an invalid set on save until the user changes it", async () => {
+    stored({ timezone: null, theme: "dark" });
+    const result = await initializeSettings();
+    if (result.status !== "success") throw new Error("load failed");
+    await flushSettings(PATH, () => ({ ...result.settings, fontFamily: "Inter" }));
+    expect(writeJsonFile).toHaveBeenLastCalledWith(PATH, { theme: "dark", fontFamily: "Inter", timezone: null });
+    await flushSettings(PATH, () => ({ ...result.settings, timezone: "Asia/Tokyo" }));
+    expect(writeJsonFile).toHaveBeenLastCalledWith(PATH, { theme: "dark", timezone: "Asia/Tokyo" });
   });
 
   it.each([

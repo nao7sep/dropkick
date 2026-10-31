@@ -23,7 +23,7 @@ export type LoadFailure =
 
 // What kind of document failed. Each kind has whole sentences of its own, so
 // no language has to fit a document name into a shared frame.
-export type DocumentKind = "taskList" | "settings" | "workspace";
+export type DocumentKind = "taskList" | "workspace";
 
 // One message for a failed load. `path` is omitted where the surface already
 // shows it — an inline banner inside the tab for that very file.

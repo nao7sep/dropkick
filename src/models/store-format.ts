@@ -66,8 +66,10 @@ export function withFileHeader(format: StoreFormat, document: object): Record<st
   return { ...header, ...document, ...header };
 }
 
-// Why a load-time store came up without its file: set aside as unreadable, or
-// left in place because a newer build wrote it.
-export type StoreRecovery =
-  | { kind: "quarantined"; quarantinedTo: string }
-  | { kind: "newer"; formatVersion: number };
+// A file refused at launch (store-recovery-conventions, What a refused file
+// does): a newer build wrote it, or it could not be read. It is left exactly
+// as it is.
+export interface FileRefusal {
+  path: string;
+  reason: "newer" | "unreadable";
+}

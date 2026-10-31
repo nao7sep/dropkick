@@ -4,7 +4,8 @@ import { useI18n } from "../../i18n/I18nContext";
 import { Button } from "../shared/Button";
 import type { Message } from "../../i18n/translate";
 
-// Non-dismissible halt for fatal initialization or settings-load failures.
+// Non-dismissible halt for fatal initialization failures and for a launch
+// stopped by a refused file.
 // Expected workspace-load failures return to the workspace picker instead.
 // The app must not fall through to the main window — doing so would let the
 // default in-memory state autosave over the
@@ -15,8 +16,9 @@ import type { Message } from "../../i18n/translate";
 // intentionally exempt from the *Modal/*Dialog naming rule. It still offers a
 // labelled exit (Quit) so the user is never stuck with zero buttons.
 
+// One message, or several paragraphs (a launch stop names each refused file).
 type StartupErrorScreenProps = {
-  message: Message;
+  message: Message | readonly Message[];
 };
 
 export function StartupErrorScreen({ message }: StartupErrorScreenProps) {
@@ -34,7 +36,9 @@ export function StartupErrorScreen({ message }: StartupErrorScreenProps) {
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="max-w-md rounded-[var(--radius-dialog)] bg-surface p-6 shadow-lg">
         <h2 className="mb-2 text-lg font-bold text-danger">{t("startup.errorTitle")}</h2>
-        <p className="whitespace-pre-wrap break-words text-sm text-ink-soft">{text(message)}</p>
+        {(Array.isArray(message) ? message : [message]).map((paragraph, index) => (
+          <p key={index} className="mt-2 whitespace-pre-wrap break-words text-sm text-ink-soft first:mt-0">{text(paragraph)}</p>
+        ))}
         <div className="mt-5 flex justify-end">
           <Button variant="primary" onClick={quit}>
             {t("startup.quit")}

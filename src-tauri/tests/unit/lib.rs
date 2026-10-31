@@ -6,59 +6,6 @@ fn settled<F: std::future::Future>(command: F) -> F::Output {
 }
 
 #[test]
-fn quarantine_file_renames_and_preserves_bytes() {
-    let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path();
-    let path = dir.join("state.json");
-    std::fs::write(&path, b"{ corrupt bytes").unwrap();
-
-    let quarantined = settled(quarantine_file(path.to_str().unwrap().to_string(), "task-list".to_string(), 1)).unwrap();
-
-    assert!(!path.exists(), "source must be renamed away");
-    assert_eq!(std::fs::read(&quarantined).unwrap(), b"{ corrupt bytes");
-}
-
-#[test]
-fn quarantine_file_errors_for_missing_source() {
-    let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path();
-    let path = dir.join("absent.json");
-    assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), "task-list".to_string(), 1)).is_err());
-}
-
-#[test]
-#[cfg_attr(not(windows), ignore = "Windows only: holds the target open without FILE_SHARE_DELETE")]
-fn quarantine_preserves_a_target_open_without_delete_sharing() {
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("state.json");
-        let original = b"{ corrupt bytes";
-        std::fs::write(&path, original).unwrap();
-        // Permit reading, but deny the delete/rename needed to quarantine it.
-        let held = std::fs::OpenOptions::new().read(true).share_mode(0x00000003)
-            .open(&path).unwrap();
-        assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), "task-list".to_string(), 1)).is_err());
-        assert_eq!(std::fs::read(&path).unwrap(), original);
-        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "no quarantine copy on failure");
-        drop(held);
-    }
-}
-
-#[test]
-fn quarantine_refuses_a_newer_document_at_the_native_boundary() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("state.json");
-    let bytes = br#"{"format":{"owner":"dropkick","kind":"state","version":2},"writer":{"name":"dropkick","version":"1.0.0"},"newState":"preserve"}"#;
-    std::fs::write(&path, bytes).unwrap();
-    assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), "state".to_string(), 1)).is_err());
-    assert_eq!(std::fs::read(&path).unwrap(), bytes);
-    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
-}
-
-#[test]
 fn read_json_returns_missing_for_absent_file() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();

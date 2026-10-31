@@ -355,6 +355,23 @@ fn a_read_runs_on_the_writer_after_the_entries_logged_before_it() {
     logger.stop_writer_for_test();
 }
 
+// An unreadable records file is refused as unreadable, so Records is off with a
+// notice, and it is left byte-identical.
+#[test]
+fn an_unreadable_records_file_is_refused_and_left_byte_identical() {
+    let tmp = temp_dir();
+    let file = tmp.path().join("records.sqlite3");
+    std::fs::write(&file, b"not a database at all, just some bytes").expect("write");
+    let before = std::fs::read(&file).expect("read records");
+    let logger = Logger::open(&file, &tmp.path().join("logs"), false);
+    assert!(read_count(&logger).is_err());
+    assert!(crate::refusals::all().iter().any(|refusal| refusal.file == file.to_string_lossy()
+        && refusal.reason == crate::refusals::Reason::Unreadable
+        && refusal.store == crate::refusals::Store::Records));
+    drop(logger);
+    assert_eq!(std::fs::read(&file).expect("read records"), before);
+}
+
 #[test]
 fn a_read_of_a_newer_records_database_answers_its_error() {
     let tmp = temp_dir();
@@ -373,6 +390,9 @@ fn a_read_of_a_newer_records_database_answers_its_error() {
     let logger = Logger::open(&file, &tmp.path().join("logs"), false);
     let error = read_count(&logger).expect_err("a newer database is not read");
     assert!(error.contains("records.sqlite3"), "{error}");
+    assert!(crate::refusals::all().iter().any(|refusal| refusal.file == file.to_string_lossy()
+        && refusal.reason == crate::refusals::Reason::Newer
+        && refusal.store == crate::refusals::Store::Records));
     drop(logger);
     assert_eq!(std::fs::read(&file).expect("read records"), before);
 }

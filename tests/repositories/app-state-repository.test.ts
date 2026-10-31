@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 const readJsonFileResult = vi.fn();
 const writeJsonFile = vi.fn();
-const quarantineFile = vi.fn();
 const ROOT = "/home/tester/.dropkick";
 vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileResult: (p: string) => readJsonFileResult(p),
   writeJsonFile: (p: string, _format: string, d: unknown, recorded?: boolean) => recorded === undefined ? writeJsonFile(p, d) : writeJsonFile(p, d, recorded),
   ensureDirectory: vi.fn(),
   appPaths: async () => ({ root: ROOT, stateFile: `${ROOT}/state.json` }),
-  quarantineFile: (p: string) => quarantineFile(p),
   withSerial: (_p: string, fn: () => unknown) => fn(),
 }));
 const warn = vi.fn();
@@ -19,7 +17,6 @@ import { createDefaultAppState } from "../../src/models";
 beforeEach(() => {
   readJsonFileResult.mockReset();
   writeJsonFile.mockReset();
-  quarantineFile.mockReset().mockResolvedValue(`${ROOT}/state-stamp.invalid`);
   warn.mockReset();
 });
 
@@ -31,14 +28,13 @@ const STORED = {
 };
 
 describe("app-level view state", () => {
-  it("creates only first-run view state with no selected workspace", async () => {
+  it("starts first-run view state with no selected workspace, writing nothing", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
-    const { appState, statePath } = await initializeAppState();
+    const { appState, statePath, refusal } = await initializeAppState();
     expect(statePath).toBe(`${ROOT}/state.json`);
     expect(appState).toEqual(createDefaultAppState());
-    const paths = writeJsonFile.mock.calls.map((c) => c[0]);
-    expect(paths).toEqual([`${ROOT}/state.json`]);
-    expect(writeJsonFile.mock.calls[0][2]).toBe(false);
+    expect(refusal).toBeNull();
+    expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
   it("reads last selections and geometry, leaving unrecognized keys behind", async () => {
@@ -47,7 +43,6 @@ describe("app-level view state", () => {
     } });
     const { appState } = await initializeAppState();
     expect(appState).toEqual(STORED);
-    expect(quarantineFile).not.toHaveBeenCalled();
     expect(writeJsonFile).not.toHaveBeenCalled();
     await flushAppState(`${ROOT}/state.json`, () => appState);
     expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState, false);
@@ -62,45 +57,40 @@ describe("app-level view state", () => {
 
   it.each([
     { status: "invalid", message: "bad JSON" },
+    { status: "error", message: "EACCES" },
     { status: "success", data: null },
     { status: "success", data: { ...STORED, zoomLevel: "large" } },
     { status: "success", data: { ...STORED, zoomLevel: 0 } },
     { status: "success", data: { ...STORED, zoomLevel: 5.1 } },
     { status: "success", data: { ...STORED, lastWorkspacePath: [] } },
     { status: "success", data: {} },
-  ])("quarantines damaged or incomplete state before recreating view defaults", async (result) => {
+  ])("takes the view defaults for unreadable state, leaving the file for the next save (%j)", async (result) => {
     readJsonFileResult.mockResolvedValue(result);
-    const { appState } = await initializeAppState();
-    expect(quarantineFile).toHaveBeenCalledWith(`${ROOT}/state.json`);
-    expect(appState.zoomLevel).toBe(1);
-    expect("knownWorkspaces" in appState).toBe(false);
-    expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState, false);
+    const { appState, statePath, refusal } = await initializeAppState();
+    expect(appState).toEqual(createDefaultAppState());
+    expect(statePath).toBe(`${ROOT}/state.json`);
+    expect(refusal).toBeNull();
+    expect(writeJsonFile).not.toHaveBeenCalled();
   });
 
   it.each([
     [{ status: "invalid", message: "bad JSON" }, { error: { message: "bad JSON" } }],
     [{ status: "success", data: { ...STORED, zoomLevel: "large" } }, { issue: "zoomLevel is not a finite number" }],
-  ])("records a reset state file with its reason", async (result, reason) => {
+  ])("records why the state was not used", async (result, reason) => {
     readJsonFileResult.mockResolvedValue(result);
     await initializeAppState();
-    expect(warn).toHaveBeenCalledExactlyOnceWith("state.json reset", {
+    expect(warn).toHaveBeenCalledExactlyOnceWith("state.json is unreadable; using the defaults", {
       statePath: `${ROOT}/state.json`,
-      quarantinedTo: `${ROOT}/state-stamp.invalid`,
       ...reason,
     });
   });
 
-  it("halts after a failed quarantine without replacing preserved bytes", async () => {
-    readJsonFileResult.mockResolvedValue({ status: "invalid", message: "bad JSON" });
-    quarantineFile.mockRejectedValue(new Error("permission denied"));
-    await expect(initializeAppState()).rejects.toThrow("permission denied");
-    expect(writeJsonFile).not.toHaveBeenCalled();
-  });
-
-  it("halts on a read error without writing any files", async () => {
-    readJsonFileResult.mockResolvedValue({ status: "error", message: "EACCES" });
-    await expect(initializeAppState()).rejects.toThrow("EACCES");
-    expect(quarantineFile).not.toHaveBeenCalled();
+  it("refuses a newer state.json for the launch, with no file to write", async () => {
+    readJsonFileResult.mockResolvedValue({ status: "newer", formatVersion: 2 });
+    const { appState, statePath, refusal } = await initializeAppState();
+    expect(appState).toEqual(createDefaultAppState());
+    expect(statePath).toBe("");
+    expect(refusal).toEqual({ path: `${ROOT}/state.json`, reason: "newer" });
     expect(writeJsonFile).not.toHaveBeenCalled();
   });
 });

@@ -32,7 +32,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rusqlite::Connection;
 use serde_json::{Map, Value};
 
-use crate::format_version::{self, Format, Marker};
+use crate::format_version::{self, Format};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Level {
@@ -120,14 +120,6 @@ pub fn now_iso_millis() -> String {
 pub fn filename_stamp(ms: i64) -> String {
     let (y, mo, d, h, mi, s, ms3) = parts_from_millis(ms);
     format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{ms3:03}-utc")
-}
-
-// The seconds form, `yyyymmdd-hhmmss-utc`, the timestamp-conventions' default
-// for file names, for derived-sibling names that carry a moment discriminator
-// (a quarantined store's `<stem>-<stamp>.invalid`).
-pub fn filename_stamp_seconds_now() -> String {
-    let (y, mo, d, h, mi, s, _) = parts_from_millis(now_unix_millis());
-    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-utc")
 }
 
 // --- The logger itself ---
@@ -290,17 +282,24 @@ pub fn init(records_file: &Path, logs_dir: &Path, debug_enabled: bool) {
     }
 }
 
+// A records database that cannot be opened is refused for the launch: a newer
+// one stops it, an unreadable one leaves Records off with a notice.
 fn open_records(records_file: &Path) -> Records {
+    open_records_file(records_file).map_err(|refused| {
+        let reason = if refused.newer { crate::refusals::Reason::Newer } else { crate::refusals::Reason::Unreadable };
+        crate::refusals::note(records_file, reason, crate::refusals::Store::Records);
+        refused.message
+    })
+}
+
+fn open_records_file(records_file: &Path) -> Result<Connection, format_version::Refused> {
     if let Some(parent) = records_file.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+    // The header is judged before anything is written: a newer or unreadable
+    // database is left exactly as it is, and every entry takes the fallback
+    // file, which carries this error.
     let conn = format_version::open_sqlite(records_file, Format::Records, SCHEMA)?;
-    // The header is judged before anything is written: a newer build's records
-    // are left exactly as they are, and every entry takes the fallback file,
-    // which carries this error.
-    if let Marker::Newer(found) = format_version::sqlite(&conn, Format::Records)? {
-        return Err(format_version::newer_message(records_file, found, Format::Records));
-    }
     // WAL with synchronous=NORMAL keeps every committed row through an app
     // crash.
     conn.pragma_update(None, "journal_mode", "WAL")

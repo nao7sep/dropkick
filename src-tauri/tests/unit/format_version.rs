@@ -129,7 +129,8 @@ fn a_newer_or_foreign_sqlite_store_is_refused_and_keeps_its_bytes() {
         existing_store(&path, version, owner, kind);
         let before = fs::read(&path).unwrap();
         let error = format_version::open_sqlite(&path, Format::Records, "INVALID SQL;").unwrap_err();
-        assert_eq!(error.contains("newer than this build"), newer, "{error}");
+        assert_eq!(error.newer, newer, "{error}");
+        assert_eq!(error.message.contains("newer than this build"), newer, "{error}");
         assert_eq!(fs::read(&path).unwrap(), before);
     }
 }
@@ -215,22 +216,21 @@ fn placement() -> Placement {
     }
 }
 
+// Window placement is disposable: an unreadable file reads as absent and is
+// left exactly where it is, for the next save to replace.
 #[test]
-fn a_placement_file_without_a_header_is_set_aside() {
+fn an_unreadable_placement_file_reads_as_absent_and_is_left_in_place() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("window.json");
-    let text = r#"{"normal":{"x":10,"y":20,"width":800,"height":600},"maximized":false}"#;
-    fs::write(&path, text).unwrap();
-    assert_eq!(load_file(&path), Ok(SavedPlacement::Absent));
-    assert!(!path.exists());
-    let set_aside = fs::read_dir(dir.path())
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap()
-        .path();
-    assert!(set_aside.to_string_lossy().ends_with(".invalid"));
-    assert_eq!(fs::read_to_string(set_aside).unwrap(), text);
+    for text in [
+        r#"{"normal":{"x":10,"y":20,"width":800,"height":600},"maximized":false}"#,
+        "{ not json",
+    ] {
+        fs::write(&path, text).unwrap();
+        assert_eq!(load_file(&path), Ok(SavedPlacement::Absent));
+        assert_eq!(fs::read_to_string(&path).unwrap(), text);
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
 }
 
 #[test]
@@ -258,6 +258,6 @@ fn a_newer_placement_file_is_left_byte_identical() {
     assert_eq!(
         fs::read_dir(dir.path()).unwrap().count(),
         1,
-        "nothing quarantined"
+        "nothing set aside"
     );
 }

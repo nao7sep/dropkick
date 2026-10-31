@@ -64,12 +64,12 @@ describe("enqueue + confirm/cancel", () => {
 
 describe("queueing", () => {
   it("queues subsequent requests behind the current one in FIFO order", () => {
-    void useDialogStore.getState().enqueueMessage(message("startup.appConfigReset.title"), message("dialog.deleteNote.body"));
+    void useDialogStore.getState().enqueueMessage(message("startup.recordsOff.title"), message("dialog.deleteNote.body"));
     void useDialogStore.getState().enqueueMessage(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"));
     void useDialogStore.getState().enqueueMessage(message("dialog.fileConflict.title"), message("dialog.deleteNote.body"));
 
     const state = useDialogStore.getState();
-    expect(state.current?.title).toEqual(message("startup.appConfigReset.title"));
+    expect(state.current?.title).toEqual(message("startup.recordsOff.title"));
     expect(state.queue.map((q) => q.title)).toEqual([
       message("dialog.deleteTask.title"),
       message("dialog.fileConflict.title"),
@@ -77,7 +77,7 @@ describe("queueing", () => {
   });
 
   it("advances to the next queued dialog after resolving the current one", () => {
-    const p1 = showAppMessage(message("startup.appConfigReset.title"), message("dialog.deleteNote.body"));
+    const p1 = showAppMessage(message("startup.recordsOff.title"), message("dialog.deleteNote.body"));
     void showAppMessage(message("dialog.deleteTask.title"), message("dialog.deleteNote.body"));
 
     useDialogStore.getState().confirmCurrent();
@@ -87,7 +87,7 @@ describe("queueing", () => {
 
   it("resolves each queued promise as it is reached", async () => {
     const order: string[] = [];
-    const p1 = showAppConfirm(message("startup.appConfigReset.title"), message("dialog.deleteNote.body")).then((v) => order.push(`first:${v}`));
+    const p1 = showAppConfirm(message("startup.recordsOff.title"), message("dialog.deleteNote.body")).then((v) => order.push(`first:${v}`));
     const p2 = showAppConfirm(message("dialog.deleteTask.title"), message("dialog.deleteNote.body")).then((v) => order.push(`second:${v}`));
 
     useDialogStore.getState().confirmCurrent(); // first -> true

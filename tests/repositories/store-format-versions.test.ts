@@ -70,12 +70,6 @@ beforeEach(() => {
       case "write_text_file_atomic":
         disk.set(path, contents);
         return contents;
-      case "quarantine_file": {
-        const target = `${path}.invalid`;
-        disk.set(target, disk.get(path)!);
-        disk.delete(path);
-        return target;
-      }
       default:
         return undefined;
     }
@@ -94,7 +88,7 @@ function put(path: string, document: unknown): string {
 
 function writes(): unknown[] {
   return vi.mocked(invoke).mock.calls.filter(([command]) =>
-    command === "save_task_file" || command === "write_text_file_atomic" || command === "quarantine_file");
+    command === "save_task_file" || command === "write_text_file_atomic");
 }
 
 function writesTo(path: string): unknown[] {
@@ -102,12 +96,15 @@ function writesTo(path: string): unknown[] {
 }
 
 describe("state.json", () => {
-  it("sets aside a file without a marker and starts on the defaults", async () => {
+  it("starts on the defaults for a file without a header, leaving it for the next save to replace", async () => {
     const text = put(PATHS.stateFile, { zoomLevel: 1.5 });
-    const { appState } = await initializeAppState();
+    const { appState, statePath, refusal } = await initializeAppState();
     expect(appState.zoomLevel).toBe(1);
-    expect(disk.get(`${PATHS.stateFile}.invalid`)).toBe(text);
-    expect(stored(PATHS.stateFile)).toMatchObject(header("state"));
+    expect(refusal).toBeNull();
+    expect(disk.get(PATHS.stateFile)).toBe(text);
+    expect([...disk.keys()]).toEqual([PATHS.stateFile]);
+    await flushAppState(statePath, () => ({ ...appState, zoomLevel: 2 }));
+    expect(stored(PATHS.stateFile)).toMatchObject({ ...header("state"), zoomLevel: 2 });
   });
 
   it("round-trips the current version", async () => {
@@ -117,9 +114,10 @@ describe("state.json", () => {
     expect((await initializeAppState()).appState.zoomLevel).toBe(2);
   });
 
-  it("leaves a newer build's file byte-identical and writes nothing over it", async () => {
+  it("refuses a newer build's file for the launch, byte-identical, writing nothing over it", async () => {
     const text = put(PATHS.stateFile, { ...header("state", 3), zoomLevel: "large" });
-    const { appState, statePath } = await initializeAppState();
+    const { appState, statePath, refusal } = await initializeAppState();
+    expect(refusal).toEqual({ path: PATHS.stateFile, reason: "newer" });
     expect(statePath).toBe("");
     expect(appState.zoomLevel).toBe(1);
     expect(disk.get(PATHS.stateFile)).toBe(text);
@@ -133,32 +131,34 @@ describe("config.json", () => {
     const { appConfig, filePath } = await loadAppConfig();
     expect(appState.lastWorkspacePath).toBe("");
     expect(appConfig).toEqual({ knownWorkspaces: [] });
-    expect([...disk.keys()]).toEqual([PATHS.stateFile]);
+    expect([...disk.keys()]).toEqual([]);
     await flushAppConfig(filePath, () => ({ ...appConfig, knownWorkspaces: ["/docs/workspace.json"] }));
     expect((await loadAppConfig()).appConfig).toEqual({ knownWorkspaces: ["/docs/workspace.json"] });
   });
 
-  it("quarantines a file without a marker and uses the built-ins", async () => {
+  it("refuses a file without a header for the launch and leaves it byte-identical", async () => {
     const text = put(PATHS.configFile, { knownWorkspaces: ["/w.json"] });
-    const { appConfig, recovery } = await loadAppConfig();
-    expect(recovery).toEqual({ kind: "quarantined", quarantinedTo: `${PATHS.configFile}.invalid` });
+    const { appConfig, filePath, refusal } = await loadAppConfig();
+    expect(refusal).toEqual({ path: PATHS.configFile, reason: "unreadable" });
+    expect(filePath).toBe("");
     expect(appConfig.knownWorkspaces).toEqual([]);
-    expect(disk.get(`${PATHS.configFile}.invalid`)).toBe(text);
+    expect(disk.get(PATHS.configFile)).toBe(text);
+    expect([...disk.keys()]).toEqual([PATHS.configFile]);
   });
 
   it("round-trips the current version", async () => {
     put(PATHS.configFile, { ...header("config"), knownWorkspaces: ["/w.json"] });
-    const { appConfig, filePath, recovery } = await loadAppConfig();
-    expect(recovery).toBeNull();
+    const { appConfig, filePath, refusal } = await loadAppConfig();
+    expect(refusal).toBeNull();
     expect(appConfig.knownWorkspaces).toEqual(["/w.json"]);
     await flushAppConfig(filePath, () => appConfig);
     expect(stored(PATHS.configFile)).toEqual({ ...header("config"), knownWorkspaces: ["/w.json"] });
   });
 
-  it("leaves a newer build's file byte-identical and says so", async () => {
+  it("refuses a newer build's file for the launch and leaves it byte-identical", async () => {
     const text = put(PATHS.configFile, { ...header("config", 3), knownWorkspaces: { "/w.json": {} } });
-    const { appConfig, filePath, recovery } = await loadAppConfig();
-    expect(recovery).toEqual({ kind: "newer", formatVersion: 3 });
+    const { appConfig, filePath, refusal } = await loadAppConfig();
+    expect(refusal).toEqual({ path: PATHS.configFile, reason: "newer" });
     expect(filePath).toBe("");
     expect(appConfig.knownWorkspaces).toEqual([]);
     expect(disk.get(PATHS.configFile)).toBe(text);
@@ -167,6 +167,18 @@ describe("config.json", () => {
 });
 
 describe("settings.json", () => {
+  it("keeps a refused file byte-identical through a session of saves", async () => {
+    const text = put(PATHS.configFile, { ...header("config", 3), knownWorkspaces: ["/w.json"] });
+    const { appConfig, filePath } = await loadAppConfig();
+    await expect(flushAppConfig(PATHS.configFile, () => ({ ...appConfig, knownWorkspaces: ["/x.json"] }))).rejects.toThrow();
+    expect(filePath).toBe("");
+    const settingsText = put(PATHS.settingsFile, { theme: "dark" });
+    await expect(flushSettings(PATHS.settingsFile, createDefaultSettings)).rejects.toThrow();
+    expect(disk.get(PATHS.configFile)).toBe(text);
+    expect(disk.get(PATHS.settingsFile)).toBe(settingsText);
+    expect(writes()).toEqual([]);
+  });
+
   it("reports a file without a marker as invalid and leaves it alone", async () => {
     const text = put(PATHS.settingsFile, { theme: "dark" });
     expect((await initializeSettings()).status).toBe("invalid");
@@ -283,11 +295,11 @@ describe("task lists", () => {
 // A `version` label is not a marker: a document carrying one instead is
 // refused like any other unreadable file.
 describe("a version label instead of a marker", () => {
-  it("sets aside its state.json and starts on the defaults", async () => {
+  it("starts on the default state.json, leaving the file in place", async () => {
     const text = put(PATHS.stateFile, { version: "1.0.0", lastWorkspacePath: "/docs/workspace.json" });
     const { appState } = await initializeAppState();
     expect(appState.lastWorkspacePath).toBe("");
-    expect(disk.get(`${PATHS.stateFile}.invalid`)).toBe(text);
+    expect(disk.get(PATHS.stateFile)).toBe(text);
   });
 
   it("refuses a workspace and leaves it alone", async () => {

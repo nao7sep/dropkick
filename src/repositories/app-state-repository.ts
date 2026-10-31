@@ -1,11 +1,10 @@
 // Owns state.json and serialized view-state writes.
 
-import type { AppStateDto } from "../models";
+import type { AppStateDto, FileRefusal } from "../models";
 import { createDefaultAppState } from "../models";
 import {
   readJsonFileResult,
   writeJsonFile,
-  quarantineFile,
   ensureDirectory,
   appPaths,
   withSerial,
@@ -44,56 +43,39 @@ function parseAppState(value: unknown): AppStateDto | string {
   ) as unknown as AppStateDto;
 }
 
-// First launch creates only private view state. Documents are created only
-// when the user chooses a location.
-//
-// `statePath` is empty when state.json was written by a newer build: the
-// session runs on the default state and writes nothing over that file.
+// View state is disposable: an unreadable state.json takes the defaults with no
+// notice and is left in place for the next save to replace. A newer one stops
+// the launch (`refusal`), and the session then has no file to write. Reading
+// writes nothing; the file is first written by an ordinary save.
 export async function initializeAppState(): Promise<{
   appState: AppStateDto;
   statePath: string;
+  refusal: FileRefusal | null;
 }> {
   const { root, stateFile: statePath } = await appPaths();
 
   // Ensure ~/.dropkick/ exists.
   await ensureDirectory(root);
 
-  // Create or read app appState.
-  const configResult = await readJsonFileResult<unknown>(statePath, "state");
-  if (configResult.status === "error") {
-    throw new Error(`Failed to load app appState: ${configResult.message}`);
+  const result = await readJsonFileResult<unknown>(statePath, "state");
+  if (result.status === "newer") {
+    log.warn("state.json is newer than this build; left in place", { statePath, formatVersion: result.formatVersion });
+    return { appState: createDefaultAppState(), statePath: "", refusal: { path: statePath, reason: "newer" } };
   }
 
-  // State is disposable, so a reset is not reported to the user; its record
-  // says why (store-recovery-conventions).
   let appState: AppStateDto | null = null;
   let resetReason: LogFields | null = null;
-  if (configResult.status === "invalid") {
-    resetReason = { error: { message: configResult.message } };
-  } else if (configResult.status === "success") {
-    const parsed = parseAppState(configResult.data);
+  if (result.status === "invalid" || result.status === "error") {
+    resetReason = { error: { message: result.message } };
+  } else if (result.status === "success") {
+    const parsed = parseAppState(result.data);
     if (typeof parsed === "string") resetReason = { issue: parsed };
     else appState = parsed;
   }
-  if (resetReason) {
-    const quarantinedTo = await quarantineFile(statePath, "state");
-    log.warn("state.json reset", { statePath, quarantinedTo, ...resetReason });
-  }
+  if (resetReason) log.warn("state.json is unreadable; using the defaults", { statePath, ...resetReason });
 
-  const newer = configResult.status === "newer";
-  if (newer) {
-    // Disposable view state: the log names the file the session leaves alone.
-    log.warn("state.json is newer than this build; left in place and not written this session", {
-      statePath,
-      formatVersion: configResult.formatVersion,
-    });
-  }
-  const created = appState === null && !newer;
-  if (appState === null) appState = createDefaultAppState();
-  if (created) await writeJsonFile(statePath, "state", appState, false);
-
-  log.info("app state initialized", { statePath, created });
-  return { appState, statePath: newer ? "" : statePath };
+  log.info("app state initialized", { statePath, found: appState !== null });
+  return { appState: appState ?? createDefaultAppState(), statePath, refusal: null };
 }
 
 // Flushes the latest app state to disk. Calls are serialized per path,

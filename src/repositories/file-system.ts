@@ -8,7 +8,7 @@
 // read_text_file command for the exposure this does and does not cover.
 
 import { invoke } from "@tauri-apps/api/core";
-import { checkFileHeader, FORMAT_VERSIONS, formatKind, withFileHeader, type StoreFormat } from "../models/store-format";
+import { checkFileHeader, withFileHeader, type StoreFormat } from "../models/store-format";
 import { log, toErrorFields } from "./logging";
 
 // Mirror of the Rust TextReadResult union (read_text_file command).
@@ -142,16 +142,6 @@ export async function saveTaskFile(path: string, document: object, expectedHash:
   } catch (e) {
     throw writeError(path, e);
   }
-}
-
-// Quarantines a present-but-unparseable managed store: the Rust core renames it
-// beside itself to `<stem>-<yyyymmdd-hhmmss-utc>.invalid`, never over an
-// earlier copy, and returns the new path. Failure propagates to the caller — a failed quarantine must halt the
-// load, never fall through to defaults over the preserved bytes (storage-path
-// conventions).
-export async function quarantineFile(path: string, format: StoreFormat): Promise<string> {
-  // The core refuses to set aside a file a newer build of this format wrote.
-  return await invoke<string>("quarantine_file", { path, kind: formatKind(format), formatVersion: FORMAT_VERSIONS[format] });
 }
 
 // Checks if a file exists on disk.

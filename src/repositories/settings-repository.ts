@@ -5,6 +5,7 @@ import {
   isValidSettingSet, SETTING_SET_KEYS, settingsDocument,
 } from "../models";
 import { appPaths, readJsonFileResult, writeJsonFile, withSerial } from "./file-system";
+import { keepUnreadSets } from "./kept-sets";
 import { log } from "./logging";
 
 export type LoadSettingsResult =
@@ -19,7 +20,7 @@ function effectiveSettings(data: Record<string, unknown>, path: string): Setting
     if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
     const value = data[key];
     if (!isValidSettingSet(key, value)) {
-      log.warn("settings set is invalid; using built-in", { path, key });
+      log.warn("settings set is invalid; using built-in and keeping the stored value", { path, key });
       continue;
     }
     Object.assign(settings, { [key]: value });
@@ -46,12 +47,21 @@ export async function initializeSettings(): Promise<LoadSettingsResult & { fileP
   return { ...result, filePath: settingsFile };
 }
 
+// Each save reads the file again, so one that has since become unreadable or
+// newer is refused rather than replaced, and a stored set this build could not
+// use is kept until the user changes it.
 export async function flushSettings(path: string, getSettings: () => SettingsDto): Promise<void> {
   return withSerial(path, async () => {
     const result = await readJsonFileResult<unknown>(path, "settings");
     if (result.status !== "missing" && (result.status !== "success" || !isSettings(result.data))) {
       throw new Error("Cannot save unavailable app settings");
     }
-    await writeJsonFile(path, "settings", settingsDocument(getSettings()));
+    const settings = getSettings();
+    const stored = result.status === "success" ? result.data as Record<string, unknown> : {};
+    const document = keepUnreadSets(
+      settingsDocument(settings), stored, SETTING_SET_KEYS,
+      settings, createDefaultSettings(), isValidSettingSet,
+    );
+    await writeJsonFile(path, "settings", document);
   });
 }
