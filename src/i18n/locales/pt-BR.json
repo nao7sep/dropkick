@@ -418,7 +418,7 @@
   "records.thisLaunch": "{time} (esta inicialização)",
   "records.level": "Nível",
   "records.allLevels": "Todos os níveis",
-  "records.levelWarningsAndErrors": "Requer atenção",
+  "records.levelWarningsAndErrors": "Avisos e erros",
   "records.levelError": "Erro",
   "records.levelWarn": "Aviso",
   "records.levelInfo": "Informação",

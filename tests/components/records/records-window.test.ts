@@ -280,7 +280,7 @@ describe("RecordsWindow", () => {
     ]);
     expect(Array.from(level!.options).map((option) => option.textContent)).toEqual([
       "All levels",
-      "Needs attention",
+      "Warnings and errors",
       "Error",
       "Warning",
       "Info",
