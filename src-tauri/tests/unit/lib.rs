@@ -12,7 +12,7 @@ fn quarantine_file_renames_and_preserves_bytes() {
     let path = dir.join("state.json");
     std::fs::write(&path, b"{ corrupt bytes").unwrap();
 
-    let quarantined = settled(quarantine_file(path.to_str().unwrap().to_string(), "taskList".to_string(), 1)).unwrap();
+    let quarantined = settled(quarantine_file(path.to_str().unwrap().to_string(), "task-list".to_string(), 1)).unwrap();
 
     assert!(!path.exists(), "source must be renamed away");
     assert_eq!(std::fs::read(&quarantined).unwrap(), b"{ corrupt bytes");
@@ -23,7 +23,7 @@ fn quarantine_file_errors_for_missing_source() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
     let path = dir.join("absent.json");
-    assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), "taskList".to_string(), 1)).is_err());
+    assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), "task-list".to_string(), 1)).is_err());
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn quarantine_preserves_a_target_open_without_delete_sharing() {
         // Permit reading, but deny the delete/rename needed to quarantine it.
         let held = std::fs::OpenOptions::new().read(true).share_mode(0x00000003)
             .open(&path).unwrap();
-        assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), "taskList".to_string(), 1)).is_err());
+        assert!(settled(quarantine_file(path.to_str().unwrap().to_string(), "task-list".to_string(), 1)).is_err());
         assert_eq!(std::fs::read(&path).unwrap(), original);
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "no quarantine copy on failure");
         drop(held);
@@ -82,7 +82,7 @@ fn read_json_returns_success_with_hash() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
     let path = dir.join("good.json");
-    let json = br#"{"format":{"owner":"dropkick","kind":"taskList","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[]}"#;
+    let json = br#"{"format":{"owner":"dropkick","kind":"task-list","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"id":"L1","tasks":[]}"#;
     std::fs::write(&path, json).unwrap();
     let result = settled(read_json_file_with_hash(path.to_str().unwrap().to_string(), None)).unwrap();
     match result {
@@ -182,11 +182,11 @@ fn refresh_hash_match_skips_decoding_but_changed_bytes_still_require_admission()
     let expected = sha256_hex(bytes);
     let result = settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap();
     assert_eq!(serde_json::to_value(result).unwrap(), json!({ "status": "unchanged" }));
-    let changed = br#"{"format":{"owner":"dropkick","kind":"taskList","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"id":"changed","tasks":[]}"#;
+    let changed = br#"{"format":{"owner":"dropkick","kind":"task-list","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"id":"changed","tasks":[]}"#;
     std::fs::write(&path, changed).unwrap();
     let result = settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap();
     assert!(matches!(result, JsonFileWithHashResult::Success { hash, .. } if hash == sha256_hex(changed)));
-    std::fs::write(&path, br#"{"format":{"owner":"dropkick","kind":"taskList","version":999},"writer":{"name":"dropkick","version":"1.0.0"}}"#).unwrap();
+    std::fs::write(&path, br#"{"format":{"owner":"dropkick","kind":"task-list","version":999},"writer":{"name":"dropkick","version":"1.0.0"}}"#).unwrap();
     assert!(matches!(settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap(), JsonFileWithHashResult::Newer { .. }));
     std::fs::write(&path, b"different invalid bytes").unwrap();
     assert!(matches!(settled(read_json_file_with_hash(path.clone(), Some(expected.clone()))).unwrap(), JsonFileWithHashResult::Invalid { .. }));
@@ -228,8 +228,8 @@ fn a_checked_write_publishes_only_over_the_expected_bytes() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("tasks.json");
     let target = path.to_str().unwrap();
-    let old = r#"{"format":{"owner":"dropkick","kind":"taskList","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"tasks":[]}"#;
-    let new = r#"{"format":{"owner":"dropkick","kind":"taskList","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"tasks":[{"id":"new"}]}"#;
+    let old = r#"{"format":{"owner":"dropkick","kind":"task-list","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"tasks":[]}"#;
+    let new = r#"{"format":{"owner":"dropkick","kind":"task-list","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"tasks":[{"id":"new"}]}"#;
     std::fs::write(&path, old).unwrap();
 
     let refused = write_atomic_impl(target, new, false, Some("other")).unwrap();
@@ -241,8 +241,8 @@ fn a_checked_write_publishes_only_over_the_expected_bytes() {
     assert_eq!(std::fs::read_to_string(&path).unwrap(), new);
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
 
-    std::fs::write(&path, r#"{"format":{"owner":"dropkick","kind":"taskList","version":99},"writer":{"name":"dropkick","version":"1.0.0"}}"#).unwrap();
-    let newer = sha256_hex(br#"{"format":{"owner":"dropkick","kind":"taskList","version":99},"writer":{"name":"dropkick","version":"1.0.0"}}"#);
+    std::fs::write(&path, r#"{"format":{"owner":"dropkick","kind":"task-list","version":99},"writer":{"name":"dropkick","version":"1.0.0"}}"#).unwrap();
+    let newer = sha256_hex(br#"{"format":{"owner":"dropkick","kind":"task-list","version":99},"writer":{"name":"dropkick","version":"1.0.0"}}"#);
     assert!(write_atomic_impl(target, new, false, Some(&newer)).is_err());
 
     std::fs::remove_file(&path).unwrap();

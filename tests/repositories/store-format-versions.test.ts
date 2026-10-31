@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { checkFileHeader, createDefaultSettings, WRITER } from "../../src/models";
+import { checkFileHeader, createDefaultSettings, formatKind, WRITER } from "../../src/models";
 import { flushAppConfig, loadAppConfig } from "../../src/repositories/app-config-repository";
 import { flushAppState, initializeAppState } from "../../src/repositories/app-state-repository";
 import { flushSettings, initializeSettings } from "../../src/repositories/settings-repository";
@@ -207,8 +207,8 @@ describe("workspace documents", () => {
   it("refuses a task list, another owner's file or a malformed header, and leaves it alone", async () => {
     const body = { id: "w", name: "Work", openTabs: [], recentFiles: [] };
     for (const document of [
-      { ...header("taskList"), id: "L1", tasks: [] },
-      { ...header("taskList", 2), ...body },
+      { ...header("task-list"), id: "L1", tasks: [] },
+      { ...header("task-list", 2), ...body },
       { format: { owner: "bigmouth", kind: "workspace", version: 1 }, writer: WRITER, ...body },
       { format: { kind: "workspace", version: 1 }, ...body },
       { format: { owner: "dropkick", kind: "workspace", version: "1" }, ...body },
@@ -243,6 +243,16 @@ describe("workspace documents", () => {
 });
 
 describe("task lists", () => {
+  it("names its kind in kebab-case and refuses the camelCase spelling", async () => {
+    const path = "/repo/camel.json";
+    const text = put(path, { format: { owner: "dropkick", kind: "taskList", version: 1 }, writer: WRITER, id: "L1", tasks: [] });
+    expect((await loadTaskList(path, (read) => read())).status).toBe("invalid");
+    expect(disk.get(path)).toBe(text);
+    expect(formatKind("taskList")).toBe("task-list");
+    expect(formatKind("windowPlacement")).toBe("window-placement");
+    expect(formatKind("settings")).toBe("settings");
+  });
+
   it("reports a list without a marker as invalid and leaves it alone", async () => {
     const path = "/repo/legacy.json";
     const text = put(path, { id: "L1", tasks: [] });
@@ -253,17 +263,17 @@ describe("task lists", () => {
 
   it("round-trips the current version", async () => {
     const path = "/repo/current.json";
-    put(path, { ...header("taskList"), id: "L1", tasks: [] });
+    put(path, { ...header("task-list"), id: "L1", tasks: [] });
     const loaded = await loadTaskList(path, (read) => read());
     expect(loaded).toMatchObject({ status: "success", taskList: { data: { id: "L1" } } });
     if (loaded.status !== "success") return;
     expect(await flushTaskList(path, () => loaded.taskList.data)).toEqual({ status: "success" });
-    expect(stored(path)).toEqual({ ...header("taskList"), id: "L1", tasks: [] });
+    expect(stored(path)).toEqual({ ...header("task-list"), id: "L1", tasks: [] });
   });
 
   it("refuses a newer build's list and leaves it byte-identical, even without an id", async () => {
     const path = "/repo/newer.json";
-    const text = put(path, { ...header("taskList", 2), items: [] });
+    const text = put(path, { ...header("task-list", 2), items: [] });
     expect(await loadTaskList(path, (read) => read())).toEqual({ status: "newer", formatVersion: 2 });
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);

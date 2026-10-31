@@ -6,8 +6,14 @@
 import FORMAT_VERSION_TABLE from "./format-versions.json";
 import { name as PACKAGE_NAME, version as APP_VERSION } from "../../package.json";
 
-// A store's format; its key in the table is the header's `kind`.
+// A store's format, by its key in the table.
 export type StoreFormat = keyof typeof FORMAT_VERSION_TABLE;
+
+// The header's `kind` for a format: its key in lowercase kebab-case
+// (`taskList` is `task-list`).
+export function formatKind(format: StoreFormat): string {
+  return format.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+}
 
 export const FORMAT_VERSIONS: Readonly<Record<StoreFormat, number>> = FORMAT_VERSION_TABLE;
 
@@ -41,8 +47,8 @@ export function checkFileHeader(data: unknown, format: StoreFormat): FileHeaderC
   if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
     return { status: "invalid", message: "format.version is missing or not a positive integer" };
   }
-  if (owner !== OWNER || kind !== format) {
-    return { status: "invalid", message: `file is ${owner} ${kind}, not ${OWNER} ${format}` };
+  if (owner !== OWNER || kind !== formatKind(format)) {
+    return { status: "invalid", message: `file is ${owner} ${kind}, not ${OWNER} ${formatKind(format)}` };
   }
   return version > FORMAT_VERSIONS[format]
     ? { status: "newer", formatVersion: version }
@@ -54,7 +60,7 @@ export function checkFileHeader(data: unknown, format: StoreFormat): FileHeaderC
 // replace it nor move it.
 export function withFileHeader(format: StoreFormat, document: object): Record<string, unknown> {
   const header = {
-    format: { owner: OWNER, kind: format, version: FORMAT_VERSIONS[format] },
+    format: { owner: OWNER, kind: formatKind(format), version: FORMAT_VERSIONS[format] },
     writer: { ...WRITER },
   };
   return { ...header, ...document, ...header };

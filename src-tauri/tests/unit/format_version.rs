@@ -239,7 +239,7 @@ fn a_placement_file_round_trips_with_its_header() {
     let path = dir.path().join("window.json");
     let text = file_text(placement()).unwrap();
     let written: serde_json::Value = serde_json::from_str(&text).unwrap();
-    assert_eq!(written["format"], json!({ "owner": "dropkick", "kind": "windowPlacement", "version": 1 }));
+    assert_eq!(written["format"], json!({ "owner": "dropkick", "kind": "window-placement", "version": 1 }));
     assert_eq!(written["writer"], json!({ "name": "dropkick", "version": env!("CARGO_PKG_VERSION") }));
     assert!(text.starts_with("{\n  \"format\": {"), "{text}");
     assert!(text.find("\"writer\"") < text.find("\"normal\""), "{text}");
@@ -251,7 +251,7 @@ fn a_placement_file_round_trips_with_its_header() {
 fn a_newer_placement_file_is_left_byte_identical() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("records-window.json");
-    let text = r#"{"format":{"owner":"dropkick","kind":"windowPlacement","version":2},"bounds":[1,2,3,4]}"#;
+    let text = r#"{"format":{"owner":"dropkick","kind":"window-placement","version":2},"bounds":[1,2,3,4]}"#;
     fs::write(&path, text).unwrap();
     assert_eq!(load_file(&path), Ok(SavedPlacement::Newer(2)));
     assert_eq!(fs::read_to_string(&path).unwrap(), text);

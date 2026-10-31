@@ -38,12 +38,23 @@ impl Format {
         Format::Records,
     ];
 
-    /// The format's `kind` in the header, and its key in the table.
-    pub fn kind(self) -> &'static str {
+    // The format's key in the table.
+    fn key(self) -> &'static str {
         match self {
             Format::Settings => "settings",
             Format::TaskList => "taskList",
             Format::WindowPlacement => "windowPlacement",
+            Format::Backups => "backups",
+            Format::Records => "records",
+        }
+    }
+
+    /// The format's `kind` in the header, in lowercase kebab-case.
+    pub fn kind(self) -> &'static str {
+        match self {
+            Format::Settings => "settings",
+            Format::TaskList => "task-list",
+            Format::WindowPlacement => "window-placement",
             Format::Backups => "backups",
             Format::Records => "records",
         }
@@ -58,8 +69,8 @@ impl Format {
             serde_json::from_str(TABLE).expect("format-versions.json is a map of integers")
         });
         *versions
-            .get(self.kind())
-            .unwrap_or_else(|| panic!("format-versions.json has no {}", self.kind()))
+            .get(self.key())
+            .unwrap_or_else(|| panic!("format-versions.json has no {}", self.key()))
     }
 }
 

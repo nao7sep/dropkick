@@ -204,7 +204,7 @@ it("sends the expected hash and exact formatted content in one invocation withou
   vi.mocked(invoke).mockResolvedValueOnce({ status: "conflict" });
   expect(await saveTaskFile("/task.json", { id: "L", tasks: [] }, "baseline")).toEqual({ status: "conflict" });
   expect(invoke).toHaveBeenCalledExactlyOnceWith("save_task_file", {
-    path: "/task.json", contents: JSON.stringify({ format: { owner: "dropkick", kind: "taskList", version: 1 }, writer: WRITER, id: "L", tasks: [] }, null, 2),
+    path: "/task.json", contents: JSON.stringify({ format: { owner: "dropkick", kind: "task-list", version: 1 }, writer: WRITER, id: "L", tasks: [] }, null, 2),
     expectedHash: "baseline",
   });
   vi.mocked(invoke).mockRejectedValueOnce({ kind: "recordedOperation", message: "disk unavailable" });
