@@ -38,7 +38,7 @@ use sha2::{Digest, Sha256};
 use crate::format_version::{self, Format};
 use crate::logging;
 
-/// The table as this build creates it (format version 2). `content` is the
+/// The table as this build creates it. `content` is the
 /// exact bytes written; `written_at_utc` is the serialized ISO-8601-ms form
 /// (`2026-07-06T04:05:12.345Z`), never a filename stamp. `session_id` is the
 /// launch that wrote the row, NULL for rows recorded before sessions; the

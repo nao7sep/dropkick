@@ -13,9 +13,7 @@ use serde_json::json;
 #[test]
 fn every_format_the_core_reads_is_in_the_shared_table() {
     for format in Format::ALL {
-        // Backup history has advanced independently.
-        let expected = if matches!(format, Format::Backups) { 2 } else { 1 };
-        assert_eq!(format.current(), expected, "{format:?}");
+        assert_eq!(format.current(), 1, "{format:?}");
     }
 }
 
@@ -95,7 +93,7 @@ fn a_missing_marker_is_unreadable_and_a_newer_one_is_reported() {
     assert!(format_version::json_value(&json!({}), format).is_err());
     assert!(format_version::json_value(&json!({ "version": "1.0.1" }), format).is_err());
     assert!(format_version::json_value(&json!({ "version": 1 }), format).is_err());
-    // v0.1.0's label is not a marker: its files are unreadable like any other.
+    // A `version` label is not a marker.
     assert!(format_version::json_value(&json!({ "version": "1.0.0" }), format).is_err());
     assert_eq!(
         format_version::json_value(&json!({ "version": "1.0.0", "formatVersion": 3 }), format),

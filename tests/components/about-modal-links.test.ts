@@ -4,7 +4,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const natives = vi.hoisted(() => ({ openUrl: vi.fn(), getVersion: vi.fn(async () => "0.1.0") }));
+const natives = vi.hoisted(() => ({ openUrl: vi.fn(), getVersion: vi.fn(async () => "1.0.0") }));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: natives.openUrl }));
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: natives.getVersion }));

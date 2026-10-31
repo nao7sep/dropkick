@@ -1,6 +1,6 @@
 [package]
 name = "dropkick"
-version = "0.1.0"
+version = "1.0.0"
 description = "Let tasks sort themselves by urgency, kick the ones you can't do yet down the list, and keep every list in plain JSON files."
 authors = ["Yoshinao Inoguchi <yoshinao@inoguchi.com>"]
 license = "GPL-3.0-or-later"

@@ -263,48 +263,8 @@ fn user_version(file: &Path) -> i64 {
 fn a_new_store_is_stamped_with_its_format_version() {
     with_store(|file| {
         flush();
-        assert_eq!(user_version(file), 2);
+        assert_eq!(user_version(file), 1);
     });
-}
-
-#[test]
-#[serial(backup_store)]
-fn a_format_1_store_is_refused_unchanged_and_records_nothing() {
-    let store = temp_store();
-    {
-        let conn = Connection::open(&store.file).unwrap();
-        conn.execute_batch(
-            "CREATE TABLE backups (id INTEGER PRIMARY KEY, path TEXT NOT NULL, content BLOB NOT NULL, \
-             content_sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, written_at_utc TEXT NOT NULL); \
-             CREATE INDEX idx_backups_path_id ON backups (path, id);",
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO backups (path, content, content_sha256, byte_size, written_at_utc) VALUES (?1, ?2, ?3, 3, 'x')",
-            rusqlite::params!["/abs/g.json", b"old".to_vec(), sha256_hex(b"old")],
-        )
-        .unwrap();
-        conn.pragma_update(None, "user_version", 1).unwrap();
-    }
-    let before = std::fs::read(&store.file).unwrap();
-    let error = open(&store.file).err().expect("format 1 is unsupported");
-    assert!(error.contains("unsupported backup format version 1"), "{error}");
-    assert!(error.contains("left untouched"), "{error}");
-    assert!(error.contains(store.file.to_str().unwrap()), "{error}");
-    init(store.file.clone());
-    record(Path::new("/abs/g.json"), b"new");
-    close_for_test();
-    assert_eq!(std::fs::read(&store.file).unwrap(), before);
-    let rows = rows_for(&store.file, "/abs/g.json");
-    assert_eq!(rows, vec![(b"old".to_vec(), sha256_hex(b"old"), 3, "x".to_string())]);
-    assert_eq!(user_version(&store.file), 1);
-    let conn = Connection::open(&store.file).unwrap();
-    let columns: Vec<String> = conn
-        .prepare("PRAGMA table_info(backups)").unwrap()
-        .query_map([], |r| r.get(1)).unwrap().map(|r| r.unwrap()).collect();
-    assert_eq!(columns, ["id", "path", "content", "content_sha256", "byte_size", "written_at_utc"]);
-    assert!(!store.file.with_extension("sqlite3-wal").exists());
-    assert!(!store.file.with_extension("sqlite3-shm").exists());
 }
 
 #[test]

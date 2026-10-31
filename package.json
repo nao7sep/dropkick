@@ -1,7 +1,7 @@
 {
   "name": "dropkick",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Let tasks sort themselves by urgency, kick the ones you can't do yet down the list, and keep every list in plain JSON files.",
   "packageManager": "npm@12.2.0",
   "author": "Yoshinao Inoguchi <yoshinao@inoguchi.com>",

@@ -47,8 +47,8 @@ fn classify_json_bytes_success_and_invalid() {
     ));
 }
 
-// The task list's format version (store-recovery-conventions). A list v0.1.0
-// wrote carries a label instead of a marker and is refused like any other.
+// The task list's format version (store-recovery-conventions). A `version`
+// label is not a marker, so a list carrying one instead is refused.
 #[test]
 fn a_task_list_without_a_marker_is_invalid() {
     for json in [

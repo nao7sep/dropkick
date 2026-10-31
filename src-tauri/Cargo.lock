@@ -866,7 +866,7 @@ dependencies = [
 
 [[package]]
 name = "dropkick"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "dirs",
  "getrandom 0.4.3",

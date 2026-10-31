@@ -1,10 +1,10 @@
 {
-  "state": 2,
-  "config": 2,
+  "state": 1,
+  "config": 1,
   "settings": 1,
   "workspace": 1,
   "taskList": 1,
   "windowPlacement": 1,
-  "backups": 2,
+  "backups": 1,
   "records": 1
 }

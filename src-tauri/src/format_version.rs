@@ -61,7 +61,7 @@ impl Format {
 /// What a store's marker says about it.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Marker {
-    /// This build reads it: the current version or an older one.
+    /// This build reads it: the current version.
     Readable,
     /// Written by a newer build. It is intact data this build cannot read, so
     /// it is reported and left exactly in place.

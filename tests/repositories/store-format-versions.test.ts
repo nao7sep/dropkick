@@ -101,13 +101,13 @@ describe("state.json", () => {
     const { appState } = await initializeAppState();
     expect(appState.zoomLevel).toBe(1);
     expect(disk.get(`${PATHS.stateFile}.invalid`)).toBe(text);
-    expect(stored(PATHS.stateFile).formatVersion).toBe(2);
+    expect(stored(PATHS.stateFile).formatVersion).toBe(1);
   });
 
   it("round-trips the current version", async () => {
     const first = await initializeAppState();
     await flushAppState(first.statePath, () => ({ ...first.appState, zoomLevel: 2 }));
-    expect(stored(PATHS.stateFile).formatVersion).toBe(2);
+    expect(stored(PATHS.stateFile).formatVersion).toBe(1);
     expect((await initializeAppState()).appState.zoomLevel).toBe(2);
   });
 
@@ -146,7 +146,7 @@ describe("config.json", () => {
     expect(recovery).toBeNull();
     expect(appConfig.knownWorkspaces).toEqual(["/w.json"]);
     await flushAppConfig(filePath, () => appConfig);
-    expect(stored(PATHS.configFile)).toEqual({ formatVersion: 2, knownWorkspaces: ["/w.json"] });
+    expect(stored(PATHS.configFile)).toEqual({ formatVersion: 1, knownWorkspaces: ["/w.json"] });
   });
 
   it("leaves a newer build's file byte-identical and says so", async () => {
@@ -234,10 +234,9 @@ describe("task lists", () => {
   });
 });
 
-// v0.1.0, the one published release before format markers, labelled every
-// document `"version": "1.0.0"`. That label is not a marker: its files are
+// A `version` label is not a marker: a document carrying one instead is
 // refused like any other unreadable file.
-describe("files from v0.1.0", () => {
+describe("a version label instead of a marker", () => {
   it("sets aside its state.json and starts on the defaults", async () => {
     const text = put(PATHS.stateFile, { version: "1.0.0", lastWorkspacePath: "/docs/workspace.json" });
     const { appState } = await initializeAppState();
