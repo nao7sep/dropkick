@@ -7,7 +7,7 @@ vi.mock("../src/hooks/useRecordsWindow", () => ({ useRecordsWindowSync: vi.fn() 
 vi.mock("../src/hooks/use-window-close", () => ({ useWindowClose: vi.fn() }));
 vi.mock("../src/services/open-workspace-session", () => ({ openWorkspaceSession: mocks.open }));
 vi.mock("../src/hooks/useInterfaceLanguage", () => ({ currentInterfaceLanguage: () => "en", useInterfaceLanguage: () => ({ language: "en", locale: "en-US" }) }));
-vi.mock("../src/state/preferences-store", () => ({ usePreferencesStore: (select: (state: unknown) => unknown) => select({ initialize: mocks.preview, preferences: { theme: "system", fontFamily: "" } }) }));
+vi.mock("../src/state/settings-store", () => ({ useSettingsStore: (select: (state: unknown) => unknown) => select({ initialize: mocks.preview, settings: { theme: "system", fontFamily: "" } }) }));
 vi.mock("../src/state/app-state-store", () => ({ useAppStateStore: Object.assign((select: (state: unknown) => unknown) => select({ initialize: mocks.init, setLastWorkspace: mocks.paths, appState: mocks.state }), { getState: () => ({ appState: mocks.state }) }) }));
 vi.mock("../src/state/app-config-store", () => ({ useAppConfigStore: Object.assign((select: (state: unknown) => unknown) => select({ initialize: mocks.init }), { getState: () => ({ appConfig: mocks.config }) }) }));
 vi.mock("../src/state/language-store", () => ({ useLanguageStore: (select: (state: unknown) => unknown) => select({ load: mocks.init }) }));
@@ -63,9 +63,9 @@ describe("startup routing", () => {
     expect(mocks.paths).not.toHaveBeenCalled();
   });
   it("stops before workspace loading when app settings are unavailable", async () => {
-    mocks.preview.mockResolvedValue({ status: "missing", filePath: "/old-settings.json" });
+    mocks.preview.mockResolvedValue({ status: "invalid", filePath: "/root/settings.json" });
     host = await mount(createElement(App));
-    expect(document.body.textContent).toContain("/old-settings.json");
+    expect(document.body.textContent).toContain("/root/settings.json");
     expect(mocks.open).not.toHaveBeenCalled();
     expect(mocks.paths).not.toHaveBeenCalled();
   });

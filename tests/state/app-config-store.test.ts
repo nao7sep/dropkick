@@ -30,8 +30,8 @@ beforeEach(async () => {
   await useAppConfigStore.getState().initialize();
 });
 
-describe("known-document list changes", () => {
-  it("selecting an already known default document writes no config file", async () => {
+describe("saved-workspace list changes", () => {
+  it("selecting an already known workspace writes no config file", async () => {
     expect(await useAppConfigStore.getState().register("/workspace.json")).toBe(true);
     expect(flushAppConfig).not.toHaveBeenCalled();
   });
@@ -42,13 +42,13 @@ describe("known-document list changes", () => {
     expect(flushAppConfig.mock.calls[0][1]()).toEqual({ ...defaults, knownWorkspaces: ["/workspace.json", "/second.json"] });
     expect(selection()).toEqual({ lastWorkspacePath: "/workspace.json" });
   });
-  it("unregistering a document preserves the last workspace selection", async () => {
+  it("unregistering a workspace preserves the last workspace selection", async () => {
     await useAppConfigStore.getState().register("/other.json");
     expect(await useAppConfigStore.getState().unregister("/other.json")).toBe(true);
     expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual(["/workspace.json"]);
     expect(selection().lastWorkspacePath).toBe("/workspace.json");
   });
-  it("unregistering the final document writes an empty authored list", async () => {
+  it("unregistering the final workspace writes an empty authored list", async () => {
     await useAppConfigStore.getState().unregister("/workspace.json");
     expect(useAppConfigStore.getState().appConfig.knownWorkspaces).toEqual([]);
     expect(flushAppConfig.mock.calls[0][1]()).toEqual({ ...defaults, knownWorkspaces: [] });

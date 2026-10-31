@@ -6,12 +6,12 @@ import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Task } from "../../../src/models";
 import {
-  createDefaultPreferences,
+  createDefaultSettings,
   createDefaultWorkspace,
 } from "../../../src/models";
 import { TaskDetail } from "../../../src/components/task-detail/TaskDetail";
-import { useNoteDraftStore } from "../../../src/state/note-draft-store";
-import { usePreferencesStore } from "../../../src/state/preferences-store";
+import { useDraftStore } from "../../../src/state/draft-store";
+import { useSettingsStore } from "../../../src/state/settings-store";
 import { useTaskListStore } from "../../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { makeNote, makeTask } from "../../helpers/task";
@@ -49,9 +49,9 @@ beforeEach(async () => {
   updateTitle.mockReset().mockResolvedValue({ status: "success" });
   updateDescription.mockReset().mockResolvedValue({ status: "success" });
   addNewNote.mockReset().mockResolvedValue({ status: "success" });
-  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+  useSettingsStore.setState({ settings: createDefaultSettings() });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
-  useNoteDraftStore.setState({ drafts: {}, draftVersions: {} });
+  useDraftStore.setState({ drafts: {}, draftVersions: {} });
   useTaskListStore.setState({
     setStatus,
     sendToFirst,
@@ -114,7 +114,7 @@ describe("TaskDetail operation results", () => {
     useTaskListStore.setState({ updateNote: vi.fn(() => new Promise<ActionResult>((resolve) => { finish = resolve; })) });
     const withNote = { ...task(), notes: [makeNote({ id: "note-a", content: "Saved note" })] };
     host = await mount(createElement(TaskDetail, { task: withNote, filePath: "/one.json", isUnifiedView: false, nextActiveTaskKey: null, focusNewNoteSignal: 0 }));
-    await act(async () => useNoteDraftStore.getState().openDraft(copyDraft("task-a:note-a"), "Changed note"));
+    await act(async () => useDraftStore.getState().openDraft(copyDraft("task-a:note-a"), "Changed note"));
     await act(async () => [...document.querySelectorAll("button")].find((node) => node.textContent === "Save")!.click());
     const composer = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Add Note"]')!;
     await act(async () => { composer.focus(); finish({ status: "success" }); });
@@ -126,35 +126,35 @@ describe("TaskDetail operation results", () => {
     await host!.unmount();
     const otherPath = "/two.json";
     const firstComposer = copyDraft("task-a"), firstEditor = copyDraft("task-a:note-a");
-    useNoteDraftStore.getState().setDraft(firstComposer, "A composer");
-    useNoteDraftStore.getState().setDraft(firstEditor, "A edited note");
+    useDraftStore.getState().setDraft(firstComposer, "A composer");
+    useDraftStore.getState().setDraft(firstEditor, "A edited note");
     const updateNote = vi.fn().mockResolvedValue({ status: "success" });
     useTaskListStore.setState({ updateNote });
     const other = { ...task(), sourceFile: otherPath, notes: [makeNote({ id: "note-a", content: "B saved note" })] };
     host = await mount(createElement(TaskDetail, { task: other, filePath: otherPath, isUnifiedView: false, nextActiveTaskKey: null, focusNewNoteSignal: 0 }));
     expect([...document.querySelectorAll("textarea")].some((field) => field.value === "A composer" || field.value === "A edited note")).toBe(false);
     const otherEditor = "task-a:note-a|%2Ftwo.json";
-    await act(async () => useNoteDraftStore.getState().openDraft(otherEditor, "B edited note"));
+    await act(async () => useDraftStore.getState().openDraft(otherEditor, "B edited note"));
     const save = [...document.querySelectorAll("button")].find((button) => button.textContent === "Save")!;
     await act(async () => save.click());
     expect(updateNote).toHaveBeenCalledWith(otherPath, "task-a", "note-a", "B edited note", expect.any(String));
-    expect(useNoteDraftStore.getState().drafts[firstComposer]).toBe("A composer");
-    expect(useNoteDraftStore.getState().drafts[firstEditor]).toBe("A edited note");
-    expect(useNoteDraftStore.getState().drafts[otherEditor]).toBeUndefined();
+    expect(useDraftStore.getState().drafts[firstComposer]).toBe("A composer");
+    expect(useDraftStore.getState().drafts[firstEditor]).toBe("A edited note");
+    expect(useDraftStore.getState().drafts[otherEditor]).toBeUndefined();
   });
 
   it("deleting a note on another copy leaves the first copy's editor draft", async () => {
     await host!.unmount();
     const firstEditor = copyDraft("task-a:note-a");
-    useNoteDraftStore.getState().setDraft(firstEditor, "A edited note");
+    useDraftStore.getState().setDraft(firstEditor, "A edited note");
     const removeNote = vi.fn().mockResolvedValue({ status: "success" });
     useTaskListStore.setState({ removeNote });
-    usePreferencesStore.setState({ preferences: { ...createDefaultPreferences(), confirmPermanentDeletions: false } });
+    useSettingsStore.setState({ settings: { ...createDefaultSettings(), confirmPermanentDeletions: false } });
     const other = { ...task(), sourceFile: "/two.json", notes: [makeNote({ id: "note-a", content: "B saved note" })] };
     host = await mount(createElement(TaskDetail, { task: other, filePath: "/two.json", isUnifiedView: false, nextActiveTaskKey: null, focusNewNoteSignal: 0 }));
     await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Delete note"]')!.click());
     expect(removeNote).toHaveBeenCalledWith("/two.json", "task-a", "note-a");
-    expect(useNoteDraftStore.getState().drafts[firstEditor]).toBe("A edited note");
+    expect(useDraftStore.getState().drafts[firstEditor]).toBe("A edited note");
   });
 
   it("retains a failed title draft beside its field for retry", async () => {
@@ -307,21 +307,21 @@ describe("TaskDetail title and description drafts", () => {
       title.focus();
       typeInto(title, "Alpha, renamed");
     });
-    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a#title")]).toBe("Alpha, renamed");
+    expect(useDraftStore.getState().drafts[copyDraft("task-a#title")]).toBe("Alpha, renamed");
     await act(async () => {
       description.focus();
       typeInto(description, "Typed and never blurred");
     });
 
-    expect(useNoteDraftStore.getState().drafts).toMatchObject({
+    expect(useDraftStore.getState().drafts).toMatchObject({
       [copyDraft("task-a#description")]: "Typed and never blurred",
     });
   });
 
   it("commits a title and description left from a quit when the task is shown", async () => {
     await act(async () => {
-      useNoteDraftStore.getState().setDraft(copyDraft("task-a#title"), "Typed before quitting");
-      useNoteDraftStore.getState().setDraft(copyDraft("task-a#description"), "Also typed before quitting");
+      useDraftStore.getState().setDraft(copyDraft("task-a#title"), "Typed before quitting");
+      useDraftStore.getState().setDraft(copyDraft("task-a#description"), "Also typed before quitting");
     });
 
     await showTask();
@@ -333,7 +333,7 @@ describe("TaskDetail title and description drafts", () => {
       "Also typed before quitting",
       expect.any(String),
     );
-    expect(useNoteDraftStore.getState().drafts).toEqual({});
+    expect(useDraftStore.getState().drafts).toEqual({});
   });
 
   it("drops a description draft when the conflict is answered with Reload", async () => {
@@ -352,7 +352,7 @@ describe("TaskDetail title and description drafts", () => {
       description.blur();
     });
 
-    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a#description")]).toBeUndefined();
+    expect(useDraftStore.getState().drafts[copyDraft("task-a#description")]).toBeUndefined();
     expect(description.value).toBe("");
     expect(document.getElementById(description.getAttribute("aria-describedby")!)?.textContent)
       .toContain("reloaded from disk");
@@ -367,11 +367,11 @@ describe("TaskDetail title and description drafts", () => {
       status: "reloaded",
       message: message("write.reloaded"),
     });
-    await act(async () => { useNoteDraftStore.getState().setDraft(copyDraft("task-a#title"), "Typed before quitting"); });
+    await act(async () => { useDraftStore.getState().setDraft(copyDraft("task-a#title"), "Typed before quitting"); });
 
     await showTask();
     expect(updateTitle).toHaveBeenCalledTimes(1);
-    expect(useNoteDraftStore.getState().drafts).toEqual({});
+    expect(useDraftStore.getState().drafts).toEqual({});
 
     await showTask();
     expect(updateTitle).toHaveBeenCalledTimes(1);
@@ -388,7 +388,7 @@ describe("TaskDetail title and description drafts", () => {
     });
 
     expect(updateTitle).toHaveBeenCalledWith("/one.json", "task-a", "Blurred title", expect.any(String));
-    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a#title")]).toBeUndefined();
+    expect(useDraftStore.getState().drafts[copyDraft("task-a#title")]).toBeUndefined();
   });
 });
 
@@ -396,7 +396,7 @@ describe("TaskDetail note composer", () => {
   it("keeps a pending submission owned when selection remounts the detail pane", async () => {
     let finish!: (value: ActionResult) => void;
     addNewNote.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    await act(async () => useNoteDraftStore.getState().setDraft(copyDraft("task-a"), "One note"));
+    await act(async () => useDraftStore.getState().setDraft(copyDraft("task-a"), "One note"));
     const addButton = () => [...document.querySelectorAll("button")].find((button) => button.textContent === "Add Note")!;
     await act(async () => addButton().click());
     try {
@@ -409,7 +409,7 @@ describe("TaskDetail note composer", () => {
     } finally {
       await act(async () => finish({ status: "success" }));
     }
-    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a")]).toBeUndefined();
+    expect(useDraftStore.getState().drafts[copyDraft("task-a")]).toBeUndefined();
   });
 
   it("adds a note once however often Add is clicked while the write runs", async () => {
@@ -419,7 +419,7 @@ describe("TaskDetail note composer", () => {
         finish = resolve;
       }),
     );
-    await act(async () => { useNoteDraftStore.getState().setDraft(copyDraft("task-a"), "One note"); });
+    await act(async () => { useDraftStore.getState().setDraft(copyDraft("task-a"), "One note"); });
     await showTask();
     const add = [...document.querySelectorAll("button")].find(
       (button) => button.textContent === "Add Note",
@@ -441,7 +441,7 @@ describe("TaskDetail note composer", () => {
       status: "reloaded",
       message: message("write.reloaded"),
     });
-    await act(async () => { useNoteDraftStore.getState().setDraft(copyDraft("task-a"), "Discarded by Reload"); });
+    await act(async () => { useDraftStore.getState().setDraft(copyDraft("task-a"), "Discarded by Reload"); });
     await showTask();
     const add = [...document.querySelectorAll("button")].find(
       (button) => button.textContent === "Add Note",
@@ -450,7 +450,7 @@ describe("TaskDetail note composer", () => {
     await act(async () => add.click());
 
     expect(addNewNote).toHaveBeenCalledTimes(1);
-    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a")]).toBeUndefined();
+    expect(useDraftStore.getState().drafts[copyDraft("task-a")]).toBeUndefined();
     const composer = [...document.querySelectorAll("textarea")].find(
       (textarea) =>
         textarea.placeholder !== "Task title" &&
@@ -472,7 +472,7 @@ describe("TaskDetail note editor", () => {
       message: message("write.reloaded"),
     });
     useTaskListStore.setState({ updateNote });
-    await act(async () => { useNoteDraftStore.getState().setDraft(copyDraft("task-a:note-a"), "Discarded by Reload"); });
+    await act(async () => { useDraftStore.getState().setDraft(copyDraft("task-a:note-a"), "Discarded by Reload"); });
     await host?.unmount();
     host = await mount(
       createElement(TaskDetail, {
@@ -490,7 +490,7 @@ describe("TaskDetail note editor", () => {
     await act(async () => save.click());
 
     expect(updateNote).toHaveBeenCalledTimes(1);
-    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a:note-a")]).toBeUndefined();
+    expect(useDraftStore.getState().drafts[copyDraft("task-a:note-a")]).toBeUndefined();
     expect(document.body.textContent).toContain("On disk");
     expect(document.body.textContent).toContain("reloaded from disk");
   });
@@ -503,38 +503,38 @@ describe("held draft receipts", () => {
     const input = document.querySelector(field === "title" ? 'textarea[placeholder="Task title"]' : 'textarea[placeholder="Add a description"]')! as HTMLTextAreaElement;
     await act(async () => { input.focus(); typeInto(input, "submitted"); });
     await act(async () => { input.blur(); });
-    await act(async () => { useNoteDraftStore.getState().setDraft(copyDraft(`task-a#${field}`), "later"); });
+    await act(async () => { useDraftStore.getState().setDraft(copyDraft(`task-a#${field}`), "later"); });
     await act(async () => { finish({ status: "reloaded", message: message("write.reloaded") }); });
-    expect(useNoteDraftStore.getState().drafts[copyDraft(`task-a#${field}`)]).toBe("later");
+    expect(useDraftStore.getState().drafts[copyDraft(`task-a#${field}`)]).toBe("later");
     expect(input.value).toBe("later");
   });
 
   it.each(["success", "reloaded"])("retains composer A/B/A after delayed %s", async (status) => {
     let finish!: (value: unknown) => void;
     addNewNote.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    await act(async () => { useNoteDraftStore.getState().setDraft(copyDraft("task-a"), "A"); });
+    await act(async () => { useDraftStore.getState().setDraft(copyDraft("task-a"), "A"); });
     const add = [...document.querySelectorAll("button")].find((button) => button.textContent === "Add Note")!;
     await act(async () => { add.click(); });
     await act(async () => {
-      useNoteDraftStore.getState().setDraft(copyDraft("task-a"), "B");
-      useNoteDraftStore.getState().setDraft(copyDraft("task-a"), "A");
+      useDraftStore.getState().setDraft(copyDraft("task-a"), "B");
+      useDraftStore.getState().setDraft(copyDraft("task-a"), "A");
     });
     await act(async () => { finish({ status, message: message("write.reloaded") }); });
-    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a")]).toBe("A");
+    expect(useDraftStore.getState().drafts[copyDraft("task-a")]).toBe("A");
   });
 
   it("retains later note text after delayed Reload", async () => {
     let finish!: (value: unknown) => void;
     const updateNote = vi.fn(() => new Promise<ActionResult>((resolve) => { finish = (value) => resolve(value as ActionResult); }));
     useTaskListStore.setState({ updateNote });
-    useNoteDraftStore.getState().setDraft(copyDraft("task-a:note-a"), "submitted");
+    useDraftStore.getState().setDraft(copyDraft("task-a:note-a"), "submitted");
     await host?.unmount();
     host = await mount(createElement(TaskDetail, { task: { ...task(), notes: [makeNote({ id: "note-a" })] }, filePath: "/one.json", isUnifiedView: false, nextActiveTaskKey: null, focusNewNoteSignal: 0 }));
     const save = [...document.querySelectorAll("button")].find((button) => button.textContent === "Save")!;
     await act(async () => { save.click(); });
-    await act(async () => { useNoteDraftStore.getState().setDraft(copyDraft("task-a:note-a"), "later"); });
+    await act(async () => { useDraftStore.getState().setDraft(copyDraft("task-a:note-a"), "later"); });
     await act(async () => { finish({ status: "reloaded", message: message("write.reloaded") }); });
-    expect(useNoteDraftStore.getState().drafts[copyDraft("task-a:note-a")]).toBe("later");
+    expect(useDraftStore.getState().drafts[copyDraft("task-a:note-a")]).toBe("later");
     expect([...document.querySelectorAll("textarea")].some((input) => input.value === "later")).toBe(true);
   });
 });

@@ -7,7 +7,7 @@ describe("recovery presentation", () => {
     const hostile = { kind: "quarantined", quarantinedTo: "/.dropkick/HOSTILE-SENTINEL-EACCES.invalid" } as const;
     for (const notice of [describeAppConfigRecovery(hostile)]) {
       const message = inEnglish(notice.body);
-      expect(message).toContain("location is recorded in the application log");
+      expect(message).toContain("location is recorded in Records");
       expect(message).not.toContain("/.dropkick/");
       expect(message).not.toContain(".invalid");
       expect(message).not.toContain("HOSTILE-SENTINEL");

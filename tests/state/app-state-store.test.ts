@@ -55,8 +55,7 @@ describe("updateViewState", () => {
 
     const appState = useAppStateStore.getState().appState;
     expect(appState.sidebarWidth).toBe(440);
-    // The view patch must not touch the register/unregister-owned fields.
-    expect("knownPreferences" in appState).toBe(false);
+    // The view patch must not touch the last-opened workspace.
     expect(appState.lastWorkspacePath).toBe("/x/workspace.json");
   });
 
@@ -125,7 +124,6 @@ describe("saved locations", () => {
     useAppStateStore.setState({ filePath: "/state.json" });
     await useAppStateStore.getState().setLastWorkspace("/workspace.json");
     expect(useAppStateStore.getState().appState.lastWorkspacePath).toBe("/workspace.json");
-    expect(flushAppState.mock.calls[0][1]()).not.toHaveProperty("lastPreferencesPath");
   });
 
   it("names a failed location write accurately", async () => {

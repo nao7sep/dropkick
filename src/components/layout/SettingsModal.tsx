@@ -1,9 +1,9 @@
-// Settings modal — edits preferences (font, timezone, kick distances, etc.).
+// Settings modal — edits settings (font, timezone, kick distances, etc.).
 // Opens from the hamburger menu in the tab bar. Changes are staged locally and saved only on "Save".
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readSystemTheme } from "../../repositories";
-import { usePreferencesStore } from "../../state/preferences-store";
+import { useSettingsStore } from "../../state/settings-store";
 import {
   DUE_SOON_DAYS_MAX,
   DUE_SOON_DAYS_MIN,
@@ -30,12 +30,12 @@ import {
   isEditableTarget,
 } from "../../utils";
 import {
-  isPreferencesDraftDirty,
+  isSettingsDraftDirty,
   parseKickDistances,
-  parseNumericPreference,
-  stagedPreferences,
-  type StagedPreferences,
-} from "../../services/preferences-draft";
+  parseNumericSetting,
+  stagedSettings,
+  type StagedSettings,
+} from "../../services/settings-draft";
 
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: MessageKey }> = [
   { value: "system", label: "settings.themeSystem" },
@@ -49,7 +49,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const fieldId = useId();
-  const preferences = usePreferencesStore((s) => s.preferences);
+  const settings = useSettingsStore((s) => s.settings);
   const systemLanguage = useLanguageStore((s) => s.systemLanguage);
   // System names what it resolves to now, as the time zone's System does
   // (app-chrome-conventions, Theme).
@@ -63,32 +63,32 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       current = false;
     };
   }, []);
-  const update = usePreferencesStore((s) => s.update);
+  const update = useSettingsStore((s) => s.update);
   const composing = useComposing();
   const i18n = useI18n();
   const { t, text } = i18n;
 
   // Local draft state — everything is edited locally, saved on "Save".
-  const [draft, setDraft] = useState<StagedPreferences>(() =>
-    stagedPreferences(preferences),
+  const [draft, setDraft] = useState<StagedSettings>(() =>
+    stagedSettings(settings),
   );
   const [kickInput, setKickInput] = useState(
-    preferences.kickDistances.join(", "),
+    settings.kickDistances.join(", "),
   );
   const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<Message | null>(null);
   // Offered once per opening: the platform's zone list does not change while
   // the modal is open.
-  const [zones] = useState(() => timeZoneOptions(preferences.timezone));
+  const [zones] = useState(() => timeZoneOptions(settings.timezone));
 
   const isDirty = useMemo(
-    () => isPreferencesDraftDirty(draft, preferences, kickInput),
-    [draft, preferences, kickInput],
+    () => isSettingsDraftDirty(draft, settings, kickInput),
+    [draft, settings, kickInput],
   );
 
-  const dueSoonDays = parseNumericPreference("dueSoonDays", draft.dueSoonDays);
-  const handledTasksPageSize = parseNumericPreference("handledTasksPageSize", draft.handledTasksPageSize);
+  const dueSoonDays = parseNumericSetting("dueSoonDays", draft.dueSoonDays);
+  const handledTasksPageSize = parseNumericSetting("handledTasksPageSize", draft.handledTasksPageSize);
   const kickDistances = parseKickDistances(kickInput);
   const validNumbers = dueSoonDays !== null && handledTasksPageSize !== null
     && kickDistances.status === "valid";
@@ -126,9 +126,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const closeDirty = useDirtyClose(isDirty, onClose);
   const handleRequestClose = () => { if (!submittingRef.current) closeDirty(); };
 
-  const setField = <K extends keyof StagedPreferences>(
+  const setField = <K extends keyof StagedSettings>(
     key: K,
-    value: StagedPreferences[K],
+    value: StagedSettings[K],
   ) => {
     if (submittingRef.current) return;
     setDraft((prev) => ({ ...prev, [key]: value }));

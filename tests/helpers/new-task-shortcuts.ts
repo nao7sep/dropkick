@@ -1,8 +1,8 @@
 import { act, createElement } from "react";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { NewTaskModal } from "../../src/components/layout/NewTaskModal";
-import { createDefaultPreferences, createDefaultWorkspace, createTab } from "../../src/models";
-import { usePreferencesStore } from "../../src/state/preferences-store";
+import { createDefaultSettings, createDefaultWorkspace, createTab } from "../../src/models";
+import { useSettingsStore } from "../../src/state/settings-store";
 import { useWorkspaceStore } from "../../src/state/workspace-store";
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { todayInTimezone, tomorrowInTimezone } from "../../src/utils";
@@ -28,7 +28,7 @@ export function newTaskShortcutCases(Modal: typeof NewTaskModal, platform: "mac"
       ["d", 1], ["t", 1], ["n", 1],
     ] as const)("handles %s in editable field %i", async (key, fieldIndex) => {
       useWorkspaceStore.setState({ workspace: { ...createDefaultWorkspace("Test"), openTabs: [createTab("/one.json", "One")] } });
-      usePreferencesStore.setState({ preferences: { ...createDefaultPreferences(), timezone: "UTC" } });
+      useSettingsStore.setState({ settings: { ...createDefaultSettings(), timezone: "UTC" } });
       const addNewTask = vi.fn(async () => ({ status: "success" as const }));
       useTaskListStore.setState({ addNewTask });
       host = await mount(createElement(Modal, { currentFilePath: "/one.json", isUnifiedView: false, onClose: () => undefined }));

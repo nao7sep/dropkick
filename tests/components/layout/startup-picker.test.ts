@@ -71,7 +71,7 @@ async function mountWithKnownFiles(onLaunch: (workspace: string) => void = () =>
 
 function workspaceListbox(): HTMLElement {
   const list = document.querySelector('[role="listbox"][aria-label="Workspaces"]');
-  if (!list) throw new Error("preferences listbox not found");
+  if (!list) throw new Error("settings listbox not found");
   return list as HTMLElement;
 }
 

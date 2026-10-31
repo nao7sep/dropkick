@@ -85,10 +85,10 @@ export async function readJsonFileWithHash<T>(
 
 // Writes a store's document to disk as formatted JSON, its format's current
 // version first. This is the single write boundary for every JSON file
-// (preferences, workspace, app config, task lists), so it logs the write
+// (settings, workspace, app config, task lists), so it logs the write
 // (debug). Native operation failures are already recorded with their path;
 // only an undelivered invocation needs a frontend error record. This is also the write path for external documents saved
-// at user-picked locations (preferences/task lists outside ~/.dropkick) — the
+// at user-picked locations (settings/task lists outside ~/.dropkick) — the
 // Rust side stages its temp file beside `path` wherever that is, never under
 // ~/.dropkick.
 // Volatile state opts out of the history while using the same atomic writer.
@@ -176,9 +176,7 @@ export interface AppPaths {
   root: string;
   stateFile: string;
   configFile: string;
-  preferencesFile: string; // legacy import only
   settingsFile: string;
-  workspaceFile: string;
   logsDir: string;
   backupsFile: string;
   recordsFile: string;

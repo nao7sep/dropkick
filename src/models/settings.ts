@@ -1,4 +1,4 @@
-// One app-wide collection of user preferences.
+// One app-wide collection of user settings.
 // Controls display and behavior settings.
 
 import { normalizeLanguagePreference, type LanguagePreference } from "../i18n/languages";
@@ -7,7 +7,7 @@ import { isKnownTimeZone, SYSTEM_TIME_ZONE } from "../utils/timezone";
 
 export type ThemePreference = "system" | "light" | "dark";
 
-export interface PreferencesDto {
+export interface SettingsDto {
   // The interface language: "system" follows the computer's language on every
   // launch; otherwise a supported language tag.
   language: LanguagePreference;
@@ -36,7 +36,7 @@ function isValidKickDistances(value: unknown): boolean {
 }
 
 // The UI font stack the app falls back to, and the value the default
-// preferences carry. Kept in lock-step with the --font-ui fallback in App.css:
+// settings carry. Kept in lock-step with the --font-ui fallback in App.css:
 // a family the user types is appended to this, so an unknown one degrades to a
 // real sans face rather than the engine's serif.
 export const DEFAULT_UI_FONT_STACK =
@@ -67,27 +67,27 @@ function isBoundedInteger(value: unknown, min: number, max: number): boolean {
 }
 
 // The app-wide settings sets.
-export const PREFERENCE_SET_KEYS = [
+export const SETTING_SET_KEYS = [
   "language", "fontFamily", "theme", "timezone", "kickDistances", "dueSoonDays",
   "handledTasksPageSize", "confirmPermanentDeletions",
-] as const satisfies readonly (keyof PreferencesDto)[];
-export type PreferenceSetKey = (typeof PREFERENCE_SET_KEYS)[number];
+] as const satisfies readonly (keyof SettingsDto)[];
+export type SettingSetKey = (typeof SETTING_SET_KEYS)[number];
 
-export type PreferenceSets = Pick<PreferencesDto, PreferenceSetKey>;
+export type SettingSets = Pick<SettingsDto, SettingSetKey>;
 
 // The sets in `changes` that differ from `current`, compared whole, including
-// lists. The one decision of what a preferences update changes.
-export function changedPreferenceSets(
-  changes: Partial<PreferenceSets>,
-  current: PreferencesDto,
-): Partial<PreferenceSets> {
-  return Object.fromEntries(PREFERENCE_SET_KEYS
+// lists. The one decision of what a settings update changes.
+export function changedSettingSets(
+  changes: Partial<SettingSets>,
+  current: SettingsDto,
+): Partial<SettingSets> {
+  return Object.fromEntries(SETTING_SET_KEYS
     .filter((key) => Object.prototype.hasOwnProperty.call(changes, key)
       && JSON.stringify(changes[key]) !== JSON.stringify(current[key]))
-    .map((key) => [key, changes[key]])) as Partial<PreferenceSets>;
+    .map((key) => [key, changes[key]])) as Partial<SettingSets>;
 }
 
-function builtInPreferenceSets(): PreferenceSets {
+function builtInSettingSets(): SettingSets {
   return {
     language: "system",
     fontFamily: "",
@@ -100,14 +100,14 @@ function builtInPreferenceSets(): PreferenceSets {
   };
 }
 
-export function createDefaultPreferences(): PreferencesDto {
-  return builtInPreferenceSets();
+export function createDefaultSettings(): SettingsDto {
+  return builtInSettingSets();
 }
 
 // The one check per set, applied where a document is read and where Save
 // writes. Invalid values are refused or replaced as a whole set by the
 // storage owner; validation never changes the supplied value.
-export function isValidPreferenceSet(key: PreferenceSetKey, value: unknown): boolean {
+export function isValidSettingSet(key: SettingSetKey, value: unknown): boolean {
   switch (key) {
     case "language": return value === normalizeLanguagePreference(value);
     case "fontFamily": return typeof value === "string" && value === singleLine(value);
@@ -122,13 +122,13 @@ export function isValidPreferenceSet(key: PreferenceSetKey, value: unknown): boo
 
 // The settings Save writes: every set that differs from its
 // built-in (config-sets-conventions). An invalid set is refused, not written.
-export function preferencesDocument(preferences: PreferencesDto): Record<string, unknown> {
-  const builtIn = builtInPreferenceSets();
+export function settingsDocument(settings: SettingsDto): Record<string, unknown> {
+  const builtIn = builtInSettingSets();
   const document: Record<string, unknown> = {};
-  for (const key of PREFERENCE_SET_KEYS) {
-    const value = preferences[key];
-    if (!isValidPreferenceSet(key, value)) {
-      throw new Error(`Invalid preferences set: ${key}`);
+  for (const key of SETTING_SET_KEYS) {
+    const value = settings[key];
+    if (!isValidSettingSet(key, value)) {
+      throw new Error(`Invalid settings set: ${key}`);
     }
     if (JSON.stringify(value) !== JSON.stringify(builtIn[key])) document[key] = value;
   }

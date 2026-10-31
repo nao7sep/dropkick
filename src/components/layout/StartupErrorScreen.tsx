@@ -4,7 +4,7 @@ import { useI18n } from "../../i18n/I18nContext";
 import { Button } from "../shared/Button";
 import type { Message } from "../../i18n/translate";
 
-// Non-dismissible halt for fatal initialization or preferences-load failures.
+// Non-dismissible halt for fatal initialization or settings-load failures.
 // Expected workspace-load failures return to the workspace picker instead.
 // The app must not fall through to the main window — doing so would let the
 // default in-memory state autosave over the

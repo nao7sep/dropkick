@@ -150,7 +150,7 @@ fn volatile_state_uses_the_atomic_writer_without_recording_backup_history() {
     let _close = CloseStore;
     let state = dir.path().join("state.json");
     let config = dir.path().join("config.json");
-    let preferences = dir.path().join("preferences.json");
+    let settings = dir.path().join("settings.json");
 
     let state_text = r#"{"zoomLevel":1.5}"#;
     let hash = settled(write_text_file_atomic(state.to_str().unwrap().to_string(), state_text.to_string(), Some(false))).unwrap();
@@ -158,7 +158,7 @@ fn volatile_state_uses_the_atomic_writer_without_recording_backup_history() {
     assert_eq!(std::fs::read_to_string(&state).unwrap(), state_text);
     settled(write_text_file_atomic(state.to_str().unwrap().to_string(), r#"{"zoomLevel":2}"#.to_string(), Some(false))).unwrap();
     settled(write_text_file_atomic(config.to_str().unwrap().to_string(), r#"{"knownWorkspaces":[]}"#.to_string(), None)).unwrap();
-    settled(write_text_file_atomic(preferences.to_str().unwrap().to_string(), r#"{"id":"prefs","theme":"dark"}"#.to_string(), Some(true))).unwrap();
+    settled(write_text_file_atomic(settings.to_str().unwrap().to_string(), r#"{"theme":"dark"}"#.to_string(), Some(true))).unwrap();
 
     backup_store::flush();
     let conn = rusqlite::Connection::open(history).unwrap();
@@ -167,7 +167,7 @@ fn volatile_state_uses_the_atomic_writer_without_recording_backup_history() {
     };
     assert_eq!(rows(&state), 0);
     assert_eq!(rows(&config), 1);
-    assert_eq!(rows(&preferences), 1);
+    assert_eq!(rows(&settings), 1);
 }
 
 #[test]

@@ -15,7 +15,7 @@ import {
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
 import { notSaved } from "../../state/action-result";
-import { usePreferencesStore } from "../../state/preferences-store";
+import { useSettingsStore } from "../../state/settings-store";
 import { DatePicker } from "../shared/DatePicker";
 import { AppModal } from "../shared/AppModal";
 import { Button } from "../shared/Button";
@@ -40,7 +40,7 @@ export function NewTaskModal({
   const fieldId = useId();
   const workspace = useWorkspaceStore((s) => s.workspace);
   const addNewTask = useTaskListStore((s) => s.addNewTask);
-  const timezone = usePreferencesStore((s) => s.preferences.timezone);
+  const timezone = useSettingsStore((s) => s.settings.timezone);
 
   const fileTabs = workspace.openTabs.filter((t) => !t.isUnifiedView);
 

@@ -6,7 +6,7 @@ import { Trash2 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
-import { usePreferencesStore } from "../../state/preferences-store";
+import { useSettingsStore } from "../../state/settings-store";
 import { notSaved, type ActionResult } from "../../state";
 import {
   passiveScrollRegionProps,
@@ -57,7 +57,7 @@ export function BulkActions({
 }: BulkActionsProps) {
   const fieldId = useId();
   const { t } = useI18n();
-  const kickDistances = usePreferencesStore((s) => s.preferences.kickDistances);
+  const kickDistances = useSettingsStore((s) => s.settings.kickDistances);
   const kick = useTaskListStore((s) => s.kick);
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
   const sendToLast = useTaskListStore((s) => s.sendToLast);

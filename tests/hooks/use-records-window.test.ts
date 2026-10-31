@@ -36,9 +36,9 @@ vi.mock("../../src/repositories", () => ({
 
 import { useRecordsWindow, useRecordsWindowSync } from "../../src/hooks/useRecordsWindow";
 import { useAppStateStore, VIEW_STEP_SAVE_DELAY_MS } from "../../src/state/app-state-store";
-import { usePreferencesStore } from "../../src/state/preferences-store";
+import { useSettingsStore } from "../../src/state/settings-store";
 import { useLanguageStore } from "../../src/state/language-store";
-import { createDefaultAppState, createDefaultPreferences } from "../../src/models";
+import { createDefaultAppState, createDefaultSettings } from "../../src/models";
 import { RECORDS_LIST_WIDTH, RECORDS_WINDOW_MIN_HEIGHT, RECORDS_WINDOW_MIN_WIDTH } from "../../src/utils/recordsWindowSizing";
 
 let open: (() => Promise<void>) | null = null;
@@ -63,8 +63,8 @@ beforeEach(async () => {
     filePath: "/state.json",
     loaded: true,
   });
-  usePreferencesStore.setState({
-    preferences: { ...createDefaultPreferences(), language: "ja", timezone: "Asia/Tokyo", theme: "dark", fontFamily: "Example UI" },
+  useSettingsStore.setState({
+    settings: { ...createDefaultSettings(), language: "ja", timezone: "Asia/Tokyo", theme: "dark", fontFamily: "Example UI" },
   });
   useLanguageStore.setState({ systemLanguage: "en", systemLocale: "en-US" });
   mounted = await mount(createElement(Host));
@@ -106,8 +106,8 @@ describe("useRecordsWindow", () => {
     expect(records.sendRecordsContext).toHaveBeenLastCalledWith({ language: "ja", locale: "ja", timeZone: "Asia/Tokyo", fontFamily: "Example UI" });
 
     await act(async () => {
-      usePreferencesStore.setState({
-        preferences: { ...usePreferencesStore.getState().preferences, language: "system", timezone: "system" },
+      useSettingsStore.setState({
+        settings: { ...useSettingsStore.getState().settings, language: "system", timezone: "system" },
       });
     });
 
@@ -133,8 +133,8 @@ describe("useRecordsWindow", () => {
     expect(records.width).toBe(receiveWidth);
 
     await act(async () => {
-      usePreferencesStore.setState({
-        preferences: { ...usePreferencesStore.getState().preferences, fontFamily: "Live UI" },
+      useSettingsStore.setState({
+        settings: { ...useSettingsStore.getState().settings, fontFamily: "Live UI" },
       });
     });
 

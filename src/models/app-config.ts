@@ -5,10 +5,8 @@ export interface AppConfigDto {
   knownWorkspaces: string[];
 }
 
-export function createDefaultAppConfig(workspacePath = ""): AppConfigDto {
-  return {
-    knownWorkspaces: workspacePath ? [workspacePath] : [],
-  };
+export function createDefaultAppConfig(): AppConfigDto {
+  return { knownWorkspaces: [] };
 }
 
 // The one check per set, applied where config.json is read
@@ -27,10 +25,10 @@ export function appConfigDocument(appConfig: AppConfigDto, builtIn: AppConfigDto
   return document;
 }
 
-export function registerDocument(paths: string[], path: string): string[] {
+export function registerWorkspace(paths: string[], path: string): string[] {
   return paths.includes(path) ? paths : [...paths, path];
 }
 
-export function unregisterDocument(paths: string[], path: string): string[] {
+export function unregisterWorkspace(paths: string[], path: string): string[] {
   return paths.includes(path) ? paths.filter((candidate) => candidate !== path) : paths;
 }

@@ -4,11 +4,11 @@ import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Task } from "../../../src/models";
 import {
-  createDefaultPreferences,
+  createDefaultSettings,
   createDefaultWorkspace,
 } from "../../../src/models";
 import { BulkActions } from "../../../src/components/task-detail/BulkActions";
-import { usePreferencesStore } from "../../../src/state/preferences-store";
+import { useSettingsStore } from "../../../src/state/settings-store";
 import { useTaskListStore } from "../../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { makeTask } from "../../helpers/task";
@@ -38,7 +38,7 @@ beforeEach(async () => {
     .mockResolvedValueOnce({ status: "validation", reason: "Has actionable notes" });
   moveUp.mockReset().mockResolvedValue({ status: "success", changed: true });
   moveDown.mockReset().mockResolvedValue({ status: "success", changed: true });
-  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+  useSettingsStore.setState({ settings: createDefaultSettings() });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
   useTaskListStore.setState({ updateTaskFields: async (tasks, change) => Promise.all(tasks.map((task) => setStatus(task.sourceFile, task.id, change.value))), moveUp, moveDown });
   host = await mount(

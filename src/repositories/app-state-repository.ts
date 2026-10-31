@@ -1,13 +1,12 @@
 // Owns state.json and serialized view-state writes.
 
 import type { AppStateDto } from "../models";
-import { createDefaultAppState, isV010Document } from "../models";
+import { createDefaultAppState } from "../models";
 import {
   readJsonFileResult,
   writeJsonFile,
   quarantineFile,
   ensureDirectory,
-  fileExists,
   appPaths,
   withSerial,
 } from "./file-system";
@@ -46,7 +45,7 @@ function parseAppState(value: unknown): AppStateDto | string {
 }
 
 // First launch creates only private view state. Documents are created only
-// when the user chooses a location; defaults left by older builds remain usable.
+// when the user chooses a location.
 //
 // `statePath` is empty when state.json was written by a newer build: the
 // session runs on the default state and writes nothing over that file.
@@ -54,11 +53,7 @@ export async function initializeAppState(): Promise<{
   appState: AppStateDto;
   statePath: string;
 }> {
-  const {
-    root,
-    stateFile: statePath,
-    workspaceFile: workspacePath,
-  } = await appPaths();
+  const { root, stateFile: statePath } = await appPaths();
 
   // Ensure ~/.dropkick/ exists.
   await ensureDirectory(root);
@@ -75,18 +70,6 @@ export async function initializeAppState(): Promise<{
   let resetReason: LogFields | null = null;
   if (configResult.status === "invalid") {
     resetReason = { error: { message: configResult.message } };
-  } else if (configResult.status === "success" && isV010Document(configResult.data)) {
-    // v0.1.0's state.json held the last-used paths and the saved locations
-    // (developer decision: the next version opens v0.1.0's files). The paths
-    // carry over here, the locations in loadAppConfig, and the file is left as
-    // it is until the next view-state save writes this build's state.
-    const data = configResult.data;
-    const path = (value: unknown, fallback: string) =>
-      typeof value === "string" && value !== "" ? value : fallback;
-    appState = {
-      ...createDefaultAppState(),
-      lastWorkspacePath: path(data.lastWorkspacePath, await fileExists(workspacePath) ? workspacePath : ""),
-    };
   } else if (configResult.status === "success") {
     const parsed = parseAppState(configResult.data);
     if (typeof parsed === "string") resetReason = { issue: parsed };
@@ -106,12 +89,7 @@ export async function initializeAppState(): Promise<{
     });
   }
   const created = appState === null && !newer;
-  if (appState === null) {
-    appState = {
-      ...createDefaultAppState(),
-      lastWorkspacePath: await fileExists(workspacePath) ? workspacePath : "",
-    };
-  }
+  if (appState === null) appState = createDefaultAppState();
   if (created) await writeJsonFile(statePath, "state", appState, false);
 
   log.info("app state initialized", { statePath, created });

@@ -4,14 +4,14 @@ import { message } from "../../../src/i18n/translate";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createDefaultPreferences,
+  createDefaultSettings,
   createDefaultWorkspace,
   createTab,
 } from "../../../src/models";
 import { useViewTasks } from "../../../src/hooks/useViewTasks";
 import { TaskListPane } from "../../../src/components/task-list/TaskListPane";
-import { usePreferencesStore } from "../../../src/state/preferences-store";
-import { useNoteDraftStore } from "../../../src/state/note-draft-store";
+import { useSettingsStore } from "../../../src/state/settings-store";
+import { useDraftStore } from "../../../src/state/draft-store";
 import { useTaskListStore } from "../../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { makeTask } from "../../helpers/task";
@@ -22,12 +22,12 @@ const copyDraft = (key: string) => `${key}|%2Fone.json`;
 let host: Mounted | null = null;
 
 beforeEach(async () => {
-  useNoteDraftStore.setState({ drafts: {}, draftVersions: {} });
+  useDraftStore.setState({ drafts: {}, draftVersions: {} });
   updateTitle.mockReset().mockResolvedValue({
     status: "error",
     message: message("write.taskList"),
   });
-  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+  useSettingsStore.setState({ settings: createDefaultSettings() });
   useWorkspaceStore.setState({
     workspace: {
       ...createDefaultWorkspace("Test"),
@@ -91,7 +91,7 @@ describe("TaskListPane results", () => {
       status: "reloaded",
       message: message("write.reloaded"),
     });
-    useNoteDraftStore.setState({ drafts: {} });
+    useDraftStore.setState({ drafts: {} });
     const row = document.querySelector('[role="option"]')! as HTMLElement;
     await act(async () => row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
     const input = row.querySelector("input")!;
@@ -110,7 +110,7 @@ describe("TaskListPane results", () => {
 
     expect(updateTitle).toHaveBeenCalledTimes(1);
     expect(row.querySelector("input")).toBeNull();
-    expect(useNoteDraftStore.getState().drafts[copyDraft("a#title")]).toBeUndefined();
+    expect(useDraftStore.getState().drafts[copyDraft("a#title")]).toBeUndefined();
     expect(row.querySelector('[role="alert"]')?.textContent).toContain("reloaded from disk");
   });
 
@@ -164,10 +164,10 @@ it("keeps the rename editor and later draft after a held Reload", async () => {
   });
   await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
   await act(async () => {
-    useNoteDraftStore.getState().setDraft(copyDraft("a#title"), "B");
-    useNoteDraftStore.getState().setDraft(copyDraft("a#title"), "A");
+    useDraftStore.getState().setDraft(copyDraft("a#title"), "B");
+    useDraftStore.getState().setDraft(copyDraft("a#title"), "A");
   });
   await act(async () => { finish({ status: "reloaded", message: message("write.reloaded") }); });
-  expect(useNoteDraftStore.getState().drafts[copyDraft("a#title")]).toBe("A");
+  expect(useDraftStore.getState().drafts[copyDraft("a#title")]).toBe("A");
   expect(row.querySelector("input")?.value).toBe("A");
 });

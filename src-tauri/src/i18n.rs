@@ -52,9 +52,9 @@ pub fn normalize_preference(value: Option<&str>) -> Option<&'static str> {
     LANGUAGES.iter().copied().find(|tag| *tag == value)
 }
 
-/// The preference saved in a preferences document; anything else is System.
-pub fn saved_preference(preferences: &JsonValue) -> Option<&'static str> {
-    normalize_preference(preferences.get("language")?.as_str())
+/// The language preference saved in the settings; anything else is System.
+pub fn saved_preference(settings: &JsonValue) -> Option<&'static str> {
+    normalize_preference(settings.get("language")?.as_str())
 }
 
 /// The language the computer and the saved choice settle on at launch, and the

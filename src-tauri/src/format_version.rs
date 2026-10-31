@@ -16,8 +16,6 @@ const TABLE: &str = include_str!("../../src/models/format-versions.json");
 /// The formats the Rust core reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
-    State,
-    Preferences,
     Settings,
     TaskList,
     WindowPlacement,
@@ -28,9 +26,7 @@ pub enum Format {
 impl Format {
     // Every format, so a test can read each from the table.
     #[cfg(test)]
-    pub const ALL: [Format; 7] = [
-        Format::State,
-        Format::Preferences,
+    pub const ALL: [Format; 5] = [
         Format::Settings,
         Format::TaskList,
         Format::WindowPlacement,
@@ -40,8 +36,6 @@ impl Format {
 
     fn key(self) -> &'static str {
         match self {
-            Format::State => "state",
-            Format::Preferences => "preferences",
             Format::Settings => "settings",
             Format::TaskList => "taskList",
             Format::WindowPlacement => "windowPlacement",
@@ -76,9 +70,9 @@ pub enum Marker {
 
 // The label v0.1.0, the one published release before format markers, wrote
 // into every JSON document it saved (developer decision: the next version
-// opens those files). Its formats are this build's version 1: the body is the
-// same shape, and the loaders convert what changed meaning. Nothing else is
-// inferred from a file's shape.
+// opens its workspaces and task lists). Their formats are this build's
+// version 1, with the same body; a task list without an id is given one.
+// Nothing else is inferred from a file's shape.
 pub const V010_LABEL: &str = "1.0.0";
 
 // A store without a positive-integer marker is unreadable, unless it carries

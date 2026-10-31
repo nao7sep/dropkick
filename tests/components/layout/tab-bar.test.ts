@@ -49,12 +49,12 @@ vi.mock("../../../src/repositories", () => ({
 import { TabBar } from "../../../src/components/layout/TabBar";
 import {
   createDefaultAppState,
-  createDefaultPreferences,
+  createDefaultSettings,
   createDefaultWorkspace,
   createTab,
 } from "../../../src/models";
 import { useAppStateStore } from "../../../src/state/app-state-store";
-import { usePreferencesStore } from "../../../src/state/preferences-store";
+import { useSettingsStore } from "../../../src/state/settings-store";
 import { useTaskListStore } from "../../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { openJsonFileDialog, saveJsonFileDialog } from "../../../src/repositories";
@@ -123,8 +123,8 @@ describe("TabBar wrapped visibility", () => {
       filePath: "",
       loaded: true,
     });
-    usePreferencesStore.setState({
-      preferences: createDefaultPreferences(),
+    useSettingsStore.setState({
+      settings: createDefaultSettings(),
       filePath: "",
       loaded: true,
     });
@@ -365,8 +365,8 @@ describe("TabBar wrapped visibility", () => {
       filePath: "/fixtures/workspace.json",
       loaded: true,
     });
-    usePreferencesStore.setState({
-      preferences: createDefaultPreferences(),
+    useSettingsStore.setState({
+      settings: createDefaultSettings(),
       filePath: "",
       loaded: true,
     });
@@ -454,7 +454,7 @@ describe("TabBar load problems", () => {
       filePath: "",
       loaded: true,
     });
-    usePreferencesStore.setState({ preferences: createDefaultPreferences(), filePath: "", loaded: true });
+    useSettingsStore.setState({ settings: createDefaultSettings(), filePath: "", loaded: true });
     useAppStateStore.setState({ appState: createDefaultAppState(), filePath: "", loaded: true });
     useTaskListStore.setState({
       files: {
@@ -572,7 +572,7 @@ describe("independent menu hover and keyboard navigation", () => {
       workspace: { ...createDefaultWorkspace("Test"), openTabs: [createTab("/fixtures/a.json", "A")] },
       filePath: "", loaded: true,
     });
-    usePreferencesStore.setState({ preferences: createDefaultPreferences(), filePath: "", loaded: true });
+    useSettingsStore.setState({ settings: createDefaultSettings(), filePath: "", loaded: true });
     useAppStateStore.setState({ appState: createDefaultAppState(), filePath: "", loaded: true });
     useTaskListStore.setState({ files: {}, fileLoadErrors: {}, fileDiskErrors: {}, unsavedFiles: {} });
     vi.mocked(openJsonFileDialog).mockClear();
@@ -679,7 +679,7 @@ describe("keyboard tab renaming", () => {
   it.each(["Enter", "Escape"])("renames the focused tab with F2 and returns focus after %s", async (key) => {
     const openTabs = [createTab("/fixtures/a.json", "A"), createTab("/fixtures/b.json", "B"), { ...createTab("", "All"), isUnifiedView: true }];
     useWorkspaceStore.setState({ workspace: { ...createDefaultWorkspace("Test"), openTabs, activeTabIndex: 0 }, filePath: "/fixtures/workspace.json", loaded: true });
-    usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+    useSettingsStore.setState({ settings: createDefaultSettings() });
     useTaskListStore.setState({ files: {}, fileLoadErrors: {}, fileDiskErrors: {} });
     flushWorkspace.mockClear();
     host = await mount(createElement(TabBar, { onMenuSelect: vi.fn(), onChromeHeightChange: vi.fn() }));

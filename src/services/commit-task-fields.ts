@@ -1,6 +1,6 @@
-import { useNoteDraftStore } from "../state/note-draft-store";
+import { useDraftStore } from "../state/draft-store";
 import { useTaskListStore } from "../state/task-list-store";
-import { draftTaskId, draftField, draftSourceFile } from "./note-drafts";
+import { draftTaskId, draftField, draftSourceFile } from "./drafts";
 import { multiline, singleLine } from "../utils/textCleanup";
 
 // Commits every title and description draft still in the draft store, as its
@@ -8,7 +8,7 @@ import { multiline, singleLine } from "../utils/textCleanup";
 // there, and nothing else would save it before the session ends. An empty
 // title is not allowed, so its draft is dropped and the title stays.
 export function commitParkedFields(onlyPath?: string): void {
-  const drafts = useNoteDraftStore.getState();
+  const drafts = useDraftStore.getState();
   const lists = useTaskListStore.getState();
   for (const [key, typed] of Object.entries(drafts.drafts)) {
     const field = draftField(key);

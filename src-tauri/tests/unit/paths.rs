@@ -86,8 +86,6 @@ fn app_paths_puts_every_standard_subpath_under_the_root() {
     for path in [
         &layout.state_file,
         &layout.config_file,
-        &layout.preferences_file,
-        &layout.workspace_file,
         &layout.logs_dir,
         &layout.backups_file,
         &layout.records_file,
@@ -105,8 +103,6 @@ fn app_paths_names_each_store_distinctly() {
     let names = [
         layout.state_file.clone(),
         layout.config_file.clone(),
-        layout.preferences_file.clone(),
-        layout.workspace_file.clone(),
         layout.logs_dir.clone(),
         layout.backups_file.clone(),
         layout.records_file.clone(),

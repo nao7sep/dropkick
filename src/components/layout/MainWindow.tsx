@@ -10,7 +10,7 @@ import {
 import { useAppStateStore } from "../../state/app-state-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
-import { useNoteDraftStore } from "../../state/note-draft-store";
+import { useDraftStore } from "../../state/draft-store";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { useViewTasks } from "../../hooks/useViewTasks";
 import { useRecordsWindow } from "../../hooks/useRecordsWindow";
@@ -53,7 +53,7 @@ interface MainWindowProps {
 
 export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWindowProps) {
   const { t } = useI18n();
-  // Zoom and sidebar width are view state (state.json), not preferences.
+  // Zoom and sidebar width are view state (state.json), not settings.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   const sidebarIntent = useAppStateStore((s) => s.appState.sidebarWidth);
   const updateViewState = useAppStateStore((s) => s.updateViewState);
@@ -147,7 +147,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   }, [hasActiveTab]);
 
   // Sync dragIntent when the persisted intent changes externally (e.g. a
-  // different preferences file loads). Skipped mid-drag so the live drag wins.
+  // keyboard step). Skipped mid-drag so the live drag wins.
   useEffect(() => {
     if (draggingRef.current) return;
     setDragIntent(intent);
@@ -353,7 +353,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
     return () => superseded.abort();
   }, [openListPathsKey, activeTab?.filePath, activeTab?.isUnifiedView, loadFile]);
 
-  // Drop note drafts whose subject is provably gone.
+  // Drop drafts whose subject is provably gone.
   //
   // Drafts outlive the component showing them, so a note deleted while its
   // draft was parked would otherwise leave that draft behind for the session —
@@ -362,7 +362,7 @@ export function MainWindow({ onChromeHeightChange, onSwitchWorkspace }: MainWind
   // judges only what is loaded and only drops what it can prove, so this needs
   // no completeness gate and can run whenever the loaded lists change.
   useEffect(() => {
-    useNoteDraftStore
+    useDraftStore
       .getState()
       .reconcile(Object.entries(files).map(([sourceFile, f]) => ({ ...f.data, sourceFile })));
   }, [files]);

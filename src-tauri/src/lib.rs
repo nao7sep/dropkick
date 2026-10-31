@@ -754,7 +754,7 @@ fn write_atomic_impl(
     // hook lives in exactly one place. record() only queues bytes for the
     // history's own thread and returns at once: the save is complete, and a slow or locked store never
     // delays its reply. Managed durable text (config.json,
-    // preferences/workspaces/task-lists — internal and external) is recorded;
+    // settings/workspaces/task-lists — internal and external) is recorded;
     // the history keeps one row per path per session. Not
     // recorded: volatile state saved through write_atomic_unrecorded (state.json, window.json, records-window.json),
     // records (records.sqlite3 and its fallback logs, written by the logging module, never

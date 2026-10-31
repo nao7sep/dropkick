@@ -19,7 +19,7 @@ export interface DeleteSelectedTasksResult {
 
 // Deletes one selection with at most one write per source list. A source-file
 // failure leaves every task from that file intact and selected; successful
-// files still land, and only their now-orphaned note drafts are cleared.
+// files still land, and only their now-orphaned drafts are cleared.
 export async function deleteSelectedTasks({
   selectedTasks,
   removeTasks,

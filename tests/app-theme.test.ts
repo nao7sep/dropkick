@@ -46,8 +46,8 @@ vi.mock("../src/repositories", () => ({
   loadFailureFields: vi.fn(() => ({})),
   initializeAppState: vi.fn(),
   flushAppState: vi.fn(),
-  loadPreferences: vi.fn(),
-  flushPreferences: vi.fn(),
+  loadSettings: vi.fn(),
+  flushSettings: vi.fn(),
 }));
 
 vi.mock("../src/components/layout/StartupPicker", async () => {
@@ -75,7 +75,7 @@ vi.mock("../src/components/shared/ToastHost", () => ({
 }));
 
 import App from "../src/App";
-import { createDefaultAppState, createDefaultPreferences } from "../src/models";
+import { createDefaultAppState, createDefaultSettings } from "../src/models";
 import type { ThemePreference } from "../src/models";
 import { loadCatalogue } from "../src/i18n/catalogues";
 import type { LanguagePreference } from "../src/i18n/languages";
@@ -83,11 +83,11 @@ import { currentInterfaceLanguage } from "../src/hooks/useInterfaceLanguage";
 import { useLanguageStore } from "../src/state/language-store";
 import { useAppConfigStore } from "../src/state/app-config-store";
 import { useAppStateStore } from "../src/state/app-state-store";
-import { usePreferencesStore } from "../src/state/preferences-store";
+import { useSettingsStore } from "../src/state/settings-store";
 import { mount } from "./helpers/react-dom";
 import type { Mounted } from "./helpers/react-dom";
 
-const LAST_PREFERENCES = "/last-preferences.json";
+const LAST_SETTINGS = "/last-settings.json";
 let host: Mounted;
 let loadedTheme: ThemePreference;
 let loadedLanguage: LanguagePreference;
@@ -120,21 +120,21 @@ beforeEach(() => {
   useAppStateStore.setState({ appState, initialize, loaded: false });
   useAppConfigStore.setState({ initialize: vi.fn().mockResolvedValue(null), appConfig: { knownWorkspaces: ["/workspace.json"] } });
 
-  const initializePreferences = vi.fn(async () => {
-    const filePath = LAST_PREFERENCES;
-    const preferences = {
-      ...createDefaultPreferences(),
+  const initializeSettings = vi.fn(async () => {
+    const filePath = LAST_SETTINGS;
+    const settings = {
+      ...createDefaultSettings(),
       theme: loadedTheme,
       language: loadedLanguage,
     };
-    usePreferencesStore.setState({ preferences, filePath, loaded: true });
-    return { status: "success" as const, preferences, filePath };
+    useSettingsStore.setState({ settings, filePath, loaded: true });
+    return { status: "success" as const, settings, filePath };
   });
-  usePreferencesStore.setState({
-    preferences: createDefaultPreferences(),
+  useSettingsStore.setState({
+    settings: createDefaultSettings(),
     filePath: "",
     loaded: false,
-    initialize: initializePreferences,
+    initialize: initializeSettings,
   });
 });
 
@@ -160,14 +160,14 @@ describe("startup theme", () => {
     loadedTheme = "system";
     await mountApp();
 
-    expect(usePreferencesStore.getState().initialize).toHaveBeenCalledOnce();
+    expect(useSettingsStore.getState().initialize).toHaveBeenCalledOnce();
     expect(applyWindowTheme.mock.calls).toEqual([["system"]]);
   });
 
   it("applies the app-wide theme, never the pre-load default", async () => {
     await mountApp();
 
-    expect(usePreferencesStore.getState().initialize).toHaveBeenCalledWith();
+    expect(useSettingsStore.getState().initialize).toHaveBeenCalledWith();
     expect(document.body.textContent).toContain("Startup picker");
     expect(applyWindowTheme.mock.calls).toEqual([["dark"]]);
   });
@@ -205,8 +205,8 @@ describe("startup theme", () => {
   it("applies a changed theme once the app is running", async () => {
     await mountApp();
     await act(async () => {
-      const { preferences } = usePreferencesStore.getState();
-      usePreferencesStore.setState({ preferences: { ...preferences, theme: "light" } });
+      const { settings } = useSettingsStore.getState();
+      useSettingsStore.setState({ settings: { ...settings, theme: "light" } });
     });
 
     expect(applyWindowTheme).toHaveBeenLastCalledWith("light");
@@ -249,8 +249,8 @@ describe("startup language", () => {
   it("applies a changed language once the app is running", async () => {
     await mountApp();
     await act(async () => {
-      const { preferences } = usePreferencesStore.getState();
-      usePreferencesStore.setState({ preferences: { ...preferences, language: "de" } });
+      const { settings } = useSettingsStore.getState();
+      useSettingsStore.setState({ settings: { ...settings, language: "de" } });
     });
 
     expect(applyLanguage).toHaveBeenLastCalledWith("de");

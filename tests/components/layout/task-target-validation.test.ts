@@ -5,13 +5,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NewTaskModal } from "../../../src/components/layout/NewTaskModal";
 import { MoveTasksModal } from "../../../src/components/layout/MoveTasksModal";
 import {
-  createDefaultPreferences,
+  createDefaultSettings,
   createDefaultWorkspace,
   createTab,
   type Task,
 } from "../../../src/models";
 import { useTaskListStore } from "../../../src/state/task-list-store";
-import { usePreferencesStore } from "../../../src/state/preferences-store";
+import { useSettingsStore } from "../../../src/state/settings-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { makeTask } from "../../helpers/task";
 import { mount, type Mounted } from "../../helpers/react-dom";
@@ -44,7 +44,7 @@ describe("task target validation", () => {
         activeTabIndex: 0,
       },
     });
-    usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+    useSettingsStore.setState({ settings: createDefaultSettings() });
     host = await mount(
       createElement(NewTaskModal, {
         currentFilePath: "",
@@ -104,7 +104,7 @@ describe("task target validation", () => {
 
 it("holds the submitted New Task fields and close paths until settlement", async () => {
   useWorkspaceStore.setState({ workspace: { ...createDefaultWorkspace("Test"), openTabs: [createTab("/one.json", "One")] } });
-  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+  useSettingsStore.setState({ settings: createDefaultSettings() });
   let finish!: (result: { status: "success" }) => void;
   const addNewTask = vi.fn(() => new Promise<{ status: "success" }>((resolve) => { finish = resolve; }));
   const onClose = vi.fn(); useTaskListStore.setState({ addNewTask });
@@ -124,7 +124,7 @@ it("holds the submitted New Task fields and close paths until settlement", async
 // submit names the missing field instead of adding an untitled task.
 it("refuses a New Task without a title and says so at the title field", async () => {
   useWorkspaceStore.setState({ workspace: { ...createDefaultWorkspace("Test"), openTabs: [createTab("/one.json", "One")] } });
-  usePreferencesStore.setState({ preferences: createDefaultPreferences() });
+  useSettingsStore.setState({ settings: createDefaultSettings() });
   const addNewTask = vi.fn(async () => ({ status: "success" as const }));
   useTaskListStore.setState({ addNewTask });
   host = await mount(createElement(NewTaskModal, { currentFilePath: "/one.json", isUnifiedView: false, onClose: () => undefined }));

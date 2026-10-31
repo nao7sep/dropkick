@@ -17,7 +17,7 @@
 // Note text not yet added or saved lasts only while Dropkick runs (developer
 // decision), so an ordinary quit asks before discarding it and the end of an
 // OS session discards it without asking. A title or description is ordinary
-// saving: the close commits it, focused or parked (state/note-draft-store).
+// saving: the close commits it, focused or parked (state/draft-store).
 //
 // The quit has one deadline, EXIT_DEADLINE_MS, fixed here when the close's
 // waits start. The writes, then log forwarding, draw on it, and close_window
@@ -40,8 +40,8 @@ import {
   showQuitDiscardConfirm,
   toErrorFields,
 } from "../repositories";
-import { useNoteDraftStore } from "../state/note-draft-store";
-import { unsavedNoteText } from "../services/note-drafts";
+import { useDraftStore } from "../state/draft-store";
+import { unsavedNoteText } from "../services/drafts";
 import { commitParkedFields } from "../services/commit-task-fields";
 import { useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
@@ -83,9 +83,9 @@ async function settlePendingWrites(): Promise<string[]> {
 async function confirmDiscardNoteText(): Promise<boolean> {
   if (sessionEnding) return true;
   const unsaved = unsavedNoteText(
-    useNoteDraftStore.getState().drafts,
+    useDraftStore.getState().drafts,
     Object.entries(useTaskListStore.getState().files).map(([sourceFile, file]) => ({ ...file.data, sourceFile })),
-    Object.values(useNoteDraftStore.getState().parkedTasks),
+    Object.values(useDraftStore.getState().parkedTasks),
   );
   if (!unsaved.any) return true;
   const discard = await showQuitDiscardConfirm(unsaved.taskTitles);

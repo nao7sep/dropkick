@@ -42,9 +42,9 @@ import {
 } from "../repositories";
 import { createTask, createNote, parseTaskKey, retainSelection } from "../utils";
 import type { CreateTaskOptions } from "../utils";
-import { usePreferencesStore } from "./preferences-store";
-import { useNoteDraftStore } from "./note-draft-store";
-import { holdsDraftFor } from "../services/note-drafts";
+import { useSettingsStore } from "./settings-store";
+import { useDraftStore } from "./draft-store";
+import { holdsDraftFor } from "../services/drafts";
 import { markTaskListEdit, retainLaterTaskList, settleTaskMove } from "../services/task-list-settlement";
 import {
   canTransitionStatus,
@@ -506,7 +506,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
   ): Promise<ActionResult> {
     let selectedCount = 0;
     let empty = false;
-    const prefs = usePreferencesStore.getState().preferences;
+    const prefs = useSettingsStore.getState().settings;
     const result = await mutateTasks(
       filePath,
       action,
@@ -537,7 +537,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
         // A write queued behind this read holds newer input; it keeps its copy.
         if (pendingSerialKeys().includes(filePath)) return false;
         if (get().unsavedFiles[filePath]) return false;
-        if (holdsDraftFor(useNoteDraftStore.getState().drafts, current.data.tasks, filePath)) {
+        if (holdsDraftFor(useDraftStore.getState().drafts, current.data.tasks, filePath)) {
           return false;
         }
         duplicate = duplicateOf(get().files, data, filePath);
@@ -651,7 +651,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
       requested.delete(filePath);
       await forgetTaskList(filePath, () => {
         const closing = get().files[filePath];
-        if (closing) useNoteDraftStore.getState().rememberTasks(closing.data, filePath);
+        if (closing) useDraftStore.getState().rememberTasks(closing.data, filePath);
         set((state) => ({
           files: removeRecordKey(state.files, filePath),
           fileLoadErrors: removeRecordKey(state.fileLoadErrors, filePath),
@@ -901,7 +901,7 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
           const sourceState = get().files[sourceFilePath];
           const destState = get().files[destFilePath];
           if (!sourceState || !destState) return null;
-          if (holdsDraftFor(useNoteDraftStore.getState().drafts,
+          if (holdsDraftFor(useDraftStore.getState().drafts,
             sourceState.data.tasks.filter((task) => taskIds.has(task.id)), destFilePath)) {
             identityCollision = true;
             return null;
@@ -930,8 +930,8 @@ export const useTaskListStore = create<TaskListState>((set, get) => {
                 [destFilePath]: { data: settled.destData },
               }, selectedKeys: new Set() }));
               const surviving = new Set(settled.destData.tasks.map((task) => task.id));
-              for (const id of taskIds) if (!surviving.has(id)) useNoteDraftStore.getState().clearTaskDrafts(id, sourceFilePath);
-              useNoteDraftStore.getState().moveTaskDrafts(taskIds, sourceFilePath, destFilePath);
+              for (const id of taskIds) if (!surviving.has(id)) useDraftStore.getState().clearTaskDrafts(id, sourceFilePath);
+              useDraftStore.getState().moveTaskDrafts(taskIds, sourceFilePath, destFilePath);
               // Both writes carried the store's whole copy of each list, so a
               // list left unsaved by an earlier failure is saved now.
               clearUnsaved(sourceFilePath);

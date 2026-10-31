@@ -13,7 +13,7 @@ import {
 import type { Task, TaskStatus, TaskPriority, NoteDto, NoteActionability } from "../../models";
 import { notSaved, type ActionResult } from "../../state";
 import { useTaskListStore } from "../../state/task-list-store";
-import { usePreferencesStore } from "../../state/preferences-store";
+import { useSettingsStore } from "../../state/settings-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { showNoteDeletionConfirm } from "../../repositories";
 import {
@@ -30,7 +30,7 @@ import { DatePicker } from "../shared/DatePicker";
 import { Toolbar } from "../shared/Toolbar";
 import { Button } from "../shared/Button";
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
-import { useNoteDraftStore } from "../../state/note-draft-store";
+import { useDraftStore } from "../../state/draft-store";
 import { composerDraftKey, editorDraftKey, fieldDraftKey } from "../../services";
 import { useAutoGrow } from "../../hooks/useAutoGrow";
 import { useDirtyClose } from "../../hooks/useDirtyClose";
@@ -67,14 +67,14 @@ export function TaskDetail({
   const fieldId = useId();
   const i18n = useI18n();
   const { t, text } = i18n;
-  const preferences = usePreferencesStore((s) => s.preferences);
+  const settings = useSettingsStore((s) => s.settings);
   const updateTitle = useTaskListStore((s) => s.updateTitle);
   const updateDescription = useTaskListStore((s) => s.updateDescription);
   const setStatusAction = useTaskListStore((s) => s.setStatus);
   const setPriority = useTaskListStore((s) => s.setPriority);
   const setDueDate = useTaskListStore((s) => s.setDueDate);
   const addNewNote = useTaskListStore((s) => s.addNewNote);
-  const kickDistances = preferences.kickDistances;
+  const kickDistances = settings.kickDistances;
   const kick = useTaskListStore((s) => s.kick);
   const sendToFirst = useTaskListStore((s) => s.sendToFirst);
   const sendToLast = useTaskListStore((s) => s.sendToLast);
@@ -97,11 +97,11 @@ export function TaskDetail({
   // The composer draft belongs to this source copy and lives in the store, so
   // it survives this component unmounting (task switch, tab cycle, bulk action),
   // is restored when the task is selected again within this app session.
-  const newNoteContent = useNoteDraftStore(
+  const newNoteContent = useDraftStore(
     (s) => s.drafts[composerDraftKey(task.id, filePath)] ?? "",
   );
-  const setDraft = useNoteDraftStore((s) => s.setDraft);
-  const clearDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
+  const setDraft = useDraftStore((s) => s.setDraft);
+  const clearDraftIf = useDraftStore((s) => s.clearDraftIf);
 
   // Title and description commit on blur, and while they are being edited the
   // typed text is a draft in the same store, so switching tasks before a blur
@@ -109,10 +109,10 @@ export function TaskDetail({
   // the "edited, not yet committed" state; with none, the field shows the task.
   const titleKey = fieldDraftKey(task.id, "title", filePath);
   const descriptionKey = fieldDraftKey(task.id, "description", filePath);
-  const titleDraft = useNoteDraftStore((s) => s.drafts[titleKey]) ?? task.title;
-  const descDraft = useNoteDraftStore((s) => s.drafts[descriptionKey]) ?? task.description;
+  const titleDraft = useDraftStore((s) => s.drafts[titleKey]) ?? task.title;
+  const descDraft = useDraftStore((s) => s.drafts[descriptionKey]) ?? task.description;
 
-  const addingNote = useNoteDraftStore((s) => {
+  const addingNote = useDraftStore((s) => {
     const version = s.draftVersions[composerDraftKey(task.id, filePath)];
     return version !== undefined && s.submittingVersions.has(version);
   });
@@ -185,11 +185,11 @@ export function TaskDetail({
   // draft, even if its text has returned to the submitted value.
   const commitTitle = async (typed: string) => {
     const key = titleKey;
-    const version = useNoteDraftStore.getState().draftVersions[key];
+    const version = useDraftStore.getState().draftVersions[key];
     const cleaned = singleLine(typed, { minify: true });
     // An empty title is not allowed: dropping the draft reverts the field.
     if (cleaned && cleaned !== task.title) {
-      const result = await updateTitle(filePath, task.id, cleaned, useNoteDraftStore.getState().editedAtUtc[key]);
+      const result = await updateTitle(filePath, task.id, cleaned, useDraftStore.getState().editedAtUtc[key]);
       if (result.status === "error") {
         setTitleError(result.message);
         return;
@@ -206,10 +206,10 @@ export function TaskDetail({
 
   const commitDescription = async (typed: string) => {
     const key = descriptionKey;
-    const version = useNoteDraftStore.getState().draftVersions[key];
+    const version = useDraftStore.getState().draftVersions[key];
     const cleaned = multiline(typed);
     if (cleaned !== task.description) {
-      const result = await updateDescription(filePath, task.id, cleaned, useNoteDraftStore.getState().editedAtUtc[key]);
+      const result = await updateDescription(filePath, task.id, cleaned, useDraftStore.getState().editedAtUtc[key]);
       if (result.status === "error") {
         setDescriptionError(result.message);
         return;
@@ -229,7 +229,7 @@ export function TaskDetail({
   // already happened and the draft is committed now, as its blur would have.
   // A field the user is in keeps its draft until it blurs.
   useEffect(() => {
-    const { drafts } = useNoteDraftStore.getState();
+    const { drafts } = useDraftStore.getState();
     const title = drafts[titleKey];
     if (title !== undefined && document.activeElement !== titleRef.current) {
       void commitTitle(title);
@@ -289,7 +289,7 @@ export function TaskDetail({
   ) => {
     const composerKey = composerDraftKey(task.id, filePath);
     if (!multiline(newNoteContent)) return;
-    const result = await useNoteDraftStore.getState().submitDraft(composerKey, (text, editedAtUtc) =>
+    const result = await useDraftStore.getState().submitDraft(composerKey, (text, editedAtUtc) =>
       addNewNote(filePath, task.id, multiline(text), actionability, editedAtUtc),
     );
     if (result?.status === "error" || result?.status === "reloaded") {
@@ -346,7 +346,7 @@ export function TaskDetail({
         value={titleDraft}
         onChange={(e) => setDraft(titleKey, e.target.value)}
         onBlur={() => {
-          const typed = useNoteDraftStore.getState().drafts[titleKey];
+          const typed = useDraftStore.getState().drafts[titleKey];
           if (typed !== undefined) void commitTitle(typed);
         }}
         onKeyDown={(e) => {
@@ -536,7 +536,7 @@ export function TaskDetail({
             autoGrowDesc();
           }}
           onBlur={() => {
-            const typed = useNoteDraftStore.getState().drafts[descriptionKey];
+            const typed = useDraftStore.getState().drafts[descriptionKey];
             if (typed !== undefined) void commitDescription(typed);
           }}
           rows={3}
@@ -554,18 +554,18 @@ export function TaskDetail({
       <div className="mb-4 space-y-0.5 text-xs text-ink-muted">
         <div>
           {t("detail.created", {
-            time: formatTimestamp(task.createdAtUtc, preferences.timezone, i18n.dateTime),
+            time: formatTimestamp(task.createdAtUtc, settings.timezone, i18n.dateTime),
           })}
         </div>
         <div>
           {t("detail.updated", {
-            time: formatTimestamp(task.updatedAtUtc, preferences.timezone, i18n.dateTime),
+            time: formatTimestamp(task.updatedAtUtc, settings.timezone, i18n.dateTime),
           })}
         </div>
         {task.completedAtUtc && (
           <div>
             {t("detail.handled", {
-              time: formatTimestamp(task.completedAtUtc, preferences.timezone, i18n.dateTime),
+              time: formatTimestamp(task.completedAtUtc, settings.timezone, i18n.dateTime),
             })}
           </div>
         )}
@@ -660,7 +660,7 @@ function NoteItem({
   taskId: string;
   filePath: string;
 }) {
-  const preferences = usePreferencesStore((s) => s.preferences);
+  const settings = useSettingsStore((s) => s.settings);
   const updateNote = useTaskListStore((s) => s.updateNote);
   const removeNote = useTaskListStore((s) => s.removeNote);
   const setActionability = useTaskListStore((s) => s.setNoteActionability);
@@ -671,13 +671,13 @@ function NoteItem({
   // for this app session. Ordinary quit asks before dropping it. Edit seeds
   // it, Save and Cancel clear it.
   const draftKey = editorDraftKey(taskId, note.id, filePath);
-  const entry = useNoteDraftStore((s) => s.drafts[draftKey]);
-  const setDraft = useNoteDraftStore((s) => s.setDraft);
-  const openDraft = useNoteDraftStore((s) => s.openDraft);
-  const clearDraft = useNoteDraftStore((s) => s.clearDraft);
-  const clearDraftIf = useNoteDraftStore((s) => s.clearDraftIf);
-  const justOpened = useNoteDraftStore((s) => s.justOpenedKey === draftKey);
-  const clearJustOpened = useNoteDraftStore((s) => s.clearJustOpened);
+  const entry = useDraftStore((s) => s.drafts[draftKey]);
+  const setDraft = useDraftStore((s) => s.setDraft);
+  const openDraft = useDraftStore((s) => s.openDraft);
+  const clearDraft = useDraftStore((s) => s.clearDraft);
+  const clearDraftIf = useDraftStore((s) => s.clearDraftIf);
+  const justOpened = useDraftStore((s) => s.justOpenedKey === draftKey);
+  const clearJustOpened = useDraftStore((s) => s.clearJustOpened);
   const editing = entry !== undefined;
   const draft = entry ?? "";
   const i18n = useI18n();
@@ -694,7 +694,7 @@ function NoteItem({
   const closeEditor = (clear: () => void) => {
     const ownsFocus = cardRef.current?.contains(document.activeElement) ?? false;
     clear();
-    returnFocus.current = ownsFocus && useNoteDraftStore.getState().drafts[draftKey] === undefined;
+    returnFocus.current = ownsFocus && useDraftStore.getState().drafts[draftKey] === undefined;
   };
   useLayoutEffect(() => {
     if (!editing && returnFocus.current) {
@@ -730,7 +730,7 @@ function NoteItem({
   // carries an actionability the user may have picked from the dropdown, and
   // clearing that on an unrelated text save would be a new way to lose work.
   const handleSave = async (actionability?: NoteActionability) => {
-    const version = useNoteDraftStore.getState().draftVersions[draftKey];
+    const version = useDraftStore.getState().draftVersions[draftKey];
     const cleaned = multiline(draft);
     if (!cleaned) {
       // Revert — don't allow empty notes.
@@ -738,7 +738,7 @@ function NoteItem({
       return;
     }
     if (cleaned !== note.content) {
-      const result = await updateNote(filePath, taskId, note.id, cleaned, useNoteDraftStore.getState().editedAtUtc[draftKey]);
+      const result = await updateNote(filePath, taskId, note.id, cleaned, useDraftStore.getState().editedAtUtc[draftKey]);
       if (result.status === "error") {
         // Keep the draft as typed so the user can retry or Cancel; a failed
         // write is no reason to discard their text.
@@ -780,7 +780,7 @@ function NoteItem({
 
   const handleDeleteNote = async () => {
     const confirmed =
-      !preferences.confirmPermanentDeletions ||
+      !settings.confirmPermanentDeletions ||
       (await showNoteDeletionConfirm());
     if (confirmed) {
       const result = await removeNote(filePath, taskId, note.id);
@@ -852,7 +852,7 @@ function NoteItem({
         </select>
 
         <span className="ml-auto text-xs text-ink-muted">
-          {formatTimestamp(note.createdAtUtc, preferences.timezone, i18n.dateTime)}
+          {formatTimestamp(note.createdAtUtc, settings.timezone, i18n.dateTime)}
         </span>
         {!editing && (
           <button
@@ -935,7 +935,7 @@ function NoteItem({
           {note.editedAtUtc ? (
             <p className="mt-1 text-xs text-ink-muted">
               {t("note.edited", {
-                time: formatTimestamp(note.editedAtUtc, preferences.timezone, i18n.dateTime),
+                time: formatTimestamp(note.editedAtUtc, settings.timezone, i18n.dateTime),
               })}
             </p>
           ) : null}

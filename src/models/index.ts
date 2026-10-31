@@ -4,8 +4,8 @@ export {
   createDefaultAppConfig,
   APP_CONFIG_SET_KEYS,
   isValidAppConfigSet,
-  registerDocument,
-  unregisterDocument,
+  registerWorkspace,
+  unregisterWorkspace,
 } from "./app-config";
 
 export type {
@@ -15,17 +15,17 @@ export { createDefaultAppState } from "./app-state";
 
 
 export type {
-  PreferencesDto,
+  SettingsDto,
   ThemePreference,
-  PreferenceSetKey,
-  PreferenceSets,
-} from "./preferences";
+  SettingSetKey,
+  SettingSets,
+} from "./settings";
 export {
-  changedPreferenceSets,
-  createDefaultPreferences,
-  PREFERENCE_SET_KEYS,
-  isValidPreferenceSet,
-  preferencesDocument,
+  changedSettingSets,
+  createDefaultSettings,
+  SETTING_SET_KEYS,
+  isValidSettingSet,
+  settingsDocument,
   normalizeThemePreference,
   DEFAULT_KICK_DISTANCES,
   KICK_DISTANCE_MIN,
@@ -37,7 +37,7 @@ export {
   HANDLED_TASKS_PAGE_SIZE_MIN,
   HANDLED_TASKS_PAGE_SIZE_MAX,
   HANDLED_TASKS_PAGE_SIZE_DEFAULT,
-} from "./preferences";
+} from "./settings";
 
 export type {
   WorkspaceDto,
@@ -69,4 +69,4 @@ export type {
 export { TASK_GROUP_ORDER } from "./domain";
 
 export type { StoreFormat, FormatVersionCheck, StoreRecovery } from "./store-format";
-export { FORMAT_VERSIONS, V010_LABEL, checkFormatVersion, isV010Document, withFormatVersion } from "./store-format";
+export { FORMAT_VERSIONS, checkFormatVersion, withFormatVersion } from "./store-format";

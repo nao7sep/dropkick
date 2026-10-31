@@ -5,18 +5,18 @@ import {
   deleteSelectedTasks,
   type DeleteSelectedTasksResult,
 } from "../services";
-import { useNoteDraftStore } from "../state/note-draft-store";
-import { usePreferencesStore } from "../state/preferences-store";
+import { useDraftStore } from "../state/draft-store";
+import { useSettingsStore } from "../state/settings-store";
 import { useTaskListStore } from "../state/task-list-store";
 import { taskSelectionKey } from "../utils";
 
 export function useTaskDeletion() {
-  const confirmPermanentDeletions = usePreferencesStore(
-    (state) => state.preferences.confirmPermanentDeletions,
+  const confirmPermanentDeletions = useSettingsStore(
+    (state) => state.settings.confirmPermanentDeletions,
   );
   const removeTasks = useTaskListStore((state) => state.removeTasks);
   const setSelection = useTaskListStore((state) => state.setSelection);
-  const clearTaskDrafts = useNoteDraftStore((state) => state.clearTaskDrafts);
+  const clearTaskDrafts = useDraftStore((state) => state.clearTaskDrafts);
 
   return useCallback(
     async (

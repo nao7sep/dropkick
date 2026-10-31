@@ -23,7 +23,7 @@ import {
   toErrorFields,
 } from "./repositories";
 import { DEFAULT_UI_FONT_STACK } from "./models";
-import { usePreferencesStore } from "./state/preferences-store";
+import { useSettingsStore } from "./state/settings-store";
 import { useAppConfigStore } from "./state/app-config-store";
 import { useAppStateStore } from "./state/app-state-store";
 import { useLanguageStore } from "./state/language-store";
@@ -59,14 +59,14 @@ function App() {
   const [phase, setPhase] = useState<AppPhase>({ kind: "loading" });
   const [startupNotices, setStartupNotices] = useState<StartupNotice[]>([]);
   const [mainChromeHeight, setMainChromeHeight] = useState(TAB_BAR_MIN_HEIGHT);
-  const initializePreferences = usePreferencesStore((s) => s.initialize);
+  const initializeSettings = useSettingsStore((s) => s.initialize);
   const initializeAppConfig = useAppConfigStore((s) => s.initialize);
   const initializeAppState = useAppStateStore((s) => s.initialize);
   const setLastWorkspace = useAppStateStore((s) => s.setLastWorkspace);
-  const theme = usePreferencesStore((s) => s.preferences.theme);
+  const theme = useSettingsStore((s) => s.settings.theme);
   const loadLanguageEnvironment = useLanguageStore((s) => s.load);
   const { language, locale } = useInterfaceLanguage();
-  const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
+  const fontFamily = useSettingsStore((s) => s.settings.fontFamily);
   const initializedRef = useRef(false);
   // The workspace open in progress, as one latest-request token: a newer open,
   // Choose another or Cancel supersedes it, and its late result is dropped
@@ -223,10 +223,10 @@ function App() {
       let isCurrent: (() => boolean) | null = null;
       try {
         await loadLanguageEnvironment();
-        const preferences = await initializePreferences();
-        if (preferences.status !== "success") {
+        const settings = await initializeSettings();
+        if (settings.status !== "success") {
           await loadInterfaceCatalogue(currentInterfaceLanguage());
-          setPhase({ kind: "error", message: describeLoadFailure("preferences", preferences, preferences.filePath) });
+          setPhase({ kind: "error", message: describeLoadFailure("settings", settings, settings.filePath) });
           return;
         }
         await initializeAppState();
@@ -264,7 +264,7 @@ function App() {
         });
       }
     })();
-  }, [initializeAppState, initializeAppConfig, loadLanguageEnvironment, initializePreferences]);
+  }, [initializeAppState, initializeAppConfig, loadLanguageEnvironment, initializeSettings]);
 
   const handleLaunch = async (
     workspacePath: string,

@@ -4,12 +4,12 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Task } from "../../../src/models";
 import {
-  createDefaultPreferences,
+  createDefaultSettings,
   createDefaultWorkspace,
 } from "../../../src/models";
 import { TaskDetail } from "../../../src/components/task-detail/TaskDetail";
-import { useNoteDraftStore } from "../../../src/state/note-draft-store";
-import { usePreferencesStore } from "../../../src/state/preferences-store";
+import { useDraftStore } from "../../../src/state/draft-store";
+import { useSettingsStore } from "../../../src/state/settings-store";
 import { useWorkspaceStore } from "../../../src/state/workspace-store";
 import { makeNote, makeTask } from "../../helpers/task";
 import { mount, type Mounted } from "../../helpers/react-dom";
@@ -44,11 +44,11 @@ function noteCard(content: string): HTMLElement {
 }
 
 beforeEach(async () => {
-  usePreferencesStore.setState({
-    preferences: { ...createDefaultPreferences(), timezone: "UTC" },
+  useSettingsStore.setState({
+    settings: { ...createDefaultSettings(), timezone: "UTC" },
   });
   useWorkspaceStore.setState({ workspace: createDefaultWorkspace("Test") });
-  useNoteDraftStore.setState({ drafts: {} });
+  useDraftStore.setState({ drafts: {} });
   host = await mount(
     createElement(TaskDetail, {
       task: task(),

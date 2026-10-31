@@ -14,12 +14,13 @@ use serde::{Deserialize, Serialize};
 
 pub const PAGE_SIZE: usize = 100;
 
-/// The level filter: a record's own level, or `attention`, every record at
-/// `warn` or `error`.
+/// The level filter: a record's own level, or `warningsAndErrors`, every
+/// record at `warn` or `error`.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LevelFilter {
-    Attention,
+    #[serde(rename = "warningsAndErrors")]
+    WarningsAndErrors,
     Error,
     Warn,
     Info,
@@ -27,10 +28,10 @@ pub enum LevelFilter {
 }
 
 impl LevelFilter {
-    /// The one stored level the filter matches; `None` for `attention`.
+    /// The one stored level the filter matches; `None` for `warningsAndErrors`.
     fn stored_level(self) -> Option<&'static str> {
         match self {
-            LevelFilter::Attention => None,
+            LevelFilter::WarningsAndErrors => None,
             LevelFilter::Error => Some("error"),
             LevelFilter::Warn => Some("warn"),
             LevelFilter::Info => Some("info"),

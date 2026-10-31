@@ -5,8 +5,8 @@ import { message } from "../../../src/i18n/translate";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsModal } from "../../../src/components/layout/SettingsModal";
-import { createDefaultPreferences } from "../../../src/models";
-import { usePreferencesStore } from "../../../src/state/preferences-store";
+import { createDefaultSettings } from "../../../src/models";
+import { useSettingsStore } from "../../../src/state/settings-store";
 import { mount } from "../../helpers/react-dom";
 import type { Mounted } from "../../helpers/react-dom";
 
@@ -28,13 +28,13 @@ let host: Mounted;
 
 beforeEach(async () => {
   update.mockReset().mockImplementation(async (changes) => {
-    usePreferencesStore.setState((state) => ({
-      preferences: { ...state.preferences, ...changes },
+    useSettingsStore.setState((state) => ({
+      settings: { ...state.settings, ...changes },
     }));
     return { status: "success" };
   });
-  usePreferencesStore.setState({
-    preferences: createDefaultPreferences(),
+  useSettingsStore.setState({
+    settings: createDefaultSettings(),
     update,
   });
   onClose.mockReset();
@@ -91,7 +91,7 @@ describe("SettingsModal theme", () => {
 
     expect(dark.checked).toBe(true);
     expect(update).not.toHaveBeenCalled();
-    expect(usePreferencesStore.getState().preferences.theme).toBe("system");
+    expect(useSettingsStore.getState().settings.theme).toBe("system");
 
     const save = [...document.querySelectorAll("button")]
       .find((button) => button.textContent === "Save")!;
@@ -102,7 +102,7 @@ describe("SettingsModal theme", () => {
   });
 
   it("keeps a failed settings save inline and retains the edited draft", async () => {
-    update.mockResolvedValueOnce({ status: "error", message: message("write.preferences") });
+    update.mockResolvedValueOnce({ status: "error", message: message("write.settings") });
     const timezone = timeZoneSelect();
     await choose(timezone, "Asia/Tokyo");
     const save = [...document.querySelectorAll("button")]
@@ -180,8 +180,8 @@ describe("SettingsModal time zone", () => {
 
   it("keeps a saved zone the platform list lacks selectable", async () => {
     await host.unmount();
-    usePreferencesStore.setState({
-      preferences: { ...createDefaultPreferences(), timezone: "Asia/Calcutta" },
+    useSettingsStore.setState({
+      settings: { ...createDefaultSettings(), timezone: "Asia/Calcutta" },
       update,
     });
     host = await mount(createElement(SettingsModal, { onClose }));
@@ -200,7 +200,7 @@ it("owns one pending save, holds close and editing, and retains a failed draft",
   const cancel = [...document.querySelectorAll("button")].find((button) => button.textContent === "Cancel")!;
   await act(async () => { cancel.click(); document.querySelector('[role="dialog"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
   expect(onClose).not.toHaveBeenCalled();
-  await act(async () => settle({ status: "error", message: message("write.preferences") }));
+  await act(async () => settle({ status: "error", message: message("write.settings") }));
   expect(timeZoneSelect().disabled).toBe(false);
   expect(timeZoneSelect().value).toBe("Asia/Tokyo");
   expect(document.querySelector('[role="alert"]')?.textContent).toContain("try again");
@@ -247,13 +247,13 @@ it("binds each Settings field label to the actual control", () => {
 });
 
 it("offers to discard a blank numeric draft without saving a fallback", async () => {
-  const before = usePreferencesStore.getState().preferences;
+  const before = useSettingsStore.getState().settings;
   await typeNumber(document.querySelector<HTMLInputElement>('input[type="number"]')!, "");
   await act(async () => [...document.querySelectorAll("button")].find((b) => b.textContent === "Cancel")!.click());
   expect(discard).toHaveBeenCalledOnce();
   expect(onClose).toHaveBeenCalledOnce();
   expect(update).not.toHaveBeenCalled();
-  expect(usePreferencesStore.getState().preferences).toBe(before);
+  expect(useSettingsStore.getState().settings).toBe(before);
 });
 
 function kickField(): HTMLInputElement {

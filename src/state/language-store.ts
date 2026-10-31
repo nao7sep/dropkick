@@ -1,5 +1,5 @@
 // LanguageStore — the computer's language and regional locale, read once from
-// the Rust core at launch. The interface language is the preferences
+// the Rust core at launch. The interface language is the settings
 // document's choice, with System resolved against this reading (see
 // useInterfaceLanguage).
 

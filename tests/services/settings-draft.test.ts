@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { createDefaultPreferences } from "../../src/models";
-import type { PreferencesDto } from "../../src/models";
+import { createDefaultSettings } from "../../src/models";
+import type { SettingsDto } from "../../src/models";
 import {
   parseKickDistances,
-  isPreferencesDraftDirty,
-  stagedPreferences,
-  type StagedPreferences,
-} from "../../src/services/preferences-draft";
+  isSettingsDraftDirty,
+  stagedSettings,
+  type StagedSettings,
+} from "../../src/services/settings-draft";
 
-const committed = (): PreferencesDto => createDefaultPreferences();
+const committed = (): SettingsDto => createDefaultSettings();
 
 // committed defaults to kickDistances [5, 25] -> the matching field string.
 const KICK_STRING = "5, 25";
@@ -42,48 +42,48 @@ describe("parseKickDistances", () => {
   });
 });
 
-describe("stagedPreferences", () => {
+describe("stagedSettings", () => {
   it("stages every preference, theme included, as a fresh copy", () => {
     const c = committed();
-    const staged = stagedPreferences(c);
+    const staged = stagedSettings(c);
     expect(staged).toEqual({ ...c, dueSoonDays: String(c.dueSoonDays), handledTasksPageSize: String(c.handledTasksPageSize) });
     expect(staged).not.toBe(c);
   });
 });
 
-describe("isPreferencesDraftDirty", () => {
+describe("isSettingsDraftDirty", () => {
   it("is not dirty when draft equals committed and kick string matches", () => {
     const c = committed();
-    expect(isPreferencesDraftDirty(stagedPreferences(c), c, KICK_STRING)).toBe(false);
+    expect(isSettingsDraftDirty(stagedSettings(c), c, KICK_STRING)).toBe(false);
   });
 
   it("is dirty when a staged field changes", () => {
     const c = committed();
-    const draft = { ...stagedPreferences(c), fontFamily: "Comic Sans" };
-    expect(isPreferencesDraftDirty(draft, c, KICK_STRING)).toBe(true);
+    const draft = { ...stagedSettings(c), fontFamily: "Comic Sans" };
+    expect(isSettingsDraftDirty(draft, c, KICK_STRING)).toBe(true);
   });
 
   it("is dirty when the kick string differs from the committed list", () => {
     const c = committed();
-    expect(isPreferencesDraftDirty(stagedPreferences(c), c, "5, 25, 100")).toBe(true);
+    expect(isSettingsDraftDirty(stagedSettings(c), c, "5, 25, 100")).toBe(true);
   });
 
   it("treats whitespace-only kick differences as dirty (round-trip is the source of truth)", () => {
     // Closing would re-parse and re-serialize; an unequal raw string still
     // counts as a pending edit until Save normalizes it.
     const c = committed();
-    expect(isPreferencesDraftDirty(stagedPreferences(c), c, "5,25")).toBe(true);
+    expect(isSettingsDraftDirty(stagedSettings(c), c, "5,25")).toBe(true);
   });
 
   it("is dirty when only the theme changes, since it applies on Save", () => {
     const c = committed();
-    const draft = { ...stagedPreferences(c), theme: c.theme === "dark" ? "light" as const : "dark" as const };
-    expect(isPreferencesDraftDirty(draft, c, KICK_STRING)).toBe(true);
+    const draft = { ...stagedSettings(c), theme: c.theme === "dark" ? "light" as const : "dark" as const };
+    expect(isSettingsDraftDirty(draft, c, KICK_STRING)).toBe(true);
   });
 
   it("detects changes in each staged field", () => {
     const c = committed();
-    const cases: Partial<StagedPreferences>[] = [
+    const cases: Partial<StagedSettings>[] = [
       { timezone: "Asia/Tokyo" },
       { dueSoonDays: String(c.dueSoonDays + 1) },
       { handledTasksPageSize: String(c.handledTasksPageSize + 10) },
@@ -91,7 +91,7 @@ describe("isPreferencesDraftDirty", () => {
       { confirmPermanentDeletions: !c.confirmPermanentDeletions },
     ];
     for (const change of cases) {
-      expect(isPreferencesDraftDirty({ ...stagedPreferences(c), ...change }, c, KICK_STRING)).toBe(
+      expect(isSettingsDraftDirty({ ...stagedSettings(c), ...change }, c, KICK_STRING)).toBe(
         true,
       );
     }

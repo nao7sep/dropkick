@@ -5,7 +5,7 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import { Plus, AlertCircle, Check, ChevronDown, ChevronRight, X } from "lucide-react";
 import type { Task, TaskGroup } from "../../models";
 import { useTaskListStore } from "../../state/task-list-store";
-import { usePreferencesStore } from "../../state/preferences-store";
+import { useSettingsStore } from "../../state/settings-store";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import {
   singleLine,
@@ -29,7 +29,7 @@ import {
 import { useComposing, isComposingKeyboardEvent } from "../../hooks/useComposing";
 import type { ViewTasks } from "../../hooks/useViewTasks";
 import { describeDiskFailure, describeLoadFailure, fieldDraftKey, fileNameWithoutExt } from "../../services";
-import { useNoteDraftStore } from "../../state/note-draft-store";
+import { useDraftStore } from "../../state/draft-store";
 import { Button } from "../shared/Button";
 import { useI18n } from "../../i18n/I18nContext";
 import type { Message } from "../../i18n/translate";
@@ -99,7 +99,7 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
     list: (items: readonly string[]) => i18n.andList(items),
     more: (count: number) => t("common.andMore", { count }),
   };
-  const pageSize = usePreferencesStore((s) => s.preferences.handledTasksPageSize);
+  const pageSize = useSettingsStore((s) => s.settings.handledTasksPageSize);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
   const reorderTick = useTaskListStore((s) => s.reorderTick);
@@ -412,11 +412,11 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
   const handleRename = async (task: Task, newTitle: string) => {
     const selectionKey = taskSelectionKey(task);
     const draftKey = fieldDraftKey(task.id, "title", task.sourceFile);
-    const version = useNoteDraftStore.getState().draftVersions[draftKey];
+    const version = useDraftStore.getState().draftVersions[draftKey];
     const cleaned = singleLine(newTitle, { minify: true });
     if (!cleaned) {
       // Don't allow empty titles — just cancel the rename.
-      const cleared = useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
+      const cleared = useDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
       if (cleared) {
         setEditingTaskKey(null);
       }
@@ -437,7 +437,7 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
         return false;
       }
       if (result.status === "reloaded") {
-        const cleared = useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
+        const cleared = useDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
         if (cleared) {
           setEditingTaskKey(null);
         }
@@ -449,7 +449,7 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
         return cleared;
       }
     }
-    const cleared = useNoteDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
+    const cleared = useDraftStore.getState().clearDraftIf(draftKey, newTitle, version);
     if (cleared) {
       setEditingTaskKey(null);
     }
@@ -462,7 +462,7 @@ export function TaskListPane({ view, filePath, isUnifiedView, onNewTask }: TaskL
   };
 
   const cancelRename = (task: Task) => {
-    const state = useNoteDraftStore.getState();
+    const state = useDraftStore.getState();
     const key = fieldDraftKey(task.id, "title", task.sourceFile);
     state.clearDraft(key);
     setEditingTaskKey(null);
@@ -746,8 +746,8 @@ function TaskRow({
   const { t, text } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const draftKey = fieldDraftKey(task.id, "title", task.sourceFile);
-  const draft = useNoteDraftStore((s) => s.drafts[draftKey]) ?? task.title;
-  const setDraft = useNoteDraftStore((s) => s.setDraft);
+  const draft = useDraftStore((s) => s.drafts[draftKey]) ?? task.title;
+  const setDraft = useDraftStore((s) => s.setDraft);
   const composing = useComposing();
 
   const commitRename = async () => {

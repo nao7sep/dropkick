@@ -47,9 +47,9 @@ export { prepareMoveOperation, moveSelectedTasks } from "./move-operations";
 
 export {
   parseKickDistances,
-  isPreferencesDraftDirty,
-  stagedPreferences,
-} from "./preferences-draft";
+  isSettingsDraftDirty,
+  stagedSettings,
+} from "./settings-draft";
 
 export {
   composerDraftKey,
@@ -58,8 +58,8 @@ export {
   draftTaskId,
   reconcileDrafts,
   unsavedNoteText,
-} from "./note-drafts";
-export type { TaskField } from "./note-drafts";
+} from "./drafts";
+export type { TaskField } from "./drafts";
 
 export type { LoadFailure, DocumentKind } from "./load-failure";
 export {
@@ -69,7 +69,7 @@ export {
 } from "./load-failure";
 export { describeAppConfigRecovery } from "./recovery-presentation";
 
-export type { StagedPreferences } from "./preferences-draft";
+export type { StagedSettings } from "./settings-draft";
 
 export type {
   DeleteSelectedTasksInputs,

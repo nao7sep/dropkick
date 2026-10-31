@@ -1,4 +1,4 @@
-// PreferencesStore — loaded once at launch from the app-wide settings collection.
+// SettingsStore — loaded once at launch from the app-wide settings collection.
 // Provides display settings, timezone, kick distances, etc. to the entire app.
 //
 // `update` takes its turn in the store's change chain: it applies the change,
@@ -10,76 +10,76 @@
 
 import { create } from "zustand";
 import { message } from "../i18n/translate";
-import type { PreferencesDto, PreferenceSets } from "../models";
+import type { SettingsDto, SettingSets } from "../models";
 import type { ActionResult } from "./action-result";
-import { changedPreferenceSets, createDefaultPreferences } from "../models";
-import type { LoadPreferencesResult } from "../repositories";
+import { changedSettingSets, createDefaultSettings } from "../models";
+import type { LoadSettingsResult } from "../repositories";
 import {
-  initializePreferences,
-  flushPreferences,
+  initializeSettings,
+  flushSettings,
   log,
 } from "../repositories";
 
-interface PreferencesState {
-  // Current preferences data.
-  preferences: PreferencesDto;
+interface SettingsState {
+  // Current settings data.
+  settings: SettingsDto;
 
-  // Path to the loaded preferences file.
+  // Path to the loaded settings file.
   filePath: string;
 
-  // Whether preferences have been loaded.
+  // Whether settings have been loaded.
   loaded: boolean;
 
   // Actions.
-  initialize: () => Promise<LoadPreferencesResult & { filePath: string }>;
-  update: (changes: Partial<PreferenceSets>) => Promise<ActionResult>;
+  initialize: () => Promise<LoadSettingsResult & { filePath: string }>;
+  update: (changes: Partial<SettingSets>) => Promise<ActionResult>;
 }
 
-export const usePreferencesStore = create<PreferencesState>((set, get) => {
+export const useSettingsStore = create<SettingsState>((set, get) => {
   // One change at a time, the app-config-store form: each change starts from
-  // the preferences the earlier ones settled, so a failed write restores
+  // the settings the earlier ones settled, so a failed write restores
   // exactly what was on disk before it and an explicit Settings save stays
   // dirty and retryable.
   let queue: Promise<unknown> = Promise.resolve();
 
-  async function applyChange(changes: Partial<PreferenceSets>): Promise<ActionResult> {
-    const before = get().preferences;
+  async function applyChange(changes: Partial<SettingSets>): Promise<ActionResult> {
+    const before = get().settings;
     // The single funnel for every preference change: log which keys changed,
     // not the values, to keep the line stable and free of any future
     // setting's content.
-    const changed = changedPreferenceSets(changes, before);
+    const changed = changedSettingSets(changes, before);
     const changedKeys = Object.keys(changed);
     if (changedKeys.length === 0) return { status: "success" };
-    log.info("preferences updated", { changed: changedKeys });
-    set({ preferences: { ...before, ...changed } });
+    log.info("settings updated", { changed: changedKeys });
+    set({ settings: { ...before, ...changed } });
 
     const { filePath } = get();
     if (!filePath) return { status: "success" };
     try {
-      await flushPreferences(filePath, () => get().preferences);
+      await flushSettings(filePath, () => get().settings);
     } catch {
-      set({ preferences: before });
+      set({ settings: before });
       return {
         status: "error",
-        message: message("write.preferences"),
+        message: message("write.settings"),
       };
     }
     return { status: "success" };
   }
 
   return {
-    preferences: createDefaultPreferences(),
+    settings: createDefaultSettings(),
     filePath: "",
     loaded: false,
 
     initialize: async () => {
-      const result = await initializePreferences();
+      const result = await initializeSettings();
       if (result.status !== "success") return result;
-      set({ preferences: result.preferences, filePath: result.filePath, loaded: true });
+      set({ settings: result.settings, filePath: result.filePath, loaded: true });
       return result;
     },
 
-    update: (changes: Partial<PreferenceSets>) => {
+    update: (changes: Partial<SettingSets>) => {
       const result = queue.then(() => applyChange(changes));
       queue = result.catch(() => undefined);
       return result;

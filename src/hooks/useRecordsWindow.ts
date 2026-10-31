@@ -11,7 +11,7 @@ import {
   sendRecordsContext,
 } from "../repositories/records";
 import { useAppStateStore } from "../state/app-state-store";
-import { usePreferencesStore } from "../state/preferences-store";
+import { useSettingsStore } from "../state/settings-store";
 import { conversionTimeZone } from "../utils/timezone";
 import {
   RECORDS_LIST_WIDTH,
@@ -22,8 +22,8 @@ import { useInterfaceLanguage } from "./useInterfaceLanguage";
 
 export function useRecordsWindowSync(): void {
   const { language, locale } = useInterfaceLanguage();
-  const timezone = usePreferencesStore((s) => s.preferences.timezone);
-  const fontFamily = usePreferencesStore((s) => s.preferences.fontFamily);
+  const timezone = useSettingsStore((s) => s.settings.timezone);
+  const fontFamily = useSettingsStore((s) => s.settings.fontFamily);
   const stepViewState = useAppStateStore((s) => s.stepViewState);
   const timeZone = conversionTimeZone(timezone) ?? null;
 
@@ -47,7 +47,7 @@ export function useRecordsWindowSync(): void {
 
 export function useRecordsWindow(): () => Promise<void> {
   const { language, locale } = useInterfaceLanguage();
-  const timezone = usePreferencesStore((s) => s.preferences.timezone);
+  const timezone = useSettingsStore((s) => s.settings.timezone);
   const timeZone = conversionTimeZone(timezone) ?? null;
 
   return useCallback(async () => {
@@ -60,8 +60,8 @@ export function useRecordsWindow(): () => Promise<void> {
         language,
         locale,
         timeZone,
-        theme: usePreferencesStore.getState().preferences.theme,
-        fontFamily: usePreferencesStore.getState().preferences.fontFamily,
+        theme: useSettingsStore.getState().settings.theme,
+        fontFamily: useSettingsStore.getState().settings.fontFamily,
       });
     } catch (e) {
       log.error("records window open failed", toErrorFields(e));

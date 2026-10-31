@@ -24,12 +24,11 @@ pub fn window_theme_for(preference: &str) -> Option<Theme> {
 }
 
 /// An absent or invalid theme follows the OS, without rewriting the document.
-pub fn preferences_window_theme(preferences: &Value) -> Option<Theme> {
-    preferences.get("theme").and_then(Value::as_str).and_then(window_theme_for)
+pub fn settings_window_theme(settings: &Value) -> Option<Theme> {
+    settings.get("theme").and_then(Value::as_str).and_then(window_theme_for)
 }
 
-/// App-wide settings, or the legacy source that the first upgraded launch will
-/// adopt. Read-only bootstrap shares the frontend's source precedence.
+/// The first-paint choices from the app-wide settings.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Appearance {
     pub language: Option<&'static str>,
@@ -37,37 +36,18 @@ pub struct Appearance {
 }
 
 // One immutable preview supplies both first-paint choices. The frontend still
-// owns full validation and legacy adoption; this read never rewrites a source.
+// owns full validation; this read never rewrites the file.
 pub fn read_appearance(state_file: &Path) -> Appearance {
-    let preferences = previewed_preferences(state_file);
+    let settings = previewed_settings(state_file);
     Appearance {
-        language: preferences.as_ref().and_then(crate::i18n::saved_preference),
-        theme: preferences.as_ref().and_then(preferences_window_theme),
+        language: settings.as_ref().and_then(crate::i18n::saved_preference),
+        theme: settings.as_ref().and_then(settings_window_theme),
     }
 }
 
-fn previewed_preferences(state_file: &Path) -> Option<Value> {
+fn previewed_settings(state_file: &Path) -> Option<Value> {
     let paths = crate::paths::app_paths(state_file.parent()?);
-    let settings = Path::new(&paths.settings_file);
-    // Unavailable canonical settings never fall back to a retired source.
-    match std::fs::symlink_metadata(settings) {
-        Ok(_) => return readable_document(settings, Format::Settings),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
-        Err(_) => return None,
-    }
-    let state = readable_document(state_file, Format::State);
-    let source = state.as_ref().and_then(|value| {
-        ["lastLaunchedPreferencesPath", "lastPreferencesPath"].into_iter()
-            .filter_map(|key| value.get(key).and_then(Value::as_str))
-            .find(|path| !path.is_empty())
-    }).unwrap_or(&paths.preferences_file);
-    let mut preferences = readable_document(Path::new(source), Format::Preferences)?;
-    if preferences.get("formatVersion").is_none()
-        && preferences.get("version").and_then(Value::as_str) == Some(format_version::V010_LABEL)
-        && preferences.get("darkMode").and_then(Value::as_bool) == Some(true) {
-        preferences.as_object_mut()?.insert("theme".into(), Value::String("dark".into()));
-    }
-    Some(preferences)
+    readable_document(Path::new(&paths.settings_file), Format::Settings)
 }
 
 fn readable_document(path: &Path, format: Format) -> Option<Value> {

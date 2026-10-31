@@ -21,7 +21,7 @@ import * as DropdownMenu from "../shared/CommandMenu";
 import { planTabReorder } from "./tab-dnd";
 import { useWorkspaceStore } from "../../state/workspace-store";
 import { useTaskListStore } from "../../state/task-list-store";
-import { usePreferencesStore } from "../../state/preferences-store";
+import { useSettingsStore } from "../../state/settings-store";
 import { useAppStateStore } from "../../state/app-state-store";
 import { describeLoadFailure, fileNameWithoutExt } from "../../services";
 import {
@@ -62,7 +62,7 @@ interface TabBarProps {
 export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   const i18n = useI18n();
   const { t } = i18n;
-  const preferences = usePreferencesStore((s) => s.preferences);
+  const settings = useSettingsStore((s) => s.settings);
   // Zoom is view state (state.json), not a preference — read/write via app-appState.
   const zoomLevel = useAppStateStore((s) => s.appState.zoomLevel);
   const updateViewState = useAppStateStore((s) => s.updateViewState);
@@ -91,17 +91,17 @@ export function TabBar({ onMenuSelect, onChromeHeightChange }: TabBarProps) {
   // Deadline urgency per open list tab, keyed by file path. Recomputed when the
   // open tabs, task data, load errors, or timezone change. MainWindow eagerly
   // loads every open list, so this reflects all tabs — not just the active one.
-  const today = useCalendarDay(preferences.timezone);
+  const today = useCalendarDay(settings.timezone);
   const urgencyByTab = useMemo(
     () =>
       computeTabUrgencies(
         workspace.openTabs,
         files,
         new Set(Object.keys(fileLoadErrors)),
-        preferences.timezone,
+        settings.timezone,
         today,
       ),
-    [workspace.openTabs, files, fileLoadErrors, preferences.timezone, today],
+    [workspace.openTabs, files, fileLoadErrors, settings.timezone, today],
   );
 
   // Identify the tab being renamed by its filePath (stable across reorder /

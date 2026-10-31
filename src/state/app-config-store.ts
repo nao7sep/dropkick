@@ -1,7 +1,7 @@
 // Saved workspace locations are config. Browsing never changes the active workspace.
 import { create } from "zustand";
 import type { AppConfigDto, AppConfigSetKey, StoreRecovery } from "../models";
-import { createDefaultAppConfig, registerDocument, unregisterDocument } from "../models";
+import { createDefaultAppConfig, registerWorkspace, unregisterWorkspace } from "../models";
 import { loadAppConfig, flushAppConfig } from "../repositories";
 import { guardBackgroundWrite } from "./background-write";
 
@@ -26,7 +26,7 @@ export const useAppConfigStore = create<AppConfigStore>((set, get) => {
   }
   async function applyListChange(key: AppConfigSetKey, path: string, register: boolean): Promise<boolean> {
     const current = get().appConfig[key];
-    const next = register ? registerDocument(current, path) : unregisterDocument(current, path);
+    const next = register ? registerWorkspace(current, path) : unregisterWorkspace(current, path);
     if (next === current) return true;
     set((state) => ({ appConfig: { ...state.appConfig, [key]: next } }));
     const { filePath } = get();

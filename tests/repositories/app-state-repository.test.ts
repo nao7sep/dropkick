@@ -1,15 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 const readJsonFileResult = vi.fn();
 const writeJsonFile = vi.fn();
-const fileExists = vi.fn();
 const quarantineFile = vi.fn();
 const ROOT = "/home/tester/.dropkick";
 vi.mock("../../src/repositories/file-system", () => ({
   readJsonFileResult: (p: string) => readJsonFileResult(p),
   writeJsonFile: (p: string, _format: string, d: unknown, recorded?: boolean) => recorded === undefined ? writeJsonFile(p, d) : writeJsonFile(p, d, recorded),
   ensureDirectory: vi.fn(),
-  fileExists: (p: string) => fileExists(p),
-  appPaths: async () => ({ root: ROOT, stateFile: `${ROOT}/state.json`, configFile: `${ROOT}/config.json`, preferencesFile: `${ROOT}/preferences.json`, workspaceFile: `${ROOT}/workspace.json` }),
+  appPaths: async () => ({ root: ROOT, stateFile: `${ROOT}/state.json` }),
   quarantineFile: (p: string) => quarantineFile(p),
   withSerial: (_p: string, fn: () => unknown) => fn(),
 }));
@@ -21,7 +19,6 @@ import { createDefaultAppState } from "../../src/models";
 beforeEach(() => {
   readJsonFileResult.mockReset();
   writeJsonFile.mockReset();
-  fileExists.mockReset().mockResolvedValue(true);
   quarantineFile.mockReset().mockResolvedValue(`${ROOT}/state-stamp.invalid`);
   warn.mockReset();
 });
@@ -34,9 +31,8 @@ const STORED = {
 };
 
 describe("app-level view state", () => {
-  it("creates only first-run view state with no selected documents", async () => {
+  it("creates only first-run view state with no selected workspace", async () => {
     readJsonFileResult.mockResolvedValue({ status: "missing" });
-    fileExists.mockResolvedValue(false);
     const { appState, statePath } = await initializeAppState();
     expect(statePath).toBe(`${ROOT}/state.json`);
     expect(appState).toEqual(createDefaultAppState());
@@ -45,18 +41,9 @@ describe("app-level view state", () => {
     expect(writeJsonFile.mock.calls[0][2]).toBe(false);
   });
 
-  it("selects only private-root documents that an earlier build already created", async () => {
-    readJsonFileResult.mockResolvedValue({ status: "missing" });
-    fileExists.mockImplementation(async (path: string) => path === `${ROOT}/preferences.json`);
-    const { appState } = await initializeAppState();
-    expect(appState).not.toHaveProperty("lastPreferencesPath");
-    expect(appState.lastWorkspacePath).toBe("");
-    expect(writeJsonFile.mock.calls.map((call) => call[0])).toEqual([`${ROOT}/state.json`]);
-  });
-
   it("reads last selections and geometry, leaving unrecognized keys behind", async () => {
     readJsonFileResult.mockResolvedValue({ status: "success", data: {
-      ...STORED, knownPreferences: ["/old.json"], knownWorkspaces: "unrecognized",
+      ...STORED, unknown: ["/old.json"], knownWorkspaces: "unrecognized",
     } });
     const { appState } = await initializeAppState();
     expect(appState).toEqual(STORED);
@@ -64,12 +51,11 @@ describe("app-level view state", () => {
     expect(writeJsonFile).not.toHaveBeenCalled();
     await flushAppState(`${ROOT}/state.json`, () => appState);
     expect(writeJsonFile).toHaveBeenCalledWith(`${ROOT}/state.json`, appState, false);
-    expect("knownPreferences" in writeJsonFile.mock.calls[0][1]).toBe(false);
+    expect("unknown" in writeJsonFile.mock.calls[0][1]).toBe(false);
   });
 
   it("keeps saved selections without recreating missing documents", async () => {
     readJsonFileResult.mockResolvedValue({ status: "success", data: STORED });
-    fileExists.mockImplementation(async (path: string) => path !== `${ROOT}/preferences.json`);
     expect((await initializeAppState()).appState).toEqual(STORED);
     expect(writeJsonFile).not.toHaveBeenCalled();
   });

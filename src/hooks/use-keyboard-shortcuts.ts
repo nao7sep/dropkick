@@ -6,7 +6,7 @@
 import { useEffect, useCallback, useMemo } from "react";
 import { type TaskFieldChange, useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
-import { usePreferencesStore } from "../state/preferences-store";
+import { useSettingsStore } from "../state/settings-store";
 import { useToastStore } from "../state/toast-store";
 import type { Task, TaskPriority, TaskStatus } from "../models";
 import { notSaved, type ActionResult } from "../state";
@@ -75,7 +75,7 @@ export function useKeyboardShortcuts(
     reason: Message,
   ) => void,
 ) {
-  const preferences = usePreferencesStore((s) => s.preferences);
+  const settings = useSettingsStore((s) => s.settings);
   const selectedKeys = useTaskListStore((s) => s.selectedKeys);
   const setSelection = useTaskListStore((s) => s.setSelection);
   const updateTaskFields = useTaskListStore((s) => s.updateTaskFields);
@@ -91,7 +91,7 @@ export function useKeyboardShortcuts(
   const closeTab = useWorkspaceStore((s) => s.closeTab);
   const addUnifiedViewTab = useWorkspaceStore((s) => s.addUnifiedViewTab);
 
-  const timezone = preferences.timezone;
+  const timezone = settings.timezone;
 
   const { tasks: contextTasks, visualTasks } = view;
 

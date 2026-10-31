@@ -127,7 +127,7 @@ fn a_page_of_exactly_the_page_size_has_no_more() {
 }
 
 #[test]
-fn needs_attention_keeps_warnings_and_errors() {
+fn the_warnings_and_errors_filter_keeps_both_levels() {
     let f = fixture();
     f.insert("2026-10-02T08:00:01.000Z", S2, "debug", "d", None, "{}");
     f.insert("2026-10-02T08:00:02.000Z", S2, "info", "i", None, "{}");
@@ -145,7 +145,7 @@ fn needs_attention_keeps_warnings_and_errors() {
         .expect("page")
     };
 
-    assert_eq!(messages(&with(LevelFilter::Attention)), ["e", "w"]);
+    assert_eq!(messages(&with(LevelFilter::WarningsAndErrors)), ["e", "w"]);
     assert_eq!(messages(&with(LevelFilter::Error)), ["e"]);
     assert_eq!(messages(&with(LevelFilter::Warn)), ["w"]);
     assert_eq!(messages(&with(LevelFilter::Info)), ["i"]);
@@ -285,13 +285,13 @@ fn a_record_is_read_whole_and_a_missing_one_is_none() {
 fn the_query_arrives_as_the_window_sends_it() {
     let query: RecordsQuery = serde_json::from_value(serde_json::json!({
         "session": S2,
-        "level": "attention",
+        "level": "warningsAndErrors",
         "search": "x",
         "after": { "time": "2026-10-02T08:00:00.000Z", "id": 4 },
     }))
     .expect("query");
     assert_eq!(query.session.as_deref(), Some(S2));
-    assert_eq!(query.level, Some(LevelFilter::Attention));
+    assert_eq!(query.level, Some(LevelFilter::WarningsAndErrors));
     assert_eq!(
         query.after,
         Some(RecordCursor {

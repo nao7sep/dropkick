@@ -1,4 +1,4 @@
-// Note drafts are the user's uncommitted text, so both directions cost
+// Drafts are the user's uncommitted text, so both directions cost
 // something real: a key that stops matching its subject orphans a draft the
 // user can never reach again, and a reconciliation that runs too eagerly
 // deletes text that was never lost. Both rules are pinned here.
@@ -11,7 +11,7 @@ import {
   draftTaskId,
   holdsDraftFor,
   reconcileDrafts,
-} from "../../src/services/note-drafts";
+} from "../../src/services/drafts";
 import { makeTask, makeNote } from "../helpers/task";
 import type { TaskListDto } from "../../src/models";
 

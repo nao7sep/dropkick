@@ -6,7 +6,7 @@
 //! rename lands (see `write_atomic`). There is no startup scan, no
 //! periodic pass, no restore path.
 //!
-//! Protected: task lists, preferences, workspaces and the saved locations in
+//! Protected: task lists, settings, workspaces and the saved locations in
 //! `config.json` — what the user creates or maintains. Not recorded: state and
 //! window placement (`write_atomic_unrecorded`, or `recordBackup: false`),
 //! which are disposable; records (`records.sqlite3` and its fallback logs),

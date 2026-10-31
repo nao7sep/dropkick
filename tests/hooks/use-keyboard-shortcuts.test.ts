@@ -6,10 +6,10 @@ import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useViewTasks } from "../../src/hooks/useViewTasks";
 import { useKeyboardShortcuts } from "../../src/hooks/use-keyboard-shortcuts";
-import { createDefaultPreferences } from "../../src/models";
+import { createDefaultSettings } from "../../src/models";
 import type { TaskStatus } from "../../src/models";
-import { useNoteDraftStore } from "../../src/state/note-draft-store";
-import { usePreferencesStore } from "../../src/state/preferences-store";
+import { useDraftStore } from "../../src/state/draft-store";
+import { useSettingsStore } from "../../src/state/settings-store";
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../src/state/workspace-store";
 import { taskKey } from "../../src/utils";
@@ -67,9 +67,9 @@ beforeEach(async () => {
   clearTaskDrafts.mockReset();
   taskActionFailure.mockReset();
 
-  usePreferencesStore.setState({
-    preferences: {
-      ...createDefaultPreferences(),
+  useSettingsStore.setState({
+    settings: {
+      ...createDefaultSettings(),
       timezone: "UTC",
       confirmPermanentDeletions: false,
     },
@@ -101,7 +101,7 @@ beforeEach(async () => {
       status: TaskStatus,
     ) => setStatus(filePath, taskId, status),
   });
-  useNoteDraftStore.setState({ clearTaskDrafts });
+  useDraftStore.setState({ clearTaskDrafts });
   host = await mount(createElement(Harness));
 });
 

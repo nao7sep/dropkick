@@ -13,8 +13,8 @@ use serde_json::json;
 #[test]
 fn every_format_the_core_reads_is_in_the_shared_table() {
     for format in Format::ALL {
-        // Backup history and view state have advanced independently.
-        let expected = if matches!(format, Format::Backups | Format::State) { 2 } else { 1 };
+        // Backup history has advanced independently.
+        let expected = if matches!(format, Format::Backups) { 2 } else { 1 };
         assert_eq!(format.current(), expected, "{format:?}");
     }
 }
@@ -68,7 +68,7 @@ fn existing_readable_and_newer_sqlite_stores_keep_their_bytes_and_markers() {
         conn.pragma_update(None, "user_version", marker).unwrap();
         conn.close().unwrap();
         let before = fs::read(&path).unwrap();
-        let result = format_version::open_sqlite(&path, Format::State, "INVALID SQL;");
+        let result = format_version::open_sqlite(&path, Format::Records, "INVALID SQL;");
         if marker == 1 {
             result.unwrap().close().unwrap();
         } else {
@@ -91,7 +91,7 @@ fn cached_mutation_admission_refuses_a_newer_marker() {
 
 #[test]
 fn a_missing_marker_is_unreadable_and_a_newer_one_is_reported() {
-    let format = Format::State;
+    let format = Format::Settings;
     assert!(format_version::json_value(&json!({}), format).is_err());
     assert!(format_version::json_value(&json!({ "version": "1.0.1" }), format).is_err());
     assert!(format_version::json_value(&json!({ "version": 1 }), format).is_err());

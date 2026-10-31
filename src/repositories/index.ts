@@ -46,10 +46,10 @@ export { applyLanguage, loadLanguageEnvironment } from "./language";
 export type { LanguageEnvironment } from "./language";
 
 export {
-  initializePreferences,
-  flushPreferences,
-} from "./preferences-repository";
-export type { LoadPreferencesResult } from "./preferences-repository";
+  initializeSettings,
+  flushSettings,
+} from "./settings-repository";
+export type { LoadSettingsResult } from "./settings-repository";
 
 export {
   loadWorkspace,

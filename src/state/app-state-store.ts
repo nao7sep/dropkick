@@ -26,7 +26,7 @@ interface AppStateStore {
   initialize: () => Promise<void>;
   // Apply a live view adjustment (zoom / sidebar width / Records list width) and
   // persist it. The single funnel for zoom shortcuts, the hamburger-menu zoom,
-  // and the divider adjustments — the state-store analogue of the preferences store's
+  // and the divider adjustments — the state-store analogue of the settings store's
   // `update`.
   updateViewState: (changes: ViewStateChanges) => Promise<void>;
   // Apply one step of a continuous adjustment at once and save it
@@ -67,7 +67,7 @@ export const useAppStateStore = create<AppStateStore>((set, get) => {
 
     updateViewState: async (changes) => {
       // Log which keys changed, not the values, to keep the line stable — same
-      // funnel discipline as the preferences store's update.
+      // funnel discipline as the settings store's update.
       log.info("view state updated", { changed: Object.keys(changes) });
       set((state) => ({ appState: { ...state.appState, ...changes } }));
       // This write carries any step still waiting for its delay.

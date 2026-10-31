@@ -13,7 +13,7 @@
 // focus, and the log carries the detail. A successful retry resolves its own
 // result; unrelated transient no-op feedback cannot erase it.
 //
-// Note drafts are session-only and do not write through this owner.
+// Drafts are session-only and do not write through this owner.
 
 import { log, toErrorFields } from "../repositories";
 import type { MessageKey } from "../i18n/catalogues";

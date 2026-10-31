@@ -1,6 +1,6 @@
 // Tests for the natively resolved interface language: which tag the
 // computer's languages resolve to, how a saved choice is normalized and read
-// from the previewed preferences document, and that the native menu's text
+// from the previewed settings, and that the native menu's text
 // exists in every catalogue.
 
 use std::fs;
@@ -62,23 +62,19 @@ fn saved_preference_reads_the_language_field() {
 }
 
 #[test]
-fn the_saved_choice_comes_from_the_previewed_document_without_touching_it() {
+fn the_saved_choice_comes_from_the_settings_without_touching_them() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
-    let preferences = dir.join("preferences.json");
+    let settings = dir.join("settings.json");
     let state = dir.join("state.json");
-    let preferences_text = json!({ "formatVersion": 1, "language": "ko" }).to_string();
-    let state_text = json!({ "formatVersion": 1, "lastLaunchedPreferencesPath": preferences.to_string_lossy() }).to_string();
-    fs::write(&preferences, &preferences_text).unwrap();
-    fs::write(&state, &state_text).unwrap();
+    let settings_text = json!({ "formatVersion": 1, "language": "ko" }).to_string();
+    fs::write(&settings, &settings_text).unwrap();
 
     assert_eq!(crate::theme::read_appearance(&state).language, Some("ko"));
-    assert_eq!(fs::read_to_string(&preferences).unwrap(), preferences_text);
-    assert_eq!(fs::read_to_string(&state).unwrap(), state_text);
+    assert_eq!(fs::read_to_string(&settings).unwrap(), settings_text);
 
-    fs::remove_file(&preferences).unwrap();
+    fs::remove_file(&settings).unwrap();
     assert_eq!(crate::theme::read_appearance(&state).language, None);
-    assert_eq!(crate::theme::read_appearance(&dir.join("missing.json")).language, None);
 }
 
 #[test]

@@ -9,10 +9,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { createDefaultPreferences, FORMAT_VERSIONS } from "../../src/models";
+import { createDefaultSettings, FORMAT_VERSIONS } from "../../src/models";
 import { flushAppConfig, loadAppConfig } from "../../src/repositories/app-config-repository";
 import { flushAppState, initializeAppState } from "../../src/repositories/app-state-repository";
-import { flushPreferences, initializePreferences, loadLegacyPreferences } from "../../src/repositories/preferences-repository";
+import { flushSettings, initializeSettings } from "../../src/repositories/settings-repository";
 import { flushTaskList, loadTaskList } from "../../src/repositories/task-list-repository";
 import { flushWorkspace, loadWorkspace } from "../../src/repositories/workspace-repository";
 
@@ -22,8 +22,6 @@ const PATHS = {
   stateFile: `${ROOT}/state.json`,
   configFile: `${ROOT}/config.json`,
   settingsFile: `${ROOT}/settings.json`,
-  preferencesFile: `${ROOT}/preferences.json`,
-  workspaceFile: `${ROOT}/workspace.json`,
   logsDir: `${ROOT}/logs`,
   backupsFile: `${ROOT}/backups.sqlite3`,
   recordsFile: `${ROOT}/records.sqlite3`,
@@ -132,15 +130,13 @@ describe("config.json", () => {
     expect([...disk.keys()]).toEqual([PATHS.stateFile]);
     await flushAppConfig(filePath, () => ({ ...appConfig, knownWorkspaces: ["/docs/workspace.json"] }));
     expect((await loadAppConfig()).appConfig).toEqual({ knownWorkspaces: ["/docs/workspace.json"] });
-    expect(disk.has(PATHS.preferencesFile)).toBe(false);
-    expect(disk.has(PATHS.workspaceFile)).toBe(false);
   });
 
   it("quarantines a file without a marker and uses the built-ins", async () => {
     const text = put(PATHS.configFile, { knownWorkspaces: ["/w.json"] });
     const { appConfig, recovery } = await loadAppConfig();
     expect(recovery).toEqual({ kind: "quarantined", quarantinedTo: `${PATHS.configFile}.invalid` });
-    expect(appConfig.knownWorkspaces).toEqual([PATHS.workspaceFile]);
+    expect(appConfig.knownWorkspaces).toEqual([]);
     expect(disk.get(`${PATHS.configFile}.invalid`)).toBe(text);
   });
 
@@ -158,38 +154,27 @@ describe("config.json", () => {
     const { appConfig, filePath, recovery } = await loadAppConfig();
     expect(recovery).toEqual({ kind: "newer", formatVersion: 3 });
     expect(filePath).toBe("");
-    expect(appConfig.knownWorkspaces).toEqual([PATHS.workspaceFile]);
+    expect(appConfig.knownWorkspaces).toEqual([]);
     expect(disk.get(PATHS.configFile)).toBe(text);
     expect(writes()).toEqual([]);
   });
 });
 
-describe("preferences documents", () => {
-  const path = "/docs/prefs.json";
-
-  it("reports a document without a marker as invalid and leaves it alone", async () => {
-    const text = put(path, { version: "1.0.1", id: "p", name: "Work", theme: "dark" });
-    expect((await loadLegacyPreferences(path)).status).toBe("invalid");
-    expect(disk.get(path)).toBe(text);
+describe("settings.json", () => {
+  it("reports a file without a marker as invalid and leaves it alone", async () => {
+    const text = put(PATHS.settingsFile, { theme: "dark" });
+    expect((await initializeSettings()).status).toBe("invalid");
+    expect(disk.get(PATHS.settingsFile)).toBe(text);
     expect(writes()).toEqual([]);
   });
 
-  it("reads the old format without copying its identity", async () => {
-    const text = put(path, { formatVersion: 1, id: "p", name: "Work", theme: "dark" });
-    const result = await loadLegacyPreferences(path);
-    expect(result).toMatchObject({ status: "success", preferences: { theme: "dark" } });
-    expect(result.status === "success" && "id" in result.preferences).toBe(false);
-    expect(disk.get(path)).toBe(text);
-    expect(writes()).toEqual([]);
-  });
-
-  it("refuses a newer build's document and leaves it byte-identical", async () => {
-    const text = put(path, { formatVersion: 2, id: "p", name: "Work", theme: { mode: "dusk" } });
-    expect(await loadLegacyPreferences(path)).toEqual({ status: "newer", formatVersion: 2 });
-    await expect(flushPreferences(path, () => {
+  it("refuses a newer build's file and leaves it byte-identical", async () => {
+    const text = put(PATHS.settingsFile, { formatVersion: 2, theme: { mode: "dusk" } });
+    expect(await initializeSettings()).toEqual({ status: "newer", formatVersion: 2, filePath: PATHS.settingsFile });
+    await expect(flushSettings(PATHS.settingsFile, () => {
       throw new Error("never asked for");
     })).rejects.toThrow();
-    expect(disk.get(path)).toBe(text);
+    expect(disk.get(PATHS.settingsFile)).toBe(text);
     expect(writes()).toEqual([]);
   });
 });
@@ -250,34 +235,15 @@ describe("task lists", () => {
 });
 
 // v0.1.0, the one published release before format markers, labelled every
-// document `"version": "1.0.0"` (developer decision: the next version opens
-// those files). Each loads as this build reads it, stays untouched until the
-// next save, and that save writes this build's format.
+// document `"version": "1.0.0"`. Its workspaces and task lists open, stay
+// untouched until the next save, and that save writes this build's format.
+// Its private files are not read: a state.json from it is set aside.
 describe("files from v0.1.0", () => {
-  it("opens preferences, keeping what still means the same", async () => {
-    const path = "/docs/prefs.json";
-    const text = put(path, {
-      version: "1.0.0", id: "p", name: "Work", fontFamily: "system-ui", darkMode: true,
-      zoomLevel: 1.2, sidebarWidth: 300, timezone: null, kickDistances: [3, 10],
-      dueSoonDays: 5, handledTasksPageSize: 50,
-    });
-    const result = await loadLegacyPreferences(path);
-    expect(result).toMatchObject({ status: "success", preferences: {
-      theme: "dark", timezone: "system", fontFamily: "",
-      kickDistances: [3, 10], dueSoonDays: 5, handledTasksPageSize: 50,
-    } });
-    expect(disk.get(path)).toBe(text);
-    expect(writes()).toEqual([]);
-    if (result.status !== "success") return;
-
-  });
-
-  it("gives v0.1.0's light mode today's built-in theme without adding document identity", async () => {
-    const path = "/docs/prefs.json";
-    put(path, { version: "1.0.0", name: "Work", darkMode: false, timezone: "Asia/Tokyo" });
-    const result = await loadLegacyPreferences(path);
-    expect(result).toMatchObject({ status: "success", preferences: { theme: "system", timezone: "Asia/Tokyo" } });
-    expect(result.status === "success" && "id" in result.preferences).toBe(false);
+  it("sets aside its state.json and starts on the defaults", async () => {
+    const text = put(PATHS.stateFile, { version: "1.0.0", lastWorkspacePath: "/docs/workspace.json" });
+    const { appState } = await initializeAppState();
+    expect(appState.lastWorkspacePath).toBe("");
+    expect(disk.get(`${PATHS.stateFile}.invalid`)).toBe(text);
   });
 
   it("opens a workspace as it is", async () => {
@@ -301,114 +267,40 @@ describe("files from v0.1.0", () => {
     expect(stored(path)).toEqual({ formatVersion: 1, id: "L1", tasks: [] });
   });
 
-  it("carries the last-used paths and saved locations over from its state.json", async () => {
-    const text = put(PATHS.stateFile, {
-      version: "1.0.0", lastPreferencesPath: "/docs/prefs.json", lastWorkspacePath: "/docs/workspace.json",
-      knownPreferences: [PATHS.preferencesFile, "/docs/prefs.json"],
-      knownWorkspaces: [PATHS.workspaceFile, "/docs/workspace.json"],
-    });
-    const { appState } = await initializeAppState();
-    expect(appState).toMatchObject({
-      lastWorkspacePath: "/docs/workspace.json",
-    });
-    expect(disk.get(PATHS.stateFile)).toBe(text);
-
-    const { appConfig } = await loadAppConfig();
-    expect(appConfig).not.toHaveProperty("knownPreferences");
-    // Written at once: the next view-state save rewrites state.json without them.
-    expect(stored(PATHS.configFile)).toEqual({
-      formatVersion: 2,
-      knownWorkspaces: [PATHS.workspaceFile, "/docs/workspace.json"],
-    });
-    expect(disk.get(PATHS.stateFile)).toBe(text);
-  });
-
-  it("leaves an existing config.json in charge of the saved locations", async () => {
-    put(PATHS.stateFile, { version: "1.0.0", knownWorkspaces: ["/old.json"] });
-    put(PATHS.configFile, { formatVersion: 1, knownWorkspaces: ["/w.json"] });
-    const { appConfig } = await loadAppConfig();
-    expect(appConfig.knownWorkspaces).toEqual(["/w.json"]);
-  });
 });
-
 
 describe("one app-wide settings collection", () => {
   it("uses built-ins on first launch without creating settings or user documents", async () => {
-    expect(await initializePreferences()).toEqual({ status: "success", preferences: createDefaultPreferences(), filePath: PATHS.settingsFile });
+    expect(await initializeSettings()).toEqual({ status: "success", settings: createDefaultSettings(), filePath: PATHS.settingsFile });
     expect([...disk.keys()]).toEqual([]);
   });
 
   it("saves only changed sets, reloads them and removes overrides on reset", async () => {
-    const initial = await initializePreferences();
+    const initial = await initializeSettings();
     if (initial.status !== "success") throw new Error("initialization failed");
-    await flushPreferences(initial.filePath, () => ({ ...initial.preferences, theme: "dark", kickDistances: [3, 15] }));
+    await flushSettings(initial.filePath, () => ({ ...initial.settings, theme: "dark", kickDistances: [3, 15] }));
     expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1, theme: "dark", kickDistances: [3, 15] });
-    expect(await initializePreferences()).toMatchObject({ status: "success", preferences: { theme: "dark", kickDistances: [3, 15] } });
-    await flushPreferences(initial.filePath, createDefaultPreferences);
+    expect(await initializeSettings()).toMatchObject({ status: "success", settings: { theme: "dark", kickDistances: [3, 15] } });
+    await flushSettings(initial.filePath, createDefaultSettings);
     expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1 });
-    expect((await initializePreferences())).toMatchObject({ status: "success", preferences: { theme: "system" } });
+    expect((await initializeSettings())).toMatchObject({ status: "success", settings: { theme: "system" } });
   });
 
   it("keeps an empty kick-distances list as the user's choice across a reload", async () => {
-    const initial = await initializePreferences();
+    const initial = await initializeSettings();
     if (initial.status !== "success") throw new Error("initialization failed");
-    await flushPreferences(initial.filePath, () => ({ ...initial.preferences, kickDistances: [] }));
+    await flushSettings(initial.filePath, () => ({ ...initial.settings, kickDistances: [] }));
     expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1, kickDistances: [] });
-    expect(await initializePreferences()).toMatchObject({ status: "success", preferences: { kickDistances: [] } });
-  });
-
-  it("adopts the last successful source once, before retiring paths, and preserves every source", async () => {
-    const launched = put("/launched.json", { formatVersion: 1, id: "p", name: "Launched", language: "ja", theme: "dark" });
-    const selected = put("/selected.json", { formatVersion: 1, id: "q", name: "Selected", theme: "light" });
-    put(PATHS.stateFile, { formatVersion: 1, lastLaunchedPreferencesPath: "/launched.json", lastPreferencesPath: "/selected.json", lastWorkspacePath: "/w.json", zoomLevel: 1.5, sidebarWidth: 400, recordsListWidth: 380 });
-    expect(await initializePreferences()).toMatchObject({ status: "success", filePath: PATHS.settingsFile, preferences: { language: "ja", theme: "dark" } });
-    expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1, language: "ja", theme: "dark" });
-    const state = await initializeAppState();
-    await flushAppState(state.statePath, () => state.appState);
-    expect(stored(PATHS.stateFile)).not.toHaveProperty("lastPreferencesPath");
-    expect(stored(PATHS.stateFile)).not.toHaveProperty("lastLaunchedPreferencesPath");
-    expect(stored(PATHS.stateFile)).toMatchObject({ lastWorkspacePath: "/w.json", zoomLevel: 1.5 });
-    expect(disk.get("/launched.json")).toBe(launched);
-    expect(disk.get("/selected.json")).toBe(selected);
-    await flushPreferences(PATHS.settingsFile, createDefaultPreferences);
-    expect((await initializePreferences())).toMatchObject({ status: "success", preferences: { theme: "system", language: "system" } });
-  });
-
-  it("imports v0.1.0's selected settings and preserves the legacy bytes", async () => {
-    put(PATHS.stateFile, { version: "1.0.0", lastPreferencesPath: "/old.json" });
-    const bytes = put("/old.json", { version: "1.0.0", name: "Old", darkMode: true, kickDistances: [2, 8] });
-    expect(await initializePreferences()).toMatchObject({ status: "success", preferences: { theme: "dark", kickDistances: [2, 8] } });
-    expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1, theme: "dark", kickDistances: [2, 8] });
-    expect(disk.get("/old.json")).toBe(bytes);
-  });
-
-  it("imports an existing default source without inventing a settings identity", async () => {
-    const bytes = put(PATHS.preferencesFile, { formatVersion: 1, id: "p", name: "Default" });
-    await initializePreferences();
-    expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1 });
-    expect(disk.get(PATHS.preferencesFile)).toBe(bytes);
-  });
-
-  it.each([
-    [undefined, "missing"], ["{bad", "invalid"],
-    [JSON.stringify({ formatVersion: 2, id: "p", name: "Future" }), "newer"],
-  ])("does not replace an unavailable selected source (%s)", async (contents, status) => {
-    put(PATHS.stateFile, { formatVersion: 1, lastLaunchedPreferencesPath: "/old.json" });
-    if (contents !== undefined) disk.set("/old.json", contents);
-    expect(await initializePreferences()).toMatchObject({ status, filePath: "/old.json" });
-    expect(disk.get("/old.json")).toBe(contents);
-    expect(disk.has(PATHS.settingsFile)).toBe(false);
-    expect(writes()).toEqual([]);
+    expect(await initializeSettings()).toMatchObject({ status: "success", settings: { kickDistances: [] } });
   });
 
   it.each([
     "{bad", JSON.stringify({ formatVersion: 2, theme: "future" }),
     JSON.stringify({ formatVersion: 1, unknownSetting: "authored value" }),
-  ])("protects unavailable canonical settings and never falls back to legacy", async (contents) => {
+  ])("protects unavailable settings without falling back to built-ins", async (contents) => {
     disk.set(PATHS.settingsFile, contents);
-    put(PATHS.preferencesFile, { formatVersion: 1, id: "p", name: "Old", theme: "dark" });
-    expect((await initializePreferences()).status).not.toBe("success");
-    await expect(flushPreferences(PATHS.settingsFile, createDefaultPreferences)).rejects.toThrow();
+    expect((await initializeSettings()).status).not.toBe("success");
+    await expect(flushSettings(PATHS.settingsFile, createDefaultSettings)).rejects.toThrow();
     expect(disk.get(PATHS.settingsFile)).toBe(contents);
     expect(writes()).toEqual([]);
   });

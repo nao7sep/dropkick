@@ -289,8 +289,8 @@ describe("RecordsWindow", () => {
     expect(level!.value).toBe("");
 
     await choose(launch!, SESSION);
-    await choose(level!, "attention");
-    expect(lastQuery()).toEqual({ session: SESSION, level: "attention", search: "", after: null });
+    await choose(level!, "warningsAndErrors");
+    expect(lastQuery()).toEqual({ session: SESSION, level: "warningsAndErrors", search: "", after: null });
 
     vi.useFakeTimers();
     const search = document.querySelector<HTMLInputElement>('input[type="search"]')!;

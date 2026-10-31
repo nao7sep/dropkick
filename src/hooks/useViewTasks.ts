@@ -20,7 +20,7 @@ import {
 } from "../services";
 import { useTaskListStore } from "../state/task-list-store";
 import { useWorkspaceStore } from "../state/workspace-store";
-import { usePreferencesStore } from "../state/preferences-store";
+import { useSettingsStore } from "../state/settings-store";
 
 export interface ViewTasks {
   status: "loading" | "failed" | "ready";
@@ -39,8 +39,8 @@ export function useViewTasks(
   const files = useTaskListStore((s) => s.files);
   const loadError = useTaskListStore((s) => s.fileLoadErrors[filePath]);
   const openTabs = useWorkspaceStore((s) => s.workspace.openTabs);
-  const timezone = usePreferencesStore((s) => s.preferences.timezone);
-  const dueSoonDays = usePreferencesStore((s) => s.preferences.dueSoonDays);
+  const timezone = useSettingsStore((s) => s.settings.timezone);
+  const dueSoonDays = useSettingsStore((s) => s.settings.dueSoonDays);
 
   const today = useCalendarDay(timezone);
   const tasks = useMemo(

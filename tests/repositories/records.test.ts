@@ -47,7 +47,7 @@ beforeEach(() => {
 
 describe("records commands", () => {
   it("names the Rust core's commands and arguments", async () => {
-    const query = { session: null, level: "attention" as const, search: "x", after: { time: "t", id: 3 } };
+    const query = { session: null, level: "warningsAndErrors" as const, search: "x", after: { time: "t", id: 3 } };
     await readRecordsPage(query);
     await readRecordSources();
     await readRecordDetail(7);

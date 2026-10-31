@@ -18,11 +18,11 @@
 import { create } from "zustand";
 import type { TaskListDto } from "../models";
 import { log } from "../repositories";
-import { draftTaskId, draftSourceFile, draftSubjectKey, composerDraftKey, draftKeyAtPath, reconcileDrafts, canonicalDraftText, closedTaskContexts, type ParkedTaskContext, type DraftList } from "../services/note-drafts";
+import { draftTaskId, draftSourceFile, draftSubjectKey, composerDraftKey, draftKeyAtPath, reconcileDrafts, canonicalDraftText, closedTaskContexts, type ParkedTaskContext, type DraftList } from "../services/drafts";
 import type { ActionResult } from "./action-result";
 import { nowUtc } from "../utils/dates";
 
-interface NoteDraftState {
+interface DraftState {
   drafts: Record<string, string>;
   submittingVersions: ReadonlySet<number>;
   submitDraft: (key: string, write: (text: string, editedAtUtc: string | undefined) => Promise<ActionResult>) => Promise<ActionResult | null>;
@@ -53,13 +53,13 @@ interface NoteDraftState {
   // Called when the task is deleted — the drafts' subject no longer exists.
   clearTaskDrafts: (taskId: string, sourceFile: string) => void;
   // Drop drafts whose task or note no longer exists. `subjects` is every key the
-  // loaded task lists can justify (services/note-drafts).
+  // loaded task lists can justify (services/drafts).
   // Drops drafts whose subject is provably gone, judged against the task
   // lists currently loaded. Safe to call as often as those change.
   reconcile: (loadedLists: readonly DraftList[]) => void;
 }
 
-export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
+export const useDraftStore = create<DraftState>((set, get) => {
   let nextVersion = 0;
   const submissions = new Map<number, Promise<ActionResult | null>>();
   // Replace the draft map, unless nothing changed.
@@ -186,7 +186,7 @@ export const useNoteDraftStore = create<NoteDraftState>((set, get) => {
       }
       const kept = reconcileDrafts(drafts, loadedLists, closed);
       if (kept === drafts) return;
-      log.info("orphaned note drafts dropped", {
+      log.info("orphaned drafts dropped", {
         dropped: Object.keys(drafts).length - Object.keys(kept).length,
       });
       commit(kept);

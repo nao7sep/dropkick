@@ -49,9 +49,9 @@ vi.mock("../../src/repositories", () => ({
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { pendingSerialKeys } from "../../src/repositories";
 import { settled } from "../helpers/settled";
-import { usePreferencesStore } from "../../src/state/preferences-store";
-import { useNoteDraftStore } from "../../src/state/note-draft-store";
-import { composerDraftKey } from "../../src/services/note-drafts";
+import { useSettingsStore } from "../../src/state/settings-store";
+import { useDraftStore } from "../../src/state/draft-store";
+import { composerDraftKey } from "../../src/services/drafts";
 import { makeTask, makeNote } from "../helpers/task";
 import { taskKey } from "../../src/utils";
 import { describeDiskFailure } from "../../src/services";
@@ -89,11 +89,11 @@ beforeEach(() => {
   flushMove.mockReset();
   forgetTaskList.mockClear();
   refreshTaskList.mockReset();
-  useNoteDraftStore.setState({ drafts: {}, draftVersions: {} });
+  useDraftStore.setState({ drafts: {}, draftVersions: {} });
   flushSucceeds();
-  // Reset preferences to a known timezone/window for reorder grouping.
-  usePreferencesStore.setState({
-    preferences: { ...usePreferencesStore.getState().preferences, timezone: "UTC", dueSoonDays: 7 },
+  // Reset settings to a known timezone/window for reorder grouping.
+  useSettingsStore.setState({
+    settings: { ...useSettingsStore.getState().settings, timezone: "UTC", dueSoonDays: 7 },
   });
   useTaskListStore.setState({
     files: {},
@@ -666,7 +666,7 @@ describe("refreshFromDisk", () => {
 
   it("keeps the loaded copy while a draft for one of its tasks is unsaved", async () => {
     seedFile([makeTask({ id: "a", title: "loaded" })]);
-    useNoteDraftStore.setState({ drafts: { [composerDraftKey("a", FILE)]: "half a note" } });
+    useDraftStore.setState({ drafts: { [composerDraftKey("a", FILE)]: "half a note" } });
     diskHolds([makeTask({ id: "a", title: "edited outside" })]);
 
     await useTaskListStore.getState().refreshFromDisk(FILE);

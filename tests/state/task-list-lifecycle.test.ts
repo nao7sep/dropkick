@@ -3,12 +3,12 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { useTaskListStore } from "../../src/state/task-list-store";
 import { useWorkspaceStore } from "../../src/state/workspace-store";
-import { useNoteDraftStore } from "../../src/state/note-draft-store";
+import { useDraftStore } from "../../src/state/draft-store";
 import { useDialogStore, refuseDialogs } from "../../src/state/dialog-store";
 import { drainSerial } from "../../src/repositories/file-system";
 import { openWorkspaceSession } from "../../src/services/open-workspace-session";
 import { flushAppState } from "../../src/repositories/app-state-repository";
-import { fieldDraftKey } from "../../src/services/note-drafts";
+import { fieldDraftKey } from "../../src/services/drafts";
 import { commitParkedFields } from "../../src/services/commit-task-fields";
 import { createDefaultAppState, createDefaultWorkspace, createTab, type TaskListDto } from "../../src/models";
 import { makeTask } from "../helpers/task";
@@ -29,7 +29,7 @@ beforeEach(() => {
   useDialogStore.setState({ current: null, queue: [] });
   useTaskListStore.setState({ files: {}, fileLoadErrors: {}, fileDiskErrors: {}, unsavedFiles: {}, selectedKeys: new Set() });
   useWorkspaceStore.setState({ loaded: false, filePath: "", workspace: createDefaultWorkspace("Empty") });
-  useNoteDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {}, parkedTasks: {} });
+  useDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {}, parkedTasks: {} });
   docs = new Map(); writes = []; io = []; holdWrite = undefined; failWrites = false; holdRead = undefined;
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const { path, contents, expectedHash } = (args ?? {}) as { path: string; contents: string; expectedHash?: string };
@@ -157,12 +157,12 @@ it("switching releases old-only lists and their identity while retaining note co
   put("/old.json", list("identity")); put("/copy.json", list("identity"));
   workspace("/a.json", ["/old.json"]); workspace("/b.json", ["/copy.json"]);
   await openWorkspaceSession("/a.json"); await useTaskListStore.getState().loadFile("/old.json");
-  useNoteDraftStore.getState().setDraft("task|%2Fold.json", "Unsent note");
+  useDraftStore.getState().setDraft("task|%2Fold.json", "Unsent note");
   expect(await openWorkspaceSession("/b.json")).toEqual({ kind: "success" });
   await drainSerial("/old.json");
   expect(Object.keys(useTaskListStore.getState().files)).toEqual([]);
-  expect(useNoteDraftStore.getState().drafts["task|%2Fold.json"]).toBe("Unsent note");
-  expect(useNoteDraftStore.getState().parkedTasks["task|%2Fold.json"].title).toBe("Original");
+  expect(useDraftStore.getState().drafts["task|%2Fold.json"]).toBe("Unsent note");
+  expect(useDraftStore.getState().parkedTasks["task|%2Fold.json"].title).toBe("Original");
   expect(await useTaskListStore.getState().loadFile("/copy.json")).toEqual({ status: "success" });
   expect(await openWorkspaceSession("/a.json")).toEqual({ kind: "success" });
   expect(await useTaskListStore.getState().loadFile("/old.json")).toEqual({ status: "success" });
@@ -198,12 +198,12 @@ it("an unrelated held disposable-state save does not prevent a readable workspac
 it("a moved field keeps its copy owner even with a third task copy loaded", async () => {
   put("/source.json", list("source")); put("/dest.json", { id: "dest", tasks: [] }); put("/third.json", list("third", "Third copy"));
   for (const path of ["/third.json", "/source.json", "/dest.json"]) await useTaskListStore.getState().loadFile(path);
-  useNoteDraftStore.getState().setDraft(fieldDraftKey("task", "title", "/source.json"), "Moved draft");
+  useDraftStore.getState().setDraft(fieldDraftKey("task", "title", "/source.json"), "Moved draft");
   expect((await useTaskListStore.getState().moveTasks("/source.json", "/dest.json", new Set(["task"]))).status).toBe("success");
   commitParkedFields(); await Promise.all([...docs.keys()].map(drainSerial));
   expect(useTaskListStore.getState().files["/third.json"].data.tasks[0].title).toBe("Third copy");
   expect(useTaskListStore.getState().files["/dest.json"].data.tasks[0].title).toBe("Moved draft");
-  expect(useNoteDraftStore.getState().drafts).toEqual({});
+  expect(useDraftStore.getState().drafts).toEqual({});
 });
 
 it("path-specific tab close saves its field despite another matching copy loading first", async () => {
@@ -211,12 +211,12 @@ it("path-specific tab close saves its field despite another matching copy loadin
   workspace("/home.json", ["/source.json", "/copy.json"]);
   await openWorkspaceSession("/home.json");
   for (const path of ["/source.json", "/copy.json"]) await useTaskListStore.getState().loadFile(path);
-  useNoteDraftStore.getState().setDraft(fieldDraftKey("task", "title", "/copy.json"), "Edited copy");
+  useDraftStore.getState().setDraft(fieldDraftKey("task", "title", "/copy.json"), "Edited copy");
   await useWorkspaceStore.getState().closeTab(1);
   expect((docs.get("/copy.json")!.data as TaskListDto).tasks[0].title).toBe("Edited copy");
   expect((docs.get("/source.json")!.data as TaskListDto).tasks[0].title).toBe("Original");
   expect(useWorkspaceStore.getState().workspace.openTabs.some((tab) => tab.filePath === "/copy.json")).toBe(false);
-  expect(useNoteDraftStore.getState().drafts).toEqual({});
+  expect(useDraftStore.getState().drafts).toEqual({});
 });
 
 it("coalesces focus refreshes behind a held read without delaying an accepted save", async () => {

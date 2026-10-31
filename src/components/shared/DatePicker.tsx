@@ -7,7 +7,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { DayPicker } from "react-day-picker";
 import { Calendar, X } from "lucide-react";
 import "react-day-picker/style.css";
-import { usePreferencesStore } from "../../state/preferences-store";
+import { useSettingsStore } from "../../state/settings-store";
 import { formatDueDate } from "../../utils";
 import { useCalendarDay } from "../../hooks/useCalendarDay";
 import { useI18n } from "../../i18n/I18nContext";
@@ -42,11 +42,11 @@ export function DatePicker({ id, value, onChange, isOverdue, disabled = false, p
   const [open, setOpen] = useState(false);
   // "Today" is a preference, not an OS fact. Every other date decision in the
   // app — the group a task falls in, whether it is overdue, what Cmd+D sets —
-  // resolves against preferences.timezone, so the ringed cell has to as well.
+  // resolves against settings.timezone, so the ringed cell has to as well.
   // With the preference set to a zone on a different calendar date, the same
   // New Task modal otherwise showed two different todays, and clicking the
   // ringed one filed a brand-new task straight into Past Due.
-  const timezone = usePreferencesStore((s) => s.preferences.timezone);
+  const timezone = useSettingsStore((s) => s.settings.timezone);
   const today = parseDate(useCalendarDay(timezone));
 
   const selected = value ? parseDate(value) : undefined;

@@ -3,7 +3,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { useTaskListStore } from "../../src/state/task-list-store";
-import { useNoteDraftStore } from "../../src/state/note-draft-store";
+import { useDraftStore } from "../../src/state/draft-store";
 import { refuseDialogs, useDialogStore } from "../../src/state/dialog-store";
 import { drainSerial } from "../../src/repositories/file-system";
 import { makeTask } from "../helpers/task";
@@ -21,7 +21,7 @@ beforeEach(async () => {
   refuseDialogs(false);
   useDialogStore.setState({ current: null, queue: [] });
   useTaskListStore.setState({ files: {}, unsavedFiles: {}, fileLoadErrors: {}, fileDiskErrors: {} });
-  useNoteDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {}, parkedTasks: {} });
+  useDraftStore.setState({ drafts: {}, editedAtUtc: {}, draftVersions: {}, parkedTasks: {} });
   disk = { id: "L", tasks: [makeTask({ id: "t", title: "Original" })] };
   hash = "original";
   invalid = false;
