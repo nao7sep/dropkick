@@ -269,7 +269,7 @@ fn a_new_store_is_stamped_with_its_format_version() {
 
 #[test]
 #[serial(backup_store)]
-fn an_existing_store_without_a_marker_is_left_byte_identical_and_records_nothing() {
+fn an_existing_store_without_a_header_is_left_byte_identical_and_records_nothing() {
     let store = temp_store();
     let file = &store.file;
     {
@@ -291,7 +291,12 @@ fn a_newer_store_is_left_byte_identical_and_records_nothing() {
     {
         let conn = Connection::open(file).unwrap();
         conn.pragma_update(None, "user_version", 3).unwrap();
-        conn.execute_batch("CREATE TABLE history (anything BLOB);").unwrap();
+        conn.execute_batch(
+            "CREATE TABLE history (anything BLOB); \
+             CREATE TABLE file_header (key TEXT PRIMARY KEY, value TEXT NOT NULL); \
+             INSERT INTO file_header VALUES ('format.owner', 'dropkick'), ('format.kind', 'backups');",
+        )
+        .unwrap();
     }
     let before = std::fs::read(file).unwrap();
     init(file.clone());

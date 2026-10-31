@@ -56,13 +56,13 @@ fn the_settings_theme_is_previewed_only_when_marked_and_readable() {
     let state = dir.path().join("state.json");
     let settings = dir.path().join("settings.json");
     assert_eq!(read_appearance(&state).theme, None);
-    fs::write(&settings, r#"{"formatVersion":1,"theme":"light"}"#).unwrap();
+    fs::write(&settings, r#"{"format":{"owner":"dropkick","kind":"settings","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"theme":"light"}"#).unwrap();
     assert_eq!(read_appearance(&state).theme, Some(Theme::Light));
     fs::write(&settings, r#"{"theme":"dark"}"#).unwrap();
     assert_eq!(read_appearance(&state).theme, None);
-    fs::write(&settings, r#"{"formatVersion":2,"theme":"dark"}"#).unwrap();
+    fs::write(&settings, r#"{"format":{"owner":"dropkick","kind":"settings","version":2},"writer":{"name":"dropkick","version":"1.0.0"},"theme":"dark"}"#).unwrap();
     assert_eq!(read_appearance(&state).theme, None);
-    fs::write(&settings, r#"{"formatVersion":1}"#).unwrap();
+    fs::write(&settings, r#"{"format":{"owner":"dropkick","kind":"settings","version":1},"writer":{"name":"dropkick","version":"1.0.0"}}"#).unwrap();
     assert_eq!(read_appearance(&state).theme, None);
 }
 
@@ -74,7 +74,7 @@ fn reading_the_saved_theme_never_changes_either_file() {
     fs::write(&state, "{corrupt").expect("write state");
     assert_eq!(read_appearance(&state).theme, None);
 
-    let settings_body = r#"{"formatVersion":1,"theme":"dark"}"#;
+    let settings_body = r#"{"format":{"owner":"dropkick","kind":"settings","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"theme":"dark"}"#;
     fs::write(&settings, settings_body).expect("write settings");
     assert_eq!(read_appearance(&state).theme, Some(Theme::Dark));
     assert_eq!(fs::read_to_string(&state).expect("read state"), "{corrupt");
@@ -106,9 +106,9 @@ fn one_immutable_appearance_snapshot_takes_language_and_theme_from_the_settings(
     let dir = tempfile::tempdir().unwrap();
     let state = dir.path().join("state.json");
     let settings = dir.path().join("settings.json");
-    fs::write(&settings, r#"{"formatVersion":1,"language":"de","theme":"light"}"#).unwrap();
+    fs::write(&settings, r#"{"format":{"owner":"dropkick","kind":"settings","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"language":"de","theme":"light"}"#).unwrap();
     let snapshot = read_appearance(&state);
-    fs::write(&settings, r#"{"formatVersion":1,"language":"ja","theme":"dark"}"#).unwrap();
+    fs::write(&settings, r#"{"format":{"owner":"dropkick","kind":"settings","version":1},"writer":{"name":"dropkick","version":"1.0.0"},"language":"ja","theme":"dark"}"#).unwrap();
     assert_eq!((snapshot.language, snapshot.theme), (Some("de"), Some(Theme::Light)));
     let changed = read_appearance(&state);
     assert_eq!((changed.language, changed.theme), (Some("ja"), Some(Theme::Dark)));

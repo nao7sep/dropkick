@@ -295,7 +295,7 @@ fn open_records(records_file: &Path) -> Records {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let conn = format_version::open_sqlite(records_file, Format::Records, SCHEMA)?;
-    // The marker is read before anything is written: a newer build's records
+    // The header is judged before anything is written: a newer build's records
     // are left exactly as they are, and every entry takes the fallback file,
     // which carries this error.
     if let Marker::Newer(found) = format_version::sqlite(&conn, Format::Records)? {

@@ -29,7 +29,7 @@ function effectiveSettings(data: Record<string, unknown>, path: string): Setting
 
 function isSettings(data: unknown): data is Record<string, unknown> {
   return typeof data === "object" && data !== null && !Array.isArray(data)
-    && Object.keys(data).every((key) => key === "formatVersion" || SETTING_SET_KEYS.some((known) => key === known));
+    && Object.keys(data).every((key) => key === "format" || key === "writer" || SETTING_SET_KEYS.some((known) => key === known));
 }
 
 export async function initializeSettings(): Promise<LoadSettingsResult & { filePath: string }> {

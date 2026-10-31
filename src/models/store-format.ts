@@ -1,64 +1,62 @@
-// Every store's format version (store-recovery-conventions): one integer per
-// format, independent of the app's version and of the other formats. The table
-// is JSON so the Rust core reads the same numbers (its format_version module).
+// Every file Dropkick writes in its own formats starts with the file identity
+// header (file-identity-conventions): `format` says what it is (owner, kind,
+// version) and `writer` which build saved it. Each kind's version lives in a
+// JSON table so the Rust core reads the same numbers (its format_version
+// module, which judges the files the core reads the same way).
 import FORMAT_VERSION_TABLE from "./format-versions.json";
-import { version as APP_VERSION } from "../../package.json";
+import { name as PACKAGE_NAME, version as APP_VERSION } from "../../package.json";
 
+// A store's format; its key in the table is the header's `kind`.
 export type StoreFormat = keyof typeof FORMAT_VERSION_TABLE;
 
 export const FORMAT_VERSIONS: Readonly<Record<StoreFormat, number>> = FORMAT_VERSION_TABLE;
 
-// The documents a user keeps in their own folders say what they are and what
-// wrote them, right after the marker. Every save writes this build's version.
-// Mirrored in the Rust core's format_version module, which reads task lists.
-const DOCUMENT_KINDS: Partial<Record<StoreFormat, string>> = {
-  workspace: "workspace",
-  taskList: "taskList",
-};
+// The product that owns every format here.
+export const OWNER = "dropkick";
 
-export const WRITER = { name: "dropkick", version: APP_VERSION } as const;
+// This build, as every save writes it. It is never read back.
+export const WRITER = { name: PACKAGE_NAME, version: APP_VERSION } as const;
 
-function isWriter(value: unknown): boolean {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const writer = value as Record<string, unknown>;
-  return typeof writer.name === "string" && writer.name !== ""
-    && typeof writer.version === "string" && writer.version !== "";
-}
-
-// What a parsed document's marker says about it. A document without its
-// marker is unreadable: nothing infers a version from a file's shape. A user
-// document must also name its own kind and a writer, so a task list opened as
-// a workspace, or the reverse, is unreadable too.
-export type FormatVersionCheck =
+// What a parsed document's header says about it. A document is readable only
+// when `format` names this owner and the expected kind, so a task list opened
+// as a workspace, or the reverse, is unreadable whatever its version. A
+// missing or malformed header is unreadable: nothing infers a format from a
+// file's shape. `writer` is not looked at.
+export type FileHeaderCheck =
   | { status: "readable" }
   | { status: "newer"; formatVersion: number }
   | { status: "invalid"; message: string };
 
-export function checkFormatVersion(data: unknown, format: StoreFormat): FormatVersionCheck {
-  const found = typeof data === "object" && data !== null && !Array.isArray(data)
-    ? (data as Record<string, unknown>).formatVersion
-    : undefined;
-  if (typeof found !== "number" || !Number.isInteger(found) || found < 1) {
-    return { status: "invalid", message: "formatVersion is missing or not a positive integer" };
-  }
-  if (found > FORMAT_VERSIONS[format]) return { status: "newer", formatVersion: found };
-  const kind = DOCUMENT_KINDS[format];
-  if (kind !== undefined) {
-    const record = data as Record<string, unknown>;
-    if (record.kind !== kind) return { status: "invalid", message: `kind is missing or not ${kind}` };
-    if (!isWriter(record.writer)) return { status: "invalid", message: "writer is missing or has no name and version" };
-  }
-  return { status: "readable" };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// The document as written: its format's current version first, then a user
-// document's kind and writer, then its body. The header is spread again after
-// the body so a body carrying its own copy cannot replace it or move it.
-export function withFormatVersion(format: StoreFormat, document: object): Record<string, unknown> {
-  const kind = DOCUMENT_KINDS[format];
-  const header = kind === undefined
-    ? { formatVersion: FORMAT_VERSIONS[format] }
-    : { formatVersion: FORMAT_VERSIONS[format], kind, writer: { ...WRITER } };
+export function checkFileHeader(data: unknown, format: StoreFormat): FileHeaderCheck {
+  const header = isRecord(data) ? data.format : undefined;
+  if (!isRecord(header)) return { status: "invalid", message: "format is missing or not an object" };
+  const { owner, kind, version } = header;
+  if (typeof owner !== "string" || typeof kind !== "string") {
+    return { status: "invalid", message: "format.owner or format.kind is missing or not a string" };
+  }
+  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
+    return { status: "invalid", message: "format.version is missing or not a positive integer" };
+  }
+  if (owner !== OWNER || kind !== format) {
+    return { status: "invalid", message: `file is ${owner} ${kind}, not ${OWNER} ${format}` };
+  }
+  return version > FORMAT_VERSIONS[format]
+    ? { status: "newer", formatVersion: version }
+    : { status: "readable" };
+}
+
+// The document as written: its header first, then its body. The header is
+// spread again after the body so a body carrying its own copy can neither
+// replace it nor move it.
+export function withFileHeader(format: StoreFormat, document: object): Record<string, unknown> {
+  const header = {
+    format: { owner: OWNER, kind: format, version: FORMAT_VERSIONS[format] },
+    writer: { ...WRITER },
+  };
   return { ...header, ...document, ...header };
 }
 

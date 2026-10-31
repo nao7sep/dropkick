@@ -70,11 +70,11 @@ impl TrackedWindow {
     }
 }
 
-/// A placement file as it is written: its format version, then the placement.
+/// A placement file as it is written: its header, then the placement.
 #[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 struct PlacementFile {
-    format_version: u32,
+    format: format_version::FormatHeader,
+    writer: format_version::WriterHeader,
     #[serde(flatten)]
     placement: Placement,
 }
@@ -382,7 +382,8 @@ pub(crate) fn save_all(app: &AppHandle, placements: &WindowPlacements) {
 /// The text a placement file holds.
 pub fn file_text(placement: Placement) -> Result<String, String> {
     let file = PlacementFile {
-        format_version: Format::WindowPlacement.current(),
+        format: format_version::format_header(Format::WindowPlacement),
+        writer: format_version::writer_header(),
         placement,
     };
     let mut text = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;

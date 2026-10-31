@@ -8,7 +8,7 @@
 // read_text_file command for the exposure this does and does not cover.
 
 import { invoke } from "@tauri-apps/api/core";
-import { checkFormatVersion, FORMAT_VERSIONS, withFormatVersion, type StoreFormat } from "../models/store-format";
+import { checkFileHeader, FORMAT_VERSIONS, withFileHeader, type StoreFormat } from "../models/store-format";
 import { log, toErrorFields } from "./logging";
 
 // Mirror of the Rust TextReadResult union (read_text_file command).
@@ -28,7 +28,7 @@ export type JsonReadResult<T> =
   | { status: "error"; message: string };
 
 // Mirror of the Rust JsonFileWithHashResult union (read_json_file_with_hash
-// command), which checks the task-list format version the same way.
+// command), which checks the task-list header the same way.
 export type JsonReadWithHashResult<T> =
   | { status: "success"; data: T; hash: string }
   | { status: "missing" }
@@ -36,9 +36,9 @@ export type JsonReadWithHashResult<T> =
   | { status: "newer"; formatVersion: number }
   | { status: "error"; message: string };
 
-// Reads a store's JSON file and returns an explicit load result. The format
-// version is judged here, before the caller's shape check, so every store
-// treats a newer or malformed marker the same way.
+// Reads a store's JSON file and returns an explicit load result. The file
+// header is judged here, before the caller's shape check, so every store
+// treats a newer, malformed or foreign header the same way.
 export async function readJsonFileResult<T>(
   path: string,
   format: StoreFormat,
@@ -63,7 +63,7 @@ export async function readJsonFileResult<T>(
       message: e instanceof Error ? e.message : String(e),
     };
   }
-  const check = checkFormatVersion(data, format);
+  const check = checkFileHeader(data, format);
   if (check.status !== "readable") return check;
   return { status: "success", data: data as T };
 }
@@ -83,8 +83,8 @@ export async function readJsonFileWithHash<T>(
   });
 }
 
-// Writes a store's document to disk as formatted JSON, its format's current
-// version first. This is the single write boundary for every JSON file
+// Writes a store's document to disk as formatted JSON, its file header
+// first. This is the single write boundary for every JSON file
 // (settings, workspace, app config, task lists), so it logs the write
 // (debug). Native operation failures are already recorded with their path;
 // only an undelivered invocation needs a frontend error record. This is also the write path for external documents saved
@@ -100,7 +100,7 @@ export async function writeJsonFile(
   document: object,
   recordBackup = true,
 ): Promise<string> {
-  const text = JSON.stringify(withFormatVersion(format, document), null, 2);
+  const text = JSON.stringify(withFileHeader(format, document), null, 2);
   try {
     // Atomic on the Rust side (temp + fsync + rename), so a crash mid-write
     // never leaves a half-written file. The new file is staged in a directory
@@ -136,7 +136,7 @@ export type TaskSaveOutcome =
 // compares it right before the same atomic write writeJsonFile uses, so a
 // change another program made since is reported instead of overwritten.
 export async function saveTaskFile(path: string, document: object, expectedHash: string): Promise<TaskSaveOutcome> {
-  const contents = JSON.stringify(withFormatVersion("taskList", document), null, 2);
+  const contents = JSON.stringify(withFileHeader("taskList", document), null, 2);
   try {
     return await invoke<TaskSaveOutcome>("save_task_file", { path, contents, expectedHash });
   } catch (e) {
@@ -151,7 +151,7 @@ export async function saveTaskFile(path: string, document: object, expectedHash:
 // conventions).
 export async function quarantineFile(path: string, format: StoreFormat): Promise<string> {
   // The core refuses to set aside a file a newer build of this format wrote.
-  return await invoke<string>("quarantine_file", { path, formatVersion: FORMAT_VERSIONS[format] });
+  return await invoke<string>("quarantine_file", { path, kind: format, formatVersion: FORMAT_VERSIONS[format] });
 }
 
 // Checks if a file exists on disk.

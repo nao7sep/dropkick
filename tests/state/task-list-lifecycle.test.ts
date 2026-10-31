@@ -39,7 +39,7 @@ beforeEach(() => {
       await holdRead?.(path);
       return doc ? expectedHash === doc.hash ? { status: "unchanged" } : { status: "success", ...structuredClone(doc) } : { status: "missing" };
     }
-    if (command === "read_text_file") return doc ? { status: "success", text: JSON.stringify({ ...doc.data as object, formatVersion: 1, kind: "workspace", writer: WRITER }) } : { status: "missing" };
+    if (command === "read_text_file") return doc ? { status: "success", text: JSON.stringify({ ...doc.data as object, format: { owner: "dropkick", kind: "workspace", version: 1 }, writer: WRITER }) } : { status: "missing" };
     if (command === "write_text_file_atomic" || command === "save_task_file") {
       if (command === "save_task_file") {
         const current = docs.get(path)?.hash;

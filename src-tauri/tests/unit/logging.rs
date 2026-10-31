@@ -362,7 +362,12 @@ fn a_read_of_a_newer_records_database_answers_its_error() {
     {
         let conn = Connection::open(&file).expect("open records");
         conn.pragma_update(None, "user_version", 2).expect("set version");
-        conn.execute_batch("CREATE TABLE logs (anything TEXT);").expect("schema");
+        conn.execute_batch(
+            "CREATE TABLE logs (anything TEXT); \
+             CREATE TABLE file_header (key TEXT PRIMARY KEY, value TEXT NOT NULL); \
+             INSERT INTO file_header VALUES ('format.owner', 'dropkick'), ('format.kind', 'records');",
+        )
+        .expect("schema");
     }
     let before = std::fs::read(&file).expect("read records");
     let logger = Logger::open(&file, &tmp.path().join("logs"), false);

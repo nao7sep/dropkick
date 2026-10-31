@@ -68,5 +68,5 @@ export type {
 } from "./domain";
 export { TASK_GROUP_ORDER } from "./domain";
 
-export type { StoreFormat, FormatVersionCheck, StoreRecovery } from "./store-format";
-export { FORMAT_VERSIONS, WRITER, checkFormatVersion, withFormatVersion } from "./store-format";
+export type { StoreFormat, FileHeaderCheck, StoreRecovery } from "./store-format";
+export { FORMAT_VERSIONS, OWNER, WRITER, checkFileHeader, withFileHeader } from "./store-format";

@@ -151,7 +151,7 @@ describe("managed JSON backup policy", () => {
     expect(await writeJsonFile("/store.json", "state", { value: 1 }, recorded)).toBe("digest");
     const writes = vi.mocked(invoke).mock.calls.filter(([command]) => command === "write_text_file_atomic");
     expect(writes).toEqual([["write_text_file_atomic", {
-      path: "/store.json", contents: JSON.stringify({ formatVersion: 1, value: 1 }, null, 2),
+      path: "/store.json", contents: JSON.stringify({ format: { owner: "dropkick", kind: "state", version: 1 }, writer: WRITER, value: 1 }, null, 2),
       ...(recorded ? {} : { recordBackup: false }),
     }]]);
   });
@@ -204,7 +204,7 @@ it("sends the expected hash and exact formatted content in one invocation withou
   vi.mocked(invoke).mockResolvedValueOnce({ status: "conflict" });
   expect(await saveTaskFile("/task.json", { id: "L", tasks: [] }, "baseline")).toEqual({ status: "conflict" });
   expect(invoke).toHaveBeenCalledExactlyOnceWith("save_task_file", {
-    path: "/task.json", contents: JSON.stringify({ formatVersion: 1, kind: "taskList", writer: WRITER, id: "L", tasks: [] }, null, 2),
+    path: "/task.json", contents: JSON.stringify({ format: { owner: "dropkick", kind: "taskList", version: 1 }, writer: WRITER, id: "L", tasks: [] }, null, 2),
     expectedHash: "baseline",
   });
   vi.mocked(invoke).mockRejectedValueOnce({ kind: "recordedOperation", message: "disk unavailable" });

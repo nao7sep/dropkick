@@ -1,5 +1,5 @@
-// Every store's format version (store-recovery-conventions): the shared table,
-// how a marker is judged, and the window-placement files the core owns.
+// The file identity header (file-identity-conventions): the shared table, how
+// a header is judged, and the window-placement files the core owns.
 
 use std::fs;
 
@@ -55,23 +55,81 @@ fn failed_schema_initialization_leaves_no_marker_and_a_later_launch_creates_the_
     assert!(conn.prepare("SELECT * FROM logs").is_ok());
 }
 
+// A store as an earlier launch left it: its own table, and file_header rows
+// naming `owner` and `kind` unless `owner` is None.
+fn existing_store(path: &std::path::Path, version: i64, owner: Option<&str>, kind: &str) {
+    let conn = Connection::open(path).unwrap();
+    conn.execute_batch("CREATE TABLE original (id INTEGER);").unwrap();
+    if let Some(owner) = owner {
+        conn.execute_batch("CREATE TABLE file_header (key TEXT PRIMARY KEY, value TEXT NOT NULL);")
+            .unwrap();
+        for (key, value) in [
+            ("format.owner", owner),
+            ("format.kind", kind),
+            ("writer.name", "dropkick"),
+            ("writer.version", "0.0.1"),
+        ] {
+            conn.execute("INSERT INTO file_header VALUES (?1, ?2)", [key, value]).unwrap();
+        }
+    }
+    conn.pragma_update(None, "user_version", version).unwrap();
+    conn.close().unwrap();
+}
+
+fn header_rows(conn: &Connection) -> Vec<(String, String)> {
+    conn.prepare("SELECT key, value FROM file_header ORDER BY key")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect()
+}
+
 #[test]
-fn existing_readable_and_newer_sqlite_stores_keep_their_bytes_and_markers() {
-    for marker in [1, 3] {
+fn a_new_sqlite_store_gets_its_header_table() {
+    let dir = tempfile::tempdir().unwrap();
+    let conn = format_version::open_sqlite(&dir.path().join("new.sqlite3"), Format::Backups, "CREATE TABLE b (id INTEGER);")
+        .unwrap();
+    let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+    assert_eq!(version, 1);
+    assert_eq!(
+        header_rows(&conn),
+        [
+            ("format.kind".to_string(), "backups".to_string()),
+            ("format.owner".to_string(), "dropkick".to_string()),
+            ("writer.name".to_string(), "dropkick".to_string()),
+            ("writer.version".to_string(), env!("CARGO_PKG_VERSION").to_string()),
+        ]
+    );
+}
+
+#[test]
+fn a_readable_sqlite_store_is_opened_and_its_writer_rows_rewritten() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("existing.sqlite3");
+    existing_store(&path, 1, Some("dropkick"), "records");
+    let conn = format_version::open_sqlite(&path, Format::Records, "INVALID SQL;").unwrap();
+    assert!(conn.prepare("SELECT * FROM original").is_ok());
+    let rows = header_rows(&conn);
+    assert!(rows.contains(&("writer.version".to_string(), env!("CARGO_PKG_VERSION").to_string())));
+    assert!(rows.contains(&("format.kind".to_string(), "records".to_string())));
+}
+
+#[test]
+fn a_newer_or_foreign_sqlite_store_is_refused_and_keeps_its_bytes() {
+    for (version, owner, kind, newer) in [
+        (3, Some("dropkick"), "records", true),
+        (1, None, "records", false),
+        (1, Some("zipkit"), "records", false),
+        (1, Some("dropkick"), "backups", false),
+        (3, Some("dropkick"), "backups", false),
+    ] {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("existing.sqlite3");
-        let conn = Connection::open(&path).unwrap();
-        conn.execute_batch("CREATE TABLE original (id INTEGER);")
-            .unwrap();
-        conn.pragma_update(None, "user_version", marker).unwrap();
-        conn.close().unwrap();
+        existing_store(&path, version, owner, kind);
         let before = fs::read(&path).unwrap();
-        let result = format_version::open_sqlite(&path, Format::Records, "INVALID SQL;");
-        if marker == 1 {
-            result.unwrap().close().unwrap();
-        } else {
-            assert!(result.unwrap_err().contains("newer than this build"));
-        }
+        let error = format_version::open_sqlite(&path, Format::Records, "INVALID SQL;").unwrap_err();
+        assert_eq!(error.contains("newer than this build"), newer, "{error}");
         assert_eq!(fs::read(&path).unwrap(), before);
     }
 }
@@ -88,30 +146,42 @@ fn cached_mutation_admission_refuses_a_newer_marker() {
 }
 
 #[test]
-fn a_missing_marker_is_unreadable_and_a_newer_one_is_reported() {
+fn a_missing_malformed_or_foreign_header_is_unreadable_and_a_newer_one_is_reported() {
     let format = Format::Settings;
-    assert!(format_version::json_value(&json!({}), format).is_err());
-    assert!(format_version::json_value(&json!({ "version": "1.0.1" }), format).is_err());
-    assert!(format_version::json_value(&json!({ "version": 1 }), format).is_err());
-    // A `version` label is not a marker.
-    assert!(format_version::json_value(&json!({ "version": "1.0.0" }), format).is_err());
-    assert_eq!(
-        format_version::json_value(&json!({ "version": "1.0.0", "formatVersion": 3 }), format),
-        Ok(Marker::Newer(3))
-    );
-    assert!(format_version::json_value(&json!([1]), format).is_err());
+    let header = |owner: &str, kind: &str, version: serde_json::Value| {
+        json!({ "format": { "owner": owner, "kind": kind, "version": version } })
+    };
+    for document in [
+        json!({}),
+        json!([1]),
+        json!({ "formatVersion": 1 }),
+        json!({ "version": "1.0.0" }),
+        json!({ "format": "settings" }),
+        json!({ "format": { "owner": "dropkick", "version": 1 } }),
+        json!({ "format": { "kind": "settings", "version": 1 } }),
+        header("dropkick", "settings", json!("1")),
+        header("dropkick", "settings", json!(0)),
+        header("dropkick", "settings", json!(null)),
+        header("dropkick", "settings", json!(1.5)),
+        header("fotoready", "settings", json!(1)),
+        header("dropkick", "state", json!(1)),
+        header("dropkick", "state", json!(3)),
+    ] {
+        assert!(format_version::json_value(&document, format).is_err(), "{document}");
+    }
     assert!(format_version::json_bytes(b"{ not json", format).is_err());
-    assert!(format_version::json_bytes(br#"{"formatVersion":null}"#, format).is_err());
-    assert!(format_version::json_value(&json!({ "formatVersion": "2" }), format).is_err());
-    assert!(format_version::json_value(&json!({ "formatVersion": 0 }), format).is_err());
-    assert_eq!(
-        format_version::json_value(&json!({ "formatVersion": 1 }), format),
-        Ok(Marker::Readable)
-    );
-    assert_eq!(
-        format_version::json_value(&json!({ "formatVersion": 3 }), format),
-        Ok(Marker::Newer(3))
-    );
+    assert_eq!(format_version::json_value(&header("dropkick", "settings", json!(1)), format), Ok(Marker::Readable));
+    assert_eq!(format_version::json_value(&header("dropkick", "settings", json!(3)), format), Ok(Marker::Newer(3)));
+}
+
+// `writer` is never read: any value, or none, leaves the judgement to `format`.
+#[test]
+fn the_writer_is_not_read() {
+    let format = Format::Settings;
+    for writer in [json!(null), json!("x"), json!({}), json!({ "name": "other", "version": 9 })] {
+        let document = json!({ "format": { "owner": "dropkick", "kind": "settings", "version": 1, "extra": 1 }, "writer": writer });
+        assert_eq!(format_version::json_value(&document, format), Ok(Marker::Readable));
+    }
 }
 
 #[test]
@@ -146,7 +216,7 @@ fn placement() -> Placement {
 }
 
 #[test]
-fn a_placement_file_without_a_marker_is_set_aside() {
+fn a_placement_file_without_a_header_is_set_aside() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("window.json");
     let text = r#"{"normal":{"x":10,"y":20,"width":800,"height":600},"maximized":false}"#;
@@ -164,12 +234,15 @@ fn a_placement_file_without_a_marker_is_set_aside() {
 }
 
 #[test]
-fn a_placement_file_round_trips_with_its_format_version() {
+fn a_placement_file_round_trips_with_its_header() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("window.json");
     let text = file_text(placement()).unwrap();
     let written: serde_json::Value = serde_json::from_str(&text).unwrap();
-    assert_eq!(written["formatVersion"], json!(1));
+    assert_eq!(written["format"], json!({ "owner": "dropkick", "kind": "windowPlacement", "version": 1 }));
+    assert_eq!(written["writer"], json!({ "name": "dropkick", "version": env!("CARGO_PKG_VERSION") }));
+    assert!(text.starts_with("{\n  \"format\": {"), "{text}");
+    assert!(text.find("\"writer\"") < text.find("\"normal\""), "{text}");
     fs::write(&path, &text).unwrap();
     assert_eq!(load_file(&path), Ok(SavedPlacement::Found(placement())));
 }
@@ -178,7 +251,7 @@ fn a_placement_file_round_trips_with_its_format_version() {
 fn a_newer_placement_file_is_left_byte_identical() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("records-window.json");
-    let text = r#"{"formatVersion":2,"bounds":[1,2,3,4]}"#;
+    let text = r#"{"format":{"owner":"dropkick","kind":"windowPlacement","version":2},"bounds":[1,2,3,4]}"#;
     fs::write(&path, text).unwrap();
     assert_eq!(load_file(&path), Ok(SavedPlacement::Newer(2)));
     assert_eq!(fs::read_to_string(&path).unwrap(), text);

@@ -164,8 +164,8 @@ pub struct TaskListDto {
     pub tasks: Vec<TaskDto>,
 }
 
-// The task list's format version is not a field: classify_json_bytes judges
-// it before the body is parsed, and the frontend's write stamps the current one.
+// The task list's file header is not a field: classify_json_bytes judges it
+// before the body is parsed, and the frontend's write stamps the current one.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum JsonFileWithHashResult {
@@ -278,9 +278,6 @@ fn classify_json_bytes_with_hash(bytes: &[u8], hash: String) -> JsonFileWithHash
             return JsonFileWithHashResult::Newer { format_version };
         }
         Err(message) => return JsonFileWithHashResult::Invalid { message },
-    }
-    if let Err(message) = format_version::json_identity(bytes, "taskList") {
-        return JsonFileWithHashResult::Invalid { message };
     }
     match serde_json::from_slice::<TaskListDto>(bytes) {
         Ok(data) => {
@@ -686,10 +683,8 @@ fn write_atomic_impl(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(error.to_string()),
     };
-    if let (Some(current), Some(bytes)) = (writing, existing.as_ref()) {
-        if let Some(found) = format_version::stamped(bytes) {
-            if found > current { return Err(format_version::newer_than_message(target, found, current)); }
-        }
+    if let (Some((owner, kind, current)), Some(bytes)) = (writing.as_ref(), existing.as_ref()) {
+        refuse_newer_bytes(target, bytes, owner, kind, *current)?;
     }
     if let Some(expected) = expected_hash {
         match existing.as_deref() {
@@ -734,7 +729,7 @@ fn write_atomic_impl(
         return Err(e.to_string());
     }
 
-    let publication = writing.map_or(Ok(()), |current| refuse_newer_than(target, current))
+    let publication = writing.map_or(Ok(()), |(owner, kind, current)| refuse_newer_than(target, &owner, &kind, current))
         .and_then(|()| replace_target(&tmp, target).map_err(|e| e.to_string()));
     if let Err(e) = publication {
         let _ = std::fs::remove_file(&tmp);
@@ -766,19 +761,32 @@ fn write_atomic_impl(
     Ok(CheckedWrite::Saved { hash: sha256_hex(contents.as_bytes()) })
 }
 
-// A write never replaces a file a newer build wrote. The target's marker is
-// compared with the marker of the document being written, which its writer
+// A write never replaces a file a newer build wrote. The target's header is
+// compared with the header of the document being written, which its writer
 // stamps with that format's current version, so each format is judged against
-// its own. Contents without a marker are not a store document and are not
-// judged; nor is a target without one, which is never newer.
-fn refuse_newer_than(path: &std::path::Path, current: u64) -> Result<(), String> {
+// its own. Contents without a header are not a store document and are not
+// judged; nor is a target without one or of another format, which is never
+// newer.
+fn refuse_newer_bytes(
+    path: &std::path::Path,
+    bytes: &[u8],
+    owner: &str,
+    kind: &str,
+    current: u64,
+) -> Result<(), String> {
+    match format_version::stamped(bytes) {
+        Some((found_owner, found_kind, found))
+            if found_owner == owner && found_kind == kind && found > current =>
+        {
+            Err(format_version::newer_than_message(path, found, current))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn refuse_newer_than(path: &std::path::Path, owner: &str, kind: &str, current: u64) -> Result<(), String> {
     match std::fs::read(path) {
-        Ok(bytes) => match format_version::stamped(&bytes) {
-            Some(found) if found > current => {
-                Err(format_version::newer_than_message(path, found, current))
-            }
-            _ => Ok(()),
-        },
+        Ok(bytes) => refuse_newer_bytes(path, &bytes, owner, kind, current),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.to_string()),
     }
@@ -864,15 +872,15 @@ pub fn set_aside_to(
     Ok(target)
 }
 
-// Quarantines a present-but-unparseable managed store. `format_version` is the
-// version this build writes for the store's format, so a file a newer build
-// wrote meanwhile is refused and left in place.
+// Quarantines a present-but-unparseable managed store. `kind` and
+// `format_version` name the store's format and the version this build writes
+// for it, so a file a newer build wrote meanwhile is refused and left in place.
 #[tauri::command]
-async fn quarantine_file(path: String, format_version: u64) -> Result<String, String> {
+async fn quarantine_file(path: String, kind: String, format_version: u64) -> Result<String, String> {
     native_wait::settle(move || {
         let path = path.as_str();
         let started = log_cmd_start("quarantine_file", json!({ "path": path }));
-        let result = refuse_newer_than(std::path::Path::new(path), format_version)
+        let result = refuse_newer_than(std::path::Path::new(path), format_version::OWNER, &kind, format_version)
             .and_then(|()| set_aside(std::path::Path::new(path)));
         match result {
             Ok(target) => {

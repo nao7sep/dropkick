@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { createDefaultSettings, FORMAT_VERSIONS, WRITER } from "../../src/models";
+import { checkFileHeader, createDefaultSettings, WRITER } from "../../src/models";
 import { flushAppConfig, loadAppConfig } from "../../src/repositories/app-config-repository";
 import { flushAppState, initializeAppState } from "../../src/repositories/app-state-repository";
 import { flushSettings, initializeSettings } from "../../src/repositories/settings-repository";
@@ -34,10 +34,16 @@ const disk = new Map<string, string>();
 function readTaskList(path: string): unknown {
   const text = disk.get(path);
   if (text === undefined) return { status: "missing" };
-  const { formatVersion, id = "", tasks } = JSON.parse(text);
-  if (formatVersion === undefined) return { status: "invalid", message: "formatVersion is missing" };
-  if (formatVersion > FORMAT_VERSIONS.taskList) return { status: "newer", formatVersion };
+  const data = JSON.parse(text);
+  const check = checkFileHeader(data, "taskList");
+  if (check.status !== "readable") return check;
+  const { id = "", tasks } = data;
   return { status: "success", data: { id, tasks }, hash: text };
+}
+
+// The file identity header this build writes for `kind`, at `version`.
+function header(kind: string, version = 1) {
+  return { format: { owner: "dropkick", kind, version }, writer: WRITER };
 }
 
 beforeEach(() => {
@@ -101,18 +107,18 @@ describe("state.json", () => {
     const { appState } = await initializeAppState();
     expect(appState.zoomLevel).toBe(1);
     expect(disk.get(`${PATHS.stateFile}.invalid`)).toBe(text);
-    expect(stored(PATHS.stateFile).formatVersion).toBe(1);
+    expect(stored(PATHS.stateFile)).toMatchObject(header("state"));
   });
 
   it("round-trips the current version", async () => {
     const first = await initializeAppState();
     await flushAppState(first.statePath, () => ({ ...first.appState, zoomLevel: 2 }));
-    expect(stored(PATHS.stateFile).formatVersion).toBe(1);
+    expect(stored(PATHS.stateFile)).toMatchObject(header("state"));
     expect((await initializeAppState()).appState.zoomLevel).toBe(2);
   });
 
   it("leaves a newer build's file byte-identical and writes nothing over it", async () => {
-    const text = put(PATHS.stateFile, { formatVersion: 3, zoomLevel: "large" });
+    const text = put(PATHS.stateFile, { ...header("state", 3), zoomLevel: "large" });
     const { appState, statePath } = await initializeAppState();
     expect(statePath).toBe("");
     expect(appState.zoomLevel).toBe(1);
@@ -141,16 +147,16 @@ describe("config.json", () => {
   });
 
   it("round-trips the current version", async () => {
-    put(PATHS.configFile, { formatVersion: 1, knownWorkspaces: ["/w.json"] });
+    put(PATHS.configFile, { ...header("config"), knownWorkspaces: ["/w.json"] });
     const { appConfig, filePath, recovery } = await loadAppConfig();
     expect(recovery).toBeNull();
     expect(appConfig.knownWorkspaces).toEqual(["/w.json"]);
     await flushAppConfig(filePath, () => appConfig);
-    expect(stored(PATHS.configFile)).toEqual({ formatVersion: 1, knownWorkspaces: ["/w.json"] });
+    expect(stored(PATHS.configFile)).toEqual({ ...header("config"), knownWorkspaces: ["/w.json"] });
   });
 
   it("leaves a newer build's file byte-identical and says so", async () => {
-    const text = put(PATHS.configFile, { formatVersion: 3, knownWorkspaces: { "/w.json": {} } });
+    const text = put(PATHS.configFile, { ...header("config", 3), knownWorkspaces: { "/w.json": {} } });
     const { appConfig, filePath, recovery } = await loadAppConfig();
     expect(recovery).toEqual({ kind: "newer", formatVersion: 3 });
     expect(filePath).toBe("");
@@ -169,7 +175,7 @@ describe("settings.json", () => {
   });
 
   it("refuses a newer build's file and leaves it byte-identical", async () => {
-    const text = put(PATHS.settingsFile, { formatVersion: 2, theme: { mode: "dusk" } });
+    const text = put(PATHS.settingsFile, { ...header("settings", 2), theme: { mode: "dusk" } });
     expect(await initializeSettings()).toEqual({ status: "newer", formatVersion: 2, filePath: PATHS.settingsFile });
     await expect(flushSettings(PATHS.settingsFile, () => {
       throw new Error("never asked for");
@@ -190,7 +196,7 @@ describe("workspace documents", () => {
   });
 
   it("round-trips the current version", async () => {
-    const text = put(path, { formatVersion: 1, kind: "workspace", writer: WRITER, id: "w", name: "Work", openTabs: [], recentFiles: [] });
+    const text = put(path, { ...header("workspace"), id: "w", name: "Work", openTabs: [], recentFiles: [] });
     const result = await loadWorkspace(path);
     expect(result).toMatchObject({ status: "success", workspace: { id: "w" } });
     if (result.status !== "success") return;
@@ -198,12 +204,17 @@ describe("workspace documents", () => {
     expect(JSON.stringify(stored(path))).toBe(text);
   });
 
-  it("refuses a task list, or a document without its kind or writer, and leaves it alone", async () => {
+  it("refuses a task list, another owner's file or a malformed header, and leaves it alone", async () => {
+    const body = { id: "w", name: "Work", openTabs: [], recentFiles: [] };
     for (const document of [
-      { formatVersion: 1, kind: "taskList", writer: WRITER, id: "L1", tasks: [] },
-      { formatVersion: 1, writer: WRITER, id: "w", name: "Work", openTabs: [], recentFiles: [] },
-      { formatVersion: 1, kind: "workspace", id: "w", name: "Work", openTabs: [], recentFiles: [] },
-      { formatVersion: 1, kind: "workspace", writer: { name: "dropkick" }, id: "w", name: "Work", openTabs: [], recentFiles: [] },
+      { ...header("taskList"), id: "L1", tasks: [] },
+      { ...header("taskList", 2), ...body },
+      { format: { owner: "bigmouth", kind: "workspace", version: 1 }, writer: WRITER, ...body },
+      { format: { kind: "workspace", version: 1 }, ...body },
+      { format: { owner: "dropkick", kind: "workspace", version: "1" }, ...body },
+      { format: { owner: "dropkick", kind: "workspace", version: 0 }, ...body },
+      { format: "workspace", ...body },
+      { formatVersion: 1, kind: "workspace", writer: WRITER, ...body },
     ]) {
       const text = put(path, document);
       expect((await loadWorkspace(path)).status).toBe("invalid");
@@ -212,17 +223,19 @@ describe("workspace documents", () => {
     expect(writes()).toEqual([]);
   });
 
-  it("writes this build as its writer at every save", async () => {
-    put(path, { formatVersion: 1, kind: "workspace", writer: { name: "dropkick", version: "0.9.0" }, id: "w", name: "Work", openTabs: [], recentFiles: [] });
-    const result = await loadWorkspace(path);
-    if (result.status !== "success") throw new Error("load failed");
-    await flushWorkspace(path, () => result.workspace);
-    expect(Object.keys(stored(path)).slice(0, 3)).toEqual(["formatVersion", "kind", "writer"]);
-    expect(stored(path).writer).toEqual(WRITER);
+  it("ignores the writer it reads and writes this build at every save", async () => {
+    for (const writer of [undefined, "anything", { name: "other", version: 9 }]) {
+      put(path, { format: { owner: "dropkick", kind: "workspace", version: 1, extra: true }, writer, id: "w", name: "Work", openTabs: [], recentFiles: [] });
+      const result = await loadWorkspace(path);
+      if (result.status !== "success") throw new Error("load failed");
+      await flushWorkspace(path, () => result.workspace);
+      expect(Object.keys(stored(path)).slice(0, 2)).toEqual(["format", "writer"]);
+      expect(stored(path)).toMatchObject(header("workspace"));
+    }
   });
 
   it("refuses a newer build's document and leaves it byte-identical, even without an id", async () => {
-    const text = put(path, { formatVersion: 2, name: "Work", openTabs: {} });
+    const text = put(path, { ...header("workspace", 2), name: "Work", openTabs: {} });
     expect(await loadWorkspace(path)).toEqual({ status: "newer", formatVersion: 2 });
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);
@@ -240,17 +253,17 @@ describe("task lists", () => {
 
   it("round-trips the current version", async () => {
     const path = "/repo/current.json";
-    put(path, { formatVersion: 1, kind: "taskList", writer: WRITER, id: "L1", tasks: [] });
+    put(path, { ...header("taskList"), id: "L1", tasks: [] });
     const loaded = await loadTaskList(path, (read) => read());
     expect(loaded).toMatchObject({ status: "success", taskList: { data: { id: "L1" } } });
     if (loaded.status !== "success") return;
     expect(await flushTaskList(path, () => loaded.taskList.data)).toEqual({ status: "success" });
-    expect(stored(path)).toEqual({ formatVersion: 1, kind: "taskList", writer: WRITER, id: "L1", tasks: [] });
+    expect(stored(path)).toEqual({ ...header("taskList"), id: "L1", tasks: [] });
   });
 
   it("refuses a newer build's list and leaves it byte-identical, even without an id", async () => {
     const path = "/repo/newer.json";
-    const text = put(path, { formatVersion: 2, items: [] });
+    const text = put(path, { ...header("taskList", 2), items: [] });
     expect(await loadTaskList(path, (read) => read())).toEqual({ status: "newer", formatVersion: 2 });
     expect(disk.get(path)).toBe(text);
     expect(writes()).toEqual([]);
@@ -286,10 +299,10 @@ describe("one app-wide settings collection", () => {
     const initial = await initializeSettings();
     if (initial.status !== "success") throw new Error("initialization failed");
     await flushSettings(initial.filePath, () => ({ ...initial.settings, theme: "dark", kickDistances: [3, 15] }));
-    expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1, theme: "dark", kickDistances: [3, 15] });
+    expect(stored(PATHS.settingsFile)).toEqual({ ...header("settings"), theme: "dark", kickDistances: [3, 15] });
     expect(await initializeSettings()).toMatchObject({ status: "success", settings: { theme: "dark", kickDistances: [3, 15] } });
     await flushSettings(initial.filePath, createDefaultSettings);
-    expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1 });
+    expect(stored(PATHS.settingsFile)).toEqual(header("settings"));
     expect((await initializeSettings())).toMatchObject({ status: "success", settings: { theme: "system" } });
   });
 
@@ -297,13 +310,13 @@ describe("one app-wide settings collection", () => {
     const initial = await initializeSettings();
     if (initial.status !== "success") throw new Error("initialization failed");
     await flushSettings(initial.filePath, () => ({ ...initial.settings, kickDistances: [] }));
-    expect(stored(PATHS.settingsFile)).toEqual({ formatVersion: 1, kickDistances: [] });
+    expect(stored(PATHS.settingsFile)).toEqual({ ...header("settings"), kickDistances: [] });
     expect(await initializeSettings()).toMatchObject({ status: "success", settings: { kickDistances: [] } });
   });
 
   it.each([
-    "{bad", JSON.stringify({ formatVersion: 2, theme: "future" }),
-    JSON.stringify({ formatVersion: 1, unknownSetting: "authored value" }),
+    "{bad", JSON.stringify({ ...header("settings", 2), theme: "future" }),
+    JSON.stringify({ ...header("settings"), unknownSetting: "authored value" }),
   ])("protects unavailable settings without falling back to built-ins", async (contents) => {
     disk.set(PATHS.settingsFile, contents);
     expect((await initializeSettings()).status).not.toBe("success");

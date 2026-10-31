@@ -67,7 +67,7 @@ fn the_saved_choice_comes_from_the_settings_without_touching_them() {
     let dir = tmp.path();
     let settings = dir.join("settings.json");
     let state = dir.join("state.json");
-    let settings_text = json!({ "formatVersion": 1, "language": "ko" }).to_string();
+    let settings_text = json!({ "format":{"owner":"dropkick","kind":"settings","version":1},"writer":{"name":"dropkick","version":"1.0.0"}, "language": "ko" }).to_string();
     fs::write(&settings, &settings_text).unwrap();
 
     assert_eq!(crate::theme::read_appearance(&state).language, Some("ko"));
